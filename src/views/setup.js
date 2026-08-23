@@ -196,11 +196,10 @@ function seatCard(seat, index, refresh) {
     dataset: { index: String(index) },
     style: { '--accent': accent },
   }, [
-    handleChip(seat, refresh),
     el('div', { class: 'seat-grip', 'aria-label': t('setup.reorder') }, [icon('grip')]),
     seatSpot(index),
     art,
-    el('div', { class: 'seat-info' }, [nameBtn, deckLine, partnerBtn]),
+    el('div', { class: 'seat-info' }, [nameBtn, handleLine(seat, refresh), deckLine, partnerBtn]),
     el('button', {
       class: 'seat-remove',
       'aria-label': t('setup.removePlayer'),
@@ -326,7 +325,16 @@ function playerStep(seat, refresh) {
         else if (seat.handle) { seat.handle = ''; seat.userId = null; }
         buzz(12);
         refresh();
-        api.next(commanderStep(seat, 0, refresh)); // segue direto para o deck
+
+        // Quem ja tem conta escolhe agora a quem esta cadeira pertence. Quem
+        // nao entrou - ou ja teve o @ lembrado da ultima vez - vai direto ao
+        // deck: perguntar de novo a mesma coisa toda semana e o tipo de
+        // atrito que faz as pessoas pararem de usar o recurso.
+        if (podeVincular() && !handleValido(seat.handle)) {
+          api.next(handleStep(seat, refresh, { seguir: true }));
+        } else {
+          api.next(commanderStep(seat, 0, refresh));
+        }
       };
 
       const input = el('input', {
@@ -993,26 +1001,27 @@ function accountBlock(onRefresh) {
 /* Vinculo com uma conta                                               */
 /* ------------------------------------------------------------------ */
 
+/** So faz sentido oferecer vinculo para quem esta numa conta. */
+function podeVincular() {
+  return cloudEnabled() && cloud.state() !== 'deslogado';
+}
+
 /**
- * O @ na cadeira.
+ * O @ logo abaixo do nome, na mesma coluna do deck.
  *
- * So aparece para quem entrou numa conta - e o unico jeito de convidar alguem.
- * Para todo o resto das mesas a cadeira segue sendo texto livre, exatamente
- * como sempre foi: quase ninguem vai criar conta, e o app nao pode piorar para
- * essa maioria por causa de um recurso que ela nao usa.
+ * Antes era um chip solto no canto do cartao: ficava longe do nome a que se
+ * referia e disputava espaco com a alca de arrastar. Aqui ele le como o que e -
+ * uma segunda linha do jogador, do lado do deck que tambem descreve a cadeira.
  */
-function handleChip(seat, refresh) {
-  if (!cloudEnabled() || cloud.state() === 'deslogado') return null;
+function handleLine(seat, refresh) {
+  if (!podeVincular()) return null;
 
   const vinculado = handleValido(seat.handle);
   return el('button', {
     class: 'seat-handle' + (vinculado ? ' is-on' : ''),
     'aria-label': vinculado ? exibirHandle(seat.handle) : t('handle.link'),
-    onClick: (e) => {
-      e.stopPropagation();
-      openFlow(handleStep(seat, refresh));
-    },
-  }, [vinculado ? exibirHandle(seat.handle) : '@ +']);
+    onClick: () => openFlow(handleStep(seat, refresh, { seguir: false })),
+  }, [vinculado ? exibirHandle(seat.handle) : t('handle.link')]);
 }
 
 /**
@@ -1021,20 +1030,30 @@ function handleChip(seat, refresh) {
  * A busca e por igualdade exata, do lado do servidor. Nao existe lista nem
  * sugestao por prefixo: da para confirmar um @ que voce ja conhece, nunca para
  * descobrir quem tem conta no app.
+ *
+ * `seguir` diz de onde se chegou aqui. Vindo do fluxo de montar a mesa, o passo
+ * seguinte e o deck, e ha um "pular" bem visivel - a cadeira sem conta e o caso
+ * comum, nao a excecao, e o caminho dela nao pode ser mais dificil. Vindo do
+ * cartao, para editar, a folha so fecha.
  */
-function handleStep(seat, refresh) {
+function handleStep(seat, refresh, { seguir = false } = {}) {
   return {
     title: t('handle.title'),
     subtitle: t('handle.sub', { name: seat.name }),
-    build: (pane) => {
+    build: (pane, api) => {
       const achado = el('div', { class: 'handle-result' });
+
+      const adiante = () => {
+        if (seguir) api.next(commanderStep(seat, 0, refresh));
+        else closeSheet();
+      };
 
       const soltar = () => {
         seat.handle = '';
         seat.userId = null;
         store.rememberHandle(seat.name, '');
         refresh();
-        closeSheet();
+        adiante();
       };
 
       const prender = (perfilAchado) => {
@@ -1043,7 +1062,7 @@ function handleStep(seat, refresh) {
         store.rememberHandle(seat.name, perfilAchado.handle);
         buzz(12);
         refresh();
-        closeSheet();
+        adiante();
       };
 
       const input = el('input', {
@@ -1100,14 +1119,18 @@ function handleStep(seat, refresh) {
       pane.append(achado);
       pane.append(el('p', { class: 'account-note', text: t('handle.why') }));
 
-      if (handleValido(seat.handle)) {
+      // Sair sem vincular: "pular" enquanto se monta a mesa, "desvincular"
+      // quando ja havia um @ preso a esta cadeira.
+      if (seguir) {
+        pane.append(el('button', { class: 'btn ghost block', onClick: soltar },
+          [t('handle.skip')]));
+      } else if (handleValido(seat.handle)) {
         pane.append(el('button', { class: 'btn ghost block', onClick: soltar },
           [t('handle.unlink')]));
       }
     },
   };
 }
-
 
 /**
  * O proprio @: como amigos marcam voce na mesa deles.

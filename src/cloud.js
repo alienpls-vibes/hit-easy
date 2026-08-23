@@ -334,15 +334,27 @@ export async function carregarAssinatura() {
   return assinatura;
 }
 
+/**
+ * Apaga a sessao daqui, sem falar com o servidor.
+ *
+ * Separado de sair() porque ha casos em que nao HA com quem falar: token
+ * recusado, servidor fora do ar, ou um teste montando o proximo caso. Sair de
+ * verdade e isto mais um aviso ao servidor - e o aviso nunca pode ser condicao
+ * para a pessoa conseguir sair.
+ */
+export function esquecerSessao() {
+  assinatura = null;
+  perfil = null;
+  gravarSessao(null);
+}
+
 export async function sair() {
   try {
     await pedir('/auth/v1/logout', { method: 'POST' });
   } catch {
     /* servidor fora do ar nao pode impedir alguem de sair */
   }
-  assinatura = null;
-  perfil = null;
-  gravarSessao(null);
+  esquecerSessao();
 }
 
 /* ------------------------------------------------------------------ */

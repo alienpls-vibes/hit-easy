@@ -23,6 +23,7 @@ import { DICTS, LANGS, t, tn, setLang, currentLang } from '../src/i18n.js';
 import {
   accountState, assinaturaAtiva, sessaoValida, toRow, fromRow, pendentes,
   state as accountNow, provedores, pedidoDeLink, urlDeRetorno,
+  capturarRetorno, esquecerSessao,
   normalizarHandle, handleValido, exibirHandle, participantesDe, montarConvites,
 } from '../src/cloud.js';
 import { cloudEnabled } from '../src/config.js';
@@ -1463,6 +1464,49 @@ export const cases = [
     closeSheet();
   }],
 
+  ['o @ fica sob o nome, e some para quem não entrou', () => {
+    if (!simulated || !cloudEnabled()) return 'skip';
+    setLang('pt');
+
+    const desenhar = () => {
+      document.body.childNodes.length = 0;
+      const root = document.createElement('div');
+      renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+      return root;
+    };
+
+    // Deslogado: a regra que não pode quebrar. Quem nunca vai criar conta não
+    // ganha um controle a mais na tela por causa de um recurso que não usa.
+    eq(accountNow(), 'deslogado', 'cada caso começa sem sessão');
+    eq(findAll(desenhar(), 'seat-handle').length, 0, 'sem conta, nada de @ na cadeira');
+
+    // Agora com sessão. Entrar pelo fragmento é o mesmo caminho do link
+    // mágico, então o teste usa a porta de entrada real e não um atalho.
+    location.hash = '#access_token=faz-de-conta&expires_at=99999999999';
+    ok(capturarRetorno(), 'a sessão foi capturada da URL');
+    ok(accountNow() !== 'deslogado', 'agora há sessão');
+
+    const root = desenhar();
+    const cartoes = findAll(root, 'seat-card');
+    const linhas = findAll(root, 'seat-handle');
+    ok(cartoes.length >= 2, 'a home desenha as cadeiras');
+    eq(linhas.length, cartoes.length, 'uma linha de @ por cadeira');
+
+    // Sob o NOME, não solto no canto do cartão: tem de estar no mesmo bloco de
+    // texto que o nome e o deck. Antes era um chip na borda, longe daquilo que
+    // descrevia e disputando espaço com a alça de arrastar.
+    const info = linhas[0].closest('.seat-info');
+    ok(info, 'a linha do @ mora dentro de .seat-info');
+
+    const irmaos = info.childNodes.filter((n) => n && n.classList);
+    const iNome = irmaos.findIndex((n) => n.classList.contains('seat-name'));
+    const iArroba = irmaos.findIndex((n) => n.classList.contains('seat-handle'));
+    ok(iNome >= 0 && iArroba >= 0, 'nome e @ estão os dois na coluna');
+    ok(iArroba > iNome, 'o @ vem DEPOIS do nome, não antes');
+
+    esquecerSessao();
+  }],
+
   ['o @ é normalizado antes de qualquer coisa', () => {
     eq(normalizarHandle('  @AlienPls '), 'alienpls', 'tira arroba, espaço e caixa');
     eq(normalizarHandle('@@alex'), 'alex', 'arroba repetida');
@@ -1634,6 +1678,7 @@ export function runAll() {
       // dele.
       setLang('pt');
       if (typeof closeSheet === 'function') closeSheet();
+      esquecerSessao();
 
       const r = fn();
       if (r === 'skip') return { name, ok: true, skipped: true };

@@ -2306,21 +2306,27 @@ button {
   pointer-events: none;
 }
 
-/* @ na cadeira: discreto quando vazio, marcado quando vinculado. */
+/* @ logo abaixo do nome, alinhado com ele e com o deck.
+   Sem borda e sem fundo quando vazio: e um convite discreto, nao um botao
+   disputando atencao com o nome do jogador. */
 .seat-handle {
-  flex: 0 0 auto;
-  padding: 2px 8px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
+  justify-self: start;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
   background: transparent;
   color: var(--muted);
-  font: 600 11px/1.5 var(--font, system-ui, sans-serif);
+  font: 600 11px/1.6 var(--font, system-ui, sans-serif);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
+  opacity: 0.75;
 }
 .seat-handle.is-on {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--accent);
+  opacity: 1;
 }
 
 .account-handle,
