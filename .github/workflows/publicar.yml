@@ -35,7 +35,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm test
+
+      # A saida bruta do passo so se le com token. Repetir o fim dela num
+      # `::error::` faz o motivo aparecer na anotacao do run, que e publica -
+      # a diferenca entre "exit code 1" e saber o que quebrou.
+      - name: npm test
+        run: |
+          set +e
+          saida=$(npm test 2>&1)
+          codigo=$?
+          echo "$saida"
+          if [ $codigo -ne 0 ]; then
+            resumo=$(echo "$saida" | grep -viE '^\s*$' | tail -25 | tr '\n' '%')
+            echo "::error::npm test falhou (codigo $codigo): $resumo"
+          fi
+          exit $codigo
 
   publicar:
     name: Publicar
