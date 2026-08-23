@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Hit Easy — commander made simple</title>
+<meta name="description" content="Hit Easy — commander made simple. Contador de vida para mesas de Commander, com estatisticas por deck.">
+<meta name="theme-color" content="#08080a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hit Easy">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<script>
+/* Tema antes da primeira pintura: sem isso, quem usa claro ve um lampejo
+   escuro a cada abertura, porque o CSS assume escuro ate o app carregar.
+   Duplica a chave do localStorage de proposito - nao da para importar um
+   modulo aqui sem adiar a pintura, que e justamente o que se quer evitar. */
+(function () {
+  try {
+    var cfg = (JSON.parse(localStorage.getItem('mtglc.db.v1')) || {}).settings || {};
+    var claro = cfg.theme === 'claro'
+      || (cfg.theme !== 'escuro' && matchMedia('(prefers-color-scheme: light)').matches);
+    document.documentElement.dataset.theme = claro ? 'light' : 'dark';
+    document.querySelector('meta[name="theme-color"]')
+      .setAttribute('content', claro ? '#f4f4f2' : '#08080a');
+  } catch (e) { /* primeira visita ou storage bloqueado: fica no escuro */ }
+})();
+</script>
+<link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+<main id="app"></main>
+<script>
+/* Tela de erro no lugar da tela preta.
+   Sem isto, qualquer excecao na carga deixa o #app vazio e o usuario olhando
+   para o fundo escuro sem nenhuma pista - e no celular nao ha console para
+   abrir. Fica em script classico, antes do modulo, para pegar tambem os erros
+   que acontecem ao carregar o proprio app.js. */
+(function () {
+  var mostrado = false;
+  function mostrar(titulo, detalhe) {
+    if (mostrado) return;
+    mostrado = true;
+    var app = document.getElementById('app');
+    if (!app) return;
+    app.innerHTML = '';
+    var box = document.createElement('div');
+    box.className = 'crash';
+    box.innerHTML =
+      '<h1>Algo quebrou ao abrir</h1>' +
+      '<p class="crash-sub">O app parou antes de desenhar a tela. O texto abaixo diz onde.</p>' +
+      '<pre class="crash-detail"></pre>' +
+      '<div class="crash-actions">' +
+      '<button id="crash-reload" class="btn primary">Recarregar</button>' +
+      '<button id="crash-reset" class="btn ghost">Limpar cache e recarregar</button>' +
+      '</div>';
+    box.querySelector('.crash-detail').textContent = titulo + '
+
+' + (detalhe || '');
+    app.appendChild(box);
+
+    document.getElementById('crash-reload').onclick = function () { location.reload(); };
+    document.getElementById('crash-reset').onclick = function () {
+      /* Nao apaga o historico de partidas - so o cache do app, que e o
+         suspeito mais comum quando uma versao nova chega pela metade. */
+      var pronto = Promise.resolve();
+      if (window.caches) pronto = caches.keys().then(function (ks) {
+        return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+      });
+      pronto.then(function () {
+        if (navigator.serviceWorker) {
+          return navigator.serviceWorker.getRegistrations().then(function (rs) {
+            return Promise.all(rs.map(function (r) { return r.unregister(); }));
+          });
+        }
+      }).then(function () { location.reload(); });
+    };
+  }
+
+  window.addEventListener('error', function (e) {
+    mostrar(e.message || 'Erro', (e.filename || '') + (e.lineno ? ':' + e.lineno : '') +
+      (e.error && e.error.stack ? '
+
+' + e.error.stack : ''));
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason || {};
+    mostrar(r.message || String(r), r.stack || '');
+  });
+
+  /* Se em 6s nada foi desenhado, algo silencioso deu errado (rede caida no
+     meio do carregamento dos modulos, por exemplo). */
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      var app = document.getElementById('app');
+      if (app && app.children.length === 0) {
+        mostrar('O app nao desenhou nada em 6 segundos.',
+          'Costuma ser um modulo que nao chegou. Tente "Limpar cache e recarregar", '
+          + 'e confira se o servidor ainda esta no ar.');
+      }
+    }, 6000);
+  });
+})();
+</script>
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>

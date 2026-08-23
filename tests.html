@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hit Easy — autoteste</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; padding: 32px 20px;
+    background: #08080a; color: rgba(255,255,255,.92);
+    font: 15px/1.55 "Segoe UI Variable Display", -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 1.3rem; font-weight: 400; letter-spacing: -.015em; margin: 0 0 4px; }
+  .sub { color: rgba(255,255,255,.4); font-size: .85rem; margin: 0 0 26px; }
+  code { background: rgba(255,255,255,.07); padding: 1px 5px; border-radius: 4px; font-size: .85em; }
+  #summary {
+    padding: 16px 18px; border-radius: 14px; margin-bottom: 20px;
+    border: 1px solid rgba(255,255,255,.09); font-variant-numeric: tabular-nums;
+  }
+  #summary.pass { border-color: rgba(79,169,124,.45); background: rgba(79,169,124,.09); }
+  #summary.fail { border-color: rgba(226,97,74,.45); background: rgba(226,97,74,.09); }
+  ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  li { display: flex; gap: 12px; padding: 9px 12px; border-radius: 9px; background: rgba(255,255,255,.035); }
+  li.fail { background: rgba(226,97,74,.12); }
+  .mark { flex: none; width: 16px; }
+  li.pass .mark { color: #4fa97c; }
+  li.skip { opacity: .5; }
+  li.fail .mark { color: #e2614a; }
+  .why { display: block; color: rgba(255,255,255,.45); font-size: .8rem; margin-top: 3px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Autoteste do motor</h1>
+  <p class="sub">
+    Mesmos casos que <code>npm test</code> roda no terminal — a fonte é
+    <code>tests/cases.js</code>. Abra pelo servidor (<code>python servir.py</code>),
+    não por duplo clique: módulos ES exigem <code>http://</code>.
+  </p>
+  <div id="summary">executando…</div>
+  <ol id="results"></ol>
+</main>
+
+<script type="module">
+import { runAll } from './tests/cases.js';
+
+const results = runAll();
+const list = document.getElementById('results');
+
+for (const r of results) {
+  const li = document.createElement('li');
+  li.className = r.skipped ? 'skip' : r.ok ? 'pass' : 'fail';
+
+  const mark = document.createElement('span');
+  mark.className = 'mark';
+  mark.textContent = r.skipped ? '–' : r.ok ? '✓' : '✕';
+
+  const text = document.createElement('span');
+  text.textContent = r.name + (r.skipped ? ' — precisa do DOM simulado (rode npm test)' : '');
+  if (!r.ok) {
+    const why = document.createElement('span');
+    why.className = 'why';
+    why.textContent = r.why;
+    text.append(why);
+  }
+
+  li.append(mark, text);
+  list.append(li);
+}
+
+const failed = results.filter((r) => !r.ok).length;
+const skipped = results.filter((r) => r.skipped).length;
+const box = document.getElementById('summary');
+box.className = failed ? 'fail' : 'pass';
+box.textContent = failed
+  ? failed + ' de ' + results.length + ' testes falharam'
+  : (results.length - skipped) + ' testes, todos passaram'
+    + (skipped ? ' · ' + skipped + ' pulado(s) aqui' : '');
+</script>
+</body>
+</html>

@@ -1,0 +1,860 @@
+/**
+ * Montagem da mesa: vida inicial, jogadores, comandantes e a ordem em que
+ * sentam - que e a ordem dos turnos.
+ *
+ * A partida so comeca quando todo assento tem comandante: e o comandante que
+ * amarra a estatistica ao deck.
+ */
+
+import {
+  el, clear, icon, brandMark, openSheet, openFlow, buzz, toast, setHaptics,
+} from '../ui.js';
+import { accentOf, pips } from '../colors.js';
+import { searchCommanders, isOffline } from '../scryfall.js';
+import * as store from '../store.js';
+import { uid, deckNameOf } from '../engine.js';
+import { variantsFor, layoutFor } from '../seating.js';
+import { MODES, currentMode, applyTheme } from '../theme.js';
+import { t, tn, LANGS, currentLang, setLang } from '../i18n.js';
+import { state as installState, promptInstall, onInstallChange } from '../install.js';
+
+const LIFE_PRESETS = [20, 30, 40, 60];
+const MIN_SEATS = 2;
+const MAX_SEATS = 6;
+
+let draft = null;
+
+function freshSeat(index) {
+  return { id: uid('seat'), name: t('setup.players') + ' ' + (index + 1), commanders: [] };
+}
+
+function ensureDraft() {
+  if (draft) return draft;
+  const settings = store.getDB().settings;
+  draft = {
+    startingLife: settings.startingLife || 40,
+    seats: [freshSeat(0), freshSeat(1), freshSeat(2), freshSeat(3)],
+    layoutId: null,
+    firstSeatId: null,
+  };
+  return draft;
+}
+
+/** Reaproveita a mesa anterior mantendo jogadores, decks e disposicao. */
+export function seedDraftFrom(match) {
+  draft = {
+    startingLife: match.startingLife,
+    seats: match.seats.map((s) => ({
+      id: uid('seat'),
+      name: s.name,
+      commanders: s.commanders.map((c) => ({ ...c })),
+    })),
+    layoutId: match.layoutId || null,
+    firstSeatId: null, // quem comeca se decide de novo a cada partida
+  };
+}
+
+export function renderSetup(root, { onStart, onStats, onRefresh }) {
+  const d = ensureDraft();
+  clear(root);
+
+  const seatList = el('div', { class: 'seat-list' });
+  const startBtn = el('button', { class: 'btn primary block', onClick: () => openPreGame(d, onStart) }, []);
+
+  const refresh = () => {
+    clear(seatList);
+    d.seats.forEach((seat, i) => seatList.append(seatCard(seat, i, refresh)));
+    if (d.seats.length < MAX_SEATS) {
+      seatList.append(
+        el('button', { class: 'seat-add', onClick: () => {
+          d.seats.push(freshSeat(d.seats.length));
+          d.layoutId = null; // a disposicao muda com a quantidade de gente
+          refresh();
+        } }, [icon('plus'), t('setup.addPlayer')]),
+      );
+    }
+    bindReorder(seatList, d, refresh);
+
+    const faltam = d.seats.filter((s) => !s.commanders.length).length;
+    startBtn.disabled = faltam > 0;
+    startBtn.textContent = faltam
+      ? (faltam === 1 ? t('setup.missingCommander') : t('setup.missingCommanders', { n: faltam }))
+      : t('setup.startMatch');
+  };
+
+  root.append(
+    el('div', { class: 'setup' }, [
+      el('header', { class: 'setup-head' }, [
+        el('div', { class: 'brand' }, [
+          brandMark(),
+          el('div', { class: 'brand-words' }, [
+            el('span', { class: 'brand-text' }, ['Hit Easy']),
+            el('span', { class: 'brand-tag', text: t('brand.tag') }),
+          ]),
+        ]),
+        el('div', { class: 'head-actions' }, [
+          // Só aparece quando o navegador diz que dá para instalar agora.
+          installState().mode === 'pronto'
+            ? el('button', {
+                class: 'icon-btn is-install',
+                'aria-label': t('setup.installApp'),
+                onClick: async () => {
+                  const r = await promptInstall();
+                  if (r === 'accepted') toast(t('settings.installDone'));
+                  if (onRefresh) onRefresh();
+                },
+              }, [icon('download')])
+            : null,
+          el('button', { class: 'icon-btn', 'aria-label': t('common.settings'), onClick: () => openSettings(onRefresh) }, [icon('gear')]),
+          el('button', { class: 'icon-btn', 'aria-label': t('common.stats'), onClick: onStats }, [icon('chart')]),
+        ]),
+      ]),
+
+      el('div', { class: 'field-row setup-life' }, [
+        el('span', { class: 'label' }, [t('setup.startingLife')]),
+        el('div', { class: 'chips' }, LIFE_PRESETS.map((v) =>
+          el('button', {
+            class: 'chip' + (d.startingLife === v ? ' is-on' : ''),
+            onClick: (e) => {
+              d.startingLife = v;
+              e.currentTarget.parentElement.querySelectorAll('.chip').forEach((c) => c.classList.remove('is-on'));
+              e.currentTarget.classList.add('is-on');
+              buzz();
+            },
+          }, [String(v)]),
+        )),
+      ]),
+
+      el('div', { class: 'field-row setup-players' }, [
+        el('span', { class: 'label' }, [t('setup.players')]),
+        el('span', { class: 'hint', text: t('setup.dragToReorder') }),
+      ]),
+      seatList,
+      el('div', { class: 'setup-foot' }, [
+        startBtn,
+        // Dentro do rodapé de propósito: ele já tem área no grid da versão
+        // deitada, então a assinatura acompanha sem mexer no layout.
+        // Não entra no dicionário de idiomas — apelido não se traduz.
+        el('p', { class: 'signature', text: 'designed by @AlienPls' }),
+      ]),
+    ]),
+  );
+
+  refresh();
+}
+
+function seatCard(seat, index, refresh) {
+  const commander = seat.commanders[0];
+  const accent = commander ? accentOf(commander.colors) : 'var(--line)';
+
+  const art = el('button', {
+    class: 'seat-art' + (commander ? '' : ' is-empty'),
+    style: commander && commander.thumb ? { backgroundImage: 'url(' + commander.thumb + ')' } : {},
+    onClick: () => openFlow(commanderStep(seat, 0, refresh)),
+    'aria-label': t('setup.chooseCommander'),
+  }, commander ? [] : [icon('plus')]);
+
+  // Tocar no nome abre o fluxo completo: jogador e, em seguida, o deck dele.
+  const nameBtn = el('button', {
+    class: 'seat-name',
+    onClick: () => openFlow(playerStep(seat, refresh)),
+  }, [
+    el('span', { class: 'seat-name-text', text: seat.name }),
+    el('span', { class: 'seat-name-caret' }, [icon('arrow')]),
+  ]);
+
+  const deckLine = commander
+    ? el('button', { class: 'seat-deck', onClick: () => openFlow(commanderStep(seat, 0, refresh)) }, [
+        el('span', { class: 'seat-deck-name', text: deckNameOf(seat.commanders) }),
+        el('span', { class: 'seat-pips', style: { color: accent }, text: pips(commander.colors) }),
+      ])
+    : el('button', { class: 'seat-deck is-empty', onClick: () => openFlow(commanderStep(seat, 0, refresh)) }, [
+        t('setup.chooseCommander'),
+      ]);
+
+  const partnerBtn = commander
+    ? el('button', {
+        class: 'seat-partner',
+        onClick: () => {
+          if (seat.commanders[1]) {
+            seat.commanders.splice(1, 1);
+            refresh();
+          } else openFlow(commanderStep(seat, 1, refresh));
+        },
+      }, [seat.commanders[1] ? t('setup.removePartner') : t('setup.partner')])
+    : null;
+
+  return el('div', {
+    class: 'seat-card',
+    dataset: { index: String(index) },
+    style: { '--accent': accent },
+  }, [
+    el('div', { class: 'seat-grip', 'aria-label': t('setup.reorder') }, [icon('grip')]),
+    seatSpot(index),
+    art,
+    el('div', { class: 'seat-info' }, [nameBtn, deckLine, partnerBtn]),
+    el('button', {
+      class: 'seat-remove',
+      'aria-label': t('setup.removePlayer'),
+      onClick: () => {
+        const d = ensureDraft();
+        if (d.seats.length <= MIN_SEATS) {
+          toast(t('setup.needTwoPlayers'));
+          return;
+        }
+        d.seats.splice(d.seats.indexOf(seat), 1);
+        d.layoutId = null;
+        refresh();
+      },
+    }, [icon('close')]),
+  ]);
+}
+
+/* ------------------------------------------------------------------ */
+/* Reordenar assentos                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Arrastar pela alca reordena a lista.
+ *
+ * A ordem dos assentos E a ordem dos turnos, entao isso nao e enfeite: e como
+ * se diz ao app quem senta ao lado de quem. Os cartoes tem altura igual, o que
+ * deixa a conta simples - o indice de destino e so a distancia percorrida
+ * dividida pelo passo.
+ */
+function bindReorder(list, d, refresh) {
+  const cards = [...list.querySelectorAll('.seat-card')];
+  if (cards.length < 2) return;
+
+  cards.forEach((card, index) => {
+    const grip = card.querySelector('.seat-grip');
+    if (!grip) return;
+
+    grip.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      grip.setPointerCapture(e.pointerId);
+
+      const alturas = cards.map((c) => c.offsetHeight);
+      const gap = cards.length > 1 ? cards[1].offsetTop - cards[0].offsetTop - alturas[0] : 0;
+      const passo = alturas[0] + gap;
+      const y0 = e.clientY;
+      let destino = index;
+
+      list.classList.add('is-reordering');
+      card.classList.add('is-dragging');
+      buzz(12);
+
+      const move = (ev) => {
+        const dy = ev.clientY - y0;
+        card.style.transform = 'translateY(' + dy + 'px)';
+
+        const alvo = Math.max(0, Math.min(cards.length - 1, index + Math.round(dy / passo)));
+        if (alvo === destino) return;
+        destino = alvo;
+        buzz(6);
+
+        // Abre espaço: quem está entre a origem e o destino anda um passo.
+        cards.forEach((outro, i) => {
+          if (i === index) return;
+          let shift = 0;
+          if (destino > index && i > index && i <= destino) shift = -passo;
+          if (destino < index && i < index && i >= destino) shift = passo;
+          outro.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
+        });
+      };
+
+      const up = () => {
+        grip.removeEventListener('pointermove', move);
+        grip.removeEventListener('pointerup', up);
+        grip.removeEventListener('pointercancel', up);
+        list.classList.remove('is-reordering');
+        cards.forEach((c) => { c.style.transform = ''; c.classList.remove('is-dragging'); });
+
+        if (destino !== index) {
+          const [movido] = d.seats.splice(index, 1);
+          d.seats.splice(destino, 0, movido);
+          buzz(14);
+        }
+        refresh();
+      };
+
+      grip.addEventListener('pointermove', move);
+      grip.addEventListener('pointerup', up);
+      grip.addEventListener('pointercancel', up);
+    });
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Telas do fluxo jogador -> deck                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Quem vai sentar neste assento.
+ *
+ * Quem ja jogou neste aparelho aparece na lista - digitar o nome de novo a
+ * cada partida seria o tipo de atrito que ninguem aguenta na terceira semana.
+ * O nome tambem e a chave das estatisticas, entao escolher da lista evita que
+ * "Alex" e "alex" virem dois jogadores diferentes.
+ *
+ * Escolher alguem nao fecha o painel: desliza direto para o deck dele.
+ */
+function playerStep(seat, refresh) {
+  return {
+    title: t('player.whoPlays'),
+    subtitle: t('player.whoPlaysSub'),
+    build: (pane, api) => {
+      const d = ensureDraft();
+      const emUso = new Set(
+        d.seats.filter((s) => s !== seat).map((s) => s.name.trim().toLowerCase()),
+      );
+
+      const escolher = (nome) => {
+        seat.name = nome;
+        store.rememberPlayer(nome);
+        buzz(12);
+        refresh();
+        api.next(commanderStep(seat, 0, refresh)); // segue direto para o deck
+      };
+
+      const input = el('input', {
+        class: 'search-input',
+        placeholder: t('player.namePlaceholder'),
+        maxlength: '18',
+        'aria-label': t('player.namePlaceholder'),
+        onKeyDown: (e) => {
+          if (e.key === 'Enter' && e.target.value.trim()) escolher(e.target.value.trim());
+        },
+      });
+
+      pane.append(el('div', { class: 'name-row' }, [
+        input,
+        el('button', {
+          class: 'btn primary',
+          onClick: () => { if (input.value.trim()) escolher(input.value.trim()); },
+        }, [t('player.use')]),
+      ]));
+
+      const salvos = store.knownPlayers();
+      if (!salvos.length) {
+        pane.append(el('p', { class: 'search-status', text: t('player.noneSaved') }));
+        setTimeout(() => input.focus(), 160);
+        return;
+      }
+
+      const linha = (nome, ocupado) => {
+        const decks = store.decksOfPlayer(nome);
+        return el('button', {
+          class: 'player-row' + (ocupado ? ' is-busy' : ''),
+          disabled: ocupado,
+          onClick: () => escolher(nome),
+        }, [
+          el('span', { class: 'player-avatar', text: nome.slice(0, 1).toUpperCase() }),
+          el('span', { class: 'player-text' }, [
+            el('span', { class: 'player-name', text: nome }),
+            el('span', {
+              class: 'player-sub',
+              text: ocupado
+                ? t('player.isAtTable')
+                : decks.length
+                  ? tn(decks.length, 'player.deckSaved', 'player.decksSaved')
+                  : t('player.noMatches'),
+            }),
+          ]),
+          el('span', {
+            class: 'player-forget',
+            role: 'button',
+            'aria-label': t('common.remove') + ' ' + nome,
+            onClick: (e) => {
+              e.stopPropagation(); // nao selecionar o jogador ao remove-lo
+              store.forgetPlayer(nome);
+              clear(pane);
+              playerStep(seat, refresh).build(pane, api);
+              api.remeasure();
+            },
+          }, [icon('close')]),
+        ]);
+      };
+
+      // Quem ja esta sentado vai para o fim: a lista existe para escolher quem
+      // AINDA nao esta na mesa, e nomes inclicaveis no meio do caminho so
+      // atrapalham a mira.
+      const disponiveis = salvos.filter((n) => !emUso.has(n.trim().toLowerCase()));
+      const naMesa = salvos.filter((n) => emUso.has(n.trim().toLowerCase()));
+      const lista = el('div', { class: 'result-list' });
+
+      if (disponiveis.length) {
+        pane.append(el('p', { class: 'sheet-legend', text: t('player.playedHere') }));
+        disponiveis.forEach((nome) => lista.append(linha(nome, false)));
+      } else {
+        pane.append(el('p', {
+          class: 'search-status',
+          text: t('player.allAtTable'),
+        }));
+      }
+
+      if (naMesa.length) {
+        lista.append(el('p', { class: 'sheet-legend', text: t('player.atTable') }));
+        naMesa.forEach((nome) => lista.append(linha(nome, true)));
+      }
+
+      pane.append(lista);
+    },
+  };
+}
+
+/** Escolha do comandante: decks do jogador, depois recentes, depois Scryfall. */
+function commanderStep(seat, slot, refresh) {
+  return {
+    title: slot === 0 ? t('commander.title') : t('commander.partnerTitle'),
+    subtitle: t('commander.sub', { name: seat.name }),
+    build: (pane, api) => {
+      let controller = null;
+      let debounce = null;
+
+      const input = el('input', {
+        class: 'search-input',
+        type: 'search',
+        placeholder: t('commander.searchPlaceholder'),
+        autocomplete: 'off',
+        'aria-label': t('commander.search'),
+      });
+      const status = el('p', { class: 'search-status' });
+      const results = el('div', { class: 'result-list' });
+
+      const choose = (commander) => {
+        seat.commanders[slot] = commander;
+        store.rememberCommander(commander);
+        buzz(12);
+        api.close();
+        refresh();
+      };
+
+      const showSaved = () => {
+        clear(results);
+        const meus = store.decksOfPlayer(seat.name);
+        const jaListados = new Set();
+
+        if (meus.length) {
+          results.append(el('p', { class: 'sheet-legend', text: t('commander.decksOf', { name: seat.name }) }));
+          meus.forEach(({ commanders }) => {
+            const c = commanders[slot] || commanders[0];
+            if (!c || jaListados.has(c.oracleId)) return;
+            jaListados.add(c.oracleId);
+            results.append(resultRow(c, choose));
+          });
+        }
+
+        const outros = store.recentCommanders(12).filter((c) => !jaListados.has(c.oracleId));
+        if (outros.length) {
+          results.append(el('p', {
+            class: 'sheet-legend',
+            text: meus.length ? t('commander.otherDecks') : t('commander.recentDecks'),
+          }));
+          outros.forEach((c) => results.append(resultRow(c, choose)));
+        }
+
+        status.textContent = (meus.length || outros.length)
+          ? t('commander.savedHere')
+          : (isOffline() ? t('commander.offline') : t('commander.typeTwo'));
+        api.remeasure();
+      };
+
+      const run = async (q) => {
+        if (controller) controller.abort();
+        controller = new AbortController();
+        status.textContent = t('commander.searching');
+        try {
+          const list = await searchCommanders(q, { signal: controller.signal });
+          clear(results);
+          status.textContent = list.length
+            ? tn(list.length, 'commander.result', 'commander.results')
+            : t('commander.noResults');
+          list.forEach((c) => results.append(resultRow(c, choose)));
+        } catch (err) {
+          if (err.name === 'AbortError') return;
+          clear(results);
+          status.textContent = t('commander.searchFailed');
+          store.recentCommanders(12).forEach((c) => results.append(resultRow(c, choose)));
+        }
+        api.remeasure();
+      };
+
+      input.addEventListener('input', () => {
+        const q = input.value.trim();
+        clearTimeout(debounce);
+        if (q.length < 2) { showSaved(); return; }
+        debounce = setTimeout(() => run(q), 280);
+      });
+
+      pane.append(input, status, results);
+      showSaved();
+    },
+  };
+}
+
+function resultRow(commander, choose) {
+  return el('button', {
+    class: 'result-row',
+    style: { '--accent': accentOf(commander.colors) },
+    onClick: () => choose(commander),
+  }, [
+    el('span', {
+      class: 'result-art',
+      style: commander.thumb ? { backgroundImage: 'url(' + commander.thumb + ')' } : {},
+    }),
+    el('span', { class: 'result-text' }, [
+      el('span', { class: 'result-name', text: commander.name }),
+      el('span', { class: 'result-type', text: commander.typeLine }),
+    ]),
+    el('span', { class: 'result-pips', text: pips(commander.colors) }),
+  ]);
+}
+
+/* ------------------------------------------------------------------ */
+/* Antes de comecar                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Ultima parada antes da mesa: quem abre a partida e, quando ha mais de um
+ * arranjo possivel, como a mesa fica disposta.
+ *
+ * "Sortear" e o padrao porque e assim que a mesa decide de verdade - e o
+ * sorteio acontece no Comecar, nao aqui, para dar um resultado novo a cada vez.
+ */
+function openPreGame(d, onStart) {
+  if (!d.seats.every((s) => s.commanders.length)) return;
+
+  const variantes = variantsFor(d.seats.length);
+  let quemComeca = 'sorteio';
+  let layoutId = layoutFor(d.seats.length, d.layoutId).id;
+
+  openSheet({
+    title: t('pregame.title'),
+    subtitle: t('pregame.sub', { n: d.seats.length, life: d.startingLife }),
+    build: (pane, close) => {
+      pane.append(el('p', { class: 'sheet-legend', text: t('pregame.whoStarts') }));
+      const quemLista = el('div', { class: 'result-list' });
+
+      const pintarQuem = () => {
+        clear(quemLista);
+        const opcoes = [
+          { id: 'sorteio', nome: t('pregame.random'), sub: t('pregame.randomSub'), dado: true },
+          ...d.seats.map((s) => ({
+            id: s.id,
+            nome: s.name,
+            sub: deckNameOf(s.commanders),
+            accent: accentOf(s.commanders[0] ? s.commanders[0].colors : []),
+          })),
+        ];
+        opcoes.forEach((o) => {
+          quemLista.append(el('button', {
+            class: 'pick-row' + (quemComeca === o.id ? ' is-on' : ''),
+            style: o.accent ? { '--accent': o.accent } : {},
+            onClick: () => { quemComeca = o.id; pintarQuem(); buzz(); },
+          }, [
+            o.dado
+              ? el('span', { class: 'pick-dice' }, [icon('dice')])
+              : el('span', { class: 'player-avatar', text: o.nome.slice(0, 1).toUpperCase() }),
+            el('span', { class: 'player-text' }, [
+              el('span', { class: 'player-name', text: o.nome }),
+              el('span', { class: 'player-sub', text: o.sub }),
+            ]),
+            el('span', { class: 'pick-mark' }),
+          ]));
+        });
+      };
+      pintarQuem();
+      pane.append(quemLista);
+
+      // A escolha de arranjo só existe onde há mais de um jeito de sentar.
+      if (variantes.length > 1) {
+        pane.append(el('p', { class: 'sheet-legend', text: t('pregame.layout') }));
+        const grid = el('div', { class: 'layout-picker' });
+        const pintarLayout = () => {
+          clear(grid);
+          variantes.forEach((v) => {
+            grid.append(el('button', {
+              class: 'layout-option' + (layoutId === v.id ? ' is-on' : ''),
+              onClick: () => { layoutId = v.id; pintarLayout(); buzz(); },
+            }, [
+              layoutPreview(v),
+              el('span', { class: 'layout-label', text: v.label }),
+            ]));
+          });
+        };
+        pintarLayout();
+        pane.append(grid);
+      }
+
+      pane.append(el('div', { class: 'sheet-actions' }, [
+        el('button', { class: 'btn ghost', onClick: close }, [t('common.back')]),
+        el('button', {
+          class: 'btn primary',
+          onClick: () => {
+            const sorteado = quemComeca === 'sorteio'
+              ? d.seats[Math.floor(Math.random() * d.seats.length)]
+              : d.seats.find((s) => s.id === quemComeca);
+
+            d.layoutId = layoutId;
+            d.firstSeatId = sorteado.id;
+            d.seats.forEach((s) => {
+              store.rememberPlayer(s.name);
+              s.commanders.forEach(store.rememberCommander);
+            });
+            store.setSetting('startingLife', d.startingLife);
+
+            close();
+            onStart(d);
+            toast(t('pregame.startsToast', { name: sorteado.name }));
+          },
+        }, [t('common.start')]),
+      ]));
+    },
+  });
+}
+
+/**
+ * Onde este jogador vai sentar.
+ *
+ * A ordem da lista ja diz a ordem dos turnos, mas nao diz o LUGAR - e com 5 ou
+ * 6 pessoas, "terceiro da lista" nao ajuda ninguem a se achar em volta da mesa.
+ * A miniatura mostra a cadeira acesa no arranjo real que vai ser usado.
+ */
+function seatSpot(index) {
+  const d = ensureDraft();
+  const layout = layoutFor(d.seats.length, d.layoutId);
+  const spec = layout.seats[index];
+  if (!spec) return null;
+
+  return el('div', {
+    class: 'seat-spot',
+    'aria-hidden': 'true',
+    style: {
+      gridTemplateColumns: 'repeat(' + layout.cols + ', 1fr)',
+      gridTemplateRows: 'repeat(' + layout.rows + ', 1fr)',
+    },
+  }, layout.seats.map((s, i) => el('span', {
+    class: 'layout-cell' + (i === index ? ' is-here' : ''),
+    style: {
+      gridRow: String(s.r),
+      gridColumn: s.cs ? s.c + ' / span ' + s.cs : String(s.c),
+    },
+    text: i === index ? String(i + 1) : '',
+  })));
+}
+
+/** Miniatura da mesa, com o número mostrando a ordem dos turnos. */
+function layoutPreview(layout) {
+  return el('div', {
+    class: 'layout-mini',
+    style: {
+      gridTemplateColumns: 'repeat(' + layout.cols + ', 1fr)',
+      gridTemplateRows: 'repeat(' + layout.rows + ', 1fr)',
+    },
+  }, layout.seats.map((s, i) => el('span', {
+    class: 'layout-cell' + (s.rot ? ' is-flipped' : ''),
+    style: {
+      gridRow: String(s.r),
+      gridColumn: s.cs ? s.c + ' / span ' + s.cs : String(s.c),
+    },
+    text: String(i + 1),
+  })));
+}
+
+/* ------------------------------------------------------------------ */
+/* Configuracoes                                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Preferencias do aplicativo - o que vale para todas as partidas. Ajuste de
+ * vida inicial e da mesa fica na home mesmo, porque muda a cada jogo.
+ */
+function openSettings(onRefresh) {
+  const s = store.getDB().settings;
+
+  openSheet({
+    title: t('settings.title'),
+    subtitle: t('settings.sub'),
+    build: (pane) => {
+      pane.append(el('p', { class: 'sheet-legend', text: t('settings.language') }));
+
+      /*
+       * Dropdown, e nao quatro chips: "Português / English / Español / Deutsch"
+       * nao cabe numa linha de celular, e quebrar em duas fileiras dava um
+       * bloco desalinhado. O <select> nativo ainda abre o seletor do proprio
+       * sistema, que e o controle que a pessoa ja conhece.
+       */
+      pane.append(selectRow(currentLang(), LANGS, (codigo) => {
+        store.setSetting('lang', codigo);
+        setLang(codigo);
+        buzz(12);
+
+        // Cada texto foi lido na hora de desenhar, entao os dois precisam ser
+        // refeitos: a home por baixo, e este painel - que continuaria em
+        // portugues ate ser fechado na mao.
+        if (onRefresh) onRefresh();
+        openSettings(onRefresh);
+      }));
+
+      pane.append(el('p', { class: 'sheet-legend', text: t('settings.theme') }));
+
+      const temaLinha = el('div', { class: 'chips chips-fill' });
+      const pintarTema = () => {
+        clear(temaLinha);
+        MODES.forEach(([id, chave]) => {
+          temaLinha.append(el('button', {
+            class: 'chip' + (currentMode() === id ? ' is-on' : ''),
+            onClick: () => {
+              store.setSetting('theme', id);
+              applyTheme(id);
+              pintarTema();
+              buzz();
+              // A paleta WUBRG mudou: o resto da tela precisa ser redesenhado.
+              if (onRefresh) onRefresh();
+            },
+          }, [t(chave)]));
+        });
+      };
+      pintarTema();
+      pane.append(temaLinha);
+
+      pane.append(el('p', { class: 'sheet-legend', text: t('settings.onTable') }));
+      pane.append(
+        toggleRow(t('settings.haptics'), t('settings.hapticsSub'), s.haptics, (v) => {
+          store.setSetting('haptics', v);
+          setHaptics(v);
+        }),
+        toggleRow(t('settings.keepAwake'), t('settings.keepAwakeSub'), s.keepAwake, (v) => {
+          store.setSetting('keepAwake', v);
+        }),
+        toggleRow(
+          t('settings.autoRotate'),
+          t('settings.autoRotateSub'),
+          s.autoRotate,
+          (v) => store.setSetting('autoRotate', v),
+        ),
+      );
+
+      pane.append(el('p', { class: 'sheet-legend', text: t('settings.install') }));
+      pane.append(installBlock(onRefresh));
+
+      pane.append(el('p', { class: 'sheet-legend', text: t('settings.help') }));
+      pane.append(el('div', { class: 'menu' }, [
+        el('button', {
+          class: 'menu-item',
+          onClick: () => {
+            store.setSetting('dragHintSeen', false);
+            toast(t('settings.hintBack'));
+          },
+        }, [
+          el('span', { class: 'menu-label', text: t('settings.showHint') }),
+          el('span', { class: 'menu-sub', text: t('settings.showHintSub') }),
+        ]),
+      ]));
+
+      pane.append(el('p', {
+        class: 'settings-note',
+        text: t('settings.dataNote'),
+      }));
+    },
+  });
+}
+
+/**
+ * Campo de escolha unica, com o seletor nativo do sistema.
+ *
+ * Para tres ou quatro opcoes de texto longo, chips lado a lado nao cabem no
+ * celular. O <select> resolve o espaco e, de quebra, entrega o seletor que o
+ * aparelho ja usa em todo lugar.
+ */
+function selectRow(valor, opcoes, onChange) {
+  const campo = el('select', { class: 'select-input', 'aria-label': t('settings.language') },
+    opcoes.map(([v, rotulo]) => el('option', { value: v, text: rotulo })));
+
+  campo.value = valor;
+  campo.addEventListener('change', () => onChange(campo.value));
+
+  return el('div', { class: 'select-row' }, [campo, el('span', { class: 'select-caret' }, [icon('arrow')])]);
+}
+
+/** Linha com interruptor. O estado vive no proprio botao. */
+function toggleRow(label, sub, initial, onChange) {
+  let value = initial !== false;
+  const knob = el('span', { class: 'switch' + (value ? ' is-on' : '') });
+
+  return el('button', {
+    class: 'toggle-row',
+    'aria-pressed': String(value),
+    onClick: (e) => {
+      value = !value;
+      knob.classList.toggle('is-on', value);
+      e.currentTarget.setAttribute('aria-pressed', String(value));
+      onChange(value);
+      buzz();
+    },
+  }, [
+    el('span', { class: 'toggle-text' }, [
+      el('span', { class: 'toggle-label', text: label }),
+      sub ? el('span', { class: 'toggle-sub', text: sub }) : null,
+    ]),
+    knob,
+  ]);
+}
+
+/**
+ * Bloco de instalacao. Cada situacao ganha uma resposta util - esconder a opcao
+ * quando ela nao esta disponivel so deixaria a pessoa procurando.
+ */
+function installBlock(onRefresh) {
+  const box = el('div', { class: 'menu' });
+
+  const paint = () => {
+    clear(box);
+    const { mode } = installState();
+
+    if (mode === 'instalado') {
+      box.append(el('div', { class: 'install-note is-done' }, [
+        el('span', { class: 'menu-label', text: t('settings.installed') }),
+        el('span', { class: 'menu-sub', text: t('settings.installedSub') }),
+      ]));
+      return;
+    }
+
+    if (mode === 'pronto') {
+      box.append(el('button', {
+        class: 'menu-item install-cta',
+        onClick: async () => {
+          const r = await promptInstall();
+          if (r === 'accepted') toast(t('settings.installDone'));
+          paint();
+          if (onRefresh) onRefresh();
+        },
+      }, [
+        el('span', { class: 'menu-label' }, [icon('download'), t('settings.installNow')]),
+        el('span', { class: 'menu-sub', text: t('settings.installNowSub') }),
+      ]));
+      return;
+    }
+
+    if (mode === 'ios') {
+      box.append(el('div', { class: 'install-note' }, [
+        el('span', { class: 'menu-label' }, [icon('share'), t('settings.installIOS')]),
+        el('span', { class: 'menu-sub', text: t('settings.installIOSSub') }),
+      ]));
+      return;
+    }
+
+    box.append(el('div', { class: 'install-note' }, [
+      el('span', { class: 'menu-label', text: t('settings.installNo') }),
+      el('span', {
+        class: 'menu-sub',
+        text: mode === 'inseguro' ? t('settings.installInsecure') : t('settings.installUnsupported'),
+      }),
+    ]));
+  };
+
+  paint();
+  onInstallChange(paint); // o convite pode chegar depois da tela já aberta
+  return box;
+}

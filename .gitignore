@@ -1,0 +1,5 @@
+# Nada aqui e necessario para o app rodar: ele e estatico e sem build.
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db

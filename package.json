@@ -1,0 +1,12 @@
+{
+  "name": "hit-easy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Hit Easy - commander made simple. Contador de vida para mesas de Commander. Sem dependencias e sem build: este package.json existe para o Node tratar os .js como modulos ES ao rodar os testes, e nada mais.",
+  "scripts": {
+    "test": "node tools/check-syntax.js && node tests/run-node.js",
+    "check": "python tools/check_modules.py",
+    "start": "python servir.py"
+  }
+}
