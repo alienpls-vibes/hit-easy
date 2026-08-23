@@ -25,8 +25,10 @@ console.log();
 // ficar olhando para "exit code 1".
 if (failed.length) {
   console.log(red(' Falharam:'));
-  for (const r of failed) console.log('   ' + red('✕') + ' ' + r.name + '
-     ' + r.why);
+  for (const r of failed) {
+    console.log('   ' + red('✕') + ' ' + r.name);
+    console.log('     ' + r.why);
+  }
   console.log();
 }
 
