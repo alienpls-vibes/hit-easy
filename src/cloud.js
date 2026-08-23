@@ -160,16 +160,43 @@ async function pedir(caminho, opcoes = {}) {
   return res.status === 204 ? null : res.json();
 }
 
+/**
+ * Para onde o login deve voltar.
+ *
+ * Sem o fragmento: se a pessoa pedir um segundo link estando numa URL que ainda
+ * carrega `#access_token=...`, esse token viajaria dentro do e-mail. Sem a query
+ * tambem, porque o endereco precisa bater com a lista de Redirect URLs do
+ * Supabase - qualquer sobra faz o servidor recusar e cair no Site URL.
+ */
+export function urlDeRetorno(loc = location) {
+  return loc.origin + loc.pathname;
+}
+
+/**
+ * Como o pedido de link magico vai para a rede.
+ *
+ * Separado da chamada para poder ser conferido por teste. O detalhe que importa:
+ * `redirect_to` e QUERY, nao corpo. O SDK do Supabase aceita
+ * `options.emailRedirectTo` e traduz para esta query; a API REST crua nao traduz
+ * nada - ela ignora o campo desconhecido calada e manda o link para o Site URL
+ * do projeto. Foi exatamente esse engano que fez o primeiro login real cair em
+ * localhost:3000.
+ */
+export function pedidoDeLink(email, redirecionar) {
+  return {
+    caminho: '/auth/v1/otp?redirect_to=' + encodeURIComponent(redirecionar),
+    corpo: { email: String(email || '').trim(), create_user: true },
+  };
+}
+
 /** Manda o link magico para o e-mail. */
-export async function enviarLink(email, redirecionar = location.href) {
-  await pedir('/auth/v1/otp', {
-    method: 'POST',
-    body: JSON.stringify({ email, create_user: true, options: { email_redirect_to: redirecionar } }),
-  });
+export async function enviarLink(email, redirecionar = urlDeRetorno()) {
+  const { caminho, corpo } = pedidoDeLink(email, redirecionar);
+  await pedir(caminho, { method: 'POST', body: JSON.stringify(corpo) });
 }
 
 /** Leva para o Google/Apple e volta com a sessao na URL. */
-export function entrarCom(provedor, redirecionar = location.href) {
+export function entrarCom(provedor, redirecionar = urlDeRetorno()) {
   const alvo = url('/auth/v1/authorize')
     + '?provider=' + encodeURIComponent(provedor)
     + '&redirect_to=' + encodeURIComponent(redirecionar);

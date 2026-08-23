@@ -46,9 +46,24 @@ Se devolver suas partidas sem assinatura ativa, alguma política não foi aplica
 - **Apple**: exige conta de desenvolvedor paga (US$ 99/ano). Se não valer agora,
   deixe só Google — o link mágico por e-mail cobre todo o resto, inclusive iPhone.
 
-Em **Authentication → URL Configuration**, adicione a URL publicada
-(`https://alienlopes.github.io/hit-easy/`) em *Redirect URLs*. Sem isso o login
-volta para lugar nenhum.
+### URL Configuration — os dois campos
+
+Em **Authentication → URL Configuration** há dois campos, e eles fazem coisas
+diferentes. Preencher só um foi o que fez o primeiro login real cair em
+`localhost:3000`.
+
+| campo | o que é | valor |
+|---|---|---|
+| **Site URL** | destino padrão, usado quando o pedido não manda nenhum | `https://alienpls-vibes.github.io/hit-easy/` |
+| **Redirect URLs** | lista do que é *permitido* — não escolhe nada sozinha | `https://alienpls-vibes.github.io/hit-easy/**` |
+
+O Site URL nasce como `http://localhost:3000`. Enquanto ficar assim, todo link
+que chegar sem destino explícito aponta para uma porta que não existe no celular
+de ninguém. Troque-o.
+
+Vale como rede de segurança mesmo com o app pedindo o destino certo: se um dia o
+`redirect_to` sumir do pedido, o pior caso passa a ser voltar para a home em vez
+de morrer no localhost.
 
 ---
 
@@ -81,11 +96,14 @@ nomes de terceiros — LGPD), e alguma forma de emitir nota. Um MEI resolve.
 | Testes da lógica de conta e sincronização | prontos, 5 casos |
 | Provisionar Supabase e colar as chaves | **com você** |
 | Histórico sair do aparelho e ir para a nuvem | a fazer |
-| Tela de conta e de assinatura | a fazer |
+| Tela de conta e login por link mágico | pronto, testado com e-mail real |
+| Portão do RLS contra o Supabase de verdade | conferido: grava, lê vazio sem assinatura, apaga |
+| Tela de assinatura | a fazer |
 | Fila de envio para partidas terminadas offline | a fazer |
 | Edge Function do webhook do Stripe | a fazer |
 
-O que já está escrito foi testado sem servidor: estados de conta, tolerância de
-assinatura vencida, sessão expirada, ida e volta da partida pelo banco e o
-cálculo do que falta subir. O que fala com a rede **ainda não foi exercitado
-contra um Supabase de verdade** — só depois do passo 1.
+O que fala com a rede já foi exercitado contra o Supabase de verdade, com uma
+sessão autenticada na mão: gravar partida devolveu `201`, ler de volta sem
+assinatura devolveu `[]` (o portão fechado, exatamente como projetado), e apagar
+devolveu `204` mesmo sem assinar — o direito de tirar o próprio dado não pode
+depender de pagamento.

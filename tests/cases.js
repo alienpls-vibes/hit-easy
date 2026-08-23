@@ -22,7 +22,7 @@ import { openFlow, closeSheet, dismissOnBackdrop, el, isSheetOpen, onSheetChange
 import { DICTS, LANGS, t, tn, setLang, currentLang } from '../src/i18n.js';
 import {
   accountState, assinaturaAtiva, sessaoValida, toRow, fromRow, pendentes,
-  state as accountNow, provedores,
+  state as accountNow, provedores, pedidoDeLink, urlDeRetorno,
 } from '../src/cloud.js';
 import { cloudEnabled } from '../src/config.js';
 import { renderTable } from '../src/views/table.js';
@@ -1459,6 +1459,41 @@ export const cases = [
     eq(temGoogle, provedores().includes('google'),
       'botão do Google precisa acompanhar o que o servidor aceita');
     closeSheet();
+  }],
+
+  ['o pedido de link mágico leva redirect_to na query', () => {
+    // O primeiro login real caiu em localhost:3000 porque o destino ia no CORPO,
+    // como `options.email_redirect_to` - forma do SDK, não da API REST. O GoTrue
+    // ignora campo que não conhece sem reclamar e usa o Site URL do projeto.
+    // Um erro mudo assim só aparece com e-mail de verdade na mão; por isso o
+    // formato do pedido virou função pura, para o teste olhar antes.
+    const alvo = 'https://alienpls-vibes.github.io/hit-easy/';
+    const { caminho, corpo } = pedidoDeLink(' Alex@Exemplo.com ', alvo);
+
+    ok(caminho.startsWith('/auth/v1/otp?'), 'endpoint do OTP');
+    const query = new URLSearchParams(caminho.slice(caminho.indexOf('?') + 1));
+    eq(query.get('redirect_to'), alvo, 'destino precisa viajar na query');
+
+    eq(corpo.email, 'Alex@Exemplo.com', 'espaços em volta não vão para o servidor');
+    eq(corpo.create_user, true, 'primeiro acesso cria a conta');
+    ok(!('options' in corpo), 'options é campo do SDK; a API REST o descarta calada');
+    ok(!JSON.stringify(corpo).includes('redirect'), 'destino não pode ir só no corpo');
+  }],
+
+  ['o endereço de retorno não carrega fragmento nem query', () => {
+    // Dois motivos. Um: pedir um segundo link estando com `#access_token=...` na
+    // barra mandaria esse token dentro do e-mail. Dois: o endereço tem de bater
+    // com a lista de Redirect URLs do Supabase, e sobra faz o servidor recusar.
+    const sujo = {
+      origin: 'https://alienpls-vibes.github.io',
+      pathname: '/hit-easy/',
+      search: '?x=1',
+      hash: '#access_token=eyJhbGciOi',
+    };
+    const limpo = urlDeRetorno(sujo);
+    eq(limpo, 'https://alienpls-vibes.github.io/hit-easy/', 'só origem e caminho');
+    ok(!limpo.includes('access_token'), 'token jamais entra no pedido de link');
+    ok(!limpo.includes('?'), 'sem query');
   }],
 
   ['e-mail inválido não dispara pedido de link', () => {
