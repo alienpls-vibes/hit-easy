@@ -17,10 +17,19 @@ nunca derruba a mesa: no pior caso ela continua com a versão anterior.
 
 ## Ligar (uma vez só)
 
-**Settings → Pages → Build and deployment → Source: GitHub Actions.**
+São **dois** ajustes, e o segundo não é óbvio:
 
-Enquanto estiver em *Deploy from a branch*, o workflow roda os testes e falha no
-último passo. É o único ajuste manual.
+1. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
+   Enquanto estiver em *Deploy from a branch*, o workflow roda os testes e falha
+   no último passo.
+
+2. **Settings → Environments → `github-pages` → Deployment branches and tags:
+   adicione `beta`.**
+   O ambiente nasce permitindo só a branch padrão. Sem isso o deploy da `beta` é
+   recusado com *"Branch beta is not allowed to deploy to github-pages due to
+   environment protection rules"* — os testes passam, o site não sai, e o canal
+   de teste só subiria de carona num push para `main`, que é justamente o que
+   ele existe para evitar.
 
 ## Por que os canais são separados no navegador
 
