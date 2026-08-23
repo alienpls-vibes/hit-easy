@@ -76,4 +76,59 @@ if (handleRuim) {
   process.exit(1);
 }
 
+/*
+ * Uma policy de RLS nao pode consultar OUTRA tabela protegida diretamente.
+ *
+ * Quando a policy de A consulta B e a de B consulta A, o Postgres avalia uma
+ * dentro da outra sem fim e derruba as duas com 42P17, "infinite recursion
+ * detected in policy". O sintoma e brutal: some ate a leitura que ja
+ * funcionava antes, porque o erro e da AVALIACAO da policy, nao da consulta.
+ *
+ * Aconteceu aqui entre matches e match_players. A saida e uma funcao
+ * `security definer`, que roda como dona da tabela e por isso nao dispara RLS
+ * de novo. Como nada na linguagem obriga isso, a regra fica escrita aqui.
+ */
+function conferirPolicies() {
+  const arquivos = readdirSync(join(ROOT, 'sql'))
+    .filter((n) => n.endsWith('.sql'))
+    .map((n) => join(ROOT, 'sql', n));
+
+  const problemas = [];
+  for (const arquivo of arquivos) {
+    const texto = readFileSync(arquivo, 'utf8');
+    // Cada "create policy" ate o ponto-e-virgula que fecha o comando.
+    const partes = texto.split(/create policy/i).slice(1);
+    for (const bruto of partes) {
+      const corpo = bruto.split(/;\s*(?:\n|$)/)[0];
+      const alvo = corpo.match(/\bon\s+public\.(\w+)/i);
+      if (!alvo) continue;
+      const tabela = alvo[1];
+
+      // Tudo depois do "on public.X for ..." e a condicao da policy.
+      const condicao = corpo.slice(alvo.index + alvo[0].length);
+      const refs = [...condicao.matchAll(/\b(?:from|join)\s+public\.(\w+)/gi)]
+        .map((m) => m[1])
+        .filter((t) => t !== tabela);
+
+      for (const outra of new Set(refs)) {
+        problemas.push(
+          relative(ROOT, arquivo) + ': policy em public.' + tabela
+          + ' consulta public.' + outra + ' direto.\n'
+          + '    Se public.' + outra + ' tiver policy citando public.' + tabela
+          + ', o Postgres derruba as duas com 42P17.\n'
+          + '    Passe por uma funcao `security definer`.',
+        );
+      }
+    }
+  }
+  return problemas;
+}
+
+const policiesRuins = conferirPolicies();
+if (policiesRuins.length) {
+  console.error('\n\x1b[31m Recursao possivel em RLS:\x1b[0m');
+  for (const x of policiesRuins) console.error('  ' + x + '\n');
+  process.exit(1);
+}
+
 console.log(` \x1b[2m${files.length} módulos com sintaxe válida\x1b[0m`);

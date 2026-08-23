@@ -68,7 +68,11 @@ as $$
   limit 1;
 $$;
 
+-- `revoke from public` NAO basta: o Supabase concede execute a `anon` por
+-- privilegio padrao, e esse grant sobrevive. Sem a linha do anon, qualquer
+-- pessoa sem conta nenhuma consegue sondar @ - conferido contra o servidor.
 revoke all on function public.buscar_handle(text) from public;
+revoke all on function public.buscar_handle(text) from anon;
 grant execute on function public.buscar_handle(text) to authenticated;
 
 
@@ -93,6 +97,53 @@ create policy "cuidar da propria lista de confianca"
   on public.trusted_hosts for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+
+-- ---------------------------------------------------------------------
+-- Duas perguntas que quebram um ciclo
+--
+-- A policy de `matches` precisa saber se eu aceitei o convite; a de
+-- `match_players` precisa saber se eu sou o anfitriao. Se cada uma consultar
+-- a outra tabela DIRETO, o Postgres avalia a policy da outra, que consulta a
+-- primeira de novo - e derruba as duas com 42P17, "infinite recursion
+-- detected in policy". Nao e teoria: foi o que aconteceu, e quebrou ate a
+-- leitura de partida que ja funcionava antes.
+--
+-- `security definer` corta o ciclo. A funcao roda como dona da tabela, e RLS
+-- nao se aplica ao dono - entao a consulta de dentro nao dispara policy
+-- nenhuma. Mesmo recurso que `is_subscriber` ja usava.
+--
+-- Ambas continuam presas a `auth.uid()`: nao ha parametro de usuario, so o
+-- da partida. Chamar isto direto pelo PostgREST nao revela nada sobre
+-- terceiros - so responde sobre quem esta perguntando.
+-- ---------------------------------------------------------------------
+create or replace function public.sou_anfitriao(mid text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.matches m
+    where m.id = mid and m.owner = auth.uid()
+  );
+$$;
+
+create or replace function public.aceitei_a_partida(mid text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.match_players mp
+    where mp.match_id = mid
+      and mp.user_id = auth.uid()
+      and mp.status = 'aceito'
+  );
+$$;
 
 
 -- ---------------------------------------------------------------------
@@ -122,10 +173,7 @@ alter table public.match_players enable row level security;
 drop policy if exists "o anfitriao convida" on public.match_players;
 create policy "o anfitriao convida"
   on public.match_players for insert
-  with check (exists (
-    select 1 from public.matches m
-    where m.id = match_id and m.owner = auth.uid()
-  ));
+  with check (public.sou_anfitriao(match_id));
 
 -- Vejo os convites endereçados a mim, e as cadeiras das partidas que eu
 -- registrei. SEM exigir assinatura, de propósito: quem não assina precisa
@@ -134,13 +182,7 @@ create policy "o anfitriao convida"
 drop policy if exists "ver os proprios convites" on public.match_players;
 create policy "ver os proprios convites"
   on public.match_players for select
-  using (
-    user_id = auth.uid()
-    or exists (
-      select 1 from public.matches m
-      where m.id = match_id and m.owner = auth.uid()
-    )
-  );
+  using (user_id = auth.uid() or public.sou_anfitriao(match_id));
 
 -- Só o convidado responde, e só pela própria cadeira. O `with check` prende
 -- user_id em auth.uid(): sem ele daria para repassar a cadeira a outra
@@ -155,10 +197,7 @@ create policy "responder o proprio convite"
 drop policy if exists "o anfitriao desfaz o convite" on public.match_players;
 create policy "o anfitriao desfaz o convite"
   on public.match_players for delete
-  using (exists (
-    select 1 from public.matches m
-    where m.id = match_id and m.owner = auth.uid()
-  ));
+  using (public.sou_anfitriao(match_id));
 
 
 -- ---------------------------------------------------------------------
@@ -209,15 +248,7 @@ create policy "ler partidas proprias ou reivindicadas assinando"
   on public.matches for select
   using (
     public.is_subscriber(auth.uid())
-    and (
-      owner = auth.uid()
-      or exists (
-        select 1 from public.match_players mp
-        where mp.match_id = matches.id
-          and mp.user_id = auth.uid()
-          and mp.status = 'aceito'
-      )
-    )
+    and (owner = auth.uid() or public.aceitei_a_partida(id))
   );
 
 
@@ -293,4 +324,5 @@ as $$
 $$;
 
 revoke all on function public.anfitriao_do_convite(text) from public;
+revoke all on function public.anfitriao_do_convite(text) from anon;
 grant execute on function public.anfitriao_do_convite(text) to authenticated;
