@@ -16,6 +16,10 @@ const EMPTY = {
   history: [],
   commanders: {}, // oracleId -> commander (reuso offline)
   playerNames: [],
+  // Nome de jogador -> @ da conta dele. Grupo de Commander joga toda
+  // semana com a mesma gente: digitar o @ de novo a cada mesa seria o
+  // tipo de atrito que faz o recurso nao ser usado.
+  playerHandles: {},
   // Escondidos das estatisticas, e so delas: as partidas continuam
   // inteiras, com todos os eventos e a linha do tempo completa.
   hiddenDecks: [],
@@ -118,11 +122,31 @@ export function rememberPlayer(name) {
   save();
 }
 
+/** Guarda a que conta um nome de jogador corresponde. */
+export function rememberHandle(name, handle) {
+  const nome = String(name || '').trim();
+  const h = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
+  if (!nome) return;
+  if (!db.playerHandles) db.playerHandles = {};
+  if (h) db.playerHandles[nome.toLowerCase()] = h;
+  else delete db.playerHandles[nome.toLowerCase()];
+  save();
+}
+
+/** O @ ja conhecido deste jogador, se houver. */
+export function handleOf(name) {
+  const nome = String(name || '').trim().toLowerCase();
+  return (db.playerHandles && db.playerHandles[nome]) || '';
+}
+
 export function knownPlayers() {
   return db.playerNames;
 }
 
 export function forgetPlayer(name) {
+  // O @ acompanha o nome: esquecer pela metade deixaria a conta de outra
+  // pessoa presa a um jogador que ja nao existe mais na lista.
+  if (db.playerHandles) delete db.playerHandles[String(name || '').trim().toLowerCase()];
   const clean = String(name || '').trim();
   db.playerNames = db.playerNames.filter((n) => n !== clean);
   save();

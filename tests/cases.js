@@ -23,6 +23,7 @@ import { DICTS, LANGS, t, tn, setLang, currentLang } from '../src/i18n.js';
 import {
   accountState, assinaturaAtiva, sessaoValida, toRow, fromRow, pendentes,
   state as accountNow, provedores, pedidoDeLink, urlDeRetorno,
+  normalizarHandle, handleValido, exibirHandle, participantesDe, montarConvites,
 } from '../src/cloud.js';
 import { cloudEnabled } from '../src/config.js';
 import { canalDe, canalDoCache } from '../src/canal.js';
@@ -1460,6 +1461,67 @@ export const cases = [
     eq(temGoogle, provedores().includes('google'),
       'botão do Google precisa acompanhar o que o servidor aceita');
     closeSheet();
+  }],
+
+  ['o @ é normalizado antes de qualquer coisa', () => {
+    eq(normalizarHandle('  @AlienPls '), 'alienpls', 'tira arroba, espaço e caixa');
+    eq(normalizarHandle('@@alex'), 'alex', 'arroba repetida');
+    eq(normalizarHandle(null), '', 'nulo não explode');
+    eq(exibirHandle('AlienPls'), '@alienpls', 'na tela volta com arroba');
+    eq(exibirHandle(''), '', 'sem @ não inventa arroba');
+
+    ok(handleValido('@AlienPls'), 'o que a pessoa digita costuma ter arroba e maiúscula');
+    ok(handleValido('abc'), 'mínimo de 3');
+    ok(!handleValido('ab'), 'curto demais');
+    ok(!handleValido('a'.repeat(21)), 'longo demais');
+    ok(!handleValido('alex parma'), 'espaço no meio não vale');
+    ok(!handleValido('alex@exemplo.com'), 'e-mail não é @ público');
+    ok(!handleValido('alex-parma'), 'só letra, número e sublinhado');
+  }],
+
+  ['só cadeira marcada com @ vira convite', () => {
+    // A regra que não pode quebrar: quem nunca vai criar conta continua usando
+    // o app exatamente como antes. Cadeira é texto livre, e assim segue.
+    const match = {
+      id: 'p1',
+      seats: [
+        { id: 's1', name: 'Alexandre', handle: '@AlienPls' },
+        { id: 's2', name: 'Bruno' },
+        { id: 's3', name: 'Carla', handle: '   ' },
+        { id: 's4', name: 'Davi', handle: 'nome invalido!' },
+      ],
+    };
+
+    const linhas = participantesDe(match);
+    eq(linhas.length, 1, 'três das quatro cadeiras não viram convite nenhum');
+    eq(linhas[0].seat_id, 's1');
+    eq(linhas[0].handle, 'alienpls', 'vai normalizado para o banco');
+    eq(linhas[0].match_id, 'p1');
+    eq(linhas[0].user_id, null, 'sem @ resolvido ainda, a cadeira fica sem dono');
+
+    eq(participantesDe(null).length, 0, 'sem partida, sem convite');
+    eq(participantesDe({ seats: [{ id: 's1', handle: 'alex' }] }).length, 0,
+      'partida sem id não gera linha órfã');
+  }],
+
+  ['convite aparece mesmo quando a partida não vem junto', () => {
+    // É o portão funcionando, não um erro. Quem não assina precisa VER que há
+    // partidas esperando - senão nunca aceita e nunca soube que existiam. O
+    // convite é livre; ler o conteúdo é que é pago.
+    const linhas = [
+      { match_id: 'p1', seat_id: 's1', status: 'pendente', handle: 'alienpls' },
+      { match_id: 'p2', seat_id: 's3', status: 'pendente', handle: 'alienpls' },
+    ];
+    const semAssinar = montarConvites(linhas, []);
+    eq(semAssinar.length, 2, 'os dois convites aparecem');
+    ok(semAssinar.every((c) => c.match === null), 'sem assinatura, nada do conteúdo');
+    eq(semAssinar[0].matchId, 'p1');
+
+    const assinando = montarConvites(linhas, [{ id: 'p2', seats: [] }]);
+    eq(assinando[0].match, null, 'esta ainda não veio');
+    ok(assinando[1].match, 'esta veio e pode ser mostrada');
+
+    eq(montarConvites(null, null).length, 0, 'listas vazias não explodem');
   }],
 
   ['o canal sai do caminho da URL', () => {

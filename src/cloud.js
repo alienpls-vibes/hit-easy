@@ -85,6 +85,74 @@ export function pendentes(locais, idsRemotos) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Identidade publica e participantes                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * O formato de um @.
+ *
+ * Tem de bater EXATAMENTE com a constraint handle_formato em
+ * sql/002-participantes.sql. Se divergirem, o banco recusa com um 400 cru e a
+ * pessoa fica olhando para um erro que nao explica nada. Ha uma verificacao
+ * automatica cruzando os dois em tools/check-syntax.js.
+ */
+export const HANDLE_RE = /^[a-z0-9_]{3,20}$/;
+
+/** Tudo vira minusculo, sem @ e sem espaco - "@Alex" e "alex" sao a mesma pessoa. */
+export function normalizarHandle(h) {
+  return String(h == null ? '' : h).trim().replace(/^@+/, '').toLowerCase();
+}
+
+export function handleValido(h) {
+  return HANDLE_RE.test(normalizarHandle(h));
+}
+
+/** Como o @ aparece na tela. */
+export function exibirHandle(h) {
+  const n = normalizarHandle(h);
+  return n ? '@' + n : '';
+}
+
+/**
+ * As cadeiras que viram convite.
+ *
+ * So entra cadeira marcada com um @. As outras seguem sendo texto livre, como
+ * sempre foram: a esmagadora maioria das mesas nunca vai criar conta, e o app
+ * nao pode piorar para elas.
+ */
+export function participantesDe(match) {
+  if (!match || !match.id) return [];
+  return (match.seats || [])
+    .filter((s) => s && s.id && handleValido(s.handle))
+    .map((s) => ({
+      match_id: match.id,
+      seat_id: s.id,
+      user_id: s.userId || null,
+      handle: normalizarHandle(s.handle),
+    }));
+}
+
+/**
+ * Junta o convite com a partida a que ele se refere.
+ *
+ * O convite chega sempre; a partida so vem se a pessoa assina. Por isso `match`
+ * pode ser nulo aqui - e nao e erro, e o portao funcionando. Quem nao assina ve
+ * que existem tres partidas esperando, sem ver o que ha dentro delas.
+ */
+export function montarConvites(linhas, partidas) {
+  const porId = new Map((partidas || []).map((m) => [m.id, m]));
+  return (linhas || [])
+    .filter((l) => l && l.match_id)
+    .map((l) => ({
+      matchId: l.match_id,
+      seatId: l.seat_id,
+      status: l.status,
+      handle: l.handle,
+      match: porId.get(l.match_id) || null,
+    }));
+}
+
+/* ------------------------------------------------------------------ */
 /* Sessao guardada                                                     */
 /* ------------------------------------------------------------------ */
 
@@ -273,6 +341,7 @@ export async function sair() {
     /* servidor fora do ar nao pode impedir alguem de sair */
   }
   assinatura = null;
+  perfil = null;
   gravarSessao(null);
 }
 
@@ -293,6 +362,14 @@ export async function enviarPartida(match) {
     headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
     body: JSON.stringify(toRow(match, dono.id)),
   });
+  // Partida sem seus participantes e convite perdido: quem jogou no aparelho
+  // de outra pessoa nunca ficaria sabendo. Falhar aqui nao desfaz o envio
+  // acima - a partida ja esta salva, e os convites voltam na proxima.
+  try {
+    await enviarParticipantes(match);
+  } catch {
+    /* tenta de novo na proxima sincronizacao */
+  }
 }
 
 /**
@@ -323,6 +400,7 @@ export async function iniciar() {
   if (sessao) {
     try {
       await carregarUsuario();
+      await carregarPerfil();
       await carregarAssinatura();
     } catch {
       /* sessao invalida ja foi limpa por pedir() */
@@ -330,4 +408,130 @@ export async function iniciar() {
   }
   if (voltou) avisar();
   return state();
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Perfil, convites e confianca                                        */
+/* ------------------------------------------------------------------ */
+
+let perfil = null;
+
+export function meuPerfil() {
+  return perfil;
+}
+
+export async function carregarPerfil() {
+  if (!sessao) { perfil = null; return null; }
+  const linhas = await pedir('/rest/v1/profiles?select=*&limit=1');
+  perfil = Array.isArray(linhas) && linhas.length ? linhas[0] : null;
+  avisar();
+  return perfil;
+}
+
+/**
+ * Escolhe ou troca o proprio @.
+ *
+ * O 409 do Postgres (chave unica) e a unica resposta confiavel sobre @ ocupado:
+ * perguntar antes e agir depois deixa uma janela entre as duas coisas em que
+ * outra pessoa pega o mesmo nome. Deixa o banco decidir e trata o conflito.
+ */
+export async function salvarHandle(handle, nome) {
+  const dono = currentUser();
+  if (!dono) throw new Error('sem sessao');
+  const h = normalizarHandle(handle);
+  if (!handleValido(h)) throw new Error('handle invalido');
+
+  const res = await fetch(url('/rest/v1/profiles'), {
+    method: 'POST',
+    headers: cabecalhos({ Prefer: 'resolution=merge-duplicates,return=representation' }),
+    body: JSON.stringify({ id: dono.id, handle: h, display_name: nome || null }),
+  });
+  if (res.status === 409) throw new Error('handle ocupado');
+  if (!res.ok) throw new Error('servidor respondeu ' + res.status);
+  const linhas = await res.json();
+  perfil = Array.isArray(linhas) && linhas.length ? linhas[0] : { id: dono.id, handle: h };
+  avisar();
+  return perfil;
+}
+
+/** Procura um @. Igualdade exata: confirma quem voce ja conhece, nao explora. */
+export async function buscarHandle(handle) {
+  const h = normalizarHandle(handle);
+  if (!handleValido(h)) return null;
+  const linhas = await pedir('/rest/v1/rpc/buscar_handle', {
+    method: 'POST',
+    body: JSON.stringify({ h }),
+  });
+  return Array.isArray(linhas) && linhas.length ? linhas[0] : null;
+}
+
+/**
+ * Registra quem sentou em cada cadeira marcada.
+ *
+ * Roda depois da partida ja estar no banco - ha chave estrangeira, e sem a
+ * partida nao existe cadeira. Falhar aqui nao perde a partida: ela ja subiu, e
+ * so os convites ficam para a proxima tentativa.
+ */
+export async function enviarParticipantes(match) {
+  const linhas = participantesDe(match);
+  if (!linhas.length) return 0;
+  await pedir('/rest/v1/match_players', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
+    body: JSON.stringify(linhas),
+  });
+  return linhas.length;
+}
+
+/** Convites enderecados a mim que ainda nao respondi. */
+export async function convitesPendentes() {
+  const dono = currentUser();
+  if (!dono) return [];
+  return (await pedir(
+    '/rest/v1/match_players?select=*&status=eq.pendente'
+    + '&user_id=eq.' + encodeURIComponent(dono.id),
+  )) || [];
+}
+
+/** Quem registrou a partida a que este convite se refere. */
+export async function anfitriaoDoConvite(matchId) {
+  const linhas = await pedir('/rest/v1/rpc/anfitriao_do_convite', {
+    method: 'POST',
+    body: JSON.stringify({ mid: matchId }),
+  });
+  return Array.isArray(linhas) && linhas.length ? linhas[0] : null;
+}
+
+export async function responderConvite(matchId, seatId, aceitar) {
+  await pedir(
+    '/rest/v1/match_players?match_id=eq.' + encodeURIComponent(matchId)
+    + '&seat_id=eq.' + encodeURIComponent(seatId),
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ status: aceitar ? 'aceito' : 'recusado' }),
+    },
+  );
+}
+
+/** Passa a aceitar sozinho o que vier deste anfitriao. */
+export async function confiarEm(hostId) {
+  const dono = currentUser();
+  if (!dono || !hostId) throw new Error('sem sessao');
+  await pedir('/rest/v1/trusted_hosts', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
+    body: JSON.stringify({ user_id: dono.id, host_id: hostId }),
+  });
+}
+
+export async function deixarDeConfiar(hostId) {
+  const dono = currentUser();
+  if (!dono || !hostId) return;
+  await pedir(
+    '/rest/v1/trusted_hosts?user_id=eq.' + encodeURIComponent(dono.id)
+    + '&host_id=eq.' + encodeURIComponent(hostId),
+    { method: 'DELETE' },
+  );
 }

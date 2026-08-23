@@ -107,3 +107,36 @@ sessão autenticada na mão: gravar partida devolveu `201`, ler de volta sem
 assinatura devolveu `[]` (o portão fechado, exatamente como projetado), e apagar
 devolveu `204` mesmo sem assinar — o direito de tirar o próprio dado não pode
 depender de pagamento.
+
+---
+
+## 4. Participantes de uma partida (v1)
+
+Rode `sql/002-participantes.sql` no SQL Editor, depois de `schema.sql`.
+
+O problema: a partida tem **um** aparelho que a registrou e **vários** jogadores.
+Quem jogou no celular do amigo não tinha aquela partida.
+
+A solução **não** é o anfitrião marcar `@fulano` e pronto — isso deixaria outra
+pessoa escrever no seu histórico. O anfitrião **convida**; a partida só entra no
+histórico de alguém quando essa pessoa aceita. Quem confia no anfitrião marca
+"aceitar sempre" e nunca mais pensa nisso.
+
+| peça | onde |
+|---|---|
+| `@` público, busca só por igualdade exata | `profiles` + `buscar_handle()` |
+| quem sentou em cada cadeira | `match_players` |
+| aceitar sozinho de quem você confia | `trusted_hosts` + gatilho |
+| quem te convidou, sem entregar a partida | `anfitriao_do_convite()` |
+
+Dois pontos que valem saber:
+
+**O convite aparece sem assinatura, de propósito.** Quem não assina precisa ver
+que há partidas esperando, senão nunca aceita e nunca soube que existiam. Ler o
+*conteúdo* é que é pago — e "3 partidas esperando por você" é o melhor argumento
+de conversão que o app tem.
+
+**Apagar não reescreve o passado alheio.** Se o anfitrião apagar uma mesa que
+outra pessoa já aceitou, a linha perde o dono em vez de morrer. Para o anfitrião
+o efeito é o mesmo (some da conta dele); para o convidado, o histórico continua
+de pé. Sem isso, apagar viraria um jeito de editar a estatística dos outros.

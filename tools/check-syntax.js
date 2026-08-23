@@ -8,7 +8,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, statSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -42,6 +42,37 @@ for (const file of files) {
 if (falhas.length) {
   console.error('\n\x1b[31m Erro de sintaxe:\x1b[0m');
   for (const f of falhas) console.error('  ' + relative(ROOT, f.file) + '\n' + f.why + '\n');
+  process.exit(1);
+}
+
+/*
+ * O formato do @ vive em dois lugares que nao se enxergam: o regex do cliente
+ * (src/cloud.js) e a constraint do Postgres (sql/002-participantes.sql). Nada na
+ * linguagem obriga os dois a concordarem, e quando divergem o sintoma e pessimo:
+ * o app aceita o que a pessoa digitou, manda para o banco, e o banco devolve um
+ * 400 sem explicacao. Aqui os dois textos sao comparados de verdade.
+ */
+function conferirHandle() {
+  const cliente = readFileSync(join(ROOT, 'src/cloud.js'), 'utf8');
+  const sql = readFileSync(join(ROOT, 'sql/002-participantes.sql'), 'utf8');
+
+  const noCliente = cliente.match(/HANDLE_RE\s*=\s*\/\^(.+?)\$\//);
+  const noBanco = sql.match(/handle\s*~\s*'\^(.+?)\$'/);
+
+  if (!noCliente) return 'HANDLE_RE sumiu de src/cloud.js';
+  if (!noBanco) return 'a constraint handle_formato sumiu do SQL';
+  if (noCliente[1] !== noBanco[1]) {
+    return 'o formato do @ diverge:\n'
+      + '    cliente: ^' + noCliente[1] + '$   (src/cloud.js)\n'
+      + '    banco:   ^' + noBanco[1] + '$   (sql/002-participantes.sql)\n'
+      + '    Divergir aqui faz o app aceitar um @ que o banco recusa com 400.';
+  }
+  return null;
+}
+
+const handleRuim = conferirHandle();
+if (handleRuim) {
+  console.error('\n\x1b[31m Formato do @:\x1b[0m\n  ' + handleRuim + '\n');
   process.exit(1);
 }
 

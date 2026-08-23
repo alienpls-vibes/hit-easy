@@ -7,7 +7,7 @@
  */
 
 import {
-  el, clear, icon, brandMark, openSheet, openFlow, buzz, toast, setHaptics,
+  el, clear, icon, brandMark, openSheet, openFlow, closeSheet, buzz, toast, setHaptics,
 } from '../ui.js';
 import { accentOf, pips } from '../colors.js';
 import { searchCommanders, isOffline } from '../scryfall.js';
@@ -18,6 +18,7 @@ import { MODES, currentMode, applyTheme } from '../theme.js';
 import { t, tn, LANGS, currentLang, setLang } from '../i18n.js';
 import { state as installState, promptInstall, onInstallChange } from '../install.js';
 import * as cloud from '../cloud.js';
+import { handleValido, exibirHandle } from '../cloud.js';
 import { cloudEnabled, CHECKOUT_URL } from '../config.js';
 import { formatDate } from '../stats.js';
 
@@ -195,6 +196,7 @@ function seatCard(seat, index, refresh) {
     dataset: { index: String(index) },
     style: { '--accent': accent },
   }, [
+    handleChip(seat, refresh),
     el('div', { class: 'seat-grip', 'aria-label': t('setup.reorder') }, [icon('grip')]),
     seatSpot(index),
     art,
@@ -318,6 +320,10 @@ function playerStep(seat, refresh) {
       const escolher = (nome) => {
         seat.name = nome;
         store.rememberPlayer(nome);
+        // Se ja se soube a que conta este nome pertence, nao pergunta de novo.
+        const lembrado = store.handleOf(nome);
+        if (lembrado) { seat.handle = lembrado; seat.userId = null; }
+        else if (seat.handle) { seat.handle = ''; seat.userId = null; }
         buzz(12);
         refresh();
         api.next(commanderStep(seat, 0, refresh)); // segue direto para o deck
@@ -948,6 +954,9 @@ function accountBlock(onRefresh) {
       }, [t('account.signOut')]),
     ]));
 
+    caixa.append(handleBlock());
+    caixa.append(invitesBlock());
+
     const assinatura = cloud.subscription();
     if (estado === 'assinante') {
       caixa.append(el('div', { class: 'account-sub is-on' }, [
@@ -977,4 +986,255 @@ function accountBlock(onRefresh) {
   pintar();
   cloud.onAccountChange(pintar);
   return caixa;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Vinculo com uma conta                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * O @ na cadeira.
+ *
+ * So aparece para quem entrou numa conta - e o unico jeito de convidar alguem.
+ * Para todo o resto das mesas a cadeira segue sendo texto livre, exatamente
+ * como sempre foi: quase ninguem vai criar conta, e o app nao pode piorar para
+ * essa maioria por causa de um recurso que ela nao usa.
+ */
+function handleChip(seat, refresh) {
+  if (!cloudEnabled() || cloud.state() === 'deslogado') return null;
+
+  const vinculado = handleValido(seat.handle);
+  return el('button', {
+    class: 'seat-handle' + (vinculado ? ' is-on' : ''),
+    'aria-label': vinculado ? exibirHandle(seat.handle) : t('handle.link'),
+    onClick: (e) => {
+      e.stopPropagation();
+      openFlow(handleStep(seat, refresh));
+    },
+  }, [vinculado ? exibirHandle(seat.handle) : '@ +']);
+}
+
+/**
+ * Procura a conta pelo @ e prende a cadeira nela.
+ *
+ * A busca e por igualdade exata, do lado do servidor. Nao existe lista nem
+ * sugestao por prefixo: da para confirmar um @ que voce ja conhece, nunca para
+ * descobrir quem tem conta no app.
+ */
+function handleStep(seat, refresh) {
+  return {
+    title: t('handle.title'),
+    subtitle: t('handle.sub', { name: seat.name }),
+    build: (pane) => {
+      const achado = el('div', { class: 'handle-result' });
+
+      const soltar = () => {
+        seat.handle = '';
+        seat.userId = null;
+        store.rememberHandle(seat.name, '');
+        refresh();
+        closeSheet();
+      };
+
+      const prender = (perfilAchado) => {
+        seat.handle = perfilAchado.handle;
+        seat.userId = perfilAchado.id;
+        store.rememberHandle(seat.name, perfilAchado.handle);
+        buzz(12);
+        refresh();
+        closeSheet();
+      };
+
+      const input = el('input', {
+        class: 'search-input',
+        placeholder: '@exemplo',
+        autocapitalize: 'none',
+        autocorrect: 'off',
+        spellcheck: 'false',
+        maxlength: '21',
+        value: seat.handle ? exibirHandle(seat.handle) : '',
+        'aria-label': t('handle.title'),
+      });
+
+      const procurar = async () => {
+        const bruto = input.value;
+        clear(achado);
+        if (!handleValido(bruto)) {
+          achado.append(el('p', { class: 'account-note', text: t('handle.invalid') }));
+          return;
+        }
+        achado.append(el('p', { class: 'account-note', text: t('handle.searching') }));
+        try {
+          const perfilAchado = await cloud.buscarHandle(bruto);
+          clear(achado);
+          if (!perfilAchado) {
+            achado.append(el('p', {
+              class: 'account-note',
+              text: t('handle.notFound', { handle: exibirHandle(bruto) }),
+            }));
+            return;
+          }
+          achado.append(el('div', { class: 'handle-found' }, [
+            el('span', { class: 'menu-label', text: exibirHandle(perfilAchado.handle) }),
+            perfilAchado.display_name
+              ? el('span', { class: 'menu-sub', text: perfilAchado.display_name })
+              : null,
+          ]));
+          achado.append(el('button', {
+            class: 'btn primary block',
+            onClick: () => prender(perfilAchado),
+          }, [t('handle.use')]));
+        } catch {
+          clear(achado);
+          achado.append(el('p', { class: 'account-note', text: t('account.failed') }));
+        }
+      };
+
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') procurar(); });
+
+      pane.append(el('div', { class: 'name-row' }, [
+        input,
+        el('button', { class: 'btn primary', onClick: procurar }, [t('handle.search')]),
+      ]));
+      pane.append(achado);
+      pane.append(el('p', { class: 'account-note', text: t('handle.why') }));
+
+      if (handleValido(seat.handle)) {
+        pane.append(el('button', { class: 'btn ghost block', onClick: soltar },
+          [t('handle.unlink')]));
+      }
+    },
+  };
+}
+
+
+/**
+ * O proprio @: como amigos marcam voce na mesa deles.
+ *
+ * Quem nao escolher um @ continua usando o app inteiro normalmente - so nao
+ * pode ser convidado. E opcional de proposito.
+ */
+function handleBlock() {
+  const caixa = el('div', { class: 'account-handle' });
+  const perfil = cloud.meuPerfil();
+
+  const input = el('input', {
+    class: 'search-input',
+    placeholder: '@exemplo',
+    autocapitalize: 'none',
+    autocorrect: 'off',
+    spellcheck: 'false',
+    maxlength: '21',
+    value: perfil && perfil.handle ? exibirHandle(perfil.handle) : '',
+    'aria-label': t('account.yourHandle'),
+  });
+
+  const salvar = el('button', { class: 'btn primary' }, [t('account.handleSave')]);
+  salvar.addEventListener('click', async () => {
+    if (!handleValido(input.value)) { toast(t('handle.invalid')); return; }
+    salvar.disabled = true;
+    try {
+      const novo = await cloud.salvarHandle(input.value, null);
+      toast(t('account.handleSaved', { handle: exibirHandle(novo.handle) }));
+    } catch (err) {
+      toast(String(err && err.message) === 'handle ocupado'
+        ? t('account.handleTaken')
+        : t('account.failed'));
+    } finally {
+      salvar.disabled = false;
+    }
+  });
+
+  caixa.append(el('p', { class: 'sheet-legend', text: t('account.yourHandle') }));
+  caixa.append(el('div', { class: 'name-row' }, [input, salvar]));
+  caixa.append(el('p', { class: 'account-note', text: t('account.handleHint') }));
+  return caixa;
+}
+
+/**
+ * Convites: partidas que alguem registrou dizendo que voce estava na mesa.
+ *
+ * Aparece SEM assinatura, de proposito - e o portao funcionando, nao um furo.
+ * Quem nao assina precisa poder ver que ha partidas esperando, senao nunca
+ * aceita e nunca soube que existiam. O convite e livre; o conteudo e que e
+ * pago, e "3 partidas esperando por voce" e o melhor argumento que o app tem.
+ */
+function invitesBlock() {
+  const caixa = el('div', { class: 'account-invites' });
+
+  const pintar = async () => {
+    clear(caixa);
+    let convites = [];
+    try {
+      convites = await cloud.convitesPendentes();
+    } catch {
+      return; // sem rede: a secao simplesmente nao aparece
+    }
+    if (!convites.length) return;
+
+    caixa.append(el('p', { class: 'sheet-legend', text: t('invites.title') }));
+    caixa.append(el('p', {
+      class: 'account-note',
+      text: convites.length === 1
+        ? t('invites.one')
+        : t('invites.many', { n: convites.length }),
+    }));
+
+    for (const convite of convites) caixa.append(inviteRow(convite, pintar));
+  };
+
+  pintar();
+  return caixa;
+}
+
+function inviteRow(convite, recarregar) {
+  const linha = el('div', { class: 'invite' });
+  const quem = el('span', { class: 'menu-sub', text: t('invites.locked') });
+
+  // Quem convidou so o servidor sabe dizer sem entregar a partida inteira.
+  cloud.anfitriaoDoConvite(convite.match_id).then((anfitriao) => {
+    if (!anfitriao) return;
+    quem.textContent = exibirHandle(anfitriao.handle)
+      + (anfitriao.display_name ? ' - ' + anfitriao.display_name : '');
+    confiar.hidden = false;
+    confiar.dataset.host = anfitriao.id;
+  }).catch(() => {});
+
+  const responder = async (aceitar) => {
+    try {
+      await cloud.responderConvite(convite.match_id, convite.seat_id, aceitar);
+      buzz(12);
+      recarregar();
+    } catch {
+      toast(t('account.failed'));
+    }
+  };
+
+  const confiar = el('button', { class: 'btn ghost block' }, [t('invites.trust')]);
+  confiar.hidden = true;
+  confiar.addEventListener('click', async () => {
+    try {
+      await cloud.confiarEm(confiar.dataset.host);
+      await responder(true);
+    } catch {
+      toast(t('account.failed'));
+    }
+  });
+
+  linha.append(el('div', { class: 'invite-who' }, [
+    el('span', {
+      class: 'menu-label',
+      text: t('invites.seat', { handle: exibirHandle(convite.handle) }),
+    }),
+    quem,
+  ]));
+  linha.append(el('div', { class: 'invite-acts' }, [
+    el('button', { class: 'btn primary', onClick: () => responder(true) },
+      [t('invites.accept')]),
+    el('button', { class: 'btn ghost', onClick: () => responder(false) },
+      [t('invites.decline')]),
+  ]));
+  linha.append(confiar);
+  return linha;
 }

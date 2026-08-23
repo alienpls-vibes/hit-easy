@@ -2305,3 +2305,37 @@ button {
   opacity: 0.82;
   pointer-events: none;
 }
+
+/* @ na cadeira: discreto quando vazio, marcado quando vinculado. */
+.seat-handle {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: 600 11px/1.5 var(--font, system-ui, sans-serif);
+  cursor: pointer;
+}
+.seat-handle.is-on {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+
+.account-handle,
+.account-invites { display: grid; gap: 8px; }
+
+.handle-result { display: grid; gap: 8px; }
+.handle-found { display: grid; gap: 2px; }
+
+.invite {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.invite-who { display: grid; gap: 2px; }
+.invite-acts { display: flex; gap: 8px; }
+.invite-acts .btn { flex: 1 1 0; }
