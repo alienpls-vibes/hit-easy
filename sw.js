@@ -11,7 +11,7 @@
  *    proprio cache de busca em localStorage).
  */
 
-const VERSION = 'v24';
+const VERSION = 'v25';
 const SHELL = 'hiteasy-shell-' + VERSION;
 const ART = 'hiteasy-art-' + VERSION;
 
@@ -32,6 +32,8 @@ const ASSETS = [
   './src/vote.js',
   './src/orientation.js',
   './src/i18n.js',
+  './src/config.js',
+  './src/cloud.js',
   './src/scryfall.js',
   './src/views/setup.js',
   './src/views/table.js',

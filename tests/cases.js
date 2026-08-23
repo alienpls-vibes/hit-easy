@@ -20,6 +20,9 @@ import { LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle } from '../src/sea
 import { createSession, cast, tally, pending, isComplete, describe } from '../src/vote.js';
 import { openFlow, closeSheet, dismissOnBackdrop, el, isSheetOpen, onSheetChange } from '../src/ui.js';
 import { DICTS, LANGS, t, tn, setLang, currentLang } from '../src/i18n.js';
+import {
+  accountState, assinaturaAtiva, sessaoValida, toRow, fromRow, pendentes,
+} from '../src/cloud.js';
 import { renderTable } from '../src/views/table.js';
 import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
 import { brandMark } from '../src/ui.js';
@@ -1349,6 +1352,70 @@ export const cases = [
         ok(dist > 25, 'tons ' + i + ' e ' + j + ' ficaram a ' + dist.toFixed(0) + '° um do outro');
       }
     }
+  }],
+
+  ['o estado da conta cobre os quatro casos', () => {
+    // A interface inteira se desenha a partir daqui, então cada caso precisa
+    // sair certo — inclusive o de sempre: sem nuvem configurada, o app é local.
+    const s = { access_token: 'x' };
+    eq(accountState({ ligado: false, sessao: s, assinatura: { status: 'active' } }),
+      'desligado', 'sem nuvem, nada muda');
+    eq(accountState({ ligado: true, sessao: null }), 'deslogado', 'nuvem ligada, sem sessão');
+    eq(accountState({ ligado: true, sessao: s, assinatura: null }),
+      'sem-assinatura', 'entrou mas não assina');
+    eq(accountState({ ligado: true, sessao: s, assinatura: { status: 'active' } }),
+      'assinante', 'entrou e assina');
+  }],
+
+  ['assinatura vencida perde o acesso, mas com um dia de tolerância', () => {
+    // Cartão falha e o Stripe tenta de novo em algumas horas. Derrubar o acesso
+    // nesse meio-tempo puniria quem está em dia por um problema do emissor.
+    const agora = Date.parse('2026-08-23T12:00:00Z');
+    const em = (h) => new Date(agora + h * 3600e3).toISOString();
+
+    ok(assinaturaAtiva({ status: 'active', current_period_end: em(24) }, agora), 'em dia');
+    ok(assinaturaAtiva({ status: 'active', current_period_end: em(-6) }, agora),
+      'venceu há 6h: ainda dentro da tolerância');
+    ok(!assinaturaAtiva({ status: 'active', current_period_end: em(-30) }, agora),
+      'venceu há 30h: fora');
+    ok(!assinaturaAtiva({ status: 'canceled', current_period_end: em(240) }, agora),
+      'cancelada não vale, mesmo dentro do período');
+    ok(!assinaturaAtiva(null, agora), 'sem assinatura');
+    ok(assinaturaAtiva({ status: 'active' }, agora), 'sem data de fim, vale');
+  }],
+
+  ['sessão expirada não conta como sessão', () => {
+    const agora = Date.parse('2026-08-23T12:00:00Z');
+    ok(sessaoValida({ access_token: 'x', expires_at: agora / 1000 + 3600 }, agora), 'válida');
+    ok(!sessaoValida({ access_token: 'x', expires_at: agora / 1000 - 10 }, agora), 'expirada');
+    ok(!sessaoValida({ expires_at: agora / 1000 + 3600 }, agora), 'sem token');
+    ok(!sessaoValida(null, agora), 'sem nada');
+  }],
+
+  ['a partida vai e volta do banco sem perder nada', () => {
+    const m = mesa(4);
+    push(m, { type: 'life', targetId: 's1', delta: -7, sourceId: 's0' });
+    push(m, { type: 'turn' });
+    undo(m); // deixa algo em `redo`
+
+    const linha = toRow(m, 'user-123');
+    eq(linha.id, m.id, 'id preservado');
+    eq(linha.owner, 'user-123', 'dono');
+    eq(linha.payload.redo, [], 'refazer não sobe: é estado de tela, não histórico');
+
+    const volta = fromRow(linha);
+    eq(volta.events, m.events, 'o log volta inteiro');
+    eq(JSON.stringify(replay(volta)), JSON.stringify(replay(m)), 'e o replay dá o mesmo estado');
+  }],
+
+  ['só sobe o que o servidor ainda não tem', () => {
+    // Partida encerrada é imutável, então comparar por id basta: não há versão
+    // nem conflito para resolver. É o que torna o sync tão simples.
+    const locais = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+    eq(pendentes(locais, ['b']).map((m) => m.id), ['a', 'c'], 'faltam duas');
+    eq(pendentes(locais, ['a', 'b', 'c']).map((m) => m.id), [], 'nada a fazer');
+    eq(pendentes(locais, []).map((m) => m.id), ['a', 'b', 'c'], 'servidor vazio');
+    eq(pendentes([], ['a']).length, 0, 'nada local');
   }],
 
   ['replay é determinístico: mesmo log, mesmo estado', () => {
