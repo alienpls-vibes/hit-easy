@@ -11,9 +11,30 @@
  *    proprio cache de busca em localStorage).
  */
 
-const VERSION = 'v26';
-const SHELL = 'hiteasy-shell-' + VERSION;
-const ART = 'hiteasy-art-' + VERSION;
+const VERSION = 'v27';
+
+/**
+ * Producao e beta dividem a mesma origem, e Cache Storage e por origem. O canal
+ * sai do caminho deste proprio arquivo: /hit-easy/sw.js contra
+ * /hit-easy/beta/sw.js. Sem isto os dois canais brigariam pelos mesmos nomes.
+ *
+ * Producao segue com o prefixo curto de sempre; so o beta ganha marca.
+ */
+const CANAL = /(^|\/)beta(\/|$)/.test(self.location.pathname) ? 'beta' : 'producao';
+const PREFIXO = CANAL === 'beta' ? 'hiteasy-beta-' : 'hiteasy-';
+const SHELL = PREFIXO + 'shell-' + VERSION;
+const ART = PREFIXO + 'art-' + VERSION;
+
+/**
+ * De quem e um cache. Mesma regra de canalDoCache() em src/canal.js - o worker
+ * nao importa modulo, entao ela vive nos dois lugares. Se mudar la, mude aqui.
+ */
+function canalDoCache(nome) {
+  const n = String(nome || '');
+  if (n.startsWith('hiteasy-beta-')) return 'beta';
+  if (n.startsWith('hiteasy-')) return 'producao';
+  return null;
+}
 
 const ASSETS = [
   './',
@@ -32,6 +53,7 @@ const ASSETS = [
   './src/vote.js',
   './src/orientation.js',
   './src/i18n.js',
+  './src/canal.js',
   './src/config.js',
   './src/cloud.js',
   './src/scryfall.js',
@@ -55,7 +77,12 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
-        keys.filter((k) => k !== SHELL && k !== ART).map((k) => caches.delete(k)),
+        // So o proprio canal, e so o que ficou velho. Antes daqui saia um
+        // `k !== SHELL` solto, que apagava TUDO - inclusive o cache offline do
+        // outro canal e o de qualquer outra pagina desta origem.
+        keys
+          .filter((k) => canalDoCache(k) === CANAL && k !== SHELL && k !== ART)
+          .map((k) => caches.delete(k)),
       ))
       .then(() => self.clients.claim()),
   );

@@ -2287,3 +2287,21 @@ button {
 }
 .account-sub.is-on { border-color: rgba(79, 169, 124, 0.45); }
 .account-sub .menu-sub { line-height: 1.45; }
+
+/* Marca de canal de teste.
+   Sem toque (pointer-events) porque a mesa usa a tela inteira: um selo que
+   engolisse um clique de dano seria pior que selo nenhum. */
+.beta-flag {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 4px);
+  left: calc(env(safe-area-inset-left, 0px) + 4px);
+  z-index: 9999;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font: 600 10px/1.4 var(--font, system-ui, sans-serif);
+  letter-spacing: 0.09em;
+  color: #fff;
+  background: #b4472b;
+  opacity: 0.82;
+  pointer-events: none;
+}

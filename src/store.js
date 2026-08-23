@@ -6,7 +6,9 @@
  * porque o volume e pequeno (algumas centenas de eventos por partida).
  */
 
-const KEY = 'mtglc.db.v1';
+import { chave } from './canal.js';
+
+const KEY = chave('mtglc.db.v1');
 
 const EMPTY = {
   version: 1,

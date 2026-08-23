@@ -25,6 +25,7 @@ import {
   state as accountNow, provedores, pedidoDeLink, urlDeRetorno,
 } from '../src/cloud.js';
 import { cloudEnabled } from '../src/config.js';
+import { canalDe, canalDoCache } from '../src/canal.js';
 import { renderTable } from '../src/views/table.js';
 import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
 import { brandMark } from '../src/ui.js';
@@ -1459,6 +1460,45 @@ export const cases = [
     eq(temGoogle, provedores().includes('google'),
       'botão do Google precisa acompanhar o que o servidor aceita');
     closeSheet();
+  }],
+
+  ['o canal sai do caminho da URL', () => {
+    eq(canalDe('/hit-easy/'), 'producao', 'raiz publicada');
+    eq(canalDe('/hit-easy/beta/'), 'beta', 'canal de teste');
+    eq(canalDe('/hit-easy/beta/index.html'), 'beta', 'arquivo dentro do beta');
+    eq(canalDe('/'), 'producao', 'servidor local');
+    // 'beta' tem de ser um trecho inteiro do caminho, não pedaço de palavra.
+    eq(canalDe('/hit-easy/betamax/'), 'producao', 'não é o canal beta');
+    eq(canalDe('/beta-teste/'), 'producao', 'nem esse');
+  }],
+
+  ['produção não pode mudar de chave ao ganhar um canal de teste', () => {
+    // localStorage é por ORIGEM. Separar beta de produção é obrigatório - mas
+    // se a separação mexesse também no nome usado em produção, todo mundo que
+    // já usa o app abriria o histórico vazio. O beta ganha sufixo; produção não
+    // muda um byte. Este teste existe para que ninguém "arrume" isso depois.
+    const chaveDe = (canal, base) => (canal === 'beta' ? base + '.beta' : base);
+    eq(chaveDe('producao', 'mtglc.db.v1'), 'mtglc.db.v1', 'histórico de produção intocado');
+    eq(chaveDe('producao', 'mtglc.session.v1'), 'mtglc.session.v1', 'sessão intocada');
+    ok(chaveDe('beta', 'mtglc.db.v1') !== 'mtglc.db.v1', 'beta escreve em outro lugar');
+  }],
+
+  ['o service worker só apaga cache do próprio canal', () => {
+    // O activate antes apagava todo cache que não fosse o atual. Com dois canais
+    // na mesma origem, quem ativasse por último derrubaria o app offline do
+    // outro - e ainda o de qualquer outra página hospedada no mesmo domínio.
+    eq(canalDoCache('hiteasy-shell-v26'), 'producao', 'nome antigo continua sendo de produção');
+    eq(canalDoCache('hiteasy-art-v27'), 'producao');
+    eq(canalDoCache('hiteasy-beta-shell-v27'), 'beta');
+    eq(canalDoCache('workbox-precache-de-outro-app'), null, 'cache alheio não se toca');
+    eq(canalDoCache(''), null);
+
+    const CANAL = 'producao', SHELL = 'hiteasy-shell-v27', ART = 'hiteasy-art-v27';
+    const apagar = (nomes) => nomes.filter(
+      (k) => canalDoCache(k) === CANAL && k !== SHELL && k !== ART);
+
+    eq(apagar([SHELL, ART, 'hiteasy-shell-v26', 'hiteasy-beta-shell-v27', 'outro-app-v1']),
+      ['hiteasy-shell-v26'], 'só a versão velha do próprio canal');
   }],
 
   ['o pedido de link mágico leva redirect_to na query', () => {

@@ -15,8 +15,9 @@
  */
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY, cloudEnabled } from './config.js';
+import { chave } from './canal.js';
 
-const SESSAO = 'mtglc.session.v1';
+const SESSAO = chave('mtglc.session.v1');
 
 /* ------------------------------------------------------------------ */
 /* Parte pura                                                          */

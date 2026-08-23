@@ -1,3 +1,4 @@
+import { chave } from './canal.js';
 /**
  * Busca de comandantes na Scryfall.
  *
@@ -7,7 +8,7 @@
  */
 
 const API = 'https://api.scryfall.com';
-const CACHE_KEY = 'mtglc.scryfallCache.v1';
+const CACHE_KEY = chave('mtglc.scryfallCache.v1');
 const CACHE_TTL = 1000 * 60 * 60 * 24 * 30; // 30 dias
 const MIN_INTERVAL = 120; // ms entre chamadas
 

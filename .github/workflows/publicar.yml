@@ -1,0 +1,81 @@
+# Publica dois canais no mesmo site do GitHub Pages.
+#
+#   main  ->  /hit-easy/        producao, o que a mesa usa
+#   beta  ->  /hit-easy/beta/   teste, o que voce aprova antes
+#
+# O site e remontado inteiro a cada execucao, sempre a partir das duas branches.
+# Deploy incremental daria um estado dependente da ordem em que as coisas foram
+# publicadas - e um dia o beta apagaria a producao sem ninguem entender por que.
+#
+# Teste que falha nao publica. Como producao ja esta no ar, bloquear o deploy
+# nunca derruba nada: no pior caso a mesa continua com a versao anterior.
+
+name: Publicar
+
+on:
+  push:
+    branches: [main, beta]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  testar:
+    name: Testes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+
+  publicar:
+    name: Publicar
+    needs: testar
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Producao (main) na raiz
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: site
+
+      - name: A branch beta existe?
+        id: tembeta
+        run: |
+          if git ls-remote --exit-code --heads "$REPO" beta >/dev/null 2>&1; then
+            echo "sim=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sim=false" >> "$GITHUB_OUTPUT"
+            echo "Sem branch beta: o site sai so com producao."
+          fi
+        env:
+          REPO: ${{ github.server_url }}/${{ github.repository }}
+
+      - name: Teste (beta) em /beta/
+        if: steps.tembeta.outputs.sim == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: beta
+          path: site/beta
+
+      - name: Limpar metadados do git
+        run: rm -rf site/.git site/beta/.git
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

@@ -16,6 +16,7 @@ import { t, setLang, detectLang } from './i18n.js';
 import { preferOrientation, isWide } from './orientation.js';
 import * as store from './store.js';
 import * as cloud from './cloud.js';
+import { ehTeste } from './canal.js';
 
 const root = document.getElementById('app');
 let route = store.getCurrent() ? 'table' : 'setup';
@@ -170,6 +171,17 @@ applyTheme(settings().theme);
 setHaptics(settings().haptics);
 watchTheme(() => render()); // sistema mudou de claro para escuro (ou o contrario)
 syncOrientation();
+
+// Uma versao de teste tem de se anunciar. Sem isso da para passar uma mesa
+// inteira num beta achando que e o app de verdade - e depois procurar no lugar
+// errado a partida que ficou guardada no outro canal.
+if (ehTeste()) {
+  const marca = document.createElement('div');
+  marca.className = 'beta-flag';
+  marca.textContent = 'BETA';
+  document.body.appendChild(marca);
+}
+
 render();
 
 // A conta sobe depois da primeira tela: ninguem deve esperar rede para ver o
