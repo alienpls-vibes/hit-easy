@@ -197,6 +197,32 @@ export function capturarRetorno() {
   return true;
 }
 
+let provedoresAtivos = [];
+
+/** Quais logins sociais o servidor aceita. Vazio ate carregarConfig() rodar. */
+export function provedores() {
+  return provedoresAtivos;
+}
+
+/**
+ * Pergunta ao servidor o que esta ligado.
+ *
+ * Sem isso a tela mostraria "Entrar com Google" mesmo com o provedor desligado,
+ * e o toque levaria a uma pagina de erro do Supabase - pior que nao ter botao.
+ */
+export async function carregarConfig() {
+  if (!cloudEnabled()) return [];
+  try {
+    const cfg = await pedir('/auth/v1/settings');
+    provedoresAtivos = Object.entries(cfg.external || {})
+      .filter(([nome, ligado]) => ligado && nome !== 'email')
+      .map(([nome]) => nome);
+  } catch {
+    provedoresAtivos = [];
+  }
+  return provedoresAtivos;
+}
+
 export async function carregarUsuario() {
   if (!sessao) return null;
   const user = await pedir('/auth/v1/user');
@@ -253,4 +279,27 @@ export async function baixarPartidas() {
 
 export async function apagarPartida(id) {
   await pedir('/rest/v1/matches?id=eq.' + encodeURIComponent(id), { method: 'DELETE' });
+}
+
+/**
+ * Arranque da conta, chamado uma vez pelo app.
+ *
+ * Ordem importa: primeiro captura o token que veio na URL (senao ele fica no
+ * historico do navegador), depois carrega quem e a pessoa e se ela assina.
+ */
+export async function iniciar() {
+  if (!cloudEnabled()) return state();
+  const voltou = capturarRetorno();
+  carregarConfig();
+
+  if (sessao) {
+    try {
+      await carregarUsuario();
+      await carregarAssinatura();
+    } catch {
+      /* sessao invalida ja foi limpa por pedir() */
+    }
+  }
+  if (voltou) avisar();
+  return state();
 }

@@ -11,7 +11,7 @@
  *    proprio cache de busca em localStorage).
  */
 
-const VERSION = 'v25';
+const VERSION = 'v26';
 const SHELL = 'hiteasy-shell-' + VERSION;
 const ART = 'hiteasy-art-' + VERSION;
 

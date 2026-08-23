@@ -15,6 +15,7 @@ import { applyTheme, watchTheme } from './theme.js';
 import { t, setLang, detectLang } from './i18n.js';
 import { preferOrientation, isWide } from './orientation.js';
 import * as store from './store.js';
+import * as cloud from './cloud.js';
 
 const root = document.getElementById('app');
 let route = store.getCurrent() ? 'table' : 'setup';
@@ -170,6 +171,12 @@ setHaptics(settings().haptics);
 watchTheme(() => render()); // sistema mudou de claro para escuro (ou o contrario)
 syncOrientation();
 render();
+
+// A conta sobe depois da primeira tela: ninguem deve esperar rede para ver o
+// app. Quando o estado chegar, quem depende dele se redesenha.
+cloud.iniciar().then((estado) => {
+  if (estado !== 'desligado') render();
+});
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

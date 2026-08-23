@@ -239,6 +239,17 @@ if (simulated) {
   globalThis.window = globalThis;
   globalThis.isSecureContext = true;
   globalThis.addEventListener = () => {};
+
+  globalThis.location = {
+    href: 'http://localhost/', pathname: '/', search: '', hash: '',
+    assign() {}, replace() {}, reload() {},
+  };
+  globalThis.history = { replaceState() {}, pushState() {} };
+
+  // Rede sempre recusada nos testes. O modulo de nuvem trata falha em todo
+  // caminho, entao isto exercita o comportamento offline - e garante que
+  // rodar a suite nunca dispare uma chamada de verdade ao Supabase.
+  globalThis.fetch = () => Promise.reject(new Error('sem rede nos testes'));
   globalThis.getComputedStyle = () => ({ getPropertyValue: () => '' });
 
   globalThis.requestAnimationFrame = (fn) => frames.push(fn);

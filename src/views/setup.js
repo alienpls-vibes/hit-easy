@@ -17,6 +17,9 @@ import { variantsFor, layoutFor } from '../seating.js';
 import { MODES, currentMode, applyTheme } from '../theme.js';
 import { t, tn, LANGS, currentLang, setLang } from '../i18n.js';
 import { state as installState, promptInstall, onInstallChange } from '../install.js';
+import * as cloud from '../cloud.js';
+import { cloudEnabled, CHECKOUT_URL } from '../config.js';
+import { formatDate } from '../stats.js';
 
 const LIFE_PRESETS = [20, 30, 40, 60];
 const MIN_SEATS = 2;
@@ -25,7 +28,10 @@ const MAX_SEATS = 6;
 let draft = null;
 
 function freshSeat(index) {
-  return { id: uid('seat'), name: t('setup.players') + ' ' + (index + 1), commanders: [] };
+  // Chave propria, e nao o titulo da secao: 'Players' + numero dava
+  // "Players 1" em ingles. Interpolar tambem deixa a ordem livre em
+  // linguas onde o numero nao vem depois.
+  return { id: uid('seat'), name: t('setup.playerN', { n: index + 1 }), commanders: [] };
 }
 
 function ensureDraft() {
@@ -677,6 +683,11 @@ function openSettings(onRefresh) {
     title: t('settings.title'),
     subtitle: t('settings.sub'),
     build: (pane) => {
+      if (cloudEnabled()) {
+        pane.append(el('p', { class: 'sheet-legend', text: t('account.title') }));
+        pane.append(accountBlock(onRefresh));
+      }
+
       pane.append(el('p', { class: 'sheet-legend', text: t('settings.language') }));
 
       /*
@@ -857,4 +868,113 @@ function installBlock(onRefresh) {
   paint();
   onInstallChange(paint); // o convite pode chegar depois da tela já aberta
   return box;
+}
+
+/* ------------------------------------------------------------------ */
+/* Conta                                                               */
+/* ------------------------------------------------------------------ */
+
+function emailValido(v) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v || '').trim());
+}
+
+/**
+ * Conta e assinatura.
+ *
+ * Redesenha sozinho quando o estado muda - entrar, sair, assinatura carregada -
+ * porque o login por link magico volta de FORA do app: a pessoa sai para o
+ * e-mail e retorna pela URL, e a tela precisa refletir isso sem recarregar.
+ */
+function accountBlock(onRefresh) {
+  const caixa = el('div', { class: 'account' });
+
+  const pintar = () => {
+    clear(caixa);
+    const estado = cloud.state();
+
+    if (estado === 'deslogado') {
+      const campo = el('input', {
+        class: 'search-input',
+        type: 'email',
+        inputmode: 'email',
+        autocomplete: 'email',
+        placeholder: t('account.emailLabel'),
+        'aria-label': t('account.emailLabel'),
+      });
+      const enviar = el('button', { class: 'btn primary block' }, [t('account.sendLink')]);
+      const aviso = el('p', { class: 'account-note', text: t('account.why') });
+
+      enviar.addEventListener('click', async () => {
+        const email = campo.value.trim();
+        if (!emailValido(email)) { toast(t('account.invalidEmail')); return; }
+        enviar.disabled = true;
+        enviar.textContent = t('account.sending');
+        try {
+          await cloud.enviarLink(email);
+          clear(caixa);
+          caixa.append(
+            el('p', { class: 'account-sent', text: t('account.linkSent', { email }) }),
+            el('p', { class: 'account-note', text: t('account.linkSentHint') }),
+          );
+        } catch {
+          enviar.disabled = false;
+          enviar.textContent = t('account.sendLink');
+          toast(t('account.failed'));
+        }
+      });
+
+      caixa.append(campo, enviar);
+      // Google so aparece se estiver configurado no Supabase - um botao que
+      // leva a erro e pior que botao nenhum.
+      if (cloud.provedores().includes('google')) {
+        caixa.append(el('button', {
+          class: 'btn ghost block',
+          onClick: () => cloud.entrarCom('google'),
+        }, [t('account.withGoogle')]));
+      }
+      caixa.append(aviso);
+      return;
+    }
+
+    const usuario = cloud.currentUser();
+    caixa.append(el('div', { class: 'account-row' }, [
+      el('span', {
+        class: 'account-email',
+        text: t('account.signedInAs', { email: (usuario && usuario.email) || '' }),
+      }),
+      el('button', {
+        class: 'account-out',
+        onClick: async () => { await cloud.sair(); pintar(); if (onRefresh) onRefresh(); },
+      }, [t('account.signOut')]),
+    ]));
+
+    const assinatura = cloud.subscription();
+    if (estado === 'assinante') {
+      caixa.append(el('div', { class: 'account-sub is-on' }, [
+        el('span', { class: 'menu-label', text: t('account.subActive') }),
+        assinatura && assinatura.current_period_end
+          ? el('span', {
+            class: 'menu-sub',
+            text: t('account.subUntil', { date: formatDate(assinatura.current_period_end) }),
+          })
+          : null,
+      ]));
+    } else {
+      caixa.append(el('div', { class: 'account-sub' }, [
+        el('span', { class: 'menu-label', text: t('account.subInactive') }),
+        el('span', { class: 'menu-sub', text: t('paywall.body') }),
+      ]));
+      caixa.append(el('button', {
+        class: 'btn primary block',
+        onClick: () => {
+          if (!CHECKOUT_URL) { toast(t('account.subSoon')); return; }
+          location.assign(CHECKOUT_URL);
+        },
+      }, [t('account.subscribe')]));
+    }
+  };
+
+  pintar();
+  cloud.onAccountChange(pintar);
+  return caixa;
 }

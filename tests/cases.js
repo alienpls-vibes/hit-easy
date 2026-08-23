@@ -22,7 +22,9 @@ import { openFlow, closeSheet, dismissOnBackdrop, el, isSheetOpen, onSheetChange
 import { DICTS, LANGS, t, tn, setLang, currentLang } from '../src/i18n.js';
 import {
   accountState, assinaturaAtiva, sessaoValida, toRow, fromRow, pendentes,
+  state as accountNow, provedores,
 } from '../src/cloud.js';
+import { cloudEnabled } from '../src/config.js';
 import { renderTable } from '../src/views/table.js';
 import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
 import { brandMark } from '../src/ui.js';
@@ -1416,6 +1418,58 @@ export const cases = [
     eq(pendentes(locais, ['a', 'b', 'c']).map((m) => m.id), [], 'nada a fazer');
     eq(pendentes(locais, []).map((m) => m.id), ['a', 'b', 'c'], 'servidor vazio');
     eq(pendentes([], ['a']).length, 0, 'nada local');
+  }],
+
+  ['o nome padrão do jogador é singular em todo idioma', () => {
+    // Usava a chave do TÍTULO da seção, que é plural: em inglês saía
+    // "Players 1". Título de seção e nome de pessoa são textos diferentes.
+    const esperado = { pt: 'Jogador 1', en: 'Player 1', es: 'Jugador 1', de: 'Spieler 1' };
+    for (const [codigo] of LANGS) {
+      setLang(codigo);
+      eq(t('setup.playerN', { n: 1 }), esperado[codigo], codigo);
+      ok(!t('setup.playerN', { n: 1 }).includes('{'), codigo + ': variável não interpolada');
+      ok(t('setup.playerN', { n: 2 }) !== t('setup.players'),
+        codigo + ': nome de jogador não pode ser o título da seção');
+    }
+    setLang('pt');
+  }],
+
+  ['a tela de conta aparece nas configurações quando há nuvem', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+    fire(findAll(root, 'icon-btn').find((b) => b.attributes['aria-label'] === t('common.settings')), 'click');
+
+    const conta = findAll(document.body, 'account')[0];
+    if (!cloudEnabled()) {
+      ok(!conta, 'sem nuvem configurada, nada de conta na tela');
+      closeSheet();
+      return;
+    }
+
+    ok(conta, 'com nuvem, a seção de conta precisa existir');
+    eq(accountNow(), 'deslogado', 'ninguém entrou ainda');
+    ok(findAll(conta, 'search-input').length === 1, 'campo de e-mail');
+
+    // Botão de provedor social só existe se o servidor disser que está ligado.
+    const rotulos = findAll(conta, 'btn').map(textOf);
+    const temGoogle = rotulos.some((x) => x.includes('Google'));
+    eq(temGoogle, provedores().includes('google'),
+      'botão do Google precisa acompanhar o que o servidor aceita');
+    closeSheet();
+  }],
+
+  ['e-mail inválido não dispara pedido de link', () => {
+    if (!simulated) return 'skip';
+    // Sem isto, cada dedo errado vira uma chamada à rede e um e-mail perdido.
+    const valido = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v || '').trim());
+    ok(valido('a@b.co'), 'mínimo aceitável');
+    ok(valido(' alex@exemplo.com '), 'espaços em volta não invalidam');
+    ok(!valido('alex@exemplo'), 'sem domínio de topo');
+    ok(!valido('alex exemplo.com'), 'sem arroba');
+    ok(!valido(''), 'vazio');
   }],
 
   ['replay é determinístico: mesmo log, mesmo estado', () => {

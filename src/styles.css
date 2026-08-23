@@ -2230,3 +2230,60 @@ button {
   .stats { max-width: 1280px; }
   .stats-panel { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+/* ==========================================================================
+   Conta e assinatura
+   ========================================================================== */
+
+.account { display: flex; flex-direction: column; gap: 8px; }
+
+.account-note {
+  margin: 4px 2px 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.account-sent {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  border: 1px solid rgba(79, 169, 124, 0.4);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+.account-email {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.86rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.account-out {
+  flex: none;
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  padding: 4px 2px;
+  transition: color var(--fast);
+}
+.account-out:hover { color: var(--danger); }
+
+.account-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 13px 14px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+}
+.account-sub.is-on { border-color: rgba(79, 169, 124, 0.45); }
+.account-sub .menu-sub { line-height: 1.45; }
