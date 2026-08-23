@@ -1622,6 +1622,19 @@ export const cases = [
 export function runAll() {
   return cases.map(([name, fn]) => {
     try {
+      // Cada caso comeca do zero.
+      //
+      // Sem isto o teste herda o idioma do SISTEMA. No Windows, em portugues,
+      // os cem passavam; no Ubuntu do CI, em ingles, seis quebravam comparando
+      // "Numero secreto" com "Secret number". Passar por acidente e pior que
+      // falhar: o conjunto parecia verde sem provar nada sobre o idioma.
+      //
+      // O painel aberto vazava junto: um caso que falhava no meio deixava a
+      // folha de pe e derrubava o seguinte, que acusava um erro que nao era
+      // dele.
+      setLang('pt');
+      if (typeof closeSheet === 'function') closeSheet();
+
       const r = fn();
       if (r === 'skip') return { name, ok: true, skipped: true };
       return { name, ok: true };
