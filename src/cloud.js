@@ -84,6 +84,56 @@ export function pendentes(locais, idsRemotos) {
   return (locais || []).filter((m) => m && m.id && !remotos.has(m.id));
 }
 
+/**
+ * Esta sessao precisa ser renovada agora?
+ *
+ * A margem existe porque o token pode vencer ENTRE a decisao e a chegada do
+ * pedido no servidor. Um minuto cobre rede lenta e relogio de aparelho fora de
+ * hora, que e comum o bastante para importar.
+ */
+export function precisaRenovar(s, agora = Date.now(), margem = 60000) {
+  if (!s || !s.refresh_token) return false;
+  if (!s.expires_at) return false;
+  return s.expires_at * 1000 - margem <= agora;
+}
+
+/**
+ * A sessao ainda serve para alguma coisa?
+ *
+ * Vencida COM refresh_token nao e sessao perdida - e sessao a renovar. Tratar
+ * as duas como a mesma coisa foi o que fazia o login durar uma hora e obrigar
+ * um e-mail novo depois disso.
+ */
+export function sessaoAproveitavel(s, agora = Date.now()) {
+  if (!s || !s.access_token) return false;
+  return sessaoValida(s, agora) || Boolean(s.refresh_token);
+}
+
+/**
+ * O que estava guardado no disco vira sessao - ou nao.
+ *
+ * Separado de quem le o localStorage para que o teste alcance a DECISAO, e nao
+ * so a regra solta. Foi exatamente aqui que a sessao morria: a versao antiga
+ * exigia sessaoValida() e jogava fora tudo que tivesse vencido, refresh_token
+ * junto. Uma regra correta guardada num lugar que ninguem consulta nao conserta
+ * nada, e um teste que so exercita a regra nao teria percebido.
+ */
+export function sessaoGuardada(bruto, agora = Date.now()) {
+  try {
+    const s = bruto ? JSON.parse(bruto) : null;
+    return sessaoAproveitavel(s, agora) ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Senha curta demais nem sai do aparelho: o servidor recusaria de todo jeito. */
+export const SENHA_MINIMA = 8;
+
+export function senhaValida(v) {
+  return String(v == null ? '' : v).length >= SENHA_MINIMA;
+}
+
 /* ------------------------------------------------------------------ */
 /* Identidade publica e participantes                                  */
 /* ------------------------------------------------------------------ */
@@ -162,11 +212,9 @@ const ouvintes = new Set();
 
 function lerSessao() {
   try {
-    const bruto = localStorage.getItem(SESSAO);
-    const s = bruto ? JSON.parse(bruto) : null;
-    return sessaoValida(s) ? s : null;
+    return sessaoGuardada(localStorage.getItem(SESSAO));
   } catch {
-    return null;
+    return null; // modo privado: nem ler o disco e permitido
   }
 }
 
@@ -219,14 +267,87 @@ function cabecalhos(extra = {}) {
   };
 }
 
-async function pedir(caminho, opcoes = {}) {
+async function pedir(caminho, opcoes = {}, jaRenovou = false) {
+  // Renova ANTES quando o token esta para vencer: e mais barato que descobrir
+  // pelo 401 e refazer o pedido.
+  if (!jaRenovou && precisaRenovar(sessao)) {
+    try { await renovarSessao(); } catch { /* o 401 abaixo resolve */ }
+  }
+
   const res = await fetch(url(caminho), { ...opcoes, headers: cabecalhos(opcoes.headers) });
+
   if (res.status === 401 || res.status === 403) {
-    gravarSessao(null); // sessao morreu: melhor pedir login do que insistir
+    // Uma tentativa de renovar e refazer. Sem isto, um token vencido no meio
+    // de uma sincronizacao derrubava a sessao inteira - e a pessoa voltava a
+    // pedir e-mail por causa de um segundo de atraso.
+    if (!jaRenovou && sessao && sessao.refresh_token) {
+      try {
+        await renovarSessao();
+        return await pedir(caminho, opcoes, true);
+      } catch { /* o refresh tambem morreu: cai fora abaixo */ }
+    }
+    esquecerSessao(); // agora sim: nao ha como continuar sem login
     throw new Error('nao autorizado');
   }
+
   if (!res.ok) throw new Error('servidor respondeu ' + res.status);
   return res.status === 204 ? null : res.json();
+}
+
+/** Cabecalhos de quem ainda nao tem sessao (ou cuja sessao venceu). */
+function cabecalhosAnonimos() {
+  return { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' };
+}
+
+/** Guarda o que o GoTrue devolve num login ou numa renovacao. */
+function guardarDoServidor(d) {
+  gravarSessao({
+    access_token: d.access_token,
+    // O Supabase gira o refresh_token a cada uso; perder o novo seria perder
+    // a sessao na renovacao seguinte.
+    refresh_token: d.refresh_token || (sessao && sessao.refresh_token) || null,
+    expires_at: d.expires_at
+      || Math.floor(Date.now() / 1000) + (Number(d.expires_in) || 3600),
+    user: d.user || (sessao && sessao.user) || null,
+  });
+  return sessao;
+}
+
+let renovando = null;
+
+/**
+ * Troca o refresh_token por um access_token novo.
+ *
+ * Uma renovacao por vez: varias chamadas simultaneas (o app carrega perfil,
+ * assinatura e convites juntos) usariam o mesmo refresh_token, e como o
+ * Supabase o gira a cada uso, a segunda chegaria com um token ja gasto e
+ * derrubaria a sessao. Todas esperam a mesma promessa.
+ *
+ * Vai com cabecalho anonimo de proposito: mandar o Bearer vencido aqui e
+ * pedir para o servidor recusar antes de olhar o refresh_token.
+ */
+export async function renovarSessao() {
+  if (!sessao || !sessao.refresh_token) throw new Error('sem refresh');
+  if (renovando) return renovando;
+
+  renovando = (async () => {
+    const res = await fetch(url('/auth/v1/token?grant_type=refresh_token'), {
+      method: 'POST',
+      headers: cabecalhosAnonimos(),
+      body: JSON.stringify({ refresh_token: sessao.refresh_token }),
+    });
+    if (!res.ok) {
+      esquecerSessao();
+      throw new Error('sessao expirada');
+    }
+    return guardarDoServidor(await res.json());
+  })();
+
+  try {
+    return await renovando;
+  } finally {
+    renovando = null;
+  }
 }
 
 /**
@@ -411,6 +532,9 @@ export async function iniciar() {
 
   if (sessao) {
     try {
+      // Sessao guardada de ontem chega vencida; renovar aqui e o que faz o app
+      // abrir ja logado em vez de pedir e-mail de novo.
+      if (precisaRenovar(sessao)) await renovarSessao();
       await carregarUsuario();
       await carregarPerfil();
       await carregarAssinatura();
@@ -546,4 +670,79 @@ export async function deixarDeConfiar(hostId) {
     + '&host_id=eq.' + encodeURIComponent(hostId),
     { method: 'DELETE' },
   );
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Entrar com senha                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * O e-mail e o link magico continuam existindo - e o caminho de quem esqueceu
+ * a senha, e o unico que nao depende de lembrar de nada. Mas ele nao pode ser
+ * o caminho de TODO dia: abrir a caixa de entrada para entrar no proprio
+ * aparelho e atrito demais, e num aparelho emprestado e pior ainda.
+ */
+
+async function pedirToken(caminho, corpo) {
+  const res = await fetch(url(caminho), {
+    method: 'POST',
+    headers: cabecalhosAnonimos(),
+    body: JSON.stringify(corpo),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const e = new Error(d.error_description || d.msg || d.message || 'falhou');
+    e.codigo = d.error_code || d.error || res.status;
+    throw e;
+  }
+  return d;
+}
+
+export async function entrarComSenha(email, senha) {
+  const d = await pedirToken('/auth/v1/token?grant_type=password', {
+    email: String(email || '').trim(),
+    password: String(senha || ''),
+  });
+  guardarDoServidor(d);
+  try {
+    await carregarUsuario();
+    await carregarPerfil();
+    await carregarAssinatura();
+  } catch { /* entrou; o resto chega depois */ }
+  return state();
+}
+
+/**
+ * Cria a conta ja com senha.
+ *
+ * Se o projeto exigir confirmacao de e-mail, o servidor NAO devolve sessao -
+ * devolve so o usuario. Nesse caso quem chama precisa dizer "confira sua
+ * caixa", e nao fingir que entrou.
+ */
+export async function criarConta(email, senha) {
+  const d = await pedirToken('/auth/v1/signup', {
+    email: String(email || '').trim(),
+    password: String(senha || ''),
+  });
+  if (d.access_token) {
+    guardarDoServidor(d);
+    try { await carregarUsuario(); await carregarAssinatura(); } catch { /* depois */ }
+    return { entrou: true, estado: state() };
+  }
+  return { entrou: false, estado: state() };
+}
+
+/**
+ * Define (ou troca) a senha de quem ja esta dentro.
+ *
+ * E o passo que fecha o problema: quem chegou por link magico define uma senha
+ * uma vez e nunca mais precisa de e-mail - em nenhum aparelho.
+ */
+export async function definirSenha(senha) {
+  if (!sessao) throw new Error('sem sessao');
+  await pedir('/auth/v1/user', {
+    method: 'PUT',
+    body: JSON.stringify({ password: String(senha || '') }),
+  });
 }

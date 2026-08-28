@@ -23,11 +23,13 @@ import { DICTS, LANGS, t, tn, setLang, currentLang } from '../src/i18n.js';
 import {
   accountState, assinaturaAtiva, sessaoValida, toRow, fromRow, pendentes,
   state as accountNow, provedores, pedidoDeLink, urlDeRetorno,
-  capturarRetorno, esquecerSessao,
+  capturarRetorno, esquecerSessao, precisaRenovar, sessaoAproveitavel, senhaValida,
+  sessaoGuardada,
   normalizarHandle, handleValido, exibirHandle, participantesDe, montarConvites,
 } from '../src/cloud.js';
 import { cloudEnabled } from '../src/config.js';
 import { canalDe, canalDoCache } from '../src/canal.js';
+import { giraComOAssento, grausDoPad, rotatesToSeat } from '../src/orientation.js';
 import { renderTable } from '../src/views/table.js';
 import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
 import { brandMark } from '../src/ui.js';
@@ -1454,7 +1456,15 @@ export const cases = [
 
     ok(conta, 'com nuvem, a seção de conta precisa existir');
     eq(accountNow(), 'deslogado', 'ninguém entrou ainda');
-    ok(findAll(conta, 'search-input').length === 1, 'campo de e-mail');
+
+    // E-mail e senha: entrar num aparelho novo não pode depender de abrir a
+    // caixa de entrada. O link por e-mail continua ali, como recuperação.
+    const campos = findAll(conta, 'search-input');
+    eq(campos.length, 2, 'e-mail e senha');
+    eq(campos[1].attributes.type, 'password', 'o segundo campo é senha');
+    eq(campos[1].attributes.autocomplete, 'current-password',
+      'o gerenciador de senhas do aparelho precisa reconhecer o campo');
+    ok(findAll(conta, 'account-link').length === 1, 'o link por e-mail segue disponível');
 
     // Botão de provedor social só existe se o servidor disser que está ligado.
     const rotulos = findAll(conta, 'btn').map(textOf);
@@ -1462,6 +1472,79 @@ export const cases = [
     eq(temGoogle, provedores().includes('google'),
       'botão do Google precisa acompanhar o que o servidor aceita');
     closeSheet();
+  }],
+
+  ['sessão vencida com refresh não é sessão perdida', () => {
+    // Este era o bug: guardava-se o refresh_token e nunca se usava, então a
+    // sessão morria em uma hora e a pessoa tinha de pedir e-mail de novo. Para
+    // sempre. Descartar a sessão vencida aqui era o que fechava a porta.
+    const agora = 1000000000000;
+    const hora = 3600 * 1000;
+
+    const viva = { access_token: 'a', expires_at: (agora + hora) / 1000 };
+    const vencidaComRefresh = { access_token: 'a', refresh_token: 'r', expires_at: (agora - hora) / 1000 };
+    const vencidaSemRefresh = { access_token: 'a', expires_at: (agora - hora) / 1000 };
+
+    ok(sessaoAproveitavel(viva, agora), 'sessão no prazo serve');
+    ok(sessaoAproveitavel(vencidaComRefresh, agora), 'vencida com refresh se renova');
+    ok(!sessaoAproveitavel(vencidaSemRefresh, agora), 'vencida sem refresh acabou');
+    ok(!sessaoAproveitavel(null, agora), 'nenhuma sessão');
+
+    // A margem evita o caso em que o token vence ENTRE decidir e o pedido
+    // chegar ao servidor - rede lenta e relógio de aparelho fora de hora.
+    ok(!precisaRenovar(viva, agora), 'faltando uma hora, não mexe');
+    ok(precisaRenovar({ ...vencidaComRefresh, expires_at: (agora + 30000) / 1000 }, agora),
+      'faltando 30s, renova antes de usar');
+    ok(!precisaRenovar(viva, agora), 'sem refresh_token não há o que renovar, mesmo no prazo');
+    ok(precisaRenovar(vencidaComRefresh, agora), 'já vencida, renova');
+    ok(!precisaRenovar(vencidaSemRefresh, agora), 'sem refresh não há o que renovar');
+    ok(!precisaRenovar({ access_token: 'a', refresh_token: 'r' }, agora),
+      'sem prazo declarado, não fica renovando à toa');
+
+    // E a decisão de verdade: o que sai do disco. Uma regra correta guardada
+    // num lugar que ninguém consulta não conserta nada - era exatamente aqui
+    // que a sessão morria, e o teste da regra solta não perceberia.
+    ok(sessaoGuardada(JSON.stringify(vencidaComRefresh), agora), 'volta do disco para ser renovada');
+    ok(!sessaoGuardada(JSON.stringify(vencidaSemRefresh), agora), 'essa não volta');
+    ok(!sessaoGuardada(null, agora), 'disco vazio');
+    ok(!sessaoGuardada('{quebrado', agora), 'lixo no disco não derruba o app');
+  }],
+
+  ['senha curta nem sai do aparelho', () => {
+    ok(!senhaValida(''), 'vazia');
+    ok(!senhaValida('1234567'), 'sete não bastam');
+    ok(senhaValida('12345678'), 'oito bastam');
+    ok(!senhaValida(null), 'nulo não explode');
+  }],
+
+  ['no computador o teclado de dano não vira de cabeça para baixo', () => {
+    // Deitado na mesa, o teclado gira para o assento de quem age - é assim que
+    // a pessoa lê o próprio ataque. Num monitor de pé, de frente para uma
+    // pessoa só, o mesmo giro entregava a tela invertida.
+    //
+    // O sinal é o ponteiro, não o tamanho: tablet grande em paisagem tem a
+    // largura de um notebook, e chutar por pixels erraria nos dois sentidos.
+    ok(giraComOAssento(false), 'sem mouse: está na mesa, gira');
+    ok(!giraComOAssento(true), 'com mouse ou trackpad: está de pé, não gira');
+
+    // O valor que chega ao CSS, com unidade. Sem o sufixo, `rotate(0)` é
+    // inválido e o navegador descarta a regra inteira em silêncio.
+    eq(grausDoPad(180, false), '180deg', 'na mesa, acompanha o assento');
+    eq(grausDoPad(180, true), '0deg', 'no computador, sempre de pé');
+    eq(grausDoPad(undefined, false), '0deg', 'assento sem giro declarado');
+
+    // E que a leitura do ponteiro realmente chegue até a decisão.
+    if (simulated) {
+      const antes = globalThis.matchMedia;
+      try {
+        globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+        eq(rotatesToSeat(), false, 'ponteiro preciso: não gira');
+        globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+        eq(rotatesToSeat(), true, 'sem ponteiro preciso: gira');
+      } finally {
+        globalThis.matchMedia = antes;
+      }
+    }
   }],
 
   ['o @ fica sob o nome, e some para quem não entrou', () => {

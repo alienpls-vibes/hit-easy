@@ -36,7 +36,24 @@ Se devolver suas partidas sem assinatura ativa, alguma política não foi aplica
 
 ---
 
-## 2. Login com Google e Apple
+## 2. Como se entra
+
+**E-mail e senha** é o caminho normal, e funciona em qualquer aparelho sem
+depender da caixa de entrada. Quem chegou por link mágico define uma senha uma
+vez nas configurações e nunca mais precisa de e-mail.
+
+O **link por e-mail** continua ali, discreto: é o caminho de quem esqueceu a
+senha, e o único que não exige lembrar de nada.
+
+A sessão **se renova sozinha** pelo `refresh_token`. Antes disso ela era
+descartada ao vencer — o login durava uma hora e depois exigia um e-mail novo,
+para sempre. Se o servidor recusar o token no meio de uma sincronização, o app
+tenta renovar e refaz o pedido uma vez antes de desistir.
+
+O mínimo de senha aqui é 8 caracteres; o do Supabase é 6. Ser mais exigente que
+o servidor é seguro — o contrário produziria um 400 que o app não previu.
+
+## 2b. Login com Google e Apple
 
 **Authentication → Providers**, no painel do Supabase.
 

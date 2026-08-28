@@ -37,7 +37,7 @@ import {
 import { formatDuration, totalDamage } from '../stats.js';
 import * as store from '../store.js';
 import { layoutFor } from '../seating.js';
-import { preferOrientation } from '../orientation.js';
+import { preferOrientation, grausDoPad, apontadorPreciso } from '../orientation.js';
 import { t, tn } from '../i18n.js';
 // `pending` vira `faltamVotar`: renderTable ja tem um `pending` local (o Map
 // dos toques ainda nao confirmados), e o de fora ficaria sombreado.
@@ -65,6 +65,13 @@ export function renderTable(root, ctx) {
   const tiles = new Map();
   const pending = new Map(); // seatId -> { delta, timer }
   const rotOf = new Map();   // seatId -> graus, para orientar o teclado de dano
+
+  // Quanto o teclado de dano gira.
+  //
+  // Deitado na mesa, ele acompanha o assento de quem esta agindo - e assim que
+  // a pessoa consegue ler o proprio ataque. Num computador o monitor esta de pe
+  // diante de uma pessoa so, e o mesmo giro punha a tela de cabeca para baixo.
+  const rotDoPad = (seatId) => grausDoPad(rotOf.get(seatId), apontadorPreciso());
   let state = replay(match);
   let victoryShown = false;
   let destroyed = false;
@@ -469,7 +476,7 @@ export function renderTable(root, ctx) {
 
     const pad = el('div', {
       class: 'pad',
-      style: { '--accent': accent, '--rot': (rotOf.get(sourceId) || 0) + 'deg' },
+      style: { '--accent': accent, '--rot': rotDoPad(sourceId) },
     }, [
       el('div', { class: 'pad-head' }, [
         el('span', { class: 'pad-from', text: source.name }),
@@ -585,7 +592,7 @@ export function renderTable(root, ctx) {
 
     const pad = el('div', {
       class: 'pad',
-      style: { '--accent': accent, '--rot': (rotOf.get(sourceId) || 0) + 'deg' },
+      style: { '--accent': accent, '--rot': rotDoPad(sourceId) },
     }, [
       el('div', { class: 'pad-head' }, [
         el('span', { class: 'pad-from', text: source.name }),

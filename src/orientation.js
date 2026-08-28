@@ -68,3 +68,52 @@ export async function preferOrientation(mode) {
     /* sem suporte ou negado: o CSS se vira nas duas orientacoes */
   }
 }
+
+/**
+ * O aparelho esta NO MEIO da mesa, ou de FRENTE para uma pessoa so?
+ *
+ * Celular e tablet ficam deitados entre os jogadores: cada um olha de um lado,
+ * e girar o teclado de dano para o assento de quem ataca e o que faz ele ser
+ * legivel. Num computador ninguem senta em volta do monitor - ele fica de pe,
+ * de frente para uma pessoa - e ai o mesmo giro entrega a tela de cabeca para
+ * baixo, que era o que estava acontecendo.
+ *
+ * O sinal e o ponteiro, nao o tamanho da tela: tablet grande em paisagem tem a
+ * largura de um notebook, e chutar por pixels erraria nos dois sentidos. Mouse
+ * ou trackpad significa alguem sentado de frente. Um notebook com tela sensivel
+ * ao toque tambem tem mouse, e tambem nao deve girar - o que da o resultado
+ * certo. iPad com teclado e trackpad conta como computador, e ai ele esta mesmo
+ * apoiado feito notebook.
+ */
+export function apontadorPreciso(mm) {
+  const media = mm || (typeof window !== 'undefined' && window.matchMedia
+    ? window.matchMedia.bind(window)
+    : null);
+  if (!media) return false;
+  try {
+    return Boolean(media('(hover: hover) and (pointer: fine)').matches);
+  } catch {
+    return false;
+  }
+}
+
+/** Decisao pura, para poder ser testada dos dois lados. */
+export function giraComOAssento(temApontadorPreciso) {
+  return !temApontadorPreciso;
+}
+
+/** Os teclados do jogo devem girar para o assento de quem age? */
+export function rotatesToSeat() {
+  return giraComOAssento(apontadorPreciso());
+}
+
+/**
+ * Quanto o teclado de dano gira, ja no formato que o CSS espera.
+ *
+ * Existe como funcao para que o teste alcance a decisao inteira - inclusive o
+ * sufixo, que e a parte que quebra em silencio: `transform: rotate(0)` sem
+ * unidade e invalido, e a regra toda seria descartada pelo navegador.
+ */
+export function grausDoPad(graus, temApontadorPreciso) {
+  return (giraComOAssento(temApontadorPreciso) ? (graus || 0) : 0) + 'deg';
+}

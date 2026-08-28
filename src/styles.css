@@ -2345,3 +2345,20 @@ button {
 .invite-who { display: grid; gap: 2px; }
 .invite-acts { display: flex; gap: 8px; }
 .invite-acts .btn { flex: 1 1 0; }
+
+.account-login,
+.account-senha { display: grid; gap: 8px; }
+
+/* O link por e-mail: disponivel sem competir com o botao de entrar. */
+.account-link {
+  justify-self: center;
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: 500 12px/1.5 var(--font, system-ui, sans-serif);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.account-link:hover { color: var(--fg); }
