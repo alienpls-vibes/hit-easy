@@ -18,6 +18,7 @@ import { orientOf } from './seating.js';
 import * as store from './store.js';
 import * as cloud from './cloud.js';
 import { podeVerEstatisticas } from './cloud.js';
+import * as sync from './sync.js';
 import { cloudEnabled } from './config.js';
 import { ehTeste } from './canal.js';
 
@@ -36,7 +37,39 @@ function go(next) {
   render();
 }
 
+/**
+ * Desenha a rota atual.
+ *
+ * O corpo real esta em desenhar(); esta camada existe so para que um erro numa
+ * tela nao deixe o aplicativo PRETO. Tela preta nao diz nada a quem esta
+ * usando e nao diz nada a quem vai consertar - e foi exatamente o que uma
+ * partida malformada vinda da nuvem produziu.
+ */
 function render() {
+  try {
+    desenhar();
+  } catch (err) {
+    telaDeErro(err);
+  }
+}
+
+function telaDeErro(err) {
+  root.innerHTML = '';
+  const caixa = document.createElement('div');
+  caixa.className = 'crash';
+  const h = document.createElement('h2');
+  h.textContent = t('common.error');
+  const p = document.createElement('p');
+  p.textContent = String((err && err.message) || err);
+  const b = document.createElement('button');
+  b.className = 'btn primary';
+  b.textContent = t('common.back');
+  b.addEventListener('click', () => go('setup'));
+  caixa.append(h, p, b);
+  root.append(caixa);
+}
+
+function desenhar() {
   if (live && live.destroy) live.destroy();
   live = null;
   document.body.dataset.route = route;
@@ -50,6 +83,10 @@ function render() {
       onStats: () => go('stats'),
       onFinish: () => {
         store.archive(match);
+        // A partida acabou de existir: sobe agora, enquanto a pessoa ainda
+        // esta com o aparelho na mao e provavelmente com rede. Falhar aqui nao
+        // perde nada - ela fica sem a marca de enviada e sobe na proxima.
+        sync.sincronizar().catch(() => {});
         seedDraftFrom(match);
         go('setup');
         toast(t('victory.saved'), { label: t('victory.seeData'), onClick: () => go('stats') });
@@ -223,6 +260,11 @@ render();
 // app. Quando o estado chegar, quem depende dele se redesenha.
 cloud.iniciar().then((estado) => {
   if (estado !== 'desligado') render();
+  // Sincroniza depois de saber quem e a pessoa. Falhar aqui nao atrapalha
+  // nada: o que nao subiu continua sem marca e sobe na proxima abertura.
+  sync.sincronizar().then((r) => {
+    if (r && (r.baixou || r.subiu)) render();
+  }).catch(() => {});
 });
 
 // A conta pode mudar depois da primeira tela - a assinatura chega da rede, e o

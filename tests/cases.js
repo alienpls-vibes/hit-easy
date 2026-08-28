@@ -9,7 +9,7 @@
 // Primeiro de todos: instala o DOM simulado antes que ui.js seja avaliado.
 import { simulated, flushFrames, findAll, fire, textOf } from './dom-stub.js';
 import {
-  createMatch, replay, push, undo, standings, elapsedOf, pessoaRepetida,
+  createMatch, replay, push, undo, standings, elapsedOf, pessoaRepetida, partidaValida,
   cmdKeyOf, CMD_LETHAL, POISON_LETHAL,
 } from '../src/engine.js';
 import {
@@ -23,6 +23,7 @@ import { LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf } from '
 import { createSession, cast, tally, pending, isComplete, describe } from '../src/vote.js';
 import { openFlow, closeSheet, dismissOnBackdrop, el, isSheetOpen, onSheetChange } from '../src/ui.js';
 import { DICTS, LANGS, t, tn, setLang, currentLang } from '../src/i18n.js';
+import { fromRow as linhaParaPartida } from '../src/cloud.js';
 import {
   accountState, assinaturaAtiva, sessaoValida, toRow, fromRow, pendentes,
   state as accountNow, provedores, pedidoDeLink, urlDeRetorno,
@@ -34,6 +35,7 @@ import {
 } from '../src/cloud.js';
 import { cloudEnabled } from '../src/config.js';
 import { canalDe, canalDoCache } from '../src/canal.js';
+import { aSubir, aBaixar, aApagar, podeSincronizar } from '../src/sync.js';
 import { giraComOAssento, grausNaMesa, rotatesToSeat } from '../src/orientation.js';
 import { renderTable } from '../src/views/table.js';
 import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
@@ -280,6 +282,35 @@ export const cases = [
     eq(players.find((p) => p.label === 'P0').damageDealt, 16, 'dano causado por P0');
     eq(players.find((p) => p.label === 'P1').damageTaken, 10, 'dano recebido por P1');
     eq(players.find((p) => p.label === 'P1').healed, 4, 'cura de P1');
+  }],
+
+  ['o convite sempre carrega o @, mesmo sem saber o id da conta', () => {
+    // O defeito que isto guarda: quando o aparelho LEMBRA a que conta um nome
+    // pertence, ele preenche o @ mas não o id - ele não tem, porque lembrar
+    // existe justamente para não buscar de novo. A linha ia para o banco com
+    // user_id nulo, e a política de resposta exige `user_id = auth.uid()`.
+    // Em SQL null não é igual a nada: o convite nascia impossível de
+    // reivindicar, sem erro e sem aviso.
+    //
+    // A correção é do servidor (sql/003), que resolve o @ ao inserir. O que o
+    // cliente precisa garantir é a matéria-prima dessa resolução: nunca mandar
+    // uma cadeira marcada sem o @.
+    const match = createMatch([
+      { id: 's0', name: 'Alexandre', handle: 'alienpls', userId: 'uid-1', commanders: [commander(0)] },
+      { id: 's1', name: 'Bruno', handle: 'brunomtg', commanders: [commander(1)] },
+      { id: 's2', name: 'Carla', commanders: [commander(2)] },
+    ], 40);
+
+    const linhas = participantesDe(match);
+    eq(linhas.length, 2, 'só as cadeiras marcadas');
+    ok(linhas.every((l) => l.handle && l.handle.length > 0),
+      'toda linha leva o @: é por ele que o servidor descobre de quem é');
+
+    const comId = linhas.find((l) => l.seat_id === 's0');
+    const semId = linhas.find((l) => l.seat_id === 's1');
+    eq(comId.user_id, 'uid-1', 'quando o cliente sabe o id, manda');
+    eq(semId.user_id, null, 'quando não sabe, manda nulo - e o servidor resolve');
+    eq(semId.handle, 'brunomtg', 'mas o @ vai sempre, senão não há como resolver');
   }],
 
   ['a conta vinculada sobrevive da mesa até o convite', () => {
@@ -1365,6 +1396,178 @@ export const cases = [
     const pares = rivalries([m]);
     eq(pares.length, 3, 'três pares, um por alvo');
     ok(pares.every((r) => r.total === 3), 'três de dano em cada');
+  }],
+
+  ['partida malformada não entra no histórico', () => {
+    if (!simulated) return 'skip';
+    // Isto derrubou a tela de estatísticas de verdade: uma linha de teste com
+    // `payload: {t:1}`, esquecida no banco, foi baixada pela sincronização e
+    // entrou no histórico. replay() e as estatísticas assumem seats e events -
+    // uma linha sem eles não fica quieta num canto, derruba a TELA INTEIRA.
+    const boa = mesa(4);
+    ok(partidaValida(boa), 'uma partida de verdade passa');
+
+    ok(!partidaValida(null), 'nada');
+    ok(!partidaValida({ id: 'x' }), 'só um id não é partida');
+    ok(!partidaValida({ ...boa, seats: [] }), 'mesa vazia');
+    ok(!partidaValida({ ...boa, seats: undefined }), 'sem assentos');
+    ok(!partidaValida({ ...boa, events: undefined }), 'sem eventos');
+    ok(!partidaValida({ ...boa, startedAt: undefined }), 'sem início');
+    ok(!partidaValida({ ...boa, id: '' }), 'sem id');
+    ok(partidaValida({ ...boa, events: [] }), 'partida sem lance nenhum ainda é partida');
+
+    // E a porta de entrada recusa. Este é o caso exato que aconteceu.
+    store.wipe();
+    const lixo = linhaParaPartida({ id: 'rec-1', payload: { t: 1 } });
+    eq(store.mesclarPartidas([lixo]), 0, 'não entra o que não é partida');
+    eq(store.getDB().history.length, 0, 'e o histórico continua limpo');
+
+    // O que é bom passa junto do que é ruim, sem contaminar.
+    eq(store.mesclarPartidas([lixo, boa]), 1, 'a boa entra mesmo vindo com lixo');
+    eq(store.getDB().history.length, 1);
+  }],
+
+  ['a tela de estatísticas sobrevive a lixo vindo da nuvem', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    store.wipe();
+    store.archive(mesa(3));
+    // Mesmo que algo passe pela porta - localStorage editado, defeito futuro -
+    // a tela não pode ficar preta. Preta não diz nada a quem usa nem a quem vai
+    // consertar.
+    store.getDB().history.push({ id: 'quebrada' });
+
+    const root = document.createElement('div');
+    let explodiu = null;
+    try {
+      renderStats(root, { onBack() {} });
+    } catch (e) {
+      explodiu = e.message;
+    }
+    ok(!explodiu, 'a tela não pode explodir com um registro ruim: ' + explodiu);
+    ok(root.childNodes.length > 0, 'e não pode ficar vazia');
+  }],
+
+  ['quem não assina sobe uma vez, e não reenvia para sempre', () => {
+    // O detalhe que define o desenho: o banco deixa INSERIR sem assinatura mas
+    // não deixa LER. Quem não assina recebe lista vazia ao baixar - então, sem
+    // anotar no aparelho o que já subiu, toda abertura pareceria "a nuvem está
+    // vazia" e o histórico inteiro seria reenviado. Para sempre.
+    const locais = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+
+    // Primeira vez: nada anotado, nada visível do outro lado.
+    eq(aSubir(locais, [], []).map((m) => m.id), ['a', 'b', 'c'], 'sobe tudo');
+
+    // Depois de subir, mesmo sem conseguir ler a nuvem, não repete.
+    eq(aSubir(locais, ['a', 'b', 'c'], []).length, 0, 'não reenvia o que já foi');
+    eq(aSubir(locais, ['a'], []).map((m) => m.id), ['b', 'c'], 'só o que falta');
+
+    // Aparelho novo que baixou tudo não precisa devolver nada.
+    eq(aSubir(locais, [], ['a', 'b', 'c']).length, 0, 'o servidor já tem');
+
+    // E uma partida que falhou continua na fila, porque a fila é derivada: sem
+    // marca, ela é pendente por definição - não há estrutura separada que possa
+    // divergir do histórico.
+    eq(aSubir(locais, ['a', 'c'], []).map((m) => m.id), ['b'], 'a que falhou volta');
+  }],
+
+  ['marcar a conta numa partida já jogada', () => {
+    if (!simulated) return 'skip';
+    store.wipe();
+    const m = mesa(4);
+    push(m, { type: 'life', targetId: 's1', delta: -5, sourceId: 's0' });
+    store.archive(m);
+    store.setCurrent(mesa(2)); // há uma mesa acontecendo agora
+
+    const guardada = store.getDB().history[0];
+    eq(guardada.seats[0].handle, null, 'ninguém foi marcado na hora');
+
+    // Marca a cadeira e grava de volta.
+    guardada.seats[0].handle = 'alienpls';
+    guardada.seats[0].userId = 'uid-1';
+    ok(store.atualizarPartida(guardada), 'a partida é regravada');
+    eq(store.getDB().history[0].seats[0].handle, 'alienpls', 'a marca ficou');
+
+    // archive() zera a partida em andamento como parte de encerrar. Usar
+    // archive para editar um registro antigo apagaria a mesa que está
+    // acontecendo agora - um estrago silencioso e absurdo.
+    ok(store.getCurrent(), 'a mesa em andamento continua de pé');
+
+    // E o convite passa a existir para aquela cadeira.
+    const linhas = participantesDe(store.getDB().history[0]);
+    eq(linhas.length, 1);
+    eq(linhas[0].seat_id, 's0');
+    eq(linhas[0].handle, 'alienpls');
+
+    // Partida que não está no histórico não é criada por engano.
+    ok(!store.atualizarPartida({ ...mesa(3), id: 'nao-existe' }), 'não inventa registro');
+    ok(!store.atualizarPartida({ id: 'x' }), 'nem aceita coisa malformada');
+  }],
+
+  ['apagar num aparelho apaga em todos - e nunca por engano', () => {
+    // O aparelho B tinha a partida e a marcou como enviada ao baixá-la. O
+    // aparelho A apagou. Sem reconciliar, ela ficava em B para sempre: nada
+    // no fluxo de subir ou baixar a alcançava.
+    eq(aApagar(['p1', 'p2'], ['p2'], true), ['p1'], 'some daqui o que sumiu de lá');
+    eq(aApagar(['p1', 'p2'], ['p1', 'p2'], true), [], 'o que continua lá, fica');
+
+    // Partida que nunca subiu não pode ser julgada pela ausência dela na nuvem.
+    eq(aApagar([], ['p9'], true), [], 'nada marcado, nada a apagar');
+
+    // As duas travas contra desastre. A leitura devolve lista vazia para quem
+    // NÃO assina - idêntico ao que devolveria se tudo tivesse sido apagado.
+    // Confundir os dois casos destruiria o histórico de quem só deixou de
+    // pagar, e não há desfazer.
+    eq(aApagar(['p1', 'p2'], [], false), [], 'sem poder ler de verdade, não apaga');
+    eq(aApagar(['p1', 'p2'], [], true), [],
+      'lista remota vazia com coisas enviadas é suspeito demais para agir');
+
+    // Errar para o lado de sobrar é recuperável; errar para o lado de apagar não.
+    eq(aApagar(['p1'], ['p1', 'p2', 'p3'], true), [], 'a nuvem ter mais não apaga nada aqui');
+  }],
+
+  ['baixar traz só o que este aparelho não tem', () => {
+    const aqui = [{ id: 'a' }, { id: 'b' }];
+    const la = [{ id: 'b' }, { id: 'c' }, { id: 'd' }];
+    eq(aBaixar(aqui, la).map((m) => m.id), ['c', 'd'], 'nem duplica nem perde');
+    eq(aBaixar([], la).length, 3, 'aparelho novo recebe tudo');
+    eq(aBaixar(aqui, []).length, 0, 'sem assinatura o servidor devolve vazio');
+    eq(aBaixar(null, null).length, 0, 'listas vazias não explodem');
+  }],
+
+  ['sincronizar só faz sentido com conta', () => {
+    ok(!podeSincronizar(true, 'deslogado'), 'sem conta não há para onde subir');
+    ok(!podeSincronizar(false, 'assinante'), 'sem nuvem configurada não há nuvem');
+    ok(podeSincronizar(true, 'sem-assinatura'), 'sem assinar ainda se pode SUBIR');
+    ok(podeSincronizar(true, 'assinante'));
+  }],
+
+  ['o histórico local não é apagado ao subir, e a mesclagem não sobrescreve', () => {
+    if (!simulated) return 'skip';
+    store.wipe();
+    const m = mesa(4);
+    push(m, { type: 'life', targetId: 's1', delta: -7, sourceId: 's0' });
+    store.archive(m);
+
+    eq(store.getDB().history.length, 1, 'a partida está aqui');
+    store.marcarEnviada(m.id);
+    eq(store.enviadas(), [m.id], 'anotada como enviada');
+    eq(store.getDB().history.length, 1, 'e continua aqui: subir não apaga nada');
+
+    // Partida encerrada é imutável, e a cópia local pode ter algo que a remota
+    // não tem se um envio falhou pela metade. Na dúvida, o que já está aqui manda.
+    const forjada = { ...m, seats: [] };
+    eq(store.mesclarPartidas([forjada]), 0, 'não traz o que já existe');
+    eq(store.getDB().history[0].seats.length, 4, 'e não sobrescreve o que estava aqui');
+
+    const outra = mesa(3);
+    eq(store.mesclarPartidas([outra]), 1, 'traz o que é novo');
+    eq(store.getDB().history.length, 2);
+
+    // Apagar tira a marca junto, senão a partida nunca mais poderia subir.
+    store.deleteMatch(m.id);
+    store.esquecerEnviada(m.id);
+    eq(store.enviadas().includes(m.id), false, 'a marca sai com a partida');
   }],
 
   ['sem assinatura, o histórico fica fechado', () => {

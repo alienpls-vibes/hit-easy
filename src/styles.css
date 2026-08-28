@@ -2456,3 +2456,66 @@ button {
   letter-spacing: 0.04em;
   opacity: 0.7;
 }
+
+.account-sync { display: grid; gap: 8px; }
+
+/* Tela de erro. Existe para que um defeito diga o que houve, em vez de deixar
+   o app preto - preto nao ajuda quem usa nem quem conserta. */
+.crash {
+  display: grid;
+  gap: 12px;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  text-align: center;
+}
+.crash p {
+  padding: 10px;
+  border-radius: var(--r-sm, 10px);
+  background: var(--sheet-bg);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font: 400 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-word;
+}
+
+/* Aviso de convite na home. Só existe quando há algo esperando: um aviso
+   permanente vira parte do cenário e deixa de ser aviso. */
+.invite-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: var(--r-md, 14px);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+.invite-banner-n {
+  flex: 0 0 auto;
+  min-width: 26px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font: 700 13px/1.4 var(--font, system-ui, sans-serif);
+  text-align: center;
+}
+.invite-banner-txt { display: grid; gap: 1px; min-width: 0; }
+
+/* Marcar conta numa partida já jogada. Discreto: é a exceção, não a rotina. */
+.match-tag {
+  justify-self: start;
+  padding: 3px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: 500 12px/1.5 var(--font, system-ui, sans-serif);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.match-tag:hover { color: var(--accent); }

@@ -22,6 +22,7 @@ import {
 import { APP_VERSION } from '../version.js';
 import { canal } from '../canal.js';
 import * as cloud from '../cloud.js';
+import * as sync from '../sync.js';
 import { handleValido, exibirHandle, normalizarHandle } from '../cloud.js';
 import { cloudEnabled, CHECKOUT_URL } from '../config.js';
 import { formatDate } from '../stats.js';
@@ -120,6 +121,10 @@ export function renderSetup(root, { onStart, onStats, onRefresh }) {
           el('button', { class: 'icon-btn', 'aria-label': t('common.stats'), onClick: onStats }, [icon('chart')]),
         ]),
       ]),
+
+      // Logo abaixo do cabeçalho: é a primeira coisa depois do nome do app,
+      // que é onde um aviso é visto sem precisar rolar nada.
+      convitesBanner(onRefresh),
 
       el('div', { class: 'field-row setup-life' }, [
         el('span', { class: 'label' }, [t('setup.startingLife')]),
@@ -1001,6 +1006,7 @@ function accountBlock(onRefresh) {
     ]));
 
     caixa.append(senhaBlock());
+    caixa.append(syncBlock());
     caixa.append(handleBlock());
     caixa.append(invitesBlock());
 
@@ -1340,11 +1346,11 @@ function invitesBlock() {
 
   const pintar = async () => {
     clear(caixa);
-    let convites = [];
+    let convites = cloud.convitesAbertos();
     try {
       convites = await cloud.convitesPendentes();
     } catch {
-      return; // sem rede: a secao simplesmente nao aparece
+      /* sem rede: mostra o que este aparelho ja sabia */
     }
     if (!convites.length) return;
 
@@ -1637,4 +1643,109 @@ function senhaBlock() {
   caixa.append(el('div', { class: 'name-row' }, [campo, salvar]));
   caixa.append(el('p', { class: 'account-note', text: t('account.setPasswordHint') }));
   return caixa;
+}
+
+
+/**
+ * Levar o historico para a nuvem, e ver quanto falta.
+ *
+ * A sincronizacao acontece sozinha ao abrir o app e ao terminar uma partida.
+ * Este bloco existe para os dois casos em que isso nao basta: a migracao
+ * inicial, quando ha um historico inteiro esperando, e a rede que caiu - sem um
+ * numero visivel, "ja subiu?" nao tem resposta.
+ */
+function syncBlock() {
+  const caixa = el('div', { class: 'account-sync' });
+
+  const pintar = () => {
+    clear(caixa);
+    const historico = store.getDB().history || [];
+    const enviadas = new Set(store.enviadas());
+    const faltam = historico.filter((m) => m && m.id && !enviadas.has(m.id)).length;
+
+    caixa.append(el('p', { class: 'sheet-legend', text: t('sync.title') }));
+    caixa.append(el('p', {
+      class: faltam ? 'account-note' : 'account-sent',
+      text: faltam
+        ? (faltam === 1 ? t('sync.pendingOne') : t('sync.pendingMany', { n: faltam }))
+        : t('sync.allUp', { n: historico.length }),
+    }));
+
+    const botao = el('button', {
+      class: faltam ? 'btn primary block' : 'btn ghost block',
+    }, [faltam ? t('sync.now') : t('sync.check')]);
+
+    botao.addEventListener('click', async () => {
+      botao.disabled = true;
+      botao.textContent = t('sync.working');
+      const r = await sync.sincronizar({
+        aoProgresso: (p) => {
+          botao.textContent = t('sync.progress', { n: p.subiu });
+        },
+      });
+      pintar();
+      if (r.falhou) toast(t('sync.partial', { n: r.falhou }));
+      else if (r.subiu || r.baixou) toast(t('sync.done', { subiu: r.subiu, baixou: r.baixou }));
+      else toast(t('sync.nothing'));
+    });
+
+    caixa.append(botao);
+    caixa.append(el('p', { class: 'account-note', text: t('sync.hint') }));
+  };
+
+  pintar();
+  return caixa;
+}
+
+
+/**
+ * Aviso de convite na home.
+ *
+ * Antes, uma partida registrada por outra pessoa so aparecia dentro de
+ * Configuracoes > Conta. Quem nao soubesse que aquilo existia nunca ia
+ * encontrar - e nao ha por que esperar que alguem procure por um recurso que
+ * ninguem contou que existe.
+ *
+ * Some sozinho quando nao ha nada esperando: um aviso permanente vira parte do
+ * cenario e deixa de ser aviso.
+ */
+function convitesBanner(onRefresh) {
+  const abertos = cloudEnabled() ? cloud.convitesAbertos() : [];
+  if (!abertos.length) return null;
+
+  return el('button', {
+    class: 'invite-banner',
+    onClick: () => openSheet({
+      title: t('invites.title'),
+      subtitle: t('invites.sub'),
+      build: (pane) => {
+        const lista = el('div', { class: 'account-invites' });
+        const pintar = async () => {
+          clear(lista);
+          let convites = cloud.convitesAbertos();
+          try {
+            convites = await cloud.convitesPendentes();
+          } catch {
+            /* sem rede: o que este aparelho ja sabia */
+          }
+          if (!convites.length) {
+            lista.append(el('p', { class: 'search-status', text: t('invites.none') }));
+            if (onRefresh) onRefresh();
+            return;
+          }
+          for (const c of convites) lista.append(inviteRow(c, pintar));
+        };
+        pintar();
+        pane.append(lista);
+        pane.append(el('p', { class: 'account-note', text: t('invites.explain') }));
+      },
+    }),
+  }, [
+    el('span', { class: 'invite-banner-n', text: String(abertos.length) }),
+    el('span', { class: 'invite-banner-txt' }, [
+      el('span', { class: 'menu-label', text: abertos.length === 1
+        ? t('invites.one') : t('invites.many', { n: abertos.length }) }),
+      el('span', { class: 'menu-sub', text: t('invites.cta') }),
+    ]),
+  ]);
 }

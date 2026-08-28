@@ -60,6 +60,7 @@ const ASSETS = [
   './src/config.js',
   './src/version.js',
   './src/cloud.js',
+  './src/sync.js',
   './src/scryfall.js',
   './src/views/setup.js',
   './src/views/table.js',

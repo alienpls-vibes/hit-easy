@@ -509,6 +509,7 @@ export async function carregarAssinatura() {
 export function esquecerSessao() {
   assinatura = null;
   assinaturaLida = false;
+  convites = [];
   perfil = null;
   gravarSessao(null);
 }
@@ -559,6 +560,28 @@ export async function baixarPartidas() {
   return (linhas || []).map(fromRow);
 }
 
+/**
+ * Quantos ids o servidor devolve de uma vez antes de virar suspeito.
+ *
+ * Nao e paginacao: e um detector de resposta incompleta. Se vier o limite
+ * cheio, provavelmente ha mais - e uma lista incompleta usada para decidir o
+ * que APAGAR seria desastrosa.
+ */
+const LIMITE_IDS = 5000;
+
+/**
+ * So os ids das partidas que estao na nuvem.
+ *
+ * Serve para descobrir o que foi apagado em outro aparelho. Traz so os ids
+ * porque a decisao nao precisa do conteudo, e porque a lista precisa caber
+ * inteira - meia lista aqui vira exclusao indevida ali.
+ */
+export async function idsRemotos() {
+  const linhas = await pedir('/rest/v1/matches?select=id&limit=' + LIMITE_IDS);
+  const ids = (linhas || []).map((l) => l && l.id).filter(Boolean);
+  return { ids, completo: ids.length < LIMITE_IDS };
+}
+
 export async function apagarPartida(id) {
   await pedir('/rest/v1/matches?id=eq.' + encodeURIComponent(id), { method: 'DELETE' });
 }
@@ -582,6 +605,9 @@ export async function iniciar() {
       await carregarUsuario();
       await carregarPerfil();
       await carregarAssinatura();
+      // Convites tambem: sem isto a home nao teria como saber que ha algo
+      // esperando, e o recurso so existiria para quem fosse procurar.
+      await convitesPendentes();
     } catch {
       /* sessao invalida ja foi limpa por pedir() */
     }
@@ -597,6 +623,7 @@ export async function iniciar() {
 
 let perfil = null;
 let assinaturaLida = false;
+let convites = [];
 
 export function meuPerfil() {
   return perfil;
@@ -684,14 +711,27 @@ export async function enviarParticipantes(match) {
   return linhas.length;
 }
 
+/**
+ * Convites em aberto, como este aparelho os conhece.
+ *
+ * Fica guardado porque a home precisa saber se ha algo esperando sem pedir a
+ * rede a cada desenho - e a home se redesenha o tempo todo.
+ */
+export function convitesAbertos() {
+  return convites;
+}
+
 /** Convites enderecados a mim que ainda nao respondi. */
 export async function convitesPendentes() {
   const dono = currentUser();
-  if (!dono) return [];
-  return (await pedir(
+  if (!dono) { convites = []; return []; }
+  const linhas = (await pedir(
     '/rest/v1/match_players?select=*&status=eq.pendente'
     + '&user_id=eq.' + encodeURIComponent(dono.id),
   )) || [];
+  convites = linhas;
+  avisar();
+  return linhas;
 }
 
 /** Quem registrou a partida a que este convite se refere. */
