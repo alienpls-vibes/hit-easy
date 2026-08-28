@@ -8,7 +8,7 @@ import { accentOf, identityGradient, pips } from '../colors.js';
 import {
   aggregate, rivalries, summarize, timeline, formatDuration, formatDate, pct, num,
   playerColorOrder, playerColor,
-  rotuloDaVotacao, rivalPeople, rivalBetween,
+  rotuloDaVotacao, rivalPeople, rivalBetween, orientarRival,
 } from '../stats.js';
 import { deckNameOf } from '../engine.js';
 import * as store from '../store.js';
@@ -545,8 +545,14 @@ function rivalsTab(pares, corDe, repintar) {
   // Sem escolha ainda: comeca pelo par de cima, que e o de maior atrito. Uma
   // tela que abre vazia obrigaria a mexer em dois campos antes de ver qualquer
   // coisa.
-  const valido = rivalBetween(pares, rivalA, rivalB);
-  if (!valido) {
+  //
+  // A condicao e "esta pessoa ainda existe?", e nao "esta combinacao tem
+  // grafico?". Resetar por combinacao vazia desfazia a escolha no meio do
+  // caminho: ao trocar o campo da esquerda para quem ja estava na direita, os
+  // dois campos voltavam sozinhos ao par inicial - e era impossivel chegar ao
+  // par invertido, que e justamente o que se queria ver.
+  const conhecido = (k) => gente.some((g) => g.key === k);
+  if (!conhecido(rivalA) || !conhecido(rivalB)) {
     rivalA = pares[0].keyA;
     rivalB = pares[0].keyB;
   }
@@ -587,6 +593,7 @@ function rivalsTab(pares, corDe, repintar) {
     return fora;
   }
 
-  fora.append(rivalCard(par, corDe));
+  // O campo da esquerda manda no lado esquerdo do gráfico.
+  fora.append(rivalCard(orientarRival(par, rivalA), corDe));
   return fora;
 }

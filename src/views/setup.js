@@ -1391,7 +1391,19 @@ function loginBlock(repintar, onRefresh) {
     'aria-label': t('account.password'),
   });
 
-  const recado = el('p', { class: 'account-note' });
+  // O erro de login precisa ser visto.
+  //
+  // Antes era um parágrafo cinza depois dos dois botões: quem errava a senha
+  // apertava "Entrar", nada visível acontecia, e a explicação ficava fora do
+  // campo de visão. `role="alert"` faz o leitor de tela anunciar, e o lugar
+  // dele agora é logo abaixo dos campos que precisam ser corrigidos.
+  const recado = el('p', { class: 'account-erro', role: 'alert' });
+  const limparRecado = () => { recado.textContent = ''; recado.classList.remove('is-on'); };
+  const erro = (texto) => {
+    recado.textContent = texto;
+    recado.classList.add('is-on');
+    toast(texto);
+  };
   const entrar = el('button', { class: 'btn primary block' }, [t('account.signIn')]);
   const criar = el('button', { class: 'btn ghost block' }, [t('account.createAccount')]);
 
@@ -1407,7 +1419,8 @@ function loginBlock(repintar, onRefresh) {
   };
 
   entrar.addEventListener('click', async () => {
-    if (!emailValido(email.value)) { recado.textContent = t('account.invalidEmail'); return; }
+    limparRecado();
+    if (!emailValido(email.value)) { erro(t('account.invalidEmail')); return; }
     ocupado(true, entrar, t('account.signIn'));
     try {
       await cloud.entrarComSenha(email.value, senha.value);
@@ -1415,14 +1428,15 @@ function loginBlock(repintar, onRefresh) {
       pronto();
     } catch (err) {
       ocupado(false, entrar, t('account.signIn'));
-      recado.textContent = motivoDoErro(err);
+      erro(motivoDoErro(err));
     }
   });
 
   criar.addEventListener('click', async () => {
-    if (!emailValido(email.value)) { recado.textContent = t('account.invalidEmail'); return; }
+    limparRecado();
+    if (!emailValido(email.value)) { erro(t('account.invalidEmail')); return; }
     if (!cloud.senhaValida(senha.value)) {
-      recado.textContent = t('account.passwordShort');
+      erro(t('account.passwordShort'));
       return;
     }
     ocupado(true, criar, t('account.createAccount'));
@@ -1438,11 +1452,15 @@ function loginBlock(repintar, onRefresh) {
       );
     } catch (err) {
       ocupado(false, criar, t('account.createAccount'));
-      recado.textContent = motivoDoErro(err);
+      erro(motivoDoErro(err));
     }
   });
 
-  caixa.append(email, senha, entrar, criar, recado);
+  // Mexer num campo apaga o erro: ele fala do que estava ali antes.
+  email.addEventListener('input', limparRecado);
+  senha.addEventListener('input', limparRecado);
+
+  caixa.append(email, senha, recado, entrar, criar);
 
   if (cloud.provedores().includes('google')) {
     caixa.append(el('button', {
@@ -1455,8 +1473,8 @@ function loginBlock(repintar, onRefresh) {
   caixa.append(el('button', {
     class: 'account-link',
     onClick: async () => {
-      if (!emailValido(email.value)) { recado.textContent = t('account.invalidEmail'); return; }
-      recado.textContent = t('account.sending');
+      if (!emailValido(email.value)) { erro(t('account.invalidEmail')); return; }
+      limparRecado();
       try {
         await cloud.enviarLink(email.value);
         clear(caixa);
@@ -1465,7 +1483,7 @@ function loginBlock(repintar, onRefresh) {
           el('p', { class: 'account-note', text: t('account.linkSentHint') }),
         );
       } catch {
-        recado.textContent = t('account.failed');
+        erro(t('account.failed'));
       }
     },
   }, [t('account.orMagicLink')]));

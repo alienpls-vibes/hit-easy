@@ -2402,3 +2402,16 @@ button {
   color: var(--fg);
   font: 500 14px/1.3 var(--font, system-ui, sans-serif);
 }
+
+/* Erro de login: some quando não há nada a dizer, e é impossível de ignorar
+   quando há. Um parágrafo cinza depois dos botões não era nem uma coisa nem
+   outra. */
+.account-erro { display: none; }
+.account-erro.is-on {
+  display: block;
+  padding: 8px 10px;
+  border-radius: var(--r-sm, 10px);
+  background: color-mix(in srgb, #b4472b 16%, transparent);
+  color: #d9613f;
+  font: 500 13px/1.4 var(--font, system-ui, sans-serif);
+}

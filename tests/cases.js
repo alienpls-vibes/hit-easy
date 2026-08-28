@@ -16,7 +16,7 @@ import {
   aggregate, rivalries, tituloDaVotacao, totalDamage, summarize,
   playerColorOrder, playerColor,
   identityOf, labelOf,
-  chaveDaVotacao, rotuloDaVotacao,
+  chaveDaVotacao, rotuloDaVotacao, orientarRival,
 } from '../src/stats.js';
 import { LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf } from '../src/seating.js';
 import { createSession, cast, tally, pending, isComplete, describe } from '../src/vote.js';
@@ -1357,6 +1357,45 @@ export const cases = [
     // que nunca cruzou com ninguém só produziria combinações vazias.
     const opcoes = findAll(root, 'rival-select')[0].childNodes.length;
     eq(opcoes, 4, 'os quatro que se enfrentaram');
+
+    // O campo da esquerda manda no lado esquerdo do gráfico. Sem isso o desenho
+    // contradiz o controle logo acima dele.
+    const nomeEsquerda = () => textOf(findAll(root, 'rival-name')[0]);
+    const seletor = (i) => findAll(root, 'rival-select')[i];
+    const trocar = (i, valor) => {
+      const sel = seletor(i);
+      sel.value = valor;
+      fire(sel, 'change', { target: { value: valor } });
+    };
+
+    eq(nomeEsquerda(), 'P0', 'começa com quem está no campo da esquerda');
+    trocar(0, 'p1');          // esquerda = P1 (aqui os dois campos coincidem)
+    trocar(1, 'p0');          // direita = P0
+    eq(nomeEsquerda(), 'P1', 'trocar o campo da esquerda vira o gráfico');
+    eq(findAll(root, 'rival-card').length, 1, 'continua sendo um gráfico só');
+  }],
+
+  ['virar o gráfico troca os dois lados inteiros', () => {
+    // Trocar só o nome inverteria a leitura do dano - pior que não trocar.
+    const par = {
+      a: 'Ana', keyA: 'ana', aToB: { damage: 9, kills: 1 },
+      b: 'Bruno', keyB: 'bruno', bToA: { damage: 4, kills: 0 },
+      games: 2, total: 13,
+    };
+
+    eq(orientarRival(par, 'ana'), par, 'já está do jeito pedido');
+
+    const virado = orientarRival(par, 'bruno');
+    eq(virado.a, 'Bruno', 'nome trocou');
+    eq(virado.keyA, 'bruno', 'chave trocou junto - é ela que dá a cor');
+    eq(virado.aToB.damage, 4, 'e o dano acompanha quem passou para a esquerda');
+    eq(virado.b, 'Ana');
+    eq(virado.bToA.damage, 9);
+    eq(virado.games, 2, 'o que é do par não muda');
+    eq(virado.total, 13);
+
+    eq(orientarRival(par, 'carla'), par, 'chave de fora do par não vira nada');
+    eq(orientarRival(null, 'ana'), null, 'sem par, sem gráfico');
   }],
 
   ['ocultar tira da lista sem tocar nas partidas', () => {
@@ -2134,6 +2173,38 @@ export const cases = [
     eq(limpo, 'https://alienpls-vibes.github.io/hit-easy/', 'só origem e caminho');
     ok(!limpo.includes('access_token'), 'token jamais entra no pedido de link');
     ok(!limpo.includes('?'), 'sem query');
+  }],
+
+  ['senha errada mostra um erro visível no login', () => {
+    if (!simulated || !cloudEnabled()) return 'skip';
+    setLang('pt');
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+    fire(findAll(root, 'icon-btn').find((b) => b.attributes['aria-label'] === t('common.settings')), 'click');
+
+    const conta = findAll(document.body, 'account')[0];
+    ok(conta, 'a seção de conta');
+
+    const aviso = findAll(conta, 'account-erro')[0];
+    ok(aviso, 'existe um lugar para o erro aparecer');
+    ok(!aviso.classList.contains('is-on'), 'sem erro, ele não ocupa espaço');
+
+    // Erra o e-mail e aperta entrar: antes isso era um parágrafo cinza depois
+    // dos dois botões, fora do campo de visão de quem acabou de errar.
+    const entrar = findAll(conta, 'btn').find((b) => textOf(b) === t('account.signIn'));
+    ok(entrar, 'o botão de entrar');
+    fire(entrar, 'click');
+
+    ok(aviso.classList.contains('is-on'), 'o erro aparece');
+    eq(textOf(aviso), t('account.invalidEmail'), 'e diz o que houve');
+
+    // Mexer no campo apaga: a mensagem falava do que estava ali antes.
+    const campos = findAll(conta, 'search-input');
+    fire(campos[0], 'input', { target: { value: 'a@b.co' } });
+    ok(!aviso.classList.contains('is-on'), 'corrigir o campo limpa o aviso');
+
+    closeSheet();
   }],
 
   ['e-mail inválido não dispara pedido de link', () => {

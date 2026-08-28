@@ -598,3 +598,26 @@ export function rivalBetween(pares, a, b) {
     (r) => (r.keyA === a && r.keyB === b) || (r.keyA === b && r.keyB === a),
   ) || null;
 }
+
+/**
+ * O mesmo par, visto com uma pessoa especifica a esquerda.
+ *
+ * A rivalidade e guardada numa ordem interna (a chave menor primeiro), que e o
+ * que faz "A contra B" e "B contra A" serem a mesma linha. Mas na tela quem
+ * manda e o filtro: se a pessoa escolheu Bruno no campo da esquerda, e do lado
+ * esquerdo do grafico que Bruno tem de aparecer - senao o desenho contradiz o
+ * controle logo acima dele, e a barra parece dizer o contrario do que diz.
+ *
+ * Troca os dois lados por inteiro: nome, chave e o que cada um fez ao outro.
+ * Trocar so o nome inverteria a leitura do dano, que e pior que nao trocar.
+ */
+export function orientarRival(par, chaveEsquerda) {
+  if (!par) return null;
+  if (!chaveEsquerda || par.keyA === chaveEsquerda) return par;
+  if (par.keyB !== chaveEsquerda) return par; // nao e deste par: deixa como esta
+  return {
+    ...par,
+    a: par.b, keyA: par.keyB, aToB: par.bToA,
+    b: par.a, keyB: par.keyA, bToA: par.aToB,
+  };
+}
