@@ -800,6 +800,19 @@ function openSettings(onRefresh) {
           el('span', { class: 'menu-label', text: t('settings.showHint') }),
           el('span', { class: 'menu-sub', text: t('settings.showHintSub') }),
         ]),
+
+        // Caminho relativo, e nao absoluto: o app roda em /hit-easy/ e em
+        // /hit-easy/beta/, e um link com barra na frente levaria o beta para a
+        // politica de producao.
+        el('a', {
+          class: 'menu-item',
+          href: './privacidade.html',
+          target: '_blank',
+          rel: 'noopener',
+        }, [
+          el('span', { class: 'menu-label', text: t('settings.privacy') }),
+          el('span', { class: 'menu-sub', text: t('settings.privacySub') }),
+        ]),
       ]));
 
       pane.append(el('p', {

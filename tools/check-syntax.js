@@ -200,4 +200,26 @@ if (versaoRuim) {
   process.exit(1);
 }
 
+/*
+ * A politica de privacidade tem campos que so o responsavel pode preencher:
+ * nome do controlador, e-mail de contato, regiao dos servidores.
+ *
+ * Isto AVISA e nao derruba o build, de proposito. Derrubar impediria de
+ * publicar no canal de teste, que e justamente onde o texto deve ser revisado
+ * antes de ir para producao. Mas publicar uma politica com lacuna e pior que
+ * nao ter politica, entao o aviso e barulhento.
+ */
+function conferirPrivacidade() {
+  const html = readFileSync(join(ROOT, 'privacidade.html'), 'utf8');
+  const lacunas = html.match(/class="falta"/g);
+  return lacunas ? lacunas.length : 0;
+}
+
+const lacunas = conferirPrivacidade();
+if (lacunas) {
+  console.error('\n\x1b[33m Politica de privacidade:\x1b[0m '
+    + lacunas + ' campo(s) por preencher (nome do controlador, contato, regiao).'
+    + '\n  Nao publique em producao assim.\n');
+}
+
 console.log(` \x1b[2m${files.length} módulos com sintaxe válida\x1b[0m`);
