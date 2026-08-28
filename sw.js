@@ -13,7 +13,7 @@
 
 // Mesma string de APP_VERSION em src/version.js - worker nao importa modulo.
 // Se mudar la, mude aqui; check-syntax.js confere os dois.
-const VERSION = '1.1.2';
+const VERSION = '1.1.3';
 
 /**
  * Producao e beta dividem a mesma origem, e Cache Storage e por origem. O canal
