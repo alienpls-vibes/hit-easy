@@ -18,7 +18,7 @@ import { MODES, currentMode, applyTheme } from '../theme.js';
 import { t, tn, LANGS, currentLang, setLang } from '../i18n.js';
 import { state as installState, promptInstall, onInstallChange } from '../install.js';
 import * as cloud from '../cloud.js';
-import { handleValido, exibirHandle } from '../cloud.js';
+import { handleValido, exibirHandle, normalizarHandle } from '../cloud.js';
 import { cloudEnabled, CHECKOUT_URL } from '../config.js';
 import { formatDate } from '../stats.js';
 
@@ -325,16 +325,7 @@ function playerStep(seat, refresh) {
         else if (seat.handle) { seat.handle = ''; seat.userId = null; }
         buzz(12);
         refresh();
-
-        // Quem ja tem conta escolhe agora a quem esta cadeira pertence. Quem
-        // nao entrou - ou ja teve o @ lembrado da ultima vez - vai direto ao
-        // deck: perguntar de novo a mesma coisa toda semana e o tipo de
-        // atrito que faz as pessoas pararem de usar o recurso.
-        if (podeVincular() && !handleValido(seat.handle)) {
-          api.next(handleStep(seat, refresh, { seguir: true }));
-        } else {
-          api.next(commanderStep(seat, 0, refresh));
-        }
+        api.next(commanderStep(seat, 0, refresh));
       };
 
       const input = el('input', {
@@ -347,6 +338,7 @@ function playerStep(seat, refresh) {
         },
       });
 
+      pane.append(el('p', { class: 'sheet-legend', text: t('player.createNew') }));
       pane.append(el('div', { class: 'name-row' }, [
         input,
         el('button', {
@@ -354,6 +346,25 @@ function playerStep(seat, refresh) {
           onClick: () => { if (input.value.trim()) escolher(input.value.trim()); },
         }, [t('player.use')]),
       ]));
+
+      // O outro caminho: em vez de digitar um nome solto, achar a CONTA da
+      // pessoa. A partida ja nasce ligada a ela, e a estatistica dela recebe
+      // esta mesa sem ninguem precisar lembrar de vincular depois.
+      if (podeVincular()) {
+        pane.append(el('button', {
+          class: 'player-row is-find',
+          onClick: () => api.next(buscaHandleStep(seat, refresh, {
+            adotarNome: true,
+            aoFim: 'deck',
+          })),
+        }, [
+          el('span', { class: 'player-avatar', text: '@' }),
+          el('span', { class: 'player-text' }, [
+            el('span', { class: 'player-name', text: t('player.findUser') }),
+            el('span', { class: 'player-sub', text: t('player.findUserSub') }),
+          ]),
+        ]));
+      }
 
       const salvos = store.knownPlayers();
       if (!salvos.length) {
@@ -990,7 +1001,10 @@ function handleLine(seat, refresh) {
   return el('button', {
     class: 'seat-handle' + (vinculado ? ' is-on' : ''),
     'aria-label': vinculado ? exibirHandle(seat.handle) : t('handle.link'),
-    onClick: () => openFlow(handleStep(seat, refresh, { seguir: false })),
+    onClick: () => openFlow(buscaHandleStep(seat, refresh, {
+      adotarNome: false,
+      aoFim: 'fechar',
+    })),
   }, [vinculado ? exibirHandle(seat.handle) : t('handle.link')]);
 }
 
@@ -1001,20 +1015,22 @@ function handleLine(seat, refresh) {
  * sugestao por prefixo: da para confirmar um @ que voce ja conhece, nunca para
  * descobrir quem tem conta no app.
  *
- * `seguir` diz de onde se chegou aqui. Vindo do fluxo de montar a mesa, o passo
- * seguinte e o deck, e ha um "pular" bem visivel - a cadeira sem conta e o caso
- * comum, nao a excecao, e o caminho dela nao pode ser mais dificil. Vindo do
- * cartao, para editar, a folha so fecha.
+ * Serve aos dois caminhos, porque sao a mesma tela com dois destinos:
+ *
+ *   adotarNome  a pessoa esta ESCOLHENDO quem senta aqui, entao o nome da
+ *               cadeira passa a ser o nome da conta encontrada;
+ *   aoFim       'deck' segue para o comandante (veio do fluxo de montar a
+ *               mesa), 'fechar' so fecha (veio do cartao, para editar).
  */
-function handleStep(seat, refresh, { seguir = false } = {}) {
+function buscaHandleStep(seat, refresh, { adotarNome = false, aoFim = 'fechar' } = {}) {
   return {
-    title: t('handle.title'),
-    subtitle: t('handle.sub', { name: seat.name }),
+    title: adotarNome ? t('player.findUser') : t('handle.title'),
+    subtitle: adotarNome ? t('player.findUserSub') : t('handle.sub', { name: seat.name }),
     build: (pane, api) => {
       const achado = el('div', { class: 'handle-result' });
 
       const adiante = () => {
-        if (seguir) api.next(commanderStep(seat, 0, refresh));
+        if (aoFim === 'deck') api.next(commanderStep(seat, 0, refresh));
         else closeSheet();
       };
 
@@ -1027,6 +1043,14 @@ function handleStep(seat, refresh, { seguir = false } = {}) {
       };
 
       const prender = (perfilAchado) => {
+        if (adotarNome) {
+          // O nome da conta e o que o resto da mesa reconhece. Sem isto a
+          // cadeira ficaria com "Jogador 2" enquanto a estatistica registra
+          // outra pessoa - dois nomes para a mesma cadeira.
+          const nome = (perfilAchado.display_name || perfilAchado.handle).slice(0, 18);
+          seat.name = nome;
+          store.rememberPlayer(nome);
+        }
         seat.handle = perfilAchado.handle;
         seat.userId = perfilAchado.id;
         store.rememberHandle(seat.name, perfilAchado.handle);
@@ -1042,7 +1066,7 @@ function handleStep(seat, refresh, { seguir = false } = {}) {
         autocorrect: 'off',
         spellcheck: 'false',
         maxlength: '21',
-        value: seat.handle ? exibirHandle(seat.handle) : '',
+        value: !adotarNome && seat.handle ? exibirHandle(seat.handle) : '',
         'aria-label': t('handle.title'),
       });
 
@@ -1089,12 +1113,7 @@ function handleStep(seat, refresh, { seguir = false } = {}) {
       pane.append(achado);
       pane.append(el('p', { class: 'account-note', text: t('handle.why') }));
 
-      // Sair sem vincular: "pular" enquanto se monta a mesa, "desvincular"
-      // quando ja havia um @ preso a esta cadeira.
-      if (seguir) {
-        pane.append(el('button', { class: 'btn ghost block', onClick: soltar },
-          [t('handle.skip')]));
-      } else if (handleValido(seat.handle)) {
+      if (!adotarNome && handleValido(seat.handle)) {
         pane.append(el('button', { class: 'btn ghost block', onClick: soltar },
           [t('handle.unlink')]));
       }
@@ -1112,37 +1131,128 @@ function handleBlock() {
   const caixa = el('div', { class: 'account-handle' });
   const perfil = cloud.meuPerfil();
 
-  const input = el('input', {
-    class: 'search-input',
-    placeholder: '@exemplo',
-    autocapitalize: 'none',
-    autocorrect: 'off',
-    spellcheck: 'false',
-    maxlength: '21',
-    value: perfil && perfil.handle ? exibirHandle(perfil.handle) : '',
-    'aria-label': t('account.yourHandle'),
-  });
-
-  const salvar = el('button', { class: 'btn primary' }, [t('account.handleSave')]);
-  salvar.addEventListener('click', async () => {
-    if (!handleValido(input.value)) { toast(t('handle.invalid')); return; }
-    salvar.disabled = true;
-    try {
-      const novo = await cloud.salvarHandle(input.value, null);
-      toast(t('account.handleSaved', { handle: exibirHandle(novo.handle) }));
-    } catch (err) {
-      toast(String(err && err.message) === 'handle ocupado'
-        ? t('account.handleTaken')
-        : t('account.failed'));
-    } finally {
-      salvar.disabled = false;
-    }
-  });
-
   caixa.append(el('p', { class: 'sheet-legend', text: t('account.yourHandle') }));
-  caixa.append(el('div', { class: 'name-row' }, [input, salvar]));
+
+  if (perfil && perfil.handle) {
+    // Ja criado: nao e um campo de texto.
+    //
+    // O @ e por onde os amigos marcam a pessoa na mesa deles. Deixar isso como
+    // um input com botao de salvar convida a trocar sem querer - e trocar de @
+    // quebra a marcacao que os outros ja tinham guardado. Trocar continua
+    // possivel, mas por uma porta separada, que confere se o nome esta livre
+    // antes de deixar salvar.
+    caixa.append(el('div', { class: 'account-row' }, [
+      el('span', { class: 'account-handle-fixo', text: exibirHandle(perfil.handle) }),
+      el('button', {
+        class: 'account-out',
+        onClick: () => openFlow(trocarHandleStep()),
+      }, [t('account.handleChange')]),
+    ]));
+    caixa.append(el('p', { class: 'account-note', text: t('account.handleLocked') }));
+    return caixa;
+  }
+
+  caixa.append(el('button', {
+    class: 'btn primary block',
+    onClick: () => openFlow(trocarHandleStep()),
+  }, [t('account.handleCreate')]));
   caixa.append(el('p', { class: 'account-note', text: t('account.handleHint') }));
   return caixa;
+}
+
+/**
+ * Escolher ou trocar o proprio @, conferindo antes se esta livre.
+ *
+ * A conferencia e uma consulta, nao uma reserva: entre a resposta e o
+ * salvamento alguem pode pegar o mesmo nome. Quem decide de verdade e o indice
+ * unico do banco. O valor disto e nao deixar a pessoa digitar, confirmar e so
+ * entao descobrir que o nome era de outro.
+ */
+function trocarHandleStep() {
+  const perfil = cloud.meuPerfil();
+  return {
+    title: perfil && perfil.handle ? t('handle.changeTitle') : t('handle.chooseTitle'),
+    subtitle: t('account.handleHint'),
+    build: (pane) => {
+      const recado = el('div', { class: 'handle-result' });
+      let livre = null;   // o @ conferido e aprovado, se houver
+
+      const usar = el('button', { class: 'btn primary block' }, [t('handle.useThis')]);
+      usar.disabled = true;
+
+      const input = el('input', {
+        class: 'search-input',
+        placeholder: '@exemplo',
+        autocapitalize: 'none',
+        autocorrect: 'off',
+        spellcheck: 'false',
+        maxlength: '21',
+        'aria-label': t('account.yourHandle'),
+      });
+
+      // Qualquer letra nova invalida a conferencia anterior: sem isto daria
+      // para conferir um nome livre, digitar outro e salvar o segundo sem
+      // nunca ter perguntado nada sobre ele.
+      input.addEventListener('input', () => {
+        livre = null;
+        usar.disabled = true;
+        clear(recado);
+      });
+
+      const conferir = async () => {
+        clear(recado);
+        livre = null;
+        usar.disabled = true;
+        const bruto = normalizarHandle(input.value);
+        if (!handleValido(bruto)) {
+          recado.append(el('p', { class: 'account-note', text: t('handle.invalid') }));
+          return;
+        }
+        recado.append(el('p', { class: 'account-note', text: t('handle.searching') }));
+        try {
+          const ok = await cloud.handleDisponivel(bruto);
+          clear(recado);
+          recado.append(el('p', {
+            class: ok ? 'account-sent' : 'account-note',
+            text: ok
+              ? t('handle.free', { handle: exibirHandle(bruto) })
+              : t('handle.taken', { handle: exibirHandle(bruto) }),
+          }));
+          if (ok) { livre = bruto; usar.disabled = false; }
+        } catch {
+          clear(recado);
+          recado.append(el('p', { class: 'account-note', text: t('account.failed') }));
+        }
+      };
+
+      usar.addEventListener('click', async () => {
+        if (!livre) return;
+        usar.disabled = true;
+        try {
+          const novo = await cloud.salvarHandle(livre, null);
+          toast(t('account.handleSaved', { handle: exibirHandle(novo.handle) }));
+          closeSheet();
+        } catch (err) {
+          usar.disabled = false;
+          // O 409 do banco e a unica resposta confiavel: alguem pode ter pegado
+          // o nome entre a conferencia e o salvamento.
+          toast(String(err && err.message) === 'handle ocupado'
+            ? t('account.handleTaken')
+            : t('account.failed'));
+        }
+      });
+
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') conferir(); });
+
+      pane.append(el('div', { class: 'name-row' }, [
+        input,
+        el('button', { class: 'btn primary', onClick: conferir }, [t('handle.check')]),
+      ]));
+      pane.append(recado);
+      pane.append(usar);
+      pane.append(el('p', { class: 'account-note', text: t('account.handleWarn') }));
+    },
+  };
 }
 
 /**

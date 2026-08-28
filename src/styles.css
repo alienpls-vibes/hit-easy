@@ -2368,3 +2368,17 @@ button {
    identicas na tela - parecendo defeito em vez de escolha. */
 .layout-mini.is-port { aspect-ratio: 3 / 4; }
 .layout-mini.is-land { aspect-ratio: 4 / 3; }
+
+/* O @ ja criado: texto, nao campo. Parecer editavel convidaria a trocar sem
+   querer, e trocar quebra a marcacao que os amigos ja guardaram. */
+.account-handle-fixo {
+  font: 600 15px/1.4 var(--font, system-ui, sans-serif);
+  color: var(--accent);
+  letter-spacing: 0.01em;
+}
+
+/* A opcao de procurar conta, na mesma forma das linhas de jogador salvo. */
+.player-row.is-find .player-avatar {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}

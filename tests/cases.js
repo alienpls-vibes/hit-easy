@@ -1619,6 +1619,60 @@ export const cases = [
     }
   }],
 
+  ['escolher jogador oferece criar OU procurar conta', () => {
+    if (!simulated || !cloudEnabled()) return 'skip';
+    setLang('pt');
+
+    const abrirEscolha = () => {
+      document.body.childNodes.length = 0;
+      const root = document.createElement('div');
+      renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+      fire(findAll(root, 'seat-name')[0], 'click');
+      flushFrames();
+      const t2 = telas();
+      return t2[t2.length - 1];
+    };
+
+    // Deslogado: só dá para digitar um nome. Procurar conta exigiria conta.
+    eq(accountNow(), 'deslogado', 'cada caso começa sem sessão');
+    ok(findAll(abrirEscolha(), 'search-input').length >= 1, 'sempre dá para digitar');
+    eq(findAll(abrirEscolha(), 'is-find').length, 0, 'sem conta, não há o que procurar');
+    closeSheet();
+
+    location.hash = '#access_token=faz-de-conta&expires_at=99999999999';
+    ok(capturarRetorno(), 'sessão capturada');
+
+    const pane = abrirEscolha();
+    ok(findAll(pane, 'search-input').length >= 1, 'caminho 1: digitar um nome');
+    eq(findAll(pane, 'is-find').length, 1, 'caminho 2: procurar a conta');
+    closeSheet();
+    esquecerSessao();
+  }],
+
+  ['digitar um nome vai direto ao deck', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+    fire(findAll(root, 'seat-name')[0], 'click');
+    flushFrames();
+
+    const pane = telas()[telas().length - 1];
+    findAll(pane, 'search-input')[0].value = 'Zé da Mesa';
+    const usar = findAll(pane, 'btn').find((b) => textOf(b) === t('player.use'));
+    ok(usar, 'o botão de usar o nome digitado');
+    fire(usar, 'click');
+    flushFrames();
+
+    // Antes havia uma pergunta de @ no meio do caminho. Ela virou uma escolha
+    // no INÍCIO - quem digitou um nome já decidiu que não vai vincular conta,
+    // e perguntar de novo logo depois era refazer a pergunta já respondida.
+    const titulo = findAll(document.body, 'sheet-title').map(textOf).join(' ');
+    eq(titulo, t('commander.title'), 'o passo seguinte é o deck');
+    closeSheet();
+  }],
+
   ['o @ fica sob o nome, e some para quem não entrou', () => {
     if (!simulated || !cloudEnabled()) return 'skip';
     setLang('pt');

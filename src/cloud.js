@@ -603,6 +603,25 @@ export async function buscarHandle(handle) {
 }
 
 /**
+ * Esse @ esta livre para mim?
+ *
+ * O meu proprio @ nao conta como ocupado - senao trocar de @ e voltar atras
+ * ficaria impossivel, e a tela diria "ja e de outra pessoa" apontando para a
+ * propria pessoa que esta olhando.
+ *
+ * Isto e uma CONSULTA, nao uma reserva: entre a resposta e o salvamento alguem
+ * pode pegar o mesmo nome. Quem decide de verdade e o indice unico do banco, e
+ * salvarHandle() trata o 409. Aqui e so para nao deixar a pessoa digitar um
+ * nome ocupado e so descobrir no fim.
+ */
+export async function handleDisponivel(h) {
+  const achado = await buscarHandle(h);
+  if (!achado) return true;
+  const meu = meuPerfil();
+  return Boolean(meu && meu.id && achado.id === meu.id);
+}
+
+/**
  * Registra quem sentou em cada cadeira marcada.
  *
  * Roda depois da partida ja estar no banco - ha chave estrangeira, e sem a
