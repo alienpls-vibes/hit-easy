@@ -13,7 +13,7 @@
 
 // Mesma string de APP_VERSION em src/version.js - worker nao importa modulo.
 // Se mudar la, mude aqui; check-syntax.js confere os dois.
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 
 /**
  * Producao e beta dividem a mesma origem, e Cache Storage e por origem. O canal
@@ -74,6 +74,18 @@ self.addEventListener('install', (event) => {
       .then((cache) => Promise.allSettled(ASSETS.map((url) => cache.add(url))))
       .then(() => self.skipWaiting()),
   );
+});
+
+/**
+ * Destravar um worker parado em "waiting".
+ *
+ * O install ja chama skipWaiting, entao normalmente nao ha ninguem esperando.
+ * Mas se uma atualizacao anterior ficou presa - a aba ficou aberta durante a
+ * troca, por exemplo -, o botao de atualizar manda esta mensagem e o worker
+ * novo assume em vez de esperar todas as abas fecharem.
+ */
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {

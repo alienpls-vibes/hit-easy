@@ -105,24 +105,50 @@ export async function promptInstall() {
  * instalado costuma ficar dias sem nunca ser fechado. Sem este botao, a pessoa
  * relata um defeito ja corrigido e nao ha como pedir que ela "atualize".
  *
+ * O detalhe que faz isto funcionar ou nao: `reg.update()` resolve quando a
+ * CHECAGEM termina, nao quando a instalacao acaba. Recarregar ali recarrega com
+ * o worker velho ainda no comando, que serve o shell antigo do cache - o app
+ * volta identico e parece que o botao nao fez nada. Por isso esperamos o
+ * `controllerchange`, que so dispara quando o worker novo assume de verdade.
+ *
  * Devolve 'atualizando' quando ha versao nova, 'atual' quando nao ha.
  */
-export async function atualizarApp() {
+export async function atualizarApp(esperaMax = 10000) {
   if (typeof navigator === 'undefined' || !navigator.serviceWorker) {
     if (typeof location !== 'undefined') location.reload();
     return 'atualizando';
   }
+
   try {
     const reg = await navigator.serviceWorker.getRegistration();
     if (!reg) { location.reload(); return 'atualizando'; }
 
     await reg.update();
-    // Um worker instalando ou esperando significa que veio codigo novo.
-    if (reg.installing || reg.waiting) {
-      location.reload();
-      return 'atualizando';
-    }
-    return 'atual';
+
+    // Nem instalando nem esperando: nao veio codigo novo.
+    if (!reg.installing && !reg.waiting) return 'atual';
+
+    await new Promise((resolve) => {
+      let feito = false;
+      const terminar = () => {
+        if (feito) return;
+        feito = true;
+        resolve();
+      };
+      navigator.serviceWorker.addEventListener('controllerchange', terminar, { once: true });
+
+      // Worker parado em "waiting" de uma tentativa anterior nao sai de la
+      // sozinho: um empurrao resolve. O install ja chama skipWaiting, entao
+      // isto so importa para o caso preso.
+      if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+
+      // Rede ruim nao pode deixar a pessoa presa numa tela travada: passado o
+      // limite, recarrega assim mesmo. No pior caso ela toca de novo.
+      setTimeout(terminar, esperaMax);
+    });
+
+    location.reload();
+    return 'atualizando';
   } catch {
     return 'atual';
   }
