@@ -599,7 +599,7 @@ function openPreGame(d, onStart) {
               onClick: () => { layoutId = v.id; pintarLayout(); buzz(); },
             }, [
               layoutPreview(v),
-              el('span', { class: 'layout-label', text: v.label }),
+              el('span', { class: 'layout-label', text: t(v.labelKey) }),
             ]));
           });
         };
@@ -666,8 +666,16 @@ function seatSpot(index) {
 
 /** Miniatura da mesa, com o número mostrando a ordem dos turnos. */
 function layoutPreview(layout) {
+  // A previa assume a proporcao do APARELHO, nao so a da grade.
+  //
+  // Com dois jogadores as duas opcoes tem a mesma grade - uma pilha de dois -,
+  // e sem isto elas ficariam identicas na tela, parecendo defeito. O que muda
+  // de verdade e o formato do aparelho na mesa, entao e o formato que a
+  // miniatura precisa mostrar.
+  const forma = layout.orient === 'landscape' ? ' is-land'
+    : layout.orient === 'portrait' ? ' is-port' : '';
   return el('div', {
-    class: 'layout-mini',
+    class: 'layout-mini' + forma,
     style: {
       gridTemplateColumns: 'repeat(' + layout.cols + ', 1fr)',
       gridTemplateRows: 'repeat(' + layout.rows + ', 1fr)',

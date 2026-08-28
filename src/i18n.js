@@ -366,6 +366,12 @@ const PT = {
   'account.setPasswordHint': 'Com senha você entra em qualquer aparelho sem depender de e-mail.',
   'account.passwordSaved': 'Senha salva',
 
+  'layout.portrait': 'Aparelho em pé',
+  'layout.landscape': 'Aparelho deitado',
+  'layout.pairs': 'Dois a dois',
+  'layout.threes': 'Três a três',
+  'pregame.howPlaced': 'Como o aparelho fica na mesa',
+
   'settings.title': 'Configurações',
   'settings.sub': 'Valem para todas as partidas',
   'settings.language': 'Idioma',
@@ -742,6 +748,12 @@ const EN = {
   'account.setPassword': 'Save password',
   'account.setPasswordHint': 'With a password you sign in on any device without needing email.',
   'account.passwordSaved': 'Password saved',
+
+  'layout.portrait': 'Device upright',
+  'layout.landscape': 'Device sideways',
+  'layout.pairs': 'Two by two',
+  'layout.threes': 'Three by three',
+  'pregame.howPlaced': 'How the device sits on the table',
 
   'settings.title': 'Settings',
   'settings.sub': 'Apply to every match',
@@ -1120,6 +1132,12 @@ const ES = {
   'account.setPasswordHint': 'Con contraseña entras en cualquier dispositivo sin depender del correo.',
   'account.passwordSaved': 'Contraseña guardada',
 
+  'layout.portrait': 'Aparato vertical',
+  'layout.landscape': 'Aparato horizontal',
+  'layout.pairs': 'Dos a dos',
+  'layout.threes': 'Tres a tres',
+  'pregame.howPlaced': 'Cómo queda el aparato en la mesa',
+
   'settings.title': 'Ajustes',
   'settings.sub': 'Valen para todas las partidas',
   'settings.language': 'Idioma',
@@ -1496,6 +1514,12 @@ const DE = {
   'account.setPassword': 'Passwort speichern',
   'account.setPasswordHint': 'Mit Passwort meldest du dich auf jedem Gerät an, ganz ohne E-Mail.',
   'account.passwordSaved': 'Passwort gespeichert',
+
+  'layout.portrait': 'Gerät hochkant',
+  'layout.landscape': 'Gerät quer',
+  'layout.pairs': 'Zwei zu zwei',
+  'layout.threes': 'Drei zu drei',
+  'pregame.howPlaced': 'Wie das Gerät auf dem Tisch liegt',
 
   'settings.title': 'Einstellungen',
   'settings.sub': 'Gelten für alle Partien',

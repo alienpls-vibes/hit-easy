@@ -9,15 +9,17 @@
  * esquerda, e como todo mundo olha para o centro da mesa, "a esquerda de cada
  * um" desenha um giro horario na vista de cima.
  *
- * Cada contagem de jogadores tem uma ou mais variantes. Mesa de 3 e de 5 nao
- * tem arranjo obvio - depende de como a galera sentou de verdade -, entao ali
- * a escolha e do usuario. A primeira variante da lista e o padrao.
+ * Com 2, 3 e 5 jogadores a escolha e da pessoa, e a pergunta que ela responde
+ * e concreta: o aparelho vai ficar EM PE ou DEITADO no meio da mesa? Era essa
+ * a decisao real o tempo todo - "2 embaixo, 1 em cima" descrevia a consequencia
+ * de uma escolha que ninguem tinha feito ainda. Cada variante dessas declara
+ * `orient`, e a partida passa a pedir essa orientacao.
  *
- * Uma variante pode declarar `land`: a forma que ela assume com a tela
- * deitada. Com 5 ou 6 jogadores isso e essencial - a grade 2x3 que serve o
- * retrato vira tres colunas por duas linhas na paisagem, senao os paineis
- * ficam altos e estreitos e o numero de vida nao cabe. Sem `land`, a mesma
- * forma serve as duas orientacoes.
+ * Com 4 e 6 nao ha o que escolher: quatro e simetrico, e seis e tres de cada
+ * lado. Essas duas seguem se adaptando sozinhas pela proporcao da tela, e por
+ * isso ainda usam `land` - a grade 2x3 que serve o retrato vira tres colunas
+ * por duas linhas na paisagem, senao os paineis ficam altos e estreitos e o
+ * numero de vida nao cabe.
  *
  * Quem esta do outro lado da mesa aparece de cabeca para baixo (rot 180) para
  * ler o proprio painel sem girar o aparelho. So usamos 0 e 180: virar um
@@ -26,15 +28,27 @@
 
 export const LAYOUTS = {
   2: [{
-    id: 'padrao',
-    label: 'Frente a frente',
+    id: 'retrato',
+    orient: 'portrait',
+    labelKey: 'layout.portrait',
+    cols: 1, rows: 2,
+    seats: [{ r: 2, c: 1, rot: 0 }, { r: 1, c: 1, rot: 180 }],
+  }, {
+    id: 'paisagem',
+    orient: 'landscape',
+    labelKey: 'layout.landscape',
+    // A mesma pilha de dois, agora larga e baixa. Duas pessoas de frente uma
+    // para a outra ficam nos lados opostos do aparelho de qualquer jeito; o
+    // que muda e o formato do painel de cada uma.
     cols: 1, rows: 2,
     seats: [{ r: 2, c: 1, rot: 0 }, { r: 1, c: 1, rot: 180 }],
   }],
 
   3: [{
-    id: '2-1',
-    label: '2 embaixo · 1 em cima',
+    id: 'retrato',
+    orient: 'portrait',
+    labelKey: 'layout.portrait',
+    // Em pe, sobra altura: duas pessoas do lado de ca, uma do lado de la.
     cols: 2, rows: 2,
     seats: [
       { r: 2, c: 1, rot: 0 },
@@ -42,8 +56,10 @@ export const LAYOUTS = {
       { r: 2, c: 2, rot: 0 },
     ],
   }, {
-    id: '1-2',
-    label: '1 embaixo · 2 em cima',
+    id: 'paisagem',
+    orient: 'landscape',
+    labelKey: 'layout.landscape',
+    // Deitado, sobra largura: duas do lado de la, uma ocupando a faixa de ca.
     cols: 2, rows: 2,
     seats: [
       { r: 2, c: 1, cs: 2, rot: 0 },
@@ -54,7 +70,7 @@ export const LAYOUTS = {
 
   4: [{
     id: 'padrao',
-    label: 'Dois a dois',
+    labelKey: 'layout.pairs',
     cols: 2, rows: 2,
     seats: [
       { r: 2, c: 1, rot: 0 },
@@ -65,10 +81,10 @@ export const LAYOUTS = {
   }],
 
   5: [{
-    // A celula vaga e onde o nucleo central cai: meio-esquerda em pe,
-    // meio-baixo deitado.
-    id: 'volta',
-    label: 'Em volta (2-2-1)',
+    id: 'retrato',
+    orient: 'portrait',
+    labelKey: 'layout.portrait',
+    // Duas colunas por tres linhas. A celula vaga e onde o nucleo central cai.
     cols: 2, rows: 3,
     seats: [
       { r: 3, c: 1, rot: 0 },
@@ -77,34 +93,26 @@ export const LAYOUTS = {
       { r: 2, c: 2, rot: 0 },
       { r: 3, c: 2, rot: 0 },
     ],
-    land: {
-      cols: 3, rows: 2,
-      seats: [
-        { r: 2, c: 1, rot: 0 },
-        { r: 1, c: 1, rot: 180 },
-        { r: 1, c: 2, rot: 180 },
-        { r: 1, c: 3, rot: 180 },
-        { r: 2, c: 3, rot: 0 },
-      ],
-    },
   }, {
-    // Seis colunas para caber tres embaixo e dois em cima sem sobra. Ja e uma
-    // forma larga por natureza, entao serve as duas orientacoes.
-    id: '3-2',
-    label: 'Duas fileiras (3-2)',
-    cols: 6, rows: 2,
+    id: 'paisagem',
+    orient: 'landscape',
+    labelKey: 'layout.landscape',
+    // Tres colunas por duas linhas: tres do lado de la, dois do lado de ca.
+    // Em pe esta forma daria paineis altos e estreitos, e o numero de vida nao
+    // caberia - por isso ela so existe deitada.
+    cols: 3, rows: 2,
     seats: [
-      { r: 2, c: 1, cs: 2, rot: 0 },
-      { r: 1, c: 1, cs: 3, rot: 180 },
-      { r: 1, c: 4, cs: 3, rot: 180 },
-      { r: 2, c: 5, cs: 2, rot: 0 },
-      { r: 2, c: 3, cs: 2, rot: 0 },
+      { r: 2, c: 1, rot: 0 },
+      { r: 1, c: 1, rot: 180 },
+      { r: 1, c: 2, rot: 180 },
+      { r: 1, c: 3, rot: 180 },
+      { r: 2, c: 3, rot: 0 },
     ],
   }],
 
   6: [{
     id: 'padrao',
-    label: 'Três a três',
+    labelKey: 'layout.threes',
     cols: 2, rows: 3,
     seats: [
       { r: 3, c: 1, rot: 0 },
@@ -133,10 +141,28 @@ export function variantsFor(seatCount) {
   return LAYOUTS[seatCount] || LAYOUTS[4];
 }
 
+/**
+ * Nomes antigos de variante.
+ *
+ * Partida salva - e partida EM ANDAMENTO - guarda o id que existia quando ela
+ * comecou. Sem isto, atualizar o app no meio de um jogo de tres jogadores
+ * jogaria a mesa no padrao e trocaria as pessoas de lugar, sem aviso.
+ *
+ * Tres dos quatro casos caem no arranjo identico ao antigo; so o '3-2' de cinco
+ * nao tem equivalente exato, e vai para a forma deitada, que e a mais parecida.
+ */
+const APELIDOS = {
+  '2-1': 'retrato',    // 3: duas embaixo, uma em cima - mesmo desenho
+  '1-2': 'paisagem',   // 3: uma embaixo, duas em cima - mesmo desenho
+  volta: 'retrato',    // 5: duas colunas por tres linhas - mesmo desenho
+  '3-2': 'paisagem',   // 5: sem equivalente exato; a deitada e a mais proxima
+};
+
 /** A variante escolhida, caindo na primeira quando o id nao existe mais. */
 export function variant(seatCount, id) {
   const list = variantsFor(seatCount);
-  return list.find((l) => l.id === id) || list[0];
+  const alvo = APELIDOS[id] || id;
+  return list.find((l) => l.id === alvo) || list[0];
 }
 
 /**
@@ -146,8 +172,28 @@ export function variant(seatCount, id) {
  */
 export function layoutFor(seatCount, id, wide = false) {
   const v = variant(seatCount, id);
-  const shape = wide && v.land ? v.land : v;
-  return { id: v.id, label: v.label, cols: shape.cols, rows: shape.rows, seats: shape.seats };
+  // Variante que JA declara orientacao nao troca de forma com a tela: foi a
+  // pessoa que disse como o aparelho fica na mesa, e o app e que deve seguir a
+  // escolha dela - nao adivinhar pela proporcao e desmentir o que ela pediu.
+  const shape = !v.orient && wide && v.land ? v.land : v;
+  return {
+    id: v.id,
+    labelKey: v.labelKey,
+    orient: v.orient || null,
+    cols: shape.cols,
+    rows: shape.rows,
+    seats: shape.seats,
+  };
+}
+
+/**
+ * Como o aparelho deve ficar nesta mesa.
+ *
+ * `null` quando a variante nao se importa - com 4 ou 6 a forma se adapta
+ * sozinha, e travar a orientacao ali so tiraria liberdade de quem joga.
+ */
+export function orientOf(seatCount, id) {
+  return variant(seatCount, id).orient || null;
 }
 
 /** As formas de uma variante (uma ou duas), para varrer nos testes. */

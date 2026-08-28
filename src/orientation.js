@@ -45,13 +45,17 @@ function permitido() {
  * (feito ao abrir a mesa) e quem abre a tela cheia; os demais so trocam a
  * trava, sem sair e entrar de novo - o que piscaria a tela a cada votacao.
  */
-export async function preferOrientation(mode) {
+export async function preferOrientation(mode, explicito = false) {
   if (typeof window === 'undefined') return;
   if (!permitido()) return;
 
-  // Retrato so faz sentido no celular. Num tablet apoiado na mesa, girar a
-  // tela para votar seria mais atrapalho que ajuda.
-  if (mode === 'portrait' && !isSmallScreen()) return;
+  // Retrato automatico so faz sentido no celular: num tablet apoiado, girar a
+  // tela sozinho para votar seria mais atrapalho que ajuda.
+  //
+  // Mas quando a pessoa ESCOLHEU apoiar o aparelho em pe para esta mesa, isso
+  // vale em qualquer tamanho - inclusive tablet, que e justamente onde uma
+  // mesa de dois ou tres apoiada em pe faz mais sentido.
+  if (mode === 'portrait' && !explicito && !isSmallScreen()) return;
 
   try {
     if (mode === null) {

@@ -16,7 +16,7 @@ import {
   aggregate, rivalries, tituloDaVotacao, totalDamage, summarize,
   playerColorOrder, playerColor,
 } from '../src/stats.js';
-import { LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle } from '../src/seating.js';
+import { LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf } from '../src/seating.js';
 import { createSession, cast, tally, pending, isComplete, describe } from '../src/vote.js';
 import { openFlow, closeSheet, dismissOnBackdrop, el, isSheetOpen, onSheetChange } from '../src/ui.js';
 import { DICTS, LANGS, t, tn, setLang, currentLang } from '../src/i18n.js';
@@ -299,7 +299,15 @@ export const cases = [
       for (const v of variantes) {
         ok(!ids.has(v.id), n + ': id de variante repetido');
         ids.add(v.id);
-        ok(v.label, n + '/' + v.id + ': variante sem rótulo para mostrar ao usuário');
+        // O rótulo era texto fixo em português dentro do seating.js, então a
+        // escolha de mesa aparecia em português para quem usava o app em
+        // inglês, espanhol ou alemão. Agora é chave, e a chave tem de existir
+        // nos quatro - senão a tela mostra o nome cru da chave.
+        ok(v.labelKey, n + '/' + v.id + ': variante sem rótulo para mostrar ao usuário');
+        for (const [codigo] of LANGS) {
+          ok(DICTS[codigo][v.labelKey],
+            n + '/' + v.id + ': falta ' + v.labelKey + ' em ' + codigo);
+        }
 
         for (const { nome, shape } of shapesOf(v)) {
           const onde = n + ' jogadores / ' + v.id + ' / ' + nome;
@@ -333,10 +341,74 @@ export const cases = [
 
   ['layoutFor escolhe variante e orientação', () => {
     eq(layoutFor(5, 'inventado').id, variantsFor(5)[0].id, 'cai no padrão');
-    eq(layoutFor(3, '1-2').id, '1-2', 'variante válida é respeitada');
+    eq(layoutFor(3, 'paisagem').id, 'paisagem', 'variante válida é respeitada');
+
+    // 4 e 6 não têm o que escolher, e seguem se adaptando pela tela.
     eq(layoutFor(6, 'padrao', false).cols, 2, 'em pé: duas colunas');
     eq(layoutFor(6, 'padrao', true).cols, 3, 'deitado: três colunas');
     eq(layoutFor(4, 'padrao', true).cols, 2, 'sem forma deitada, mantém a mesma');
+  }],
+
+  ['partida antiga não troca as pessoas de lugar ao atualizar o app', () => {
+    // Uma partida em andamento guarda o id de variante de quando começou.
+    // Renomear as variantes sem tratar isso jogaria a mesa no padrão no meio
+    // do jogo, movendo todo mundo de lugar sem aviso.
+    const mesmo = (n, velho, novo) => {
+      const a = layoutFor(n, velho);
+      const b = layoutFor(n, novo);
+      eq(JSON.stringify(a.seats), JSON.stringify(b.seats),
+        n + '/' + velho + ' precisa cair exatamente em ' + novo);
+    };
+    mesmo(3, '2-1', 'retrato');
+    mesmo(3, '1-2', 'paisagem');
+    mesmo(5, 'volta', 'retrato');
+
+    // Este não tem equivalente exato; o que importa é que vá para a deitada em
+    // vez de cair no padrão em pé, que seria a mudança mais brusca.
+    eq(layoutFor(5, '3-2').id, 'paisagem', 'sem equivalente exato, vai para a mais parecida');
+
+    // E id inventado ainda cai no padrão, como sempre.
+    eq(layoutFor(3, 'nao-existe').id, variantsFor(3)[0].id, 'id desconhecido cai no padrão');
+  }],
+
+  ['com 2, 3 e 5 a escolha é como o aparelho fica na mesa', () => {
+    // A pergunta que a pessoa responde passa a ser concreta: em pé ou deitado
+    // no meio da mesa. "2 embaixo, 1 em cima" descrevia a consequência de uma
+    // escolha que ninguém tinha feito ainda.
+    for (const n of [2, 3, 5]) {
+      const vs = variantsFor(n);
+      eq(vs.length, 2, n + ' jogadores: exatamente duas opções');
+      eq(vs.map((v) => v.orient).sort().join(','), 'landscape,portrait',
+        n + ' jogadores: uma em pé e uma deitada');
+      eq(orientOf(n, 'retrato'), 'portrait');
+      eq(orientOf(n, 'paisagem'), 'landscape');
+    }
+
+    // 4 e 6 não pedem orientação nenhuma: travar a tela ali só tiraria
+    // liberdade de quem joga, sem resolver ambiguidade alguma.
+    eq(orientOf(4, 'padrao'), null, 'quatro é simétrico');
+    eq(orientOf(6, 'padrao'), null, 'seis é três de cada lado');
+  }],
+
+  ['a orientação escolhida não é desmentida pela tela', () => {
+    // O que garante isto é o DADO, não o `if`: variante que declara orientação
+    // não tem forma alternativa para trocar. Vale prender a invariante, porque
+    // é ela que sustenta o comportamento - a guarda em layoutFor é só cinto e
+    // suspensório para o dia em que alguém acrescentar as duas coisas juntas.
+    for (const [n, variantes] of Object.entries(LAYOUTS)) {
+      for (const v of variantes) {
+        ok(!(v.orient && v.land),
+          n + '/' + v.id + ': declara orientação E forma alternativa - uma das '
+          + 'duas vai ser ignorada, e ninguém vai saber qual');
+      }
+    }
+
+    for (const wide of [false, true]) {
+      eq(layoutFor(5, 'retrato', wide).cols, 2, 'em pé continua 2 colunas (wide=' + wide + ')');
+      eq(layoutFor(5, 'retrato', wide).rows, 3, 'em pé continua 3 linhas (wide=' + wide + ')');
+      eq(layoutFor(5, 'paisagem', wide).cols, 3, 'deitado continua 3 colunas (wide=' + wide + ')');
+      eq(layoutFor(5, 'paisagem', wide).rows, 2, 'deitado continua 2 linhas (wide=' + wide + ')');
+    }
   }],
 
   ['a partida pode começar por qualquer jogador', () => {

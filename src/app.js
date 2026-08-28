@@ -14,6 +14,7 @@ import { createMatch } from './engine.js';
 import { applyTheme, watchTheme } from './theme.js';
 import { t, setLang, detectLang } from './i18n.js';
 import { preferOrientation, isWide } from './orientation.js';
+import { orientOf } from './seating.js';
 import * as store from './store.js';
 import * as cloud from './cloud.js';
 import { ehTeste } from './canal.js';
@@ -157,8 +158,21 @@ document.addEventListener('visibilitychange', () => {
 const observer = new MutationObserver(() => {
   const naMesa = document.body.dataset.route === 'table';
   keepAwake(naMesa);
-  preferOrientation(naMesa ? 'landscape' : null);
+  // A mesa pede a orientacao que a PESSOA escolheu ao montar o jogo. Antes
+  // pedia paisagem sempre, o que contrariava quem tinha escolhido apoiar o
+  // aparelho em pe entre dois jogadores.
+  preferOrientation(naMesa ? orientacaoDaMesa() : null, naMesa);
 });
+
+/** A orientacao declarada pela mesa em andamento; paisagem quando nao ha. */
+function orientacaoDaMesa() {
+  try {
+    const m = store.getCurrent();
+    return (m && orientOf(m.seats.length, m.layoutId)) || 'landscape';
+  } catch {
+    return 'landscape';
+  }
+}
 observer.observe(document.body, { attributes: true, attributeFilter: ['data-route'] });
 
 /* ---------------------------------------------------------------- */
