@@ -2505,3 +2505,17 @@ button {
   text-align: center;
 }
 .invite-banner-txt { display: grid; gap: 1px; min-width: 0; }
+
+/* Marcar conta numa partida já jogada. Discreto: é a exceção, não a rotina. */
+.match-tag {
+  justify-self: start;
+  padding: 3px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: 500 12px/1.5 var(--font, system-ui, sans-serif);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.match-tag:hover { color: var(--accent); }

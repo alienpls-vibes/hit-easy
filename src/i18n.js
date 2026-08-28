@@ -434,6 +434,14 @@ const PT = {
   'invites.cta': 'Toque para ver e responder',
   'invites.explain': 'Aceitar coloca a partida no seu histórico e nas suas estatísticas. Recusar não afeta a cópia de quem registrou.',
 
+  'stats.tagPlayer': 'Marcar conta de um jogador',
+  'stats.tagWhich': 'Qual cadeira?',
+  'stats.tagNone': 'sem conta marcada',
+  'stats.tagHint': 'Esqueceu de marcar na hora? Dá para marcar agora, e a pessoa recebe o convite.',
+  'stats.tagWhy': 'A pessoa recebe esta partida como convite e decide se aceita.',
+  'stats.tagSent': 'Convite enviado',
+  'stats.tagLocal': 'Marcado neste aparelho; o convite sai quando houver rede',
+
   'settings.title': 'Configurações',
   'settings.sub': 'Valem para todas as partidas',
   'settings.language': 'Idioma',
@@ -878,6 +886,14 @@ const EN = {
   'invites.sub': 'Someone recorded a table saying you played',
   'invites.cta': 'Tap to see and respond',
   'invites.explain': "Accepting puts the match in your history and stats. Declining does not affect the recorder's copy.",
+
+  'stats.tagPlayer': "Tag a player's account",
+  'stats.tagWhich': 'Which seat?',
+  'stats.tagNone': 'no account tagged',
+  'stats.tagHint': 'Forgot to tag at the table? You can do it now, and the person gets the invitation.',
+  'stats.tagWhy': 'That person receives this match as an invitation and decides whether to accept.',
+  'stats.tagSent': 'Invitation sent',
+  'stats.tagLocal': 'Tagged on this device; the invitation goes out when there is network',
 
   'settings.title': 'Settings',
   'settings.sub': 'Apply to every match',
@@ -1324,6 +1340,14 @@ const ES = {
   'invites.cta': 'Toca para ver y responder',
   'invites.explain': 'Aceptar mete la partida en tu historial y estadísticas. Rechazar no afecta la copia de quien la registró.',
 
+  'stats.tagPlayer': 'Marcar la cuenta de un jugador',
+  'stats.tagWhich': '¿Qué asiento?',
+  'stats.tagNone': 'sin cuenta marcada',
+  'stats.tagHint': '¿Olvidaste marcar en la mesa? Puedes hacerlo ahora, y la persona recibe la invitación.',
+  'stats.tagWhy': 'Esa persona recibe esta partida como invitación y decide si acepta.',
+  'stats.tagSent': 'Invitación enviada',
+  'stats.tagLocal': 'Marcado en este aparato; la invitación sale cuando haya red',
+
   'settings.title': 'Ajustes',
   'settings.sub': 'Valen para todas las partidas',
   'settings.language': 'Idioma',
@@ -1768,6 +1792,14 @@ const DE = {
   'invites.sub': 'Jemand hat einen Tisch eingetragen, an dem du gespielt hast',
   'invites.cta': 'Tippen zum Ansehen und Antworten',
   'invites.explain': 'Annehmen bringt die Partie in deinen Verlauf und deine Statistik. Ablehnen ändert nichts an der Kopie des Eintragenden.',
+
+  'stats.tagPlayer': 'Konto einer Person zuordnen',
+  'stats.tagWhich': 'Welcher Platz?',
+  'stats.tagNone': 'kein Konto zugeordnet',
+  'stats.tagHint': 'Am Tisch vergessen? Du kannst es jetzt nachholen, und die Person bekommt die Einladung.',
+  'stats.tagWhy': 'Diese Person erhält die Partie als Einladung und entscheidet, ob sie annimmt.',
+  'stats.tagSent': 'Einladung gesendet',
+  'stats.tagLocal': 'Auf diesem Gerät zugeordnet; die Einladung geht raus, sobald Netz da ist',
 
   'settings.title': 'Einstellungen',
   'settings.sub': 'Gelten für alle Partien',

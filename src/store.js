@@ -167,6 +167,22 @@ export function mesclarPartidas(lista) {
   return novas.length;
 }
 
+/**
+ * Grava de volta uma partida do historico, sem mexer na partida em andamento.
+ *
+ * archive() serve para ENCERRAR - ele zera `current` como parte do trabalho.
+ * Usar archive para editar um registro antigo apagaria a mesa que esta
+ * acontecendo agora, o que seria um estrago silencioso e absurdo.
+ */
+export function atualizarPartida(match) {
+  if (!partidaValida(match)) return false;
+  const onde = db.history.findIndex((m) => m.id === match.id);
+  if (onde < 0) return false;
+  db.history[onde] = match;
+  save();
+  return true;
+}
+
 export function deleteMatch(matchId) {
   db.history = db.history.filter((m) => m.id !== matchId);
   save();

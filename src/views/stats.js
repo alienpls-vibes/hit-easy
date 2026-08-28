@@ -3,7 +3,7 @@
  * Tudo derivado do log de eventos - nenhum numero aqui e gravado em disco.
  */
 
-import { el, clear, icon, openSheet, toast, confirmAction } from '../ui.js';
+import { el, clear, icon, openSheet, openFlow, closeSheet, toast, confirmAction } from '../ui.js';
 import { accentOf, identityGradient, pips } from '../colors.js';
 import {
   aggregate, rivalries, summarize, timeline, formatDuration, formatDate, pct, num,
@@ -389,6 +389,12 @@ function matchCard(match, refresh) {
         onClick: () => openMatchDetail(match, refresh),
       }, [icon('arrow')]),
     ]),
+    // Marcar depois: esquecer na hora é o caso comum, e sem isto a partida
+    // ficava perdida para aquela pessoa para sempre.
+    ...(podeMarcar() ? [el('button', {
+      class: 'match-tag',
+      onClick: () => openMarcar(match, refresh),
+    }, [t('stats.tagPlayer')])] : []),
     el('ol', { class: 'placings' }, s.standings.map(({ seatId, place }) => {
       const seat = match.seats.find((x) => x.id === seatId);
       return el('li', { class: 'placing' }, [
@@ -701,4 +707,103 @@ export function renderPaywall(root, { onBack, onUnlock, verificando = false }) {
     ]),
     corpo,
   ]));
+}
+
+
+/** Marcar conta so faz sentido para quem esta numa conta. */
+function podeMarcar() {
+  return cloudEnabled() && cloud.state() !== 'deslogado';
+}
+
+/**
+ * Escolher a cadeira e a conta dela, numa partida ja jogada.
+ *
+ * Duas telas em vez de uma: quem senta aqui, e quem e essa pessoa no app. Pedir
+ * as duas coisas juntas numa lista so obrigaria a repetir a busca por @ para
+ * cada cadeira.
+ */
+function openMarcar(match, refresh) {
+  openFlow({
+    title: t('stats.tagPlayer'),
+    subtitle: t('stats.tagWhich'),
+    build: (pane, api) => {
+      for (const seat of match.seats || []) {
+        const jaTem = String(seat.handle || '').trim();
+        pane.append(el('button', {
+          class: 'player-row',
+          onClick: () => api.next(passoDaConta(match, seat, refresh)),
+        }, [
+          el('span', { class: 'player-avatar', text: (seat.name || '?').slice(0, 1).toUpperCase() }),
+          el('span', { class: 'player-text' }, [
+            el('span', { class: 'player-name', text: seat.name }),
+            el('span', {
+              class: 'player-sub',
+              text: jaTem ? '@' + jaTem.replace(/^@+/, '') : t('stats.tagNone'),
+            }),
+          ]),
+        ]));
+      }
+      pane.append(el('p', { class: 'account-note', text: t('stats.tagHint') }));
+    },
+  });
+}
+
+function passoDaConta(match, seat, refresh) {
+  return {
+    title: t('player.findUser'),
+    subtitle: t('handle.sub', { name: seat.name }),
+    build: (pane) => {
+      const achado = el('div', { class: 'handle-result' });
+      const input = el('input', {
+        class: 'search-input',
+        placeholder: '@exemplo',
+        autocapitalize: 'none',
+        autocorrect: 'off',
+        spellcheck: 'false',
+        maxlength: '21',
+        'aria-label': t('player.findUser'),
+      });
+
+      const procurar = async () => {
+        clear(achado);
+        achado.append(el('p', { class: 'account-note', text: t('handle.searching') }));
+        try {
+          const perfil = await cloud.buscarHandle(input.value);
+          clear(achado);
+          if (!perfil) {
+            achado.append(el('p', { class: 'account-note', text: t('handle.notFound', { handle: input.value }) }));
+            return;
+          }
+          achado.append(el('div', { class: 'handle-found' }, [
+            el('span', { class: 'menu-label', text: '@' + perfil.handle }),
+            perfil.display_name ? el('span', { class: 'menu-sub', text: perfil.display_name }) : null,
+          ]));
+          achado.append(el('button', {
+            class: 'btn primary block',
+            onClick: async () => {
+              const r = await sync.marcarJogador(match, seat.id, perfil);
+              if (!r.ok) {
+                toast(r.motivo === 'repetida' ? t('handle.accountTaken') : t('account.failed'));
+                return;
+              }
+              toast(r.convidou ? t('stats.tagSent') : t('stats.tagLocal'));
+              closeSheet();
+              refresh();
+            },
+          }, [t('handle.use')]));
+        } catch {
+          clear(achado);
+          achado.append(el('p', { class: 'account-note', text: t('account.failed') }));
+        }
+      };
+
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') procurar(); });
+      pane.append(el('div', { class: 'name-row' }, [
+        input,
+        el('button', { class: 'btn primary', onClick: procurar }, [t('handle.search')]),
+      ]));
+      pane.append(achado);
+      pane.append(el('p', { class: 'account-note', text: t('stats.tagWhy') }));
+    },
+  };
 }

@@ -35,7 +35,7 @@ import {
 } from '../src/cloud.js';
 import { cloudEnabled } from '../src/config.js';
 import { canalDe, canalDoCache } from '../src/canal.js';
-import { aSubir, aBaixar, podeSincronizar } from '../src/sync.js';
+import { aSubir, aBaixar, aApagar, podeSincronizar } from '../src/sync.js';
 import { giraComOAssento, grausNaMesa, rotatesToSeat } from '../src/orientation.js';
 import { renderTable } from '../src/views/table.js';
 import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
@@ -1469,6 +1469,61 @@ export const cases = [
     // marca, ela é pendente por definição - não há estrutura separada que possa
     // divergir do histórico.
     eq(aSubir(locais, ['a', 'c'], []).map((m) => m.id), ['b'], 'a que falhou volta');
+  }],
+
+  ['marcar a conta numa partida já jogada', () => {
+    if (!simulated) return 'skip';
+    store.wipe();
+    const m = mesa(4);
+    push(m, { type: 'life', targetId: 's1', delta: -5, sourceId: 's0' });
+    store.archive(m);
+    store.setCurrent(mesa(2)); // há uma mesa acontecendo agora
+
+    const guardada = store.getDB().history[0];
+    eq(guardada.seats[0].handle, null, 'ninguém foi marcado na hora');
+
+    // Marca a cadeira e grava de volta.
+    guardada.seats[0].handle = 'alienpls';
+    guardada.seats[0].userId = 'uid-1';
+    ok(store.atualizarPartida(guardada), 'a partida é regravada');
+    eq(store.getDB().history[0].seats[0].handle, 'alienpls', 'a marca ficou');
+
+    // archive() zera a partida em andamento como parte de encerrar. Usar
+    // archive para editar um registro antigo apagaria a mesa que está
+    // acontecendo agora - um estrago silencioso e absurdo.
+    ok(store.getCurrent(), 'a mesa em andamento continua de pé');
+
+    // E o convite passa a existir para aquela cadeira.
+    const linhas = participantesDe(store.getDB().history[0]);
+    eq(linhas.length, 1);
+    eq(linhas[0].seat_id, 's0');
+    eq(linhas[0].handle, 'alienpls');
+
+    // Partida que não está no histórico não é criada por engano.
+    ok(!store.atualizarPartida({ ...mesa(3), id: 'nao-existe' }), 'não inventa registro');
+    ok(!store.atualizarPartida({ id: 'x' }), 'nem aceita coisa malformada');
+  }],
+
+  ['apagar num aparelho apaga em todos - e nunca por engano', () => {
+    // O aparelho B tinha a partida e a marcou como enviada ao baixá-la. O
+    // aparelho A apagou. Sem reconciliar, ela ficava em B para sempre: nada
+    // no fluxo de subir ou baixar a alcançava.
+    eq(aApagar(['p1', 'p2'], ['p2'], true), ['p1'], 'some daqui o que sumiu de lá');
+    eq(aApagar(['p1', 'p2'], ['p1', 'p2'], true), [], 'o que continua lá, fica');
+
+    // Partida que nunca subiu não pode ser julgada pela ausência dela na nuvem.
+    eq(aApagar([], ['p9'], true), [], 'nada marcado, nada a apagar');
+
+    // As duas travas contra desastre. A leitura devolve lista vazia para quem
+    // NÃO assina - idêntico ao que devolveria se tudo tivesse sido apagado.
+    // Confundir os dois casos destruiria o histórico de quem só deixou de
+    // pagar, e não há desfazer.
+    eq(aApagar(['p1', 'p2'], [], false), [], 'sem poder ler de verdade, não apaga');
+    eq(aApagar(['p1', 'p2'], [], true), [],
+      'lista remota vazia com coisas enviadas é suspeito demais para agir');
+
+    // Errar para o lado de sobrar é recuperável; errar para o lado de apagar não.
+    eq(aApagar(['p1'], ['p1', 'p2', 'p3'], true), [], 'a nuvem ter mais não apaga nada aqui');
   }],
 
   ['baixar traz só o que este aparelho não tem', () => {
