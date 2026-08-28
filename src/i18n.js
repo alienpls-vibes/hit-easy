@@ -410,6 +410,8 @@ const PT = {
   'settings.updateSub': 'Busca a versão mais nova e reabre',
   'settings.updateNone': 'Já está na versão mais nova',
 
+  'settings.staleCache': 'cache {n}',
+
   'settings.title': 'Configurações',
   'settings.sub': 'Valem para todas as partidas',
   'settings.language': 'Idioma',
@@ -830,6 +832,8 @@ const EN = {
   'settings.update': 'Update the app',
   'settings.updateSub': 'Fetches the newest version and reopens',
   'settings.updateNone': 'Already on the newest version',
+
+  'settings.staleCache': 'cache {n}',
 
   'settings.title': 'Settings',
   'settings.sub': 'Apply to every match',
@@ -1252,6 +1256,8 @@ const ES = {
   'settings.updateSub': 'Busca la versión más nueva y reabre',
   'settings.updateNone': 'Ya está en la versión más nueva',
 
+  'settings.staleCache': 'caché {n}',
+
   'settings.title': 'Ajustes',
   'settings.sub': 'Valen para todas las partidas',
   'settings.language': 'Idioma',
@@ -1672,6 +1678,8 @@ const DE = {
   'settings.update': 'App aktualisieren',
   'settings.updateSub': 'Holt die neueste Version und startet neu',
   'settings.updateNone': 'Bereits auf der neuesten Version',
+
+  'settings.staleCache': 'Cache {n}',
 
   'settings.title': 'Einstellungen',
   'settings.sub': 'Gelten für alle Partien',

@@ -153,3 +153,33 @@ export async function atualizarApp(esperaMax = 10000) {
     return 'atual';
   }
 }
+
+/**
+ * Que versao o service worker diz que e.
+ *
+ * A tela mostra APP_VERSION, que vem do modulo - e o modulo vem do cache. Se o
+ * cache estiver velho, a tela mente com toda a confianca do mundo. O worker e
+ * a unica parte que o navegador atualiza por fora, entao perguntar a ele revela
+ * a divergencia.
+ *
+ * Devolve null quando nao ha worker ou ele nao responde a tempo.
+ */
+export function versaoDoWorker(esperaMax = 1500) {
+  if (typeof navigator === 'undefined'
+    || !navigator.serviceWorker
+    || !navigator.serviceWorker.controller) {
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    let feito = false;
+    const responder = (v) => { if (!feito) { feito = true; resolve(v); } };
+    try {
+      const canal = new MessageChannel();
+      canal.port1.onmessage = (e) => responder(e.data || null);
+      navigator.serviceWorker.controller.postMessage({ type: 'VERSION' }, [canal.port2]);
+      setTimeout(() => responder(null), esperaMax);
+    } catch {
+      responder(null);
+    }
+  });
+}

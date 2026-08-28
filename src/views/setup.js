@@ -17,7 +17,7 @@ import { variantsFor, layoutFor } from '../seating.js';
 import { MODES, currentMode, applyTheme } from '../theme.js';
 import { t, tn, LANGS, currentLang, setLang } from '../i18n.js';
 import {
-  state as installState, promptInstall, onInstallChange, atualizarApp,
+  state as installState, promptInstall, onInstallChange, atualizarApp, versaoDoWorker,
 } from '../install.js';
 import { APP_VERSION } from '../version.js';
 import { canal } from '../canal.js';
@@ -812,11 +812,21 @@ function openSettings(onRefresh) {
       // Quem relata um problema precisa conseguir dizer QUAL app quebrou, e o
       // canal precisa aparecer junto: um defeito do beta investigado como se
       // fosse de producao custa horas.
-      pane.append(el('p', {
+      const linhaVersao = el('p', {
         class: 'settings-version',
         text: 'Hit Easy ' + APP_VERSION
           + (canal() === 'beta' ? ' \u00b7 beta' : ''),
-      }));
+      });
+      pane.append(linhaVersao);
+
+      // Se o worker disser outra versao, e cache velho servindo codigo antigo.
+      // Sem isto o defeito e invisivel: a tela mostra a versao do modulo, o
+      // modulo vem do cache, e o cache mente com toda a confianca do mundo.
+      versaoDoWorker().then((v) => {
+        if (v && v !== APP_VERSION) {
+          linhaVersao.textContent += ' \u00b7 ' + t('settings.staleCache', { n: v });
+        }
+      });
     },
   });
 }
