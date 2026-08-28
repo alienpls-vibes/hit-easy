@@ -13,6 +13,7 @@ import {
 import { deckNameOf } from '../engine.js';
 import * as store from '../store.js';
 import * as cloud from '../cloud.js';
+import * as sync from '../sync.js';
 import { cloudEnabled } from '../config.js';
 import { t, tn, locale } from '../i18n.js';
 
@@ -434,7 +435,13 @@ function openMatchDetail(match, refresh) {
               message: t('stats.deleteMatchMsg'),
               confirmLabel: t('common.delete'),
             });
-            if (ok) { store.deleteMatch(match.id); refresh(); }
+            if (ok) {
+              // Apaga tambem da nuvem. A politica de privacidade promete que
+              // apagar nao depende de assinatura, e o banco permite - mas a
+              // promessa so vale se o aplicativo de fato pedir.
+              sync.apagarPartida(match.id);
+              refresh();
+            }
           },
         }, [t('stats.deleteMatch')]),
       ]));

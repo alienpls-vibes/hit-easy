@@ -15,6 +15,12 @@ const EMPTY = {
   version: 1,
   current: null,
   history: [],
+  // Ids de partidas que ja foram para a nuvem.
+  //
+  // Existe porque quem nao assina CONSEGUE subir mas nao consegue baixar: sem
+  // esta anotacao, a cada abertura o aparelho acharia que a nuvem esta vazia e
+  // reenviaria o historico inteiro, para sempre.
+  enviadas: [],
   commanders: {}, // oracleId -> commander (reuso offline)
   playerNames: [],
   // Nome de jogador -> @ da conta dele. Grupo de Commander joga toda
@@ -96,6 +102,44 @@ export function archive(match) {
   else db.history.unshift(record);
   db.current = null;
   save();
+}
+
+/** Ids ja enviados para a nuvem. */
+export function enviadas() {
+  return [...(db.enviadas || [])];
+}
+
+export function marcarEnviada(matchId) {
+  if (!matchId) return;
+  if (!db.enviadas) db.enviadas = [];
+  if (!db.enviadas.includes(matchId)) {
+    db.enviadas.push(matchId);
+    save();
+  }
+}
+
+/** Apagou a partida: a marca tambem sai, senao ela nunca mais subiria. */
+export function esquecerEnviada(matchId) {
+  if (!db.enviadas || !db.enviadas.includes(matchId)) return;
+  db.enviadas = db.enviadas.filter((x) => x !== matchId);
+  save();
+}
+
+/**
+ * Junta partidas vindas da nuvem ao historico daqui.
+ *
+ * Por id, e sem sobrescrever o que ja existe: partida encerrada e imutavel, e
+ * a copia local pode ter algo que a remota nao tem se algum envio falhou pela
+ * metade. Na duvida, o que ja esta aqui manda.
+ */
+export function mesclarPartidas(lista) {
+  const aqui = new Set(db.history.map((m) => m && m.id));
+  const novas = (lista || []).filter((m) => m && m.id && !aqui.has(m.id));
+  if (!novas.length) return 0;
+  db.history = [...db.history, ...novas]
+    .sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
+  save();
+  return novas.length;
 }
 
 export function deleteMatch(matchId) {

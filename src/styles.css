@@ -2456,3 +2456,5 @@ button {
   letter-spacing: 0.04em;
   opacity: 0.7;
 }
+
+.account-sync { display: grid; gap: 8px; }

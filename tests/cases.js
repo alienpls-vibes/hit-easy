@@ -34,6 +34,7 @@ import {
 } from '../src/cloud.js';
 import { cloudEnabled } from '../src/config.js';
 import { canalDe, canalDoCache } from '../src/canal.js';
+import { aSubir, aBaixar, podeSincronizar } from '../src/sync.js';
 import { giraComOAssento, grausNaMesa, rotatesToSeat } from '../src/orientation.js';
 import { renderTable } from '../src/views/table.js';
 import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
@@ -1365,6 +1366,73 @@ export const cases = [
     const pares = rivalries([m]);
     eq(pares.length, 3, 'três pares, um por alvo');
     ok(pares.every((r) => r.total === 3), 'três de dano em cada');
+  }],
+
+  ['quem não assina sobe uma vez, e não reenvia para sempre', () => {
+    // O detalhe que define o desenho: o banco deixa INSERIR sem assinatura mas
+    // não deixa LER. Quem não assina recebe lista vazia ao baixar - então, sem
+    // anotar no aparelho o que já subiu, toda abertura pareceria "a nuvem está
+    // vazia" e o histórico inteiro seria reenviado. Para sempre.
+    const locais = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+
+    // Primeira vez: nada anotado, nada visível do outro lado.
+    eq(aSubir(locais, [], []).map((m) => m.id), ['a', 'b', 'c'], 'sobe tudo');
+
+    // Depois de subir, mesmo sem conseguir ler a nuvem, não repete.
+    eq(aSubir(locais, ['a', 'b', 'c'], []).length, 0, 'não reenvia o que já foi');
+    eq(aSubir(locais, ['a'], []).map((m) => m.id), ['b', 'c'], 'só o que falta');
+
+    // Aparelho novo que baixou tudo não precisa devolver nada.
+    eq(aSubir(locais, [], ['a', 'b', 'c']).length, 0, 'o servidor já tem');
+
+    // E uma partida que falhou continua na fila, porque a fila é derivada: sem
+    // marca, ela é pendente por definição - não há estrutura separada que possa
+    // divergir do histórico.
+    eq(aSubir(locais, ['a', 'c'], []).map((m) => m.id), ['b'], 'a que falhou volta');
+  }],
+
+  ['baixar traz só o que este aparelho não tem', () => {
+    const aqui = [{ id: 'a' }, { id: 'b' }];
+    const la = [{ id: 'b' }, { id: 'c' }, { id: 'd' }];
+    eq(aBaixar(aqui, la).map((m) => m.id), ['c', 'd'], 'nem duplica nem perde');
+    eq(aBaixar([], la).length, 3, 'aparelho novo recebe tudo');
+    eq(aBaixar(aqui, []).length, 0, 'sem assinatura o servidor devolve vazio');
+    eq(aBaixar(null, null).length, 0, 'listas vazias não explodem');
+  }],
+
+  ['sincronizar só faz sentido com conta', () => {
+    ok(!podeSincronizar(true, 'deslogado'), 'sem conta não há para onde subir');
+    ok(!podeSincronizar(false, 'assinante'), 'sem nuvem configurada não há nuvem');
+    ok(podeSincronizar(true, 'sem-assinatura'), 'sem assinar ainda se pode SUBIR');
+    ok(podeSincronizar(true, 'assinante'));
+  }],
+
+  ['o histórico local não é apagado ao subir, e a mesclagem não sobrescreve', () => {
+    if (!simulated) return 'skip';
+    store.wipe();
+    const m = mesa(4);
+    push(m, { type: 'life', targetId: 's1', delta: -7, sourceId: 's0' });
+    store.archive(m);
+
+    eq(store.getDB().history.length, 1, 'a partida está aqui');
+    store.marcarEnviada(m.id);
+    eq(store.enviadas(), [m.id], 'anotada como enviada');
+    eq(store.getDB().history.length, 1, 'e continua aqui: subir não apaga nada');
+
+    // Partida encerrada é imutável, e a cópia local pode ter algo que a remota
+    // não tem se um envio falhou pela metade. Na dúvida, o que já está aqui manda.
+    const forjada = { ...m, seats: [] };
+    eq(store.mesclarPartidas([forjada]), 0, 'não traz o que já existe');
+    eq(store.getDB().history[0].seats.length, 4, 'e não sobrescreve o que estava aqui');
+
+    const outra = mesa(3);
+    eq(store.mesclarPartidas([outra]), 1, 'traz o que é novo');
+    eq(store.getDB().history.length, 2);
+
+    // Apagar tira a marca junto, senão a partida nunca mais poderia subir.
+    store.deleteMatch(m.id);
+    store.esquecerEnviada(m.id);
+    eq(store.enviadas().includes(m.id), false, 'a marca sai com a partida');
   }],
 
   ['sem assinatura, o histórico fica fechado', () => {
