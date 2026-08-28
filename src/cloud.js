@@ -742,16 +742,44 @@ export async function entrarComSenha(email, senha) {
  * devolve so o usuario. Nesse caso quem chama precisa dizer "confira sua
  * caixa", e nao fingir que entrou.
  */
+/**
+ * A conta ja existia?
+ *
+ * Com confirmacao de e-mail ligada, o GoTrue NAO diz "esse e-mail ja tem conta"
+ * - responderia se um endereco existe ou nao para qualquer um que perguntasse,
+ * o que transformaria o cadastro num verificador de e-mails. Em vez disso ele
+ * devolve um usuario de fachada, com `identities` VAZIO. E esse array vazio o
+ * unico sinal, e e o sinal documentado.
+ *
+ * Sem ler isso, o app dizia "confira sua caixa de entrada" para quem ja tinha
+ * conta - e a pessoa ficava esperando um e-mail que nao ia chegar, ou chegava e
+ * nao servia para nada.
+ */
+export function jaTinhaConta(resposta) {
+  if (!resposta || resposta.access_token) return false;
+  return Array.isArray(resposta.identities) && resposta.identities.length === 0;
+}
+
 export async function criarConta(email, senha) {
   const d = await pedirToken('/auth/v1/signup', {
     email: String(email || '').trim(),
     password: String(senha || ''),
   });
+
   if (d.access_token) {
     guardarDoServidor(d);
     try { await carregarUsuario(); await carregarAssinatura(); } catch { /* depois */ }
     return { entrou: true, estado: state() };
   }
+
+  // Sem confirmacao de e-mail ligada, o servidor recusa com user_already_exists
+  // e nem chegamos aqui. Com ela ligada, o sinal e o `identities` vazio.
+  if (jaTinhaConta(d)) {
+    const e = new Error('conta ja existe');
+    e.codigo = 'user_already_exists';
+    throw e;
+  }
+
   return { entrou: false, estado: state() };
 }
 
@@ -786,13 +814,27 @@ async function marcarQueTemSenha() {
   }
 }
 
+/**
+ * Define a primeira senha.
+ *
+ * Senha e marca vao no MESMO pedido, de proposito. Em duas chamadas o segundo
+ * pedido pode falhar - rede caiu, token venceu - e a conta fica num estado
+ * mentiroso: tem senha, mas o app acha que nao, e continua oferecendo "salvar
+ * senha" para sempre. Uma chamada so nao tem esse meio-termo.
+ */
 export async function definirSenha(senha) {
   if (!sessao) throw new Error('sem sessao');
-  await pedir('/auth/v1/user', {
+  const u = await pedir('/auth/v1/user', {
     method: 'PUT',
-    body: JSON.stringify({ password: String(senha || '') }),
+    body: JSON.stringify({
+      password: String(senha || ''),
+      data: { has_password: true },
+    }),
   });
-  await marcarQueTemSenha();
+  // A resposta ja e o usuario atualizado: guardar aqui evita uma ida a rede so
+  // para descobrir o que o servidor acabou de contar.
+  if (u && u.id) gravarSessao({ ...sessao, user: u });
+  else await carregarUsuario();
 }
 
 /**

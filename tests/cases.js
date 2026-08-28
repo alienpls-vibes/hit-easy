@@ -25,6 +25,7 @@ import {
   accountState, assinaturaAtiva, sessaoValida, toRow, fromRow, pendentes,
   state as accountNow, provedores, pedidoDeLink, urlDeRetorno,
   capturarRetorno, esquecerSessao, precisaRenovar, sessaoAproveitavel, senhaValida,
+  jaTinhaConta,
   sessaoGuardada,
   normalizarHandle, handleValido, exibirHandle, participantesDe, montarConvites,
 } from '../src/cloud.js';
@@ -176,10 +177,49 @@ export const cases = [
 
   ['colocação: vencedor em 1º, quem saiu por último vem antes', () => {
     const m = mesa();
+    // Um por turno: aqui há de fato quem sobreviveu a quem.
+    push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
+    push(m, { type: 'turn' });
+    push(m, { type: 'life', targetId: 's2', delta: -40, sourceId: 's0' });
+    push(m, { type: 'turn' });
+    push(m, { type: 'life', targetId: 's3', delta: -40, sourceId: 's0' });
+
+    eq(standings(m).map((x) => x.seatId), ['s0', 's3', 's2', 's1'], 'ordem final');
+    eq(standings(m).map((x) => x.place), [1, 2, 3, 4], 'sem empate, colocações distintas');
+  }],
+
+  ['quem morre no mesmo turno divide a colocação', () => {
+    // O caso que a mesa reconhece: alguém estoura a mesa inteira de uma vez.
+    // Não há nada que separe os três - eles não se sobreviveram, e a ordem em
+    // que o motor processou os eventos é detalhe interno que não significa
+    // nada. Desempatar por ali seria inventar um resultado.
+    const m = mesa();
     push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
     push(m, { type: 'life', targetId: 's2', delta: -40, sourceId: 's0' });
     push(m, { type: 'life', targetId: 's3', delta: -40, sourceId: 's0' });
-    eq(standings(m).map((x) => x.seatId), ['s0', 's3', 's2', 's1'], 'ordem final');
+
+    const lugar = new Map(standings(m).map((x) => [x.seatId, x.place]));
+    eq(lugar.get('s0'), 1, 'quem sobrou é o primeiro');
+    // O grupo leva a PIOR colocação que ocupa. Dizer que dois deles foram 2º e
+    // 3º daria a eles um lugar que ninguém conquistou.
+    eq(lugar.get('s1'), 4, 'os três caíram juntos');
+    eq(lugar.get('s2'), 4);
+    eq(lugar.get('s3'), 4);
+  }],
+
+  ['empate parcial: só quem caiu junto divide o lugar', () => {
+    const m = mesa();
+    push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
+    push(m, { type: 'turn' });
+    // Estes dois caem no mesmo turno, depois do s1.
+    push(m, { type: 'life', targetId: 's2', delta: -40, sourceId: 's0' });
+    push(m, { type: 'life', targetId: 's3', delta: -40, sourceId: 's0' });
+
+    const lugar = new Map(standings(m).map((x) => [x.seatId, x.place]));
+    eq(lugar.get('s0'), 1, 'o vencedor');
+    eq(lugar.get('s2'), 3, 'os dois do último turno ocupam 2º e 3º, e levam o 3º');
+    eq(lugar.get('s3'), 3);
+    eq(lugar.get('s1'), 4, 'quem caiu antes fica atrás dos dois');
   }],
 
   ['desistir tira o jogador da mesa', () => {
@@ -1696,6 +1736,22 @@ export const cases = [
     ok(!sessaoGuardada(JSON.stringify(vencidaSemRefresh), agora), 'essa não volta');
     ok(!sessaoGuardada(null, agora), 'disco vazio');
     ok(!sessaoGuardada('{quebrado', agora), 'lixo no disco não derruba o app');
+  }],
+
+  ['cadastro não promete e-mail para quem já tem conta', () => {
+    // Com confirmação de e-mail ligada, o GoTrue NÃO diz "esse e-mail já
+    // existe" - responder isso transformaria o cadastro num verificador de
+    // endereços para qualquer um. Ele devolve um usuário de fachada com
+    // `identities` vazio, e esse array vazio é o único sinal.
+    //
+    // Sem lê-lo, o app dizia "confira sua caixa de entrada" para quem já tinha
+    // conta, e a pessoa ficava esperando um e-mail que não ia resolver nada.
+    ok(jaTinhaConta({ id: 'x', identities: [] }), 'array vazio: a conta já existia');
+    ok(!jaTinhaConta({ id: 'x', identities: [{ provider: 'email' }] }), 'conta nova de verdade');
+    ok(!jaTinhaConta({ access_token: 'a', identities: [] }),
+      'se veio sessão, entrou - não importa o resto');
+    ok(!jaTinhaConta(null), 'resposta vazia não é conta existente');
+    ok(!jaTinhaConta({ id: 'x' }), 'sem o campo, não dá para afirmar nada');
   }],
 
   ['senha curta nem sai do aparelho', () => {

@@ -111,6 +111,12 @@ export function replay(match) {
 
   const firstIdx = Math.max(0, order.indexOf(match.firstSeatId));
   let turn = 1;
+  // `turn` conta VOLTAS da mesa; este conta turnos de JOGADOR.
+  //
+  // Para a classificacao a diferenca importa: morrer no meu turno e morrer no
+  // turno do vizinho sao coisas distintas, e a volta e grossa demais para
+  // separa-las. Serve so para saber quem caiu junto com quem.
+  let turnoAtual = 0;
   let activeIdx = firstIdx;
   let turnStart = match.startedAt;
   const elimOrder = [];
@@ -146,7 +152,7 @@ export function replay(match) {
         const atingido = ev
           && (ev.targetId === id || (ev.targets && ev.targets.includes(id)));
         const byId = atingido ? ev.sourceId || null : null;
-        p.elim = { turn, ts: ev ? ev.ts : Date.now(), byId, place: 0 };
+        p.elim = { turn, seq: turnoAtual, ts: ev ? ev.ts : Date.now(), byId, place: 0 };
         elimOrder.push(id);
       } else if (!shouldBeDead && p.dead) {
         p.dead = false;
@@ -187,6 +193,7 @@ export function replay(match) {
       }
     }
     if (novaVolta) turn += 1;
+    turnoAtual += 1;
     activeIdx = next;
   };
 
@@ -319,14 +326,51 @@ export function canRedo(match) {
 }
 
 /** Colocacao final: 1o e o vencedor, depois a ordem inversa de eliminacao. */
+/**
+ * A classificacao da mesa, com empate por turno.
+ *
+ * Quem morre no MESMO turno cai junto. Se alguem elimina os tres oponentes de
+ * uma vez, nao ha nada que separe esses tres - eles nao se sobreviveram, e a
+ * ordem em que o motor processou os eventos e um detalhe interno que nao
+ * significa nada na mesa. Desempatar por ali seria inventar um resultado.
+ *
+ * O grupo empatado recebe a PIOR colocacao que ele ocupa: tres mortos juntos
+ * numa mesa de quatro ficam todos em 4o, e nao em 2o. E o que a mesa entende
+ * por "ficamos todos em ultimo" - dizer que dois deles foram 2o e 3o daria a
+ * eles um lugar que ninguem conquistou.
+ *
+ * A ordem geral: vencedor, depois quem ficou vivo sem vencer, depois os mortos
+ * do turno mais recente para o mais antigo.
+ */
 export function standings(match, state) {
   const st = state || replay(match);
-  const ranked = [...st.order].sort((a, b) => {
-    if (a === st.winnerId) return -1;
-    if (b === st.winnerId) return 1;
-    const pa = st.players[a].elim ? st.players[a].elim.place : Infinity;
-    const pb = st.players[b].elim ? st.players[b].elim.place : Infinity;
-    return pb - pa; // quem saiu por ultimo fica melhor colocado
-  });
-  return ranked.map((id, i) => ({ seatId: id, place: i + 1 }));
+
+  // Quanto mais alto, melhor colocado.
+  const peso = (id) => {
+    if (id === st.winnerId) return Infinity;
+    const e = st.players[id] && st.players[id].elim;
+    return e ? (e.seq || 0) : Number.MAX_SAFE_INTEGER; // vivo fica acima de morto
+  };
+
+  // Quem empata com quem. Vencedor nunca empata; vivos sem vitoria empatam
+  // entre si; mortos empatam com quem caiu no mesmo turno de jogador.
+  const grupo = (id) => {
+    if (id === st.winnerId) return 'vencedor';
+    const e = st.players[id] && st.players[id].elim;
+    return e ? 'turno:' + (e.seq || 0) : 'vivo';
+  };
+
+  const ranked = [...st.order].sort((a, b) => peso(b) - peso(a));
+
+  const out = [];
+  let i = 0;
+  while (i < ranked.length) {
+    const g = grupo(ranked[i]);
+    let j = i;
+    while (j < ranked.length && grupo(ranked[j]) === g) j += 1;
+    // Posicoes i+1 ate j; o grupo inteiro leva a ultima delas.
+    for (let k = i; k < j; k += 1) out.push({ seatId: ranked[k], place: j });
+    i = j;
+  }
+  return out;
 }

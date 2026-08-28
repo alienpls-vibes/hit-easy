@@ -31,7 +31,7 @@
 import { el, clear, icon, openFlow, openSheet, closeSheet, buzz, toast, confirmAction, dismissOnBackdrop } from '../ui.js';
 import { accentOf, colorHex, identityGradient, withAlpha } from '../colors.js';
 import {
-  replay, push, undo, redo, canUndo, canRedo, elapsedOf,
+  replay, push, undo, redo, canUndo, canRedo, elapsedOf, standings,
   cmdKeyOf, deckNameOf, CMD_LETHAL, POISON_LETHAL,
 } from '../engine.js';
 import { formatDuration, totalDamage } from '../stats.js';
@@ -1105,6 +1105,10 @@ export function renderTable(root, ctx) {
   // ---------- render ----------
 
   function sync() {
+    // A colocação vem da mesma fonte que a tela de encerramento: com empate
+    // por turno, dois cálculos diferentes discordariam na mesma partida.
+    const lugarNaMesa = new Map(standings(match, state).map((x) => [x.seatId, x.place]));
+
     for (const seat of match.seats) {
       const p = state.players[seat.id];
       const tile = tiles.get(seat.id);
@@ -1138,8 +1142,13 @@ export function renderTable(root, ctx) {
         tile.status.append(
           icon('skull'),
           el('span', {
-            text: p.elim
-              ? t('table.place', { n: match.seats.length - p.elim.place + 1 })
+            // A mesma colocacao da tela de encerramento.
+            //
+            // Antes saia de elim.place, que e a ORDEM de saida - e com empate
+            // por turno os dois numeros passariam a discordar: o painel diria
+            // 3o e o resumo diria 4o para a mesma pessoa, na mesma partida.
+            text: lugarNaMesa.has(seat.id)
+              ? t('table.place', { n: lugarNaMesa.get(seat.id) })
               : t('table.eliminated'),
           }),
         );
