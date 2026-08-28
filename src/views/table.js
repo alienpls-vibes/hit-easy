@@ -786,6 +786,13 @@ export function renderTable(root, ctx) {
       build: (pane, api) => {
         let preset = PRESETS[0];
         let pergunta = '';
+        // O titulo atual veio de um preset, ou foi a pessoa que digitou?
+        //
+        // Sem esta distincao, tocar em "Prisoner's Dilemma" (que se auto-
+        // intitula) e depois trocar para "Jogador" deixava o titulo antigo
+        // grudado - e a votacao ia para a estatistica com a pergunta errada,
+        // dizendo que a mesa jogou um dilema que nunca aconteceu.
+        let tituloAutomatico = true;
         let opcoes = [...preset.options];
         const votos = new Map(vivos.map((s) => [s.id, 1])); // 0 = fora da votação
 
@@ -795,8 +802,8 @@ export function renderTable(root, ctx) {
 
         const aplicarPreset = (p) => {
           preset = p;
-          // So sobrescreve o que o usuario ainda nao digitou.
-          if (!pergunta.trim()) pergunta = p.title || '';
+          // So sobrescreve titulo que o proprio app pos ali.
+          if (tituloAutomatico) pergunta = p.title || '';
           opcoes = p.fromPlayers ? vivos.map((s) => s.name) : [...p.options];
           vivos.forEach((s) => {
             const fora = p.excludeActive && s.id === state.activeSeatId;
@@ -820,7 +827,12 @@ export function renderTable(root, ctx) {
             placeholder: t('vote.questionPlaceholder'),
             value: pergunta,
             maxlength: '48',
-            onInput: (e) => { pergunta = e.target.value; },
+            // Campo vazio volta a ser "automatico": quem apagou tudo nao tem
+            // opiniao sobre o titulo, e o proximo preset pode preencher.
+            onInput: (e) => {
+              pergunta = e.target.value;
+              tituloAutomatico = !pergunta.trim();
+            },
           }));
 
           if (preset.kind === 'opcoes') {

@@ -390,6 +390,11 @@ const PT = {
   'account.changePasswordHint': 'A troca é confirmada pelo seu e-mail — assim ninguém que pegue o aparelho destravado toma a conta.',
   'account.recoverSent': 'Link enviado para {email}. Abra para escolher a nova senha.',
 
+  'stats.rivalA': 'Jogador',
+  'stats.rivalB': 'Contra',
+  'stats.rivalSame': 'Escolha duas pessoas diferentes',
+  'stats.rivalNone': 'Esses dois ainda não se enfrentaram',
+
   'settings.title': 'Configurações',
   'settings.sub': 'Valem para todas as partidas',
   'settings.language': 'Idioma',
@@ -790,6 +795,11 @@ const EN = {
   'account.changePassword': 'Change password',
   'account.changePasswordHint': 'The change is confirmed by email, so nobody who picks up an unlocked device can take the account.',
   'account.recoverSent': 'Link sent to {email}. Open it to choose the new password.',
+
+  'stats.rivalA': 'Player',
+  'stats.rivalB': 'Against',
+  'stats.rivalSame': 'Pick two different people',
+  'stats.rivalNone': 'These two have not faced each other yet',
 
   'settings.title': 'Settings',
   'settings.sub': 'Apply to every match',
@@ -1192,6 +1202,11 @@ const ES = {
   'account.changePasswordHint': 'El cambio se confirma por correo, así nadie que agarre el aparato desbloqueado se queda con la cuenta.',
   'account.recoverSent': 'Enlace enviado a {email}. Ábrelo para elegir la nueva contraseña.',
 
+  'stats.rivalA': 'Jugador',
+  'stats.rivalB': 'Contra',
+  'stats.rivalSame': 'Elige dos personas distintas',
+  'stats.rivalNone': 'Estos dos aún no se han enfrentado',
+
   'settings.title': 'Ajustes',
   'settings.sub': 'Valen para todas las partidas',
   'settings.language': 'Idioma',
@@ -1592,6 +1607,11 @@ const DE = {
   'account.changePassword': 'Passwort ändern',
   'account.changePasswordHint': 'Die Änderung wird per E-Mail bestätigt, damit niemand mit einem entsperrten Gerät das Konto übernimmt.',
   'account.recoverSent': 'Link an {email} geschickt. Öffne ihn, um das neue Passwort zu wählen.',
+
+  'stats.rivalA': 'Person',
+  'stats.rivalB': 'Gegen',
+  'stats.rivalSame': 'Wähle zwei verschiedene Personen',
+  'stats.rivalNone': 'Diese beiden sind sich noch nicht begegnet',
 
   'settings.title': 'Einstellungen',
   'settings.sub': 'Gelten für alle Partien',

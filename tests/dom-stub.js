@@ -121,6 +121,11 @@ class Node {
     // No DOM de verdade, setAttribute('class') alimenta o classList - e e
     // assim que os SVGs definem a classe deles.
     if (k === 'class') this.className = v;
+    // E o atributo `value` de um input define o valor INICIAL: `.value` o
+    // reflete ate alguem digitar. Como el() monta tudo por setAttribute, sem
+    // isto todo campo criado pelo app nascia vazio para o teste - e qualquer
+    // caso que lesse `.value` estava lendo '' e passando sem provar nada.
+    if (k === 'value' && this._value === undefined) this._value = String(v);
   }
   getAttribute(k) { return k in this.attributes ? this.attributes[k] : null; }
   addEventListener(type, fn) { (this.events[type] = this.events[type] || []).push(fn); }
@@ -167,6 +172,10 @@ class Node {
  * porque o DOM de verdade aceita as duas formas.
  */
 export function fire(node, type, event = {}) {
+  // Disparar num no que nao existe nao pode ser silencio: um seletor que
+  // errou o alvo faria o teste 'passar' sem ter exercitado nada, e a
+  // assercao seguinte falharia longe da causa.
+  if (!node) throw new Error('fire(): nó inexistente — o seletor do teste não achou o alvo');
   let parado = false;
   const ev = {
     target: node,

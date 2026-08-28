@@ -8,6 +8,7 @@ import { accentOf, identityGradient, pips } from '../colors.js';
 import {
   aggregate, rivalries, summarize, timeline, formatDuration, formatDate, pct, num,
   playerColorOrder, playerColor,
+  rotuloDaVotacao, rivalPeople, rivalBetween,
 } from '../stats.js';
 import { deckNameOf } from '../engine.js';
 import * as store from '../store.js';
@@ -21,6 +22,12 @@ const TABS = [
 ];
 
 let activeTab = 'decks';
+
+// Quem esta selecionado nos filtros de rivalidade. Fora do render porque a
+// tela se redesenha inteira ao ocultar um jogador ou apagar uma partida, e
+// perder a comparacao escolhida a cada mexida seria insuportavel.
+let rivalA = null;
+let rivalB = null;
 
 export function renderStats(root, { onBack }) {
   clear(root);
@@ -73,7 +80,7 @@ export function renderStats(root, { onBack }) {
       agg.players.forEach((row) => panel.append(playerCard(row, recarregar, corDe)));
     } else if (activeTab === 'rivals') {
       if (!rivais.length) panel.append(emptyRivals());
-      else rivais.forEach((r) => panel.append(rivalCard(r, corDe)));
+      else panel.append(rivalsTab(rivais, corDe, paint));
     } else {
       matches.forEach((m) => panel.append(matchCard(m, recarregar)));
     }
@@ -306,7 +313,7 @@ function voteBlock(row) {
       el('span', { class: 'vote-history-count', text: String(row.votes) }),
     ]),
     ...perguntas.map(([pergunta, escolhas]) => el('div', { class: 'vote-history-row' }, [
-      el('span', { class: 'vote-history-q', text: pergunta }),
+      el('span', { class: 'vote-history-q', text: rotuloDaVotacao(pergunta) }),
       el('span', {
         class: 'vote-history-a',
         text: Object.entries(escolhas)
@@ -521,4 +528,65 @@ function nomeDoDeck(chave) {
     }
   }
   return chave;
+}
+
+
+/**
+ * A aba de rivalidades: escolhe-se o par, e so ele aparece.
+ *
+ * Antes a aba despejava TODAS as duplas. Numa mesa de cinco isso ja da dez
+ * cartoes, e depois de algumas noites a comparacao que interessa esta perdida
+ * no meio de outras nove que ninguem pediu. Rivalidade e uma pergunta sobre
+ * duas pessoas especificas - a tela agora pergunta quais.
+ */
+function rivalsTab(pares, corDe, repintar) {
+  const gente = rivalPeople(pares);
+
+  // Sem escolha ainda: comeca pelo par de cima, que e o de maior atrito. Uma
+  // tela que abre vazia obrigaria a mexer em dois campos antes de ver qualquer
+  // coisa.
+  const valido = rivalBetween(pares, rivalA, rivalB);
+  if (!valido) {
+    rivalA = pares[0].keyA;
+    rivalB = pares[0].keyB;
+  }
+
+  const caixa = el('div', { class: 'rival-filters' });
+
+  const campo = (qual, escolhido, aoTrocar) => {
+    const sel = el('select', { class: 'rival-select', 'aria-label': qual });
+    gente.forEach((g) => {
+      const op = el('option', { value: g.key, text: g.label });
+      if (g.key === escolhido) op.setAttribute('selected', '');
+      sel.append(op);
+    });
+    sel.addEventListener('change', (e) => { aoTrocar(e.target.value); repintar(); });
+    return el('label', { class: 'rival-field' }, [
+      el('span', { class: 'menu-sub', text: qual }),
+      sel,
+    ]);
+  };
+
+  caixa.append(
+    campo(t('stats.rivalA'), rivalA, (v) => { rivalA = v; }),
+    el('span', { class: 'rival-vs', text: 'vs' }),
+    campo(t('stats.rivalB'), rivalB, (v) => { rivalB = v; }),
+  );
+
+  const fora = el('div', { class: 'rival-tab' }, [caixa]);
+
+  if (rivalA === rivalB) {
+    fora.append(el('p', { class: 'search-status', text: t('stats.rivalSame') }));
+    return fora;
+  }
+
+  const par = rivalBetween(pares, rivalA, rivalB);
+  if (!par) {
+    // Existir na lista nao garante ter cruzado com todo mundo.
+    fora.append(el('p', { class: 'search-status', text: t('stats.rivalNone') }));
+    return fora;
+  }
+
+  fora.append(rivalCard(par, corDe));
+  return fora;
 }

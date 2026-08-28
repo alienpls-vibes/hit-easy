@@ -209,7 +209,8 @@ export function aggregate(matches, apelidos = null) {
           }
           break;
         case 'vote': {
-          const pergunta = tituloDaVotacao(ev);
+          // Agrupa pela chave estavel; a traducao so acontece na tela.
+          const pergunta = chaveDaVotacao(ev);
           for (const cedula of ev.ballots || []) {
             const rotulos = (cedula.choices || []).map((c) => (
               ev.kind === 'numero' ? String(c) : (ev.options || [])[c]
@@ -246,12 +247,35 @@ export function aggregate(matches, apelidos = null) {
  * proprias opcoes ja identificam a carta melhor que qualquer rotulo generico:
  * "Silence ou Snitch" e reconhecivel na hora.
  */
-export function tituloDaVotacao(ev) {
-  const dado = (ev.question || '').trim();
+/**
+ * A chave que agrupa uma votacao no historico.
+ *
+ * NAO pode ser texto traduzido. Antes o agrupamento usava o rotulo da tela, e
+ * "Numero secreto" em portugues e "Secret number" em ingles viravam duas
+ * perguntas diferentes: trocar o idioma do app partia o historico de votacoes
+ * da pessoa em dois montes, sem que nada tivesse mudado na mesa.
+ *
+ * As chaves internas comecam com `#` para nunca colidirem com uma pergunta que
+ * alguem tenha digitado.
+ */
+export function chaveDaVotacao(ev) {
+  const dado = ((ev && ev.question) || '').trim();
   if (dado) return dado;
-  if (ev.kind === 'numero') return t('vote.preset.number');
-  const opcoes = (ev.options || []).filter(Boolean);
-  return opcoes.length ? opcoes.join(' / ') : t('vote.untitled');
+  if (ev && ev.kind === 'numero') return '#numero';
+  const opcoes = ((ev && ev.options) || []).filter(Boolean);
+  return opcoes.length ? opcoes.join(' / ') : '#semtitulo';
+}
+
+/** O texto de uma chave, na lingua de agora. */
+export function rotuloDaVotacao(chave) {
+  if (chave === '#numero') return t('vote.preset.number');
+  if (chave === '#semtitulo') return t('vote.untitled');
+  return chave;
+}
+
+/** Como uma votacao aparece na linha do tempo. */
+export function tituloDaVotacao(ev) {
+  return rotuloDaVotacao(chaveDaVotacao(ev));
 }
 
 function byRelevance(a, b) {
@@ -549,4 +573,28 @@ export function rivalries(matches, apelidos = null) {
       return { ...resto, games: _partidas.size };
     })
     .sort((x, y) => y.total - x.total);
+}
+
+/**
+ * Quem aparece em alguma rivalidade, para popular os filtros.
+ *
+ * Sai das PROPRIAS rivalidades e nao da lista de jogadores: oferecer alguem que
+ * nunca cruzou com ninguem so produziria combinacoes vazias, e a pessoa ficaria
+ * caçando um par que existe entre opcoes que nao levam a lugar nenhum.
+ */
+export function rivalPeople(pares) {
+  const vistos = new Map();
+  for (const r of pares || []) {
+    if (!vistos.has(r.keyA)) vistos.set(r.keyA, { key: r.keyA, label: r.a });
+    if (!vistos.has(r.keyB)) vistos.set(r.keyB, { key: r.keyB, label: r.b });
+  }
+  return [...vistos.values()].sort((x, y) => x.label.localeCompare(y.label));
+}
+
+/** A rivalidade entre duas pessoas, em qualquer ordem. */
+export function rivalBetween(pares, a, b) {
+  if (!a || !b || a === b) return null;
+  return (pares || []).find(
+    (r) => (r.keyA === a && r.keyB === b) || (r.keyA === b && r.keyB === a),
+  ) || null;
 }

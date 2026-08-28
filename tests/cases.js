@@ -16,6 +16,7 @@ import {
   aggregate, rivalries, tituloDaVotacao, totalDamage, summarize,
   playerColorOrder, playerColor,
   identityOf, labelOf,
+  chaveDaVotacao, rotuloDaVotacao,
 } from '../src/stats.js';
 import { LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf } from '../src/seating.js';
 import { createSession, cast, tally, pending, isComplete, describe } from '../src/vote.js';
@@ -34,6 +35,7 @@ import { canalDe, canalDoCache } from '../src/canal.js';
 import { giraComOAssento, grausNaMesa, rotatesToSeat } from '../src/orientation.js';
 import { renderTable } from '../src/views/table.js';
 import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
+import { renderStats } from '../src/views/stats.js';
 import { brandMark } from '../src/ui.js';
 import * as store from '../src/store.js';
 // Importar app.js JA e o teste: ele sobe sozinho ao ser avaliado.
@@ -857,6 +859,58 @@ export const cases = [
     eq(describe(v), 'A 1 × B 1', 'resumo para o histórico');
   }],
 
+  ['trocar de modelo de votação não deixa o título antigo grudado', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    // O bug relatado: tocar em "Prisoner's Dilemma" - que se auto-intitula - e
+    // depois trocar para "Jogador" deixava a pergunta antiga no campo. A
+    // votação ia para a estatística dizendo que a mesa jogou um dilema que
+    // nunca aconteceu.
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    const view = renderTable(root, {
+      match: mesa(4), onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
+    });
+
+    const telaAtiva = () => {
+      const p = findAll(document.body, 'flow-pane');
+      return p[p.length - 1];
+    };
+    const acharTexto = (cls, txt) =>
+      findAll(telaAtiva(), cls).find((n) => textOf(n).includes(txt));
+    const campo = () => findAll(telaAtiva(), 'search-input')[0];
+    const modelo = (txt) => findAll(telaAtiva(), 'pad-mode').find((b) => textOf(b).includes(txt));
+
+    fire(findAll(root, 'hub-btn').find((b) => b.attributes['aria-label'] === 'Menu'), 'click');
+    fire(acharTexto('menu-item', 'Votação secreta'), 'click');
+
+    eq(campo().value, '', 'começa sem título');
+
+    fire(modelo('Prisoner'), 'click');
+    eq(campo().value, "Prisoner's Dilemma", 'o modelo preenche o título sozinho');
+
+    fire(modelo(t('vote.preset.player')), 'click');
+    eq(campo().value, '', 'trocar de modelo limpa o título que o próprio app pôs');
+
+    // O que a pessoa digitou é intocável: só o app apaga o que o app escreveu.
+    fire(modelo('Prisoner'), 'click');
+    const c = campo();
+    c.value = 'Quem leva o combo?';
+    fire(c, 'input');
+    fire(modelo(t('vote.preset.player')), 'click');
+    eq(campo().value, 'Quem leva o combo?', 'título digitado sobrevive à troca');
+
+    // E apagar tudo devolve o campo ao app: quem esvaziou não tem opinião.
+    const c2 = campo();
+    c2.value = '';
+    fire(c2, 'input');
+    fire(modelo('Prisoner'), 'click');
+    eq(campo().value, "Prisoner's Dilemma", 'campo vazio volta a aceitar o modelo');
+
+    closeSheet();
+    view.destroy();
+  }],
+
   ['a votação vai do menu até a revelação sem travar', () => {
     if (!simulated) return 'skip';
     // Nasceu de um bug real: renderTable já tinha um `pending` local (o Map dos
@@ -1171,8 +1225,35 @@ export const cases = [
     const p0 = aggregate([m]).players.find((p) => p.label === 'P0');
     eq(p0.votes, 3, 'três votações');
     eq(Object.keys(p0.voteChoices).sort(),
-      ['Carnage ou homage?', 'Número secreto', "Prisoner's Dilemma"], 'cada pergunta na sua linha');
-    eq(p0.voteChoices['Número secreto'], { 7: 1 }, 'número secreto guarda o valor');
+      ['#numero', 'Carnage ou homage?', "Prisoner's Dilemma"], 'cada pergunta na sua linha');
+
+    // O agrupamento NÃO pode depender do idioma. Antes a chave era o texto da
+    // tela, então trocar de língua partia o histórico de votações da pessoa em
+    // dois montes sem que nada tivesse mudado na mesa.
+    const chavesEm = (lang) => {
+      setLang(lang);
+      return Object.keys(aggregate([m]).players.find((p) => p.label === 'P0').voteChoices).sort();
+    };
+    eq(chavesEm('en'), chavesEm('pt'), 'as mesmas votações em qualquer idioma');
+    eq(chavesEm('de'), chavesEm('pt'));
+
+    // E a tradução acontece só na hora de mostrar.
+    setLang('pt');
+    eq(rotuloDaVotacao('#numero'), t('vote.preset.number'), 'a chave interna vira texto');
+    setLang('en');
+    eq(rotuloDaVotacao('#numero'), t('vote.preset.number'), 'e acompanha o idioma');
+    setLang('pt');
+    eq(rotuloDaVotacao('Carnage ou homage?'), 'Carnage ou homage?',
+      'pergunta digitada é mostrada como foi escrita');
+
+    // A chave interna começa com # para nunca colidir com o que alguém digitou.
+    eq(chaveDaVotacao({ question: '  ', kind: 'numero' }), '#numero');
+    eq(chaveDaVotacao({ question: 'Número secreto', kind: 'numero' }), 'Número secreto',
+      'quem digitou esse texto continua com ele');
+    eq(chaveDaVotacao({ kind: 'opcoes', options: ['Sim', 'Não'] }), 'Sim / Não',
+      'sem título, as opções nomeiam a votação');
+    eq(chaveDaVotacao({ kind: 'opcoes', options: [] }), '#semtitulo');
+    eq(p0.voteChoices['#numero'], { 7: 1 }, 'número secreto guarda o valor');
   }],
 
   ['votação sem título é nomeada pelas próprias opções', () => {
@@ -1244,6 +1325,38 @@ export const cases = [
     const pares = rivalries([m]);
     eq(pares.length, 3, 'três pares, um por alvo');
     ok(pares.every((r) => r.total === 3), 'três de dano em cada');
+  }],
+
+  ['a aba de rivalidades compara um par por vez', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    // Antes a aba despejava TODAS as duplas: cinco jogadores dão dez cartões, e
+    // a comparação que interessa fica perdida no meio de nove que ninguém
+    // pediu. Rivalidade é uma pergunta sobre duas pessoas - a tela pergunta
+    // quais.
+    store.wipe();
+    const m = mesa(4);
+    push(m, { type: 'life', targetId: 's1', delta: -9, sourceId: 's0' });
+    push(m, { type: 'life', targetId: 's2', delta: -5, sourceId: 's0' });
+    push(m, { type: 'life', targetId: 's0', delta: -4, sourceId: 's3' });
+    store.archive(m);
+
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    renderStats(root, { onBack() {} });
+
+    const aba = findAll(root, 'tab').find((b) => textOf(b) === t('stats.rivals'));
+    ok(aba, 'a aba de rivalidades existe');
+    fire(aba, 'click');
+
+    // Três pares de fato (s0-s1, s0-s2, s0-s3), mas um gráfico só.
+    eq(findAll(root, 'rival-select').length, 2, 'dois campos de filtro');
+    eq(findAll(root, 'rival-card').length, 1, 'um gráfico por vez, não todos');
+
+    // E os filtros oferecem só quem tem rivalidade registrada: oferecer alguém
+    // que nunca cruzou com ninguém só produziria combinações vazias.
+    const opcoes = findAll(root, 'rival-select')[0].childNodes.length;
+    eq(opcoes, 4, 'os quatro que se enfrentaram');
   }],
 
   ['ocultar tira da lista sem tocar nas partidas', () => {
