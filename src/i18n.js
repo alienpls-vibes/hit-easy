@@ -428,6 +428,8 @@ const PT = {
   'sync.nothing': 'Já estava tudo em dia',
   'sync.hint': 'Acontece sozinho ao abrir o app e ao terminar uma partida. Nada é apagado daqui.',
 
+  'common.error': 'Algo deu errado',
+
   'settings.title': 'Configurações',
   'settings.sub': 'Valem para todas as partidas',
   'settings.language': 'Idioma',
@@ -866,6 +868,8 @@ const EN = {
   'sync.partial': '{n} did not go up; we will try again later',
   'sync.nothing': 'Everything was already up to date',
   'sync.hint': 'Happens on its own when the app opens and when a match ends. Nothing is deleted from here.',
+
+  'common.error': 'Something went wrong',
 
   'settings.title': 'Settings',
   'settings.sub': 'Apply to every match',
@@ -1306,6 +1310,8 @@ const ES = {
   'sync.nothing': 'Ya estaba todo al día',
   'sync.hint': 'Ocurre solo al abrir la app y al terminar una partida. Nada se borra de aquí.',
 
+  'common.error': 'Algo salió mal',
+
   'settings.title': 'Ajustes',
   'settings.sub': 'Valen para todas las partidas',
   'settings.language': 'Idioma',
@@ -1744,6 +1750,8 @@ const DE = {
   'sync.partial': '{n} kamen nicht durch; wir versuchen es später',
   'sync.nothing': 'Es war schon alles aktuell',
   'sync.hint': 'Passiert von selbst beim Öffnen und am Ende einer Partie. Hier wird nichts gelöscht.',
+
+  'common.error': 'Etwas ist schiefgelaufen',
 
   'settings.title': 'Einstellungen',
   'settings.sub': 'Gelten für alle Partien',

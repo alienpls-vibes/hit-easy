@@ -37,7 +37,39 @@ function go(next) {
   render();
 }
 
+/**
+ * Desenha a rota atual.
+ *
+ * O corpo real esta em desenhar(); esta camada existe so para que um erro numa
+ * tela nao deixe o aplicativo PRETO. Tela preta nao diz nada a quem esta
+ * usando e nao diz nada a quem vai consertar - e foi exatamente o que uma
+ * partida malformada vinda da nuvem produziu.
+ */
 function render() {
+  try {
+    desenhar();
+  } catch (err) {
+    telaDeErro(err);
+  }
+}
+
+function telaDeErro(err) {
+  root.innerHTML = '';
+  const caixa = document.createElement('div');
+  caixa.className = 'crash';
+  const h = document.createElement('h2');
+  h.textContent = t('common.error');
+  const p = document.createElement('p');
+  p.textContent = String((err && err.message) || err);
+  const b = document.createElement('button');
+  b.className = 'btn primary';
+  b.textContent = t('common.back');
+  b.addEventListener('click', () => go('setup'));
+  caixa.append(h, p, b);
+  root.append(caixa);
+}
+
+function desenhar() {
   if (live && live.destroy) live.destroy();
   live = null;
   document.body.dataset.route = route;

@@ -2458,3 +2458,23 @@ button {
 }
 
 .account-sync { display: grid; gap: 8px; }
+
+/* Tela de erro. Existe para que um defeito diga o que houve, em vez de deixar
+   o app preto - preto nao ajuda quem usa nem quem conserta. */
+.crash {
+  display: grid;
+  gap: 12px;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  text-align: center;
+}
+.crash p {
+  padding: 10px;
+  border-radius: var(--r-sm, 10px);
+  background: var(--sheet-bg);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font: 400 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-word;
+}

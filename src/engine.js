@@ -403,3 +403,26 @@ export function pessoaRepetida(seats, cadeira, { name, handle } = {}) {
 
   return null;
 }
+
+/**
+ * Isto parece mesmo uma partida?
+ *
+ * Tudo que vem de fora do motor - da nuvem, de um arquivo importado, de um
+ * localStorage que alguem editou - precisa passar por aqui antes de entrar no
+ * historico. Uma linha malformada nao fica quieta num canto: replay() e as
+ * estatisticas assumem a forma, e a primeira que faltar derruba a TELA INTEIRA.
+ * Foi o que aconteceu - uma linha de teste com `payload: {t:1}` esquecida no
+ * banco deixou a aba de estatisticas preta.
+ *
+ * Confere so o esqueleto, nao o conteudo. Nao cabe aqui julgar se os eventos
+ * fazem sentido: replay() e determinístico e aguenta log estranho. O que ele
+ * nao aguenta e a ausencia das listas.
+ */
+export function partidaValida(m) {
+  return Boolean(m)
+    && typeof m.id === 'string' && m.id.length > 0
+    && Array.isArray(m.seats) && m.seats.length > 0
+    && m.seats.every((s) => s && typeof s.id === 'string')
+    && Array.isArray(m.events)
+    && Number.isFinite(m.startedAt);
+}

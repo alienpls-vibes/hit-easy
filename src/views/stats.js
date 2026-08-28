@@ -34,8 +34,7 @@ let rivalB = null;
 
 export function renderStats(root, { onBack }) {
   clear(root);
-  const db = store.getDB();
-  const matches = db.history || [];
+  const matches = store.partidas();
 
   // O aparelho sabe a que conta cada nome pertence; isso junta partidas
   // gravadas antes de o @ existir com a conta certa.

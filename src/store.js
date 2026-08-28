@@ -8,6 +8,7 @@
 
 import { chave } from './canal.js';
 import { identityOf } from './stats.js';
+import { partidaValida } from './engine.js';
 
 const KEY = chave('mtglc.db.v1');
 
@@ -56,6 +57,14 @@ function read() {
       ...structuredClone(EMPTY),
       ...parsed,
       settings: { ...EMPTY.settings, ...(parsed.settings || {}) },
+      // Cura o que ja entrou.
+      //
+      // Filtrar a porta de entrada protege daqui para a frente, mas nao limpa o
+      // aparelho de quem ja sincronizou antes do conserto - e um registro sem
+      // seats derruba a tela toda vez que ela abre. Descartar aqui e seguro
+      // porque uma partida sem assentos nem eventos nao tem nada a perder: ela
+      // ja nao pode ser lida por ninguem.
+      history: (parsed.history || []).filter(partidaValida),
     };
   } catch {
     return structuredClone(EMPTY);
@@ -104,6 +113,19 @@ export function archive(match) {
   save();
 }
 
+/**
+ * O historico, so com o que tem forma de partida.
+ *
+ * A porta de ENTRADA ja filtra e a leitura do disco tambem cura o que passou
+ * antes. Esta e a terceira camada, e ela existe porque as duas primeiras cobrem
+ * caminhos conhecidos: um registro quebrado por um caminho que ainda nao existe
+ * derrubaria a tela inteira, e tela preta nao diz nada a ninguem. Quem LE o
+ * historico para desenhar deve usar isto.
+ */
+export function partidas() {
+  return (db.history || []).filter(partidaValida);
+}
+
 /** Ids ja enviados para a nuvem. */
 export function enviadas() {
   return [...(db.enviadas || [])];
@@ -134,7 +156,10 @@ export function esquecerEnviada(matchId) {
  */
 export function mesclarPartidas(lista) {
   const aqui = new Set(db.history.map((m) => m && m.id));
-  const novas = (lista || []).filter((m) => m && m.id && !aqui.has(m.id));
+  // Descarta o que nao tem forma de partida. O historico e lido por replay() e
+  // pelas estatisticas, que assumem seats e events - uma linha quebrada aqui
+  // dentro nao fica quieta, derruba a tela.
+  const novas = (lista || []).filter((m) => partidaValida(m) && !aqui.has(m.id));
   if (!novas.length) return 0;
   db.history = [...db.history, ...novas]
     .sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
@@ -295,7 +320,7 @@ export function importJSON(text) {
 
   const byId = new Map();
   for (const m of [...(db.history || []), ...(incoming.history || [])]) {
-    if (m && m.id) byId.set(m.id, m);
+    if (partidaValida(m)) byId.set(m.id, m);
   }
   db = {
     ...structuredClone(EMPTY),

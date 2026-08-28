@@ -9,7 +9,7 @@
 // Primeiro de todos: instala o DOM simulado antes que ui.js seja avaliado.
 import { simulated, flushFrames, findAll, fire, textOf } from './dom-stub.js';
 import {
-  createMatch, replay, push, undo, standings, elapsedOf, pessoaRepetida,
+  createMatch, replay, push, undo, standings, elapsedOf, pessoaRepetida, partidaValida,
   cmdKeyOf, CMD_LETHAL, POISON_LETHAL,
 } from '../src/engine.js';
 import {
@@ -23,6 +23,7 @@ import { LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf } from '
 import { createSession, cast, tally, pending, isComplete, describe } from '../src/vote.js';
 import { openFlow, closeSheet, dismissOnBackdrop, el, isSheetOpen, onSheetChange } from '../src/ui.js';
 import { DICTS, LANGS, t, tn, setLang, currentLang } from '../src/i18n.js';
+import { fromRow as linhaParaPartida } from '../src/cloud.js';
 import {
   accountState, assinaturaAtiva, sessaoValida, toRow, fromRow, pendentes,
   state as accountNow, provedores, pedidoDeLink, urlDeRetorno,
@@ -1366,6 +1367,56 @@ export const cases = [
     const pares = rivalries([m]);
     eq(pares.length, 3, 'três pares, um por alvo');
     ok(pares.every((r) => r.total === 3), 'três de dano em cada');
+  }],
+
+  ['partida malformada não entra no histórico', () => {
+    if (!simulated) return 'skip';
+    // Isto derrubou a tela de estatísticas de verdade: uma linha de teste com
+    // `payload: {t:1}`, esquecida no banco, foi baixada pela sincronização e
+    // entrou no histórico. replay() e as estatísticas assumem seats e events -
+    // uma linha sem eles não fica quieta num canto, derruba a TELA INTEIRA.
+    const boa = mesa(4);
+    ok(partidaValida(boa), 'uma partida de verdade passa');
+
+    ok(!partidaValida(null), 'nada');
+    ok(!partidaValida({ id: 'x' }), 'só um id não é partida');
+    ok(!partidaValida({ ...boa, seats: [] }), 'mesa vazia');
+    ok(!partidaValida({ ...boa, seats: undefined }), 'sem assentos');
+    ok(!partidaValida({ ...boa, events: undefined }), 'sem eventos');
+    ok(!partidaValida({ ...boa, startedAt: undefined }), 'sem início');
+    ok(!partidaValida({ ...boa, id: '' }), 'sem id');
+    ok(partidaValida({ ...boa, events: [] }), 'partida sem lance nenhum ainda é partida');
+
+    // E a porta de entrada recusa. Este é o caso exato que aconteceu.
+    store.wipe();
+    const lixo = linhaParaPartida({ id: 'rec-1', payload: { t: 1 } });
+    eq(store.mesclarPartidas([lixo]), 0, 'não entra o que não é partida');
+    eq(store.getDB().history.length, 0, 'e o histórico continua limpo');
+
+    // O que é bom passa junto do que é ruim, sem contaminar.
+    eq(store.mesclarPartidas([lixo, boa]), 1, 'a boa entra mesmo vindo com lixo');
+    eq(store.getDB().history.length, 1);
+  }],
+
+  ['a tela de estatísticas sobrevive a lixo vindo da nuvem', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    store.wipe();
+    store.archive(mesa(3));
+    // Mesmo que algo passe pela porta - localStorage editado, defeito futuro -
+    // a tela não pode ficar preta. Preta não diz nada a quem usa nem a quem vai
+    // consertar.
+    store.getDB().history.push({ id: 'quebrada' });
+
+    const root = document.createElement('div');
+    let explodiu = null;
+    try {
+      renderStats(root, { onBack() {} });
+    } catch (e) {
+      explodiu = e.message;
+    }
+    ok(!explodiu, 'a tela não pode explodir com um registro ruim: ' + explodiu);
+    ok(root.childNodes.length > 0, 'e não pode ficar vazia');
   }],
 
   ['quem não assina sobe uma vez, e não reenvia para sempre', () => {
