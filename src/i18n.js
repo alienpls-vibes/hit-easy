@@ -406,6 +406,10 @@ const PT = {
   'paywall.signInHint': 'Entre na conta pelas configurações',
   'paywall.earlyAccess': 'Durante os testes o acesso é liberado manualmente, um a um.',
 
+  'settings.update': 'Atualizar o app',
+  'settings.updateSub': 'Busca a versão mais nova e reabre',
+  'settings.updateNone': 'Já está na versão mais nova',
+
   'settings.title': 'Configurações',
   'settings.sub': 'Valem para todas as partidas',
   'settings.language': 'Idioma',
@@ -822,6 +826,10 @@ const EN = {
   'paywall.stillLocked': 'No access on record for this account yet',
   'paywall.signInHint': 'Sign in from the settings',
   'paywall.earlyAccess': 'During testing, access is granted manually, one by one.',
+
+  'settings.update': 'Update the app',
+  'settings.updateSub': 'Fetches the newest version and reopens',
+  'settings.updateNone': 'Already on the newest version',
 
   'settings.title': 'Settings',
   'settings.sub': 'Apply to every match',
@@ -1240,6 +1248,10 @@ const ES = {
   'paywall.signInHint': 'Entra en la cuenta desde los ajustes',
   'paywall.earlyAccess': 'Durante las pruebas el acceso se concede a mano, uno a uno.',
 
+  'settings.update': 'Actualizar la app',
+  'settings.updateSub': 'Busca la versión más nueva y reabre',
+  'settings.updateNone': 'Ya está en la versión más nueva',
+
   'settings.title': 'Ajustes',
   'settings.sub': 'Valen para todas las partidas',
   'settings.language': 'Idioma',
@@ -1656,6 +1668,10 @@ const DE = {
   'paywall.stillLocked': 'Für dieses Konto ist noch kein Zugang vermerkt',
   'paywall.signInHint': 'Melde dich in den Einstellungen an',
   'paywall.earlyAccess': 'Während der Tests wird der Zugang von Hand vergeben, einzeln.',
+
+  'settings.update': 'App aktualisieren',
+  'settings.updateSub': 'Holt die neueste Version und startet neu',
+  'settings.updateNone': 'Bereits auf der neuesten Version',
 
   'settings.title': 'Einstellungen',
   'settings.sub': 'Gelten für alle Partien',

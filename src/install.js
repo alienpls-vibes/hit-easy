@@ -96,3 +96,34 @@ export async function promptInstall() {
     return 'dismissed';
   }
 }
+
+/**
+ * Buscar uma versao nova do aplicativo instalado.
+ *
+ * O service worker ja se troca sozinho (skipWaiting no install), mas a PAGINA
+ * aberta continua rodando o codigo antigo ate ser recarregada - e um app
+ * instalado costuma ficar dias sem nunca ser fechado. Sem este botao, a pessoa
+ * relata um defeito ja corrigido e nao ha como pedir que ela "atualize".
+ *
+ * Devolve 'atualizando' quando ha versao nova, 'atual' quando nao ha.
+ */
+export async function atualizarApp() {
+  if (typeof navigator === 'undefined' || !navigator.serviceWorker) {
+    if (typeof location !== 'undefined') location.reload();
+    return 'atualizando';
+  }
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) { location.reload(); return 'atualizando'; }
+
+    await reg.update();
+    // Um worker instalando ou esperando significa que veio codigo novo.
+    if (reg.installing || reg.waiting) {
+      location.reload();
+      return 'atualizando';
+    }
+    return 'atual';
+  } catch {
+    return 'atual';
+  }
+}

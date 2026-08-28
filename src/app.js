@@ -76,7 +76,14 @@ function render() {
     if (podeVerEstatisticas(cloudEnabled(), cloud.state())) {
       renderStats(root, { onBack: voltar });
     } else {
-      renderPaywall(root, { onBack: voltar, onUnlock: () => go('stats') });
+      renderPaywall(root, {
+        onBack: voltar,
+        onUnlock: () => go('stats'),
+        // Enquanto a assinatura nao voltou do servidor, a resposta e "ainda
+        // nao sei" - e negar o que nao se sabe e o pior jeito de receber quem
+        // paga.
+        verificando: !cloud.assinaturaConhecida(),
+      });
     }
     return;
   }
@@ -216,6 +223,13 @@ render();
 // app. Quando o estado chegar, quem depende dele se redesenha.
 cloud.iniciar().then((estado) => {
   if (estado !== 'desligado') render();
+});
+
+// A conta pode mudar depois da primeira tela - a assinatura chega da rede, e o
+// login acontece dentro das configuracoes. Quem esta olhando as estatisticas
+// precisa ver a mudanca sem sair e voltar.
+cloud.onAccountChange(() => {
+  if (route === 'stats') render();
 });
 
 if ('serviceWorker' in navigator) {

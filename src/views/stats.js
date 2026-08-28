@@ -625,7 +625,7 @@ function rivalsTab(pares, corDe, repintar) {
  * na mao. Sem ele, a pessoa liberada teria de fechar e abrir o aplicativo para
  * a assinatura ser relida, sem nenhuma pista de que era isso que faltava.
  */
-export function renderPaywall(root, { onBack, onUnlock }) {
+export function renderPaywall(root, { onBack, onUnlock, verificando = false }) {
   clear(root);
   const quantas = (store.getDB().history || []).length;
   const repintar = () => (onUnlock ? onUnlock() : null);
@@ -645,6 +645,26 @@ export function renderPaywall(root, { onBack, onUnlock }) {
     conferir.textContent = t('paywall.recheck');
     toast(t('paywall.stillLocked'));
   });
+
+  // Ainda perguntando ao servidor: nao da para NEGAR o que ainda nao se sabe.
+  // Antes o app tratava "nao perguntei" como "nao tem", e a tela de bloqueio
+  // piscava na cara de quem assina toda vez que o app subia.
+  if (verificando) {
+    root.append(el('div', { class: 'stats' }, [
+      el('header', { class: 'stats-head' }, [
+        el('button', {
+          class: 'icon-btn',
+          'aria-label': t('common.back'),
+          onClick: () => onBack && onBack(),
+        }, [icon('arrow')]),
+        el('h1', { class: 'stats-title', text: t('stats.title') }),
+      ]),
+      el('div', { class: 'paywall' }, [
+        el('p', { class: 'paywall-body', text: t('paywall.checking') }),
+      ]),
+    ]));
+    return;
+  }
 
   const corpo = el('div', { class: 'paywall' }, [
     el('h2', { class: 'paywall-title', text: t('paywall.title') }),

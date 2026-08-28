@@ -16,7 +16,11 @@ import { uid, deckNameOf, pessoaRepetida } from '../engine.js';
 import { variantsFor, layoutFor } from '../seating.js';
 import { MODES, currentMode, applyTheme } from '../theme.js';
 import { t, tn, LANGS, currentLang, setLang } from '../i18n.js';
-import { state as installState, promptInstall, onInstallChange } from '../install.js';
+import {
+  state as installState, promptInstall, onInstallChange, atualizarApp,
+} from '../install.js';
+import { APP_VERSION } from '../version.js';
+import { canal } from '../canal.js';
 import * as cloud from '../cloud.js';
 import { handleValido, exibirHandle, normalizarHandle } from '../cloud.js';
 import { cloudEnabled, CHECKOUT_URL } from '../config.js';
@@ -802,6 +806,17 @@ function openSettings(onRefresh) {
         class: 'settings-note',
         text: t('settings.dataNote'),
       }));
+
+      // A versao fecha as configuracoes.
+      //
+      // Quem relata um problema precisa conseguir dizer QUAL app quebrou, e o
+      // canal precisa aparecer junto: um defeito do beta investigado como se
+      // fosse de producao custa horas.
+      pane.append(el('p', {
+        class: 'settings-version',
+        text: 'Hit Easy ' + APP_VERSION
+          + (canal() === 'beta' ? ' \u00b7 beta' : ''),
+      }));
     },
   });
 }
@@ -863,6 +878,25 @@ function installBlock(onRefresh) {
         el('span', { class: 'menu-label', text: t('settings.installed') }),
         el('span', { class: 'menu-sub', text: t('settings.installedSub') }),
       ]));
+
+      // Instalado, o app costuma ficar dias sem nunca ser fechado - e a pagina
+      // aberta continua rodando o codigo antigo mesmo depois de o service
+      // worker se trocar. Sem este botao, quem relata um defeito ja corrigido
+      // nao tem como ser atendido com "atualize".
+      const atualizar = el('button', { class: 'menu-item' }, [
+        el('span', { class: 'menu-label' }, [icon('download'), t('settings.update')]),
+        el('span', { class: 'menu-sub', text: t('settings.updateSub') }),
+      ]);
+      atualizar.addEventListener('click', async () => {
+        atualizar.disabled = true;
+        const r = await atualizarApp();
+        if (r === 'atual') {
+          atualizar.disabled = false;
+          toast(t('settings.updateNone'));
+        }
+        // 'atualizando' recarrega a pagina sozinho: nao ha o que fazer aqui.
+      });
+      box.append(atualizar);
       return;
     }
 

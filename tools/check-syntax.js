@@ -169,4 +169,35 @@ if (installRuim) {
   process.exit(1);
 }
 
+/*
+ * A versao vive em dois lugares que nao se enxergam: src/version.js e sw.js.
+ *
+ * Worker nao importa modulo, entao a string e repetida na mao. Divergirem tem
+ * consequencia real: o nome do cache sai da versao do WORKER, e a tela mostra a
+ * do modulo. Alguem relataria "estou na 1.2.0" enquanto roda o cache da 1.1.0,
+ * e a investigacao comecaria pelo lugar errado.
+ */
+function conferirVersao() {
+  const mod = readFileSync(join(ROOT, 'src/version.js'), 'utf8');
+  const sw = readFileSync(join(ROOT, 'sw.js'), 'utf8');
+
+  const noModulo = mod.match(/APP_VERSION\s*=\s*'([^']+)'/);
+  const noWorker = sw.match(/const VERSION\s*=\s*'([^']+)'/);
+
+  if (!noModulo) return 'APP_VERSION sumiu de src/version.js';
+  if (!noWorker) return 'VERSION sumiu de sw.js';
+  if (noModulo[1] !== noWorker[1]) {
+    return 'a versao diverge: src/version.js diz ' + noModulo[1]
+      + ' e sw.js diz ' + noWorker[1]
+      + '. O cache sai do worker e a tela sai do modulo.';
+  }
+  return null;
+}
+
+const versaoRuim = conferirVersao();
+if (versaoRuim) {
+  console.error('\n\x1b[31m Versao do app:\x1b[0m\n  ' + versaoRuim + '\n');
+  process.exit(1);
+}
+
 console.log(` \x1b[2m${files.length} módulos com sintaxe válida\x1b[0m`);

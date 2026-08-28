@@ -27,7 +27,7 @@ import {
   accountState, assinaturaAtiva, sessaoValida, toRow, fromRow, pendentes,
   state as accountNow, provedores, pedidoDeLink, urlDeRetorno,
   capturarRetorno, esquecerSessao, precisaRenovar, sessaoAproveitavel, senhaValida,
-  podeVerEstatisticas,
+  podeVerEstatisticas, assinaturaConhecida,
   jaTinhaConta,
   sessaoGuardada,
   normalizarHandle, handleValido, exibirHandle, participantesDe, montarConvites,
@@ -1378,6 +1378,47 @@ export const cases = [
     // protegeria nada: os dados estão no aparelho de quem está olhando.
     ok(podeVerEstatisticas(false, 'desligado'), 'sem nuvem, nada muda');
     ok(podeVerEstatisticas(false, 'deslogado'), 'sem nuvem, nem o login importa');
+  }],
+
+  ['não se nega o que ainda não se sabe', () => {
+    if (!simulated || !cloudEnabled()) return 'skip';
+    // O defeito relatado: a tela de bloqueio aparecia por alguns segundos e
+    // depois liberava sozinha. Não era o status mudando - era o app tratando
+    // "ainda não perguntei ao servidor" como "não tem". Para quem paga, ser
+    // informado de que não pagou é o pior defeito possível.
+    esquecerSessao();
+    ok(assinaturaConhecida(), 'sem sessão a resposta é imediata: não há assinatura');
+
+    location.hash = '#access_token=faz-de-conta&expires_at=99999999999';
+    ok(capturarRetorno(), 'sessão capturada');
+    ok(!assinaturaConhecida(), 'com sessão e sem ter perguntado, ainda não se sabe');
+
+    esquecerSessao();
+    ok(assinaturaConhecida(), 'sair fecha a pergunta de novo');
+  }],
+
+  ['enquanto verifica, a paywall não acusa ninguém', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    store.wipe();
+    store.archive(mesa(4));
+
+    const desenhar = (verificando) => {
+      document.body.childNodes.length = 0;
+      const root = document.createElement('div');
+      renderPaywall(root, { onBack() {}, onUnlock() {}, verificando });
+      return root;
+    };
+
+    const checando = desenhar(true);
+    eq(findAll(checando, 'paywall-title').length, 0, 'não diz que o histórico está fechado');
+    eq(findAll(checando, 'btn').length, 0, 'nem oferece entrar ou conferir');
+    ok(findAll(checando, 'paywall-body').map(textOf).join('').includes(t('paywall.checking')),
+      'só avisa que está conferindo');
+
+    // E quando a resposta chega, aí sim.
+    const negado = desenhar(false);
+    eq(findAll(negado, 'paywall-title').length, 1, 'com resposta, explica o bloqueio');
   }],
 
   ['a paywall diz quantas partidas estão esperando', () => {

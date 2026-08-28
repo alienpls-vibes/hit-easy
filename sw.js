@@ -11,7 +11,9 @@
  *    proprio cache de busca em localStorage).
  */
 
-const VERSION = 'v27';
+// Mesma string de APP_VERSION em src/version.js - worker nao importa modulo.
+// Se mudar la, mude aqui; check-syntax.js confere os dois.
+const VERSION = '1.1.0';
 
 /**
  * Producao e beta dividem a mesma origem, e Cache Storage e por origem. O canal
@@ -55,6 +57,7 @@ const ASSETS = [
   './src/i18n.js',
   './src/canal.js',
   './src/config.js',
+  './src/version.js',
   './src/cloud.js',
   './src/scryfall.js',
   './src/views/setup.js',
