@@ -442,6 +442,12 @@ const PT = {
   'stats.tagSent': 'Convite enviado',
   'stats.tagLocal': 'Marcado neste aparelho; o convite sai quando houver rede',
 
+  'news.title': 'Novidades',
+  'news.sub': 'O que mudou na versão {v}',
+  'news.novo': 'novo',
+  'news.corrigido': 'corrigido',
+  'news.mudou': 'mudou',
+
   'settings.title': 'Configurações',
   'settings.sub': 'Valem para todas as partidas',
   'settings.language': 'Idioma',
@@ -894,6 +900,12 @@ const EN = {
   'stats.tagWhy': 'That person receives this match as an invitation and decides whether to accept.',
   'stats.tagSent': 'Invitation sent',
   'stats.tagLocal': 'Tagged on this device; the invitation goes out when there is network',
+
+  'news.title': "What's new",
+  'news.sub': 'What changed in version {v}',
+  'news.novo': 'new',
+  'news.corrigido': 'fixed',
+  'news.mudou': 'changed',
 
   'settings.title': 'Settings',
   'settings.sub': 'Apply to every match',
@@ -1348,6 +1360,12 @@ const ES = {
   'stats.tagSent': 'Invitación enviada',
   'stats.tagLocal': 'Marcado en este aparato; la invitación sale cuando haya red',
 
+  'news.title': 'Novedades',
+  'news.sub': 'Qué cambió en la versión {v}',
+  'news.novo': 'nuevo',
+  'news.corrigido': 'corregido',
+  'news.mudou': 'cambió',
+
   'settings.title': 'Ajustes',
   'settings.sub': 'Valen para todas las partidas',
   'settings.language': 'Idioma',
@@ -1800,6 +1818,12 @@ const DE = {
   'stats.tagWhy': 'Diese Person erhält die Partie als Einladung und entscheidet, ob sie annimmt.',
   'stats.tagSent': 'Einladung gesendet',
   'stats.tagLocal': 'Auf diesem Gerät zugeordnet; die Einladung geht raus, sobald Netz da ist',
+
+  'news.title': 'Neuigkeiten',
+  'news.sub': 'Was sich in Version {v} geändert hat',
+  'news.novo': 'neu',
+  'news.corrigido': 'behoben',
+  'news.mudou': 'geändert',
 
   'settings.title': 'Einstellungen',
   'settings.sub': 'Gelten für alle Partien',

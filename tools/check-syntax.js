@@ -222,4 +222,38 @@ if (lacunas) {
     + '\n  Nao publique em producao assim.\n');
 }
 
+/*
+ * A versao atual precisa ter notas de versao.
+ *
+ * Notas escritas "depois" nao sao escritas: a memoria do que mudou dura horas,
+ * nao dias, e quem le a nota nao tem como saber que ela esta incompleta. Ligar
+ * isto ao build e o unico jeito de a nota acompanhar a publicacao em vez de
+ * depender de disciplina.
+ *
+ * Derruba o build de proposito, ao contrario do aviso da politica de
+ * privacidade: aquele campo precisa de decisao humana e travaria o canal de
+ * teste, este e so escrever o que acabou de ser feito.
+ */
+function conferirNovidades() {
+  const versao = readFileSync(join(ROOT, 'src/version.js'), 'utf8')
+    .match(/APP_VERSION\s*=\s*'([^']+)'/);
+  if (!versao) return null; // o conferidor de versao ja reclama disto
+
+  const notas = readFileSync(join(ROOT, 'src/novidades.js'), 'utf8');
+  const temEntrada = new RegExp("versao:\\s*'" + versao[1].replace(/\./g, '\\.') + "'")
+    .test(notas);
+
+  if (!temEntrada) {
+    return 'a versao ' + versao[1] + ' nao tem entrada em src/novidades.js. '
+      + 'Escreva o que mudou antes de publicar.';
+  }
+  return null;
+}
+
+const notasRuins = conferirNovidades();
+if (notasRuins) {
+  console.error('\n\x1b[31m Notas de versao:\x1b[0m\n  ' + notasRuins + '\n');
+  process.exit(1);
+}
+
 console.log(` \x1b[2m${files.length} módulos com sintaxe válida\x1b[0m`);

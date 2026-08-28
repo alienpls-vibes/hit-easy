@@ -35,6 +35,8 @@ import {
 } from '../src/cloud.js';
 import { cloudEnabled } from '../src/config.js';
 import { canalDe, canalDoCache } from '../src/canal.js';
+import { NOVIDADES, novidadesDesde, novidadesDe } from '../src/novidades.js';
+import { APP_VERSION } from '../src/version.js';
 import { aSubir, aBaixar, aApagar, podeSincronizar } from '../src/sync.js';
 import { giraComOAssento, grausNaMesa, rotatesToSeat } from '../src/orientation.js';
 import { renderTable } from '../src/views/table.js';
@@ -2484,6 +2486,53 @@ export const cases = [
     ok(assinando[1].match, 'esta veio e pode ser mostrada');
 
     eq(montarConvites(null, null).length, 0, 'listas vazias não explodem');
+  }],
+
+  ['as notas de versão descrevem a versão que está no ar', () => {
+    ok(NOVIDADES.length, 'existe pelo menos uma versão anotada');
+    ok(novidadesDe(APP_VERSION), 'a versão atual tem notas: ' + APP_VERSION);
+
+    // Ordem importa: a tela mostra da mais nova para a mais antiga, e
+    // novidadesDesde() corta pela posição.
+    eq(NOVIDADES[0].versao, APP_VERSION, 'a mais recente vem primeiro');
+
+    for (const v of NOVIDADES) {
+      ok(/^\d+\.\d+\.\d+$/.test(v.versao), v.versao + ': número de versão malformado');
+      ok(/^\d{4}-\d{2}-\d{2}$/.test(v.data), v.versao + ': data malformada');
+      ok(v.itens && v.itens.length, v.versao + ': versão sem nenhuma mudança anotada');
+      for (const item of v.itens) {
+        ok(['novo', 'corrigido', 'mudou'].includes(item.tipo),
+          v.versao + ': tipo desconhecido "' + item.tipo + '"');
+        ok(item.texto && String(item.texto).length > 20,
+          v.versao + ': nota curta demais para dizer alguma coisa');
+      }
+      // Cada tipo tem tradução nos quatro idiomas, senão a etiqueta sai crua.
+      for (const [codigo] of LANGS) {
+        for (const tipo of ['novo', 'corrigido', 'mudou']) {
+          ok(DICTS[codigo]['news.' + tipo], 'falta news.' + tipo + ' em ' + codigo);
+        }
+      }
+    }
+  }],
+
+  ['quem atualiza vê só o que ainda não viu', () => {
+    // Ler de novo o que já se leu treina a ignorar a tela. E quem instala
+    // agora não vê nada: o histórico inteiro de mudanças é ruído antes do
+    // primeiro uso.
+    const falso = [{ versao: '1.3.0' }, { versao: '1.2.0' }, { versao: '1.1.0' }];
+    const desde = (vista) => {
+      const onde = falso.findIndex((n) => n.versao === vista);
+      return onde < 0 ? falso : falso.slice(0, onde);
+    };
+    eq(desde('1.2.0').map((n) => n.versao), ['1.3.0'], 'só o que veio depois');
+    eq(desde('1.3.0').length, 0, 'já está na mais nova: nada a mostrar');
+    eq(desde('1.1.0').map((n) => n.versao), ['1.3.0', '1.2.0'], 'pulou duas, vê as duas');
+
+    // Versão desconhecida devolve tudo - é o caso de quem voltou de um app
+    // muito antigo, e mostrar demais é melhor que mostrar nada.
+    eq(novidadesDesde('0.0.1').length, NOVIDADES.length, 'versão que não existe: tudo');
+    eq(novidadesDesde(null).length, NOVIDADES.length, 'sem referência: tudo');
+    eq(novidadesDesde(APP_VERSION).length, 0, 'quem já está na atual não vê nada');
   }],
 
   ['o canal sai do caminho da URL', () => {

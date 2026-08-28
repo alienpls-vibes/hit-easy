@@ -40,6 +40,7 @@ const EMPTY = {
     keepAwake: true,
     autoRotate: true,     // tenta tela cheia + travar deitado na partida
     dragHintSeen: false,
+    versaoVista: null,
   },
 };
 

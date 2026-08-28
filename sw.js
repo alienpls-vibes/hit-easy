@@ -59,6 +59,7 @@ const ASSETS = [
   './src/canal.js',
   './src/config.js',
   './src/version.js',
+  './src/novidades.js',
   './src/cloud.js',
   './src/sync.js',
   './src/scryfall.js',

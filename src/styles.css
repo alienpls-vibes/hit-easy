@@ -2519,3 +2519,24 @@ button {
   cursor: pointer;
 }
 .match-tag:hover { color: var(--accent); }
+
+/* Novidades. */
+.news-head { display: flex; align-items: baseline; gap: 8px; padding-top: 6px; }
+.news-version { font: 700 15px/1.3 var(--font, system-ui, sans-serif); }
+.news-date { color: var(--muted); font-size: 12px; }
+.news-list { display: grid; gap: 10px; padding-top: 6px; }
+.news-item { display: grid; grid-template-columns: auto 1fr; gap: 9px; align-items: start; }
+.news-text { font-size: 0.93rem; line-height: 1.5; }
+.news-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font: 600 10px/1.7 var(--font, system-ui, sans-serif);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.news-tag.is-novo { background: color-mix(in srgb, #3f9a54 20%, transparent); color: #3f9a54; }
+.news-tag.is-corrigido { background: color-mix(in srgb, #b4472b 18%, transparent); color: #d9613f; }
+.news-tag.is-mudou { background: color-mix(in srgb, var(--muted) 20%, transparent); color: var(--muted); }
+
+button.settings-version { border: 0; background: transparent; cursor: pointer; width: 100%; }
