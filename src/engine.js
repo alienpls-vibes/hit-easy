@@ -60,6 +60,14 @@ export function createMatch(seats, startingLife = DEFAULT_LIFE, options = {}) {
     id: s.id || uid('seat'),
     name: s.name,
     commanders: s.commanders.map((c) => ({ ...c })),
+    // A conta vinculada faz parte do assento, nao da tela de montagem.
+    //
+    // Sem estes dois campos aqui, o @ escolhido na mesa morria no rascunho: a
+    // partida gravada nao sabia de conta nenhuma, participantesDe() nunca
+    // achava uma cadeira para convidar, e a estatistica so tinha o nome
+    // digitado - que e exatamente o que nao identifica ninguem.
+    handle: s.handle || null,
+    userId: s.userId || null,
   }));
   const first = built.find((s) => s.id === options.firstSeatId);
 

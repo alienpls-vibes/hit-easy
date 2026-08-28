@@ -7,6 +7,7 @@
  */
 
 import { chave } from './canal.js';
+import { identityOf } from './stats.js';
 
 const KEY = chave('mtglc.db.v1');
 
@@ -159,14 +160,27 @@ export function forgetPlayer(name) {
  * escrito nas partidas salvas, e duplicar isso so criaria uma segunda verdade
  * para sair de sincronia depois.
  */
-export function decksOfPlayer(name) {
-  const key = String(name || '').trim().toLowerCase();
-  if (!key) return [];
+/** Nome (minusculo) -> handle, do que este aparelho ja viu. */
+export function knownHandles() {
+  return { ...(db.playerHandles || {}) };
+}
+
+/**
+ * Os decks desta PESSOA, nao deste nome.
+ *
+ * Com conta vinculada, os comandantes seguem a conta: quem foi cadastrado como
+ * "Alex" numa quinta e "Alexandre" na outra continua vendo os proprios decks,
+ * porque a busca e pela identidade e nao pelo texto que alguem digitou.
+ */
+export function decksOfPlayer(name, handle) {
+  const apelidos = db.playerHandles || {};
+  const key = identityOf({ name, handle }, apelidos);
+  if (!key || key === '?') return [];
 
   const seen = new Map();
   for (const match of db.history) { // historico ja vem do mais recente
     for (const seat of match.seats || []) {
-      if ((seat.name || '').trim().toLowerCase() !== key) continue;
+      if (identityOf(seat, apelidos) !== key) continue;
       const deckKey = (seat.commanders || []).map((c) => c.oracleId).sort().join('+');
       if (!deckKey || seen.has(deckKey)) continue;
       seen.set(deckKey, { commanders: seat.commanders, lastUsed: match.startedAt });

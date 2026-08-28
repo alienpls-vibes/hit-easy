@@ -112,12 +112,17 @@ export function rotatesToSeat() {
 }
 
 /**
- * Quanto o teclado de dano gira, ja no formato que o CSS espera.
+ * Quanto uma coisa da mesa gira, ja no formato que o CSS espera.
+ *
+ * Vale para o painel de cada jogador E para o teclado de dano: e a mesma regra
+ * e o mesmo motivo. Deitado na mesa, cada painel aponta para o dono; num
+ * monitor de pe, quem esta "do outro lado" nao existe - ha uma pessoa so
+ * olhando, e metade da tela ficava de cabeca para baixo.
  *
  * Existe como funcao para que o teste alcance a decisao inteira - inclusive o
  * sufixo, que e a parte que quebra em silencio: `transform: rotate(0)` sem
  * unidade e invalido, e a regra toda seria descartada pelo navegador.
  */
-export function grausDoPad(graus, temApontadorPreciso) {
+export function grausNaMesa(graus, temApontadorPreciso) {
   return (giraComOAssento(temApontadorPreciso) ? (graus || 0) : 0) + 'deg';
 }

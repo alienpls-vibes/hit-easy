@@ -37,7 +37,7 @@ import {
 import { formatDuration, totalDamage } from '../stats.js';
 import * as store from '../store.js';
 import { layoutFor } from '../seating.js';
-import { preferOrientation, grausDoPad, apontadorPreciso } from '../orientation.js';
+import { preferOrientation, grausNaMesa, apontadorPreciso } from '../orientation.js';
 import { t, tn } from '../i18n.js';
 // `pending` vira `faltamVotar`: renderTable ja tem um `pending` local (o Map
 // dos toques ainda nao confirmados), e o de fora ficaria sombreado.
@@ -71,7 +71,7 @@ export function renderTable(root, ctx) {
   // Deitado na mesa, ele acompanha o assento de quem esta agindo - e assim que
   // a pessoa consegue ler o proprio ataque. Num computador o monitor esta de pe
   // diante de uma pessoa so, e o mesmo giro punha a tela de cabeca para baixo.
-  const rotDoPad = (seatId) => grausDoPad(rotOf.get(seatId), apontadorPreciso());
+  const rotDoPad = (seatId) => grausNaMesa(rotOf.get(seatId), apontadorPreciso());
   let state = replay(match);
   let victoryShown = false;
   let destroyed = false;
@@ -1201,7 +1201,10 @@ export function renderTable(root, ctx) {
       style: {
         gridRow: spec.cs ? String(spec.r) : String(spec.r),
         gridColumn: spec.cs ? spec.c + ' / span ' + spec.cs : String(spec.c),
-        transform: 'rotate(' + spec.rot + 'deg)',
+        // Mesma regra do teclado de dano: no computador ninguem senta do
+        // outro lado do monitor, e o giro deixava metade dos nomes, vidas e
+        // comandantes de cabeca para baixo.
+        transform: 'rotate(' + grausNaMesa(spec.rot, apontadorPreciso()) + ')',
         '--accent': accent,
         '--tint': identityGradient(colors, 0.16),
         '--glow': withAlpha(accent, 0.34),

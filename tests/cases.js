@@ -15,6 +15,7 @@ import {
 import {
   aggregate, rivalries, tituloDaVotacao, totalDamage, summarize,
   playerColorOrder, playerColor,
+  identityOf, labelOf,
 } from '../src/stats.js';
 import { LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf } from '../src/seating.js';
 import { createSession, cast, tally, pending, isComplete, describe } from '../src/vote.js';
@@ -29,7 +30,7 @@ import {
 } from '../src/cloud.js';
 import { cloudEnabled } from '../src/config.js';
 import { canalDe, canalDoCache } from '../src/canal.js';
-import { giraComOAssento, grausDoPad, rotatesToSeat } from '../src/orientation.js';
+import { giraComOAssento, grausNaMesa, rotatesToSeat } from '../src/orientation.js';
 import { renderTable } from '../src/views/table.js';
 import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
 import { brandMark } from '../src/ui.js';
@@ -208,6 +209,87 @@ export const cases = [
     eq(players.find((p) => p.label === 'P0').damageDealt, 16, 'dano causado por P0');
     eq(players.find((p) => p.label === 'P1').damageTaken, 10, 'dano recebido por P1');
     eq(players.find((p) => p.label === 'P1').healed, 4, 'cura de P1');
+  }],
+
+  ['a conta vinculada sobrevive da mesa até o convite', () => {
+    // Este é o caminho inteiro, e ele estava rompido no primeiro elo:
+    // createMatch montava o assento com id, nome e comandantes, e descartava
+    // handle e userId. A escolha do @ morria no rascunho. A partida gravada não
+    // sabia de conta nenhuma, participantesDe() nunca achava cadeira para
+    // convidar, e a estatística voltava a ter só o nome digitado.
+    //
+    // Nada falhava com estardalhaço: o convite simplesmente nunca chegava.
+    const m = createMatch([
+      { id: 's0', name: 'Alexandre', handle: 'alienpls', userId: 'uid-1', commanders: [commander(0)] },
+      { id: 's1', name: 'Bruno', commanders: [commander(1)] },
+    ], 40);
+
+    eq(m.seats[0].handle, 'alienpls', 'o assento guarda o @');
+    eq(m.seats[0].userId, 'uid-1', 'e a conta');
+    eq(m.seats[1].handle, null, 'cadeira sem conta continua sem conta');
+
+    // E a partida gravada gera o convite de verdade.
+    const linhas = participantesDe(m);
+    eq(linhas.length, 1, 'uma cadeira reivindicável');
+    eq(linhas[0].handle, 'alienpls');
+    eq(linhas[0].user_id, 'uid-1');
+    eq(linhas[0].seat_id, 's0');
+
+    // E a estatística identifica a pessoa, não o texto.
+    eq(identityOf(m.seats[0]), '@alienpls', 'a estatística vê a conta');
+  }],
+
+  ['a mesma conta com nomes diferentes é uma pessoa só', () => {
+    // O ponto do recurso inteiro: o nome é como a mesa chama alguém NAQUELE
+    // dia. Cadastrar "Alex" numa quinta e "Alexandre" na outra não pode
+    // produzir duas linhas, duas cores e duas histórias - nem transformar a
+    // rivalidade dessa pessoa com o Bruno em duas rivalidades pela metade.
+    const comConta = (nome) => {
+      const m = createMatch([
+        { id: 's0', name: nome, handle: 'alienpls', commanders: [commander(0)] },
+        { id: 's1', name: 'Bruno', commanders: [commander(1)] },
+      ], 40);
+      push(m, { type: 'life', targetId: 's1', delta: -7, sourceId: 's0' });
+      return m;
+    };
+
+    const partidas = [comConta('Alexandre'), comConta('Alex')];
+    const { players } = aggregate(partidas);
+
+    const dele = players.filter((p) => p.key === '@alienpls');
+    eq(dele.length, 1, 'uma linha só para a conta');
+    eq(dele[0].games, 2, 'as duas partidas somam na mesma pessoa');
+    eq(dele[0].damageDealt, 14, 'o dano das duas mesas soma junto');
+    eq(dele[0].label, 'Alexandre', 'o rótulo é o nome mais recente');
+    eq(players.length, 2, 'só existem duas pessoas: a conta e o Bruno');
+
+    // A cor acompanha a conta, não o texto digitado.
+    const ordem = playerColorOrder(partidas);
+    eq(playerColor(ordem, '@alienpls'), playerColor(ordem, '@alienpls'), 'cor estável');
+
+    const rivais = rivalries(partidas);
+    eq(rivais.length, 1, 'uma rivalidade, não duas metades');
+    eq(rivais[0].games, 2, 'as duas mesas contam para o mesmo par');
+  }],
+
+  ['identidade cai no nome quando não há conta, e nunca colide com uma', () => {
+    eq(identityOf({ id: 's0', name: 'Ana' }), 'ana', 'sem conta, o nome serve');
+    eq(identityOf({ id: 's0', name: ' ANA ' }), 'ana', 'espaço e caixa não criam outra pessoa');
+    eq(identityOf({ id: 's0', name: 'Ana', handle: '@Ana' }), '@ana', 'com conta, a conta manda');
+
+    // O prefixo existe para isto: quem digitou "ana" sem conta nenhuma não é a
+    // dona da conta @ana até que alguém diga que é.
+    ok(identityOf({ id: 's0', name: 'ana' }) !== identityOf({ id: 's1', handle: 'ana' }),
+      'nome solto não vira dono da conta de mesmo texto');
+
+    // Partida antiga, gravada antes de existir @: o aparelho lembra a quem
+    // aquele nome pertence, e ela se junta à conta em vez de ficar órfã.
+    eq(identityOf({ id: 's0', name: 'Alex' }, { alex: 'alienpls' }), '@alienpls',
+      'o que o aparelho lembra reconcilia o histórico antigo');
+
+    eq(identityOf({ id: 's9' }), 's9', 'sem nome e sem conta, resta o assento');
+    eq(labelOf({ id: 's0', handle: 'alienpls' }), '@alienpls', 'sem nome, mostra o @');
+    eq(labelOf({ id: 's0', name: 'Ana', handle: 'alienpls' }), 'Ana', 'com nome, mostra o nome');
   }],
 
   ['vida perdida sem autor conta como paga, não como dano levado', () => {
@@ -441,6 +523,40 @@ export const cases = [
     const s = replay(m);
     eq(s.activeSeatId, 's1', 'voltou ao primeiro vivo');
     eq(s.turn, inicio + 1, 'exatamente uma volta contada');
+  }],
+
+  ['no computador nenhum painel da mesa fica invertido', () => {
+    if (!simulated) return 'skip';
+    // O que a pessoa via: no monitor, os jogadores "de cima" apareciam com
+    // nome, vida e comandante de cabeça para baixo. Na mesa isso é o certo -
+    // cada painel aponta para o dono. Num monitor de pé não há ninguém do
+    // outro lado, e metade da tela ficava ilegível.
+    const girosDaMesa = () => {
+      const root = document.createElement('div');
+      const view = renderTable(root, {
+        match: mesa(4),
+        onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
+      });
+      const giros = findAll(root, 'tile').map((n) => String(n.style.transform || ''));
+      view.destroy();
+      return giros;
+    };
+
+    const antes = globalThis.matchMedia;
+    try {
+      // Sem ponteiro preciso: aparelho deitado na mesa, os painéis giram.
+      globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+      ok(girosDaMesa().some((g) => g.includes('180deg')), 'na mesa, os de frente giram');
+
+      // Com mouse ou trackpad: monitor de pé, ninguém do outro lado.
+      globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+      const noPc = girosDaMesa();
+      eq(noPc.length, 4, 'os quatro painéis foram desenhados');
+      ok(!noPc.some((g) => g.includes('180deg')), 'no computador, nenhum de cabeça para baixo');
+      ok(noPc.every((g) => g.includes('0deg')), 'e todos com unidade, senão o CSS descarta a regra');
+    } finally {
+      globalThis.matchMedia = antes;
+    }
   }],
 
   ['painel: a primeira tela entra visível e clicável', () => {
@@ -1589,7 +1705,7 @@ export const cases = [
     ok(!senhaValida(null), 'nulo não explode');
   }],
 
-  ['no computador o teclado de dano não vira de cabeça para baixo', () => {
+  ['no computador nada da mesa vira de cabeça para baixo', () => {
     // Deitado na mesa, o teclado gira para o assento de quem age - é assim que
     // a pessoa lê o próprio ataque. Num monitor de pé, de frente para uma
     // pessoa só, o mesmo giro entregava a tela invertida.
@@ -1601,9 +1717,9 @@ export const cases = [
 
     // O valor que chega ao CSS, com unidade. Sem o sufixo, `rotate(0)` é
     // inválido e o navegador descarta a regra inteira em silêncio.
-    eq(grausDoPad(180, false), '180deg', 'na mesa, acompanha o assento');
-    eq(grausDoPad(180, true), '0deg', 'no computador, sempre de pé');
-    eq(grausDoPad(undefined, false), '0deg', 'assento sem giro declarado');
+    eq(grausNaMesa(180, false), '180deg', 'na mesa, acompanha o assento');
+    eq(grausNaMesa(180, true), '0deg', 'no computador, sempre de pé');
+    eq(grausNaMesa(undefined, false), '0deg', 'assento sem giro declarado');
 
     // E que a leitura do ponteiro realmente chegue até a decisão.
     if (simulated) {

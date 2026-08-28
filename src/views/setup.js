@@ -374,7 +374,7 @@ function playerStep(seat, refresh) {
       }
 
       const linha = (nome, ocupado) => {
-        const decks = store.decksOfPlayer(nome);
+        const decks = store.decksOfPlayer(nome, store.handleOf(nome));
         return el('button', {
           class: 'player-row' + (ocupado ? ' is-busy' : ''),
           disabled: ocupado,
@@ -463,7 +463,7 @@ function commanderStep(seat, slot, refresh) {
 
       const showSaved = () => {
         clear(results);
-        const meus = store.decksOfPlayer(seat.name);
+        const meus = store.decksOfPlayer(seat.name, seat.handle);
         const jaListados = new Set();
 
         if (meus.length) {
@@ -1482,6 +1482,41 @@ function loginBlock(repintar, onRefresh) {
  */
 function senhaBlock() {
   const caixa = el('div', { class: 'account-senha' });
+  caixa.append(el('p', { class: 'sheet-legend', text: t('account.password') }));
+
+  // Ja tem senha: trocar passa pelo e-mail.
+  //
+  // Definir a PRIMEIRA senha estando logado e seguro - quem esta dentro ja
+  // provou ser o dono. Trocar e outra coisa: um contador de vida de mesa vive
+  // emprestado, e quem pegasse o aparelho destravado poderia trocar a senha e
+  // tomar a conta. O e-mail e o que prova que o pedido e do dono.
+  if (cloud.temSenha()) {
+    const usuario = cloud.currentUser();
+    const email = (usuario && usuario.email) || '';
+    const trocar = el('button', { class: 'btn ghost block' }, [t('account.changePassword')]);
+
+    trocar.addEventListener('click', async () => {
+      trocar.disabled = true;
+      trocar.textContent = t('account.sending');
+      try {
+        await cloud.pedirTrocaDeSenha(email);
+        clear(caixa);
+        caixa.append(
+          el('p', { class: 'sheet-legend', text: t('account.password') }),
+          el('p', { class: 'account-sent', text: t('account.recoverSent', { email }) }),
+          el('p', { class: 'account-note', text: t('account.linkSentHint') }),
+        );
+      } catch {
+        trocar.disabled = false;
+        trocar.textContent = t('account.changePassword');
+        toast(t('account.failed'));
+      }
+    });
+
+    caixa.append(trocar);
+    caixa.append(el('p', { class: 'account-note', text: t('account.changePasswordHint') }));
+    return caixa;
+  }
 
   const campo = el('input', {
     class: 'search-input',
@@ -1499,6 +1534,9 @@ function senhaBlock() {
       await cloud.definirSenha(campo.value);
       campo.value = '';
       toast(t('account.passwordSaved'));
+      // A secao inteira muda de forma: daqui em diante so existe trocar.
+      const nova = senhaBlock();
+      if (caixa.parentElement) caixa.parentElement.replaceChild(nova, caixa);
     } catch {
       toast(t('account.failed'));
     } finally {
@@ -1506,7 +1544,6 @@ function senhaBlock() {
     }
   });
 
-  caixa.append(el('p', { class: 'sheet-legend', text: t('account.password') }));
   caixa.append(el('div', { class: 'name-row' }, [campo, salvar]));
   caixa.append(el('p', { class: 'account-note', text: t('account.setPasswordHint') }));
   return caixa;

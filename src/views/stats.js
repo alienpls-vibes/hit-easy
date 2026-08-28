@@ -26,7 +26,10 @@ export function renderStats(root, { onBack }) {
   clear(root);
   const db = store.getDB();
   const matches = db.history || [];
-  const bruto = aggregate(matches);
+  // O aparelho sabe a que conta cada nome pertence; isso junta partidas
+  // gravadas antes de o @ existir com a conta certa.
+  const apelidos = store.knownHandles();
+  const bruto = aggregate(matches, apelidos);
   const recarregar = () => renderStats(root, { onBack });
 
   // Ocultar tira a LINHA da lista, nao os dados: o dano que essa pessoa causou
@@ -37,10 +40,10 @@ export function renderStats(root, { onBack }) {
   };
   // Uma cor por pessoa, estável entre partidas: é isso que deixa reconhecer
   // o mesmo jogador de relance. Deck continua com a identidade do comandante.
-  const ordemCores = playerColorOrder(matches);
-  const corDe = (nome) => playerColor(ordemCores, nome);
+  const ordemCores = playerColorOrder(matches, apelidos);
+  const corDe = (chave) => playerColor(ordemCores, chave);
 
-  const rivais = rivalries(matches).filter(
+  const rivais = rivalries(matches, apelidos).filter(
     (r) => !store.isPlayerHidden(r.a) && !store.isPlayerHidden(r.b),
   );
 
@@ -147,7 +150,7 @@ function deckCard(row, recarregar) {
 }
 
 function playerCard(row, recarregar, corDe) {
-  return el('article', { class: 'card', style: { '--accent': corDe(row.label) } }, [
+  return el('article', { class: 'card', style: { '--accent': corDe(row.key) } }, [
     el('header', { class: 'card-head' }, [
       el('div', {
         class: 'card-avatar is-tinted',
@@ -246,9 +249,9 @@ function rivalCard(r, corDe) {
   const total = r.total || 1;
   const ladoA = Math.round((r.aToB.damage / total) * 100);
 
-  const coluna = (nome, lado, alinhar) => el('div', {
+  const coluna = (nome, chave, lado, alinhar) => el('div', {
     class: 'rival-side' + (alinhar === 'end' ? ' is-end' : ''),
-    style: { '--accent': corDe(nome) },
+    style: { '--accent': corDe(chave) },
   }, [
     el('span', { class: 'rival-name', text: nome }),
     el('span', { class: 'rival-damage', text: String(lado.damage) }),
@@ -264,17 +267,17 @@ function rivalCard(r, corDe) {
 
   return el('article', {
     class: 'card rival-card',
-    style: { '--rival-b': corDe(r.b) },
+    style: { '--rival-b': corDe(r.keyB) },
   }, [
     el('div', { class: 'rival-head' }, [
-      coluna(r.a, r.aToB),
+      coluna(r.a, r.keyA, r.aToB),
       el('span', { class: 'rival-vs', text: 'vs' }),
-      coluna(r.b, r.bToA, 'end'),
+      coluna(r.b, r.keyB, r.bToA, 'end'),
     ]),
     el('div', { class: 'rival-bar' }, [
       el('div', {
         class: 'rival-bar-a',
-        style: { width: ladoA + '%', background: corDe(r.a) },
+        style: { width: ladoA + '%', background: corDe(r.keyA) },
       }),
     ]),
     el('span', {

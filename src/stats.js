@@ -56,11 +56,54 @@ function finalize(row) {
   };
 }
 
+/* ------------------------------------------------------------------ */
+/* Quem e a pessoa                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A identidade de um assento, estavel entre mesas.
+ *
+ * Antes a estatistica usava o NOME digitado, em minusculas. Isso significa que
+ * "Alex" numa quinta e "Alexandre" na outra viravam duas pessoas diferentes, com
+ * duas linhas, duas cores e duas historias - e a rivalidade entre elas era
+ * contada como se fossem estranhos. O nome e como a mesa chama alguem naquele
+ * dia; nao e quem a pessoa e.
+ *
+ * Quando ha conta vinculada, e ela que manda, e o nome passa a ser so rotulo.
+ * O prefixo `@` impede que uma conta chamada `ana` colida com alguem que
+ * digitou "ana" sem conta nenhuma - sao pessoas diferentes ate prova em
+ * contrario.
+ *
+ * `apelidos` e o que o APARELHO ja sabe: nome (minusculo) -> handle. Serve para
+ * partidas gravadas antes de existir @, que assim se juntam a conta certa em vez
+ * de ficarem orfas para sempre.
+ */
+export function identityOf(seat, apelidos) {
+  if (!seat) return '?';
+  const h = String(seat.handle || '').trim().replace(/^@+/, '').toLowerCase();
+  if (h) return '@' + h;
+
+  const nome = String(seat.name || '').trim().toLowerCase();
+  if (nome && apelidos) {
+    const lembrado = apelidos[nome] || (apelidos.get ? apelidos.get(nome) : null);
+    if (lembrado) return '@' + String(lembrado).trim().replace(/^@+/, '').toLowerCase();
+  }
+  return nome || seat.id || '?';
+}
+
+/** Como esta pessoa aparece na tela. O nome, quando ha; senao o @. */
+export function labelOf(seat) {
+  const nome = String((seat && seat.name) || '').trim();
+  if (nome) return nome;
+  const h = String((seat && seat.handle) || '').trim().replace(/^@+/, '');
+  return h ? '@' + h : 'Sem nome';
+}
+
 /**
  * Percorre as partidas uma unica vez e acumula em dois recortes:
- * por deck (combinacao de comandantes) e por jogador (nome).
+ * por deck (combinacao de comandantes) e por jogador (identidade).
  */
-export function aggregate(matches) {
+export function aggregate(matches, apelidos = null) {
   const decks = new Map();
   const players = new Map();
 
@@ -77,8 +120,11 @@ export function aggregate(matches) {
       if (!decks.has(dKey)) {
         decks.set(dKey, blank(dKey, deckNameOf(seat.commanders), { commanders: seat.commanders }));
       }
-      const pKey = (seat.name || '').trim().toLowerCase() || seat.id;
-      if (!players.has(pKey)) players.set(pKey, blank(pKey, seat.name || 'Sem nome'));
+      // A primeira partida encontrada define o rotulo, e o historico vem do
+      // mais recente para o mais antigo - entao a linha mostra o nome que a
+      // pessoa usou por ultimo, que e o que a mesa vai reconhecer.
+      const pKey = identityOf(seat, apelidos);
+      if (!players.has(pKey)) players.set(pKey, blank(pKey, labelOf(seat)));
       targets[seat.id] = [decks.get(dKey), players.get(pKey)];
     }
 
@@ -370,24 +416,30 @@ export function num(v, digits = 1) {
  * mesma pessoa entre partidas. Por primeira aparicao, quem chega depois so
  * ganha o proximo numero da fila e ninguem antes se mexe.
  */
-export function playerColorOrder(matches) {
+export function playerColorOrder(matches, apelidos = null) {
   const ordem = new Map();
   const antigas = [...(matches || [])].sort(
     (a, b) => (a.startedAt || 0) - (b.startedAt || 0),
   );
   for (const match of antigas) {
     for (const seat of match.seats || []) {
-      const chave = (seat.name || '').trim().toLowerCase();
-      if (chave && !ordem.has(chave)) ordem.set(chave, ordem.size);
+      const chave = identityOf(seat, apelidos);
+      if (chave && chave !== '?' && !ordem.has(chave)) ordem.set(chave, ordem.size);
     }
   }
   return ordem;
 }
 
-/** Atalho: a cor de um nome, dada a ordem ja calculada. */
-export function playerColor(ordem, nome) {
-  const chave = (nome || '').trim().toLowerCase();
-  return seriesColor(ordem.has(chave) ? ordem.get(chave) : 0);
+/**
+ * Atalho: a cor de uma identidade, dada a ordem ja calculada.
+ *
+ * Recebe a CHAVE, nao o nome que aparece na tela - se recebesse o nome, a
+ * mesma pessoa mudaria de cor ao ser cadastrada com outro nome, que e
+ * exatamente o que se quer evitar.
+ */
+export function playerColor(ordem, chave) {
+  const k = String(chave || '').trim().toLowerCase();
+  return seriesColor(ordem.has(k) ? ordem.get(k) : 0);
 }
 
 /* ------------------------------------------------------------------ */
@@ -409,7 +461,7 @@ function parVazio() {
  * O par e guardado em ordem alfabetica para que A-B e B-A caiam na mesma
  * linha, e cada sentido soma no seu proprio lado.
  */
-export function rivalries(matches) {
+export function rivalries(matches, apelidos = null) {
   const pares = new Map();
 
   const chave = (a, b) => (a < b ? a + '\u0000' + b : b + '\u0000' + a);
@@ -417,28 +469,37 @@ export function rivalries(matches) {
   for (const match of matches) {
     if (!match || !match.seats) continue;
 
-    const nome = {};
+    // Rivalidade e entre PESSOAS. Parear por nome faria "Alex contra Bruno" e
+    // "Alexandre contra Bruno" virarem duas rivalidades separadas, cada uma
+    // contando metade da historia.
+    const quem = {};
+    const rotulo = {};
     for (const seat of match.seats) {
-      nome[seat.id] = (seat.name || '').trim() || seat.id;
+      quem[seat.id] = identityOf(seat, apelidos);
+      rotulo[seat.id] = labelOf(seat);
     }
 
     const par = (deId, paraId) => {
-      const de = nome[deId];
-      const para = nome[paraId];
+      const de = quem[deId];
+      const para = quem[paraId];
       if (!de || !para || de === para) return null;
 
-      const k = chave(de.toLowerCase(), para.toLowerCase());
+      const k = chave(de, para);
       if (!pares.has(k)) {
-        const [primeiro, segundo] = de.toLowerCase() < para.toLowerCase() ? [de, para] : [para, de];
+        const [ka, kb] = de < para ? [de, para] : [para, de];
+        const [primeiro, segundo] = de < para
+          ? [rotulo[deId], rotulo[paraId]]
+          : [rotulo[paraId], rotulo[deId]];
         pares.set(k, {
-          a: primeiro, b: segundo, games: 0, total: 0,
+          a: primeiro, b: segundo, keyA: ka, keyB: kb,
+          games: 0, total: 0,
           aToB: parVazio(), bToA: parVazio(),
           _partidas: new Set(),
         });
       }
       const linha = pares.get(k);
       linha._partidas.add(match.id);
-      return { linha, lado: de === linha.a ? linha.aToB : linha.bToA };
+      return { linha, lado: de === linha.keyA ? linha.aToB : linha.bToA };
     };
 
     const somar = (deId, paraId, campo, quanto) => {

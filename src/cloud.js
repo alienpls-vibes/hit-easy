@@ -726,6 +726,9 @@ export async function entrarComSenha(email, senha) {
   guardarDoServidor(d);
   try {
     await carregarUsuario();
+    // Entrou COM senha, logo tem senha. Cobre quem ja tinha uma antes de este
+    // campo existir, sem precisar que a pessoa defina de novo.
+    if (!temSenha()) await marcarQueTemSenha();
     await carregarPerfil();
     await carregarAssinatura();
   } catch { /* entrou; o resto chega depois */ }
@@ -758,10 +761,55 @@ export async function criarConta(email, senha) {
  * E o passo que fecha o problema: quem chegou por link magico define uma senha
  * uma vez e nunca mais precisa de e-mail - em nenhum aparelho.
  */
+/**
+ * Esta conta ja tem senha?
+ *
+ * O GoTrue nao conta isso: a identidade de e-mail existe tanto para quem entrou
+ * por link magico quanto para quem tem senha. Entao o proprio app anota, em
+ * `user_metadata`, que viaja com a conta e chega igual em qualquer aparelho -
+ * ao contrario de uma marca guardada no disco daqui.
+ */
+export function temSenha() {
+  const u = currentUser();
+  return Boolean(u && u.user_metadata && u.user_metadata.has_password);
+}
+
+async function marcarQueTemSenha() {
+  try {
+    const u = await pedir('/auth/v1/user', {
+      method: 'PUT',
+      body: JSON.stringify({ data: { has_password: true } }),
+    });
+    if (u && u.id) gravarSessao({ ...sessao, user: u });
+  } catch {
+    /* a senha ja foi definida; a anotacao tenta de novo na proxima */
+  }
+}
+
 export async function definirSenha(senha) {
   if (!sessao) throw new Error('sem sessao');
   await pedir('/auth/v1/user', {
     method: 'PUT',
     body: JSON.stringify({ password: String(senha || '') }),
+  });
+  await marcarQueTemSenha();
+}
+
+/**
+ * Pede a troca de senha por e-mail.
+ *
+ * Trocar senha nao pode ser tao facil quanto defini-la pela primeira vez:
+ * quem senta num aparelho ja logado - e um contador de vida de mesa vive
+ * emprestado - poderia trocar a senha da pessoa e tomar a conta. O e-mail e o
+ * que prova que quem pede e o dono.
+ *
+ * `redirect_to` vai na QUERY, como em todo endpoint do GoTrue. No corpo ele e
+ * ignorado em silencio e o link cai no Site URL do projeto - foi assim que o
+ * primeiro login real foi parar em localhost:3000.
+ */
+export async function pedirTrocaDeSenha(email, redirecionar = urlDeRetorno()) {
+  await pedir('/auth/v1/recover?redirect_to=' + encodeURIComponent(redirecionar), {
+    method: 'POST',
+    body: JSON.stringify({ email: String(email || '').trim() }),
   });
 }

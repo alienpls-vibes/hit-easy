@@ -386,6 +386,10 @@ const PT = {
   'account.handleLocked': 'Seu @ não muda sozinho — é por ele que amigos marcam você.',
   'account.handleWarn': 'Ao trocar, quem já tinha guardado o seu @ antigo vai precisar procurar o novo.',
 
+  'account.changePassword': 'Trocar senha',
+  'account.changePasswordHint': 'A troca é confirmada pelo seu e-mail — assim ninguém que pegue o aparelho destravado toma a conta.',
+  'account.recoverSent': 'Link enviado para {email}. Abra para escolher a nova senha.',
+
   'settings.title': 'Configurações',
   'settings.sub': 'Valem para todas as partidas',
   'settings.language': 'Idioma',
@@ -782,6 +786,10 @@ const EN = {
   'account.handleCreate': 'Choose my @',
   'account.handleLocked': 'Your @ does not change on its own — friends tag you by it.',
   'account.handleWarn': 'After a change, anyone who saved your old @ will have to look up the new one.',
+
+  'account.changePassword': 'Change password',
+  'account.changePasswordHint': 'The change is confirmed by email, so nobody who picks up an unlocked device can take the account.',
+  'account.recoverSent': 'Link sent to {email}. Open it to choose the new password.',
 
   'settings.title': 'Settings',
   'settings.sub': 'Apply to every match',
@@ -1180,6 +1188,10 @@ const ES = {
   'account.handleLocked': 'Tu @ no cambia solo: por él te marcan tus amigos.',
   'account.handleWarn': 'Al cambiarlo, quien guardó tu @ anterior tendrá que buscar el nuevo.',
 
+  'account.changePassword': 'Cambiar contraseña',
+  'account.changePasswordHint': 'El cambio se confirma por correo, así nadie que agarre el aparato desbloqueado se queda con la cuenta.',
+  'account.recoverSent': 'Enlace enviado a {email}. Ábrelo para elegir la nueva contraseña.',
+
   'settings.title': 'Ajustes',
   'settings.sub': 'Valen para todas las partidas',
   'settings.language': 'Idioma',
@@ -1576,6 +1588,10 @@ const DE = {
   'account.handleCreate': 'Mein @ wählen',
   'account.handleLocked': 'Dein @ ändert sich nicht von selbst — Freunde markieren dich damit.',
   'account.handleWarn': 'Nach einer Änderung muss jeder, der dein altes @ gespeichert hat, das neue suchen.',
+
+  'account.changePassword': 'Passwort ändern',
+  'account.changePasswordHint': 'Die Änderung wird per E-Mail bestätigt, damit niemand mit einem entsperrten Gerät das Konto übernimmt.',
+  'account.recoverSent': 'Link an {email} geschickt. Öffne ihn, um das neue Passwort zu wählen.',
 
   'settings.title': 'Einstellungen',
   'settings.sub': 'Gelten für alle Partien',
