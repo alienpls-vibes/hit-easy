@@ -27,6 +27,7 @@ import {
   accountState, assinaturaAtiva, sessaoValida, toRow, fromRow, pendentes,
   state as accountNow, provedores, pedidoDeLink, urlDeRetorno,
   capturarRetorno, esquecerSessao, precisaRenovar, sessaoAproveitavel, senhaValida,
+  podeVerEstatisticas,
   jaTinhaConta,
   sessaoGuardada,
   normalizarHandle, handleValido, exibirHandle, participantesDe, montarConvites,
@@ -36,7 +37,7 @@ import { canalDe, canalDoCache } from '../src/canal.js';
 import { giraComOAssento, grausNaMesa, rotatesToSeat } from '../src/orientation.js';
 import { renderTable } from '../src/views/table.js';
 import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
-import { renderStats } from '../src/views/stats.js';
+import { renderStats, renderPaywall } from '../src/views/stats.js';
 import { brandMark } from '../src/ui.js';
 import * as store from '../src/store.js';
 // Importar app.js JA e o teste: ele sobe sozinho ao ser avaliado.
@@ -1364,6 +1365,43 @@ export const cases = [
     const pares = rivalries([m]);
     eq(pares.length, 3, 'três pares, um por alvo');
     ok(pares.every((r) => r.total === 3), 'três de dano em cada');
+  }],
+
+  ['sem assinatura, o histórico fica fechado', () => {
+    // Não existe caso de "deslogado vê o que é dele": bastaria sair da conta
+    // para abrir a porta, e um portão que se abre ao ser evitado não é portão.
+    ok(!podeVerEstatisticas(true, 'deslogado'), 'sem conta, fechado');
+    ok(!podeVerEstatisticas(true, 'sem-assinatura'), 'com conta e sem assinar, fechado');
+    ok(podeVerEstatisticas(true, 'assinante'), 'assinando, abre');
+
+    // Sem nuvem configurada o app roda como sempre rodou. Trancar ali não
+    // protegeria nada: os dados estão no aparelho de quem está olhando.
+    ok(podeVerEstatisticas(false, 'desligado'), 'sem nuvem, nada muda');
+    ok(podeVerEstatisticas(false, 'deslogado'), 'sem nuvem, nem o login importa');
+  }],
+
+  ['a paywall diz quantas partidas estão esperando', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    store.wipe();
+    store.archive(mesa(4));
+    store.archive(mesa(3));
+
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    renderPaywall(root, { onBack() {}, onUnlock() {} });
+
+    // O número não é enfeite: é a diferença entre "pague para usar" e "o que é
+    // seu está aqui, esperando". Continuar jogando nunca foi bloqueado.
+    const texto = findAll(root, 'paywall-count').map(textOf).join('');
+    ok(texto.includes('2'), 'mostra as duas partidas guardadas');
+    ok(findAll(root, 'paywall-title').length === 1, 'e explica por quê');
+
+    // Deslogado, o caminho é entrar; a checagem de assinatura viria depois.
+    eq(accountNow(), 'deslogado');
+    const botoes = findAll(root, 'btn').map(textOf);
+    ok(botoes.includes(t('paywall.signInFirst')), 'oferece entrar na conta');
+    ok(!botoes.includes(t('paywall.recheck')), 'sem conta não há assinatura a conferir');
   }],
 
   ['a linha de votação mostra a categoria e o total', () => {

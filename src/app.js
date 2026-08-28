@@ -9,7 +9,7 @@
 import { toast, setHaptics, isSheetOpen, onSheetChange } from './ui.js';
 import { renderSetup, seedDraftFrom } from './views/setup.js';
 import { renderTable } from './views/table.js';
-import { renderStats } from './views/stats.js';
+import { renderStats, renderPaywall } from './views/stats.js';
 import { createMatch } from './engine.js';
 import { applyTheme, watchTheme } from './theme.js';
 import { t, setLang, detectLang } from './i18n.js';
@@ -17,6 +17,8 @@ import { preferOrientation, isWide } from './orientation.js';
 import { orientOf } from './seating.js';
 import * as store from './store.js';
 import * as cloud from './cloud.js';
+import { podeVerEstatisticas } from './cloud.js';
+import { cloudEnabled } from './config.js';
 import { ehTeste } from './canal.js';
 
 const root = document.getElementById('app');
@@ -63,7 +65,19 @@ function render() {
   }
 
   if (route === 'stats') {
-    renderStats(root, { onBack: () => go(previous === 'stats' ? 'setup' : previous) });
+    // O portao e decisao de ROTA, nao da tela de estatisticas: qual tela
+    // mostrar e pergunta do roteador, e assim a view continua sendo so uma
+    // leitura dos dados - testavel sem conta nem assinatura.
+    //
+    // Isto e a tela. O portao de verdade e o RLS do Postgres: sem assinatura
+    // ele devolve lista vazia, entao burlar este `if` nao entrega partida
+    // nenhuma da nuvem.
+    const voltar = () => go(previous === 'stats' ? 'setup' : previous);
+    if (podeVerEstatisticas(cloudEnabled(), cloud.state())) {
+      renderStats(root, { onBack: voltar });
+    } else {
+      renderPaywall(root, { onBack: voltar, onUnlock: () => go('stats') });
+    }
     return;
   }
 

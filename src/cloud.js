@@ -38,6 +38,26 @@ export function accountState({ ligado, sessao, assinatura }) {
 }
 
 /**
+ * Esta pessoa pode abrir as estatisticas?
+ *
+ * Sem nuvem configurada o app roda como sempre rodou - local, sem conta, sem
+ * cobranca -, e trancar ali nao protegeria nada: os dados estao no proprio
+ * aparelho de quem esta olhando.
+ *
+ * Com nuvem, a resposta e a assinatura. Nao existe caso de "deslogado ve o que
+ * e dele": bastaria sair da conta para abrir a porta, e um portao que se abre
+ * ao ser evitado nao e um portao.
+ *
+ * Isto e a TELA. O portao de verdade e o RLS do Postgres, que devolve lista
+ * vazia para quem nao assina - apagar esta funcao pelo devtools nao entrega
+ * partida nenhuma.
+ */
+export function podeVerEstatisticas(ligado, estado) {
+  if (!ligado) return true;
+  return estado === 'assinante';
+}
+
+/**
  * Uma assinatura vale ate um dia depois do fim do periodo.
  *
  * A tolerancia existe porque cartao falha: o Stripe tenta de novo em algumas

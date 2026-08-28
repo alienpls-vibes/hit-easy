@@ -400,6 +400,12 @@ const PT = {
 
   'vote.preset.other': 'Outra votação',
 
+  'paywall.recheck': 'Já tenho acesso, conferir',
+  'paywall.checking': 'Conferindo...',
+  'paywall.stillLocked': 'Ainda não consta acesso para esta conta',
+  'paywall.signInHint': 'Entre na conta pelas configurações',
+  'paywall.earlyAccess': 'Durante os testes o acesso é liberado manualmente, um a um.',
+
   'settings.title': 'Configurações',
   'settings.sub': 'Valem para todas as partidas',
   'settings.language': 'Idioma',
@@ -810,6 +816,12 @@ const EN = {
   'handle.accountTaken': 'That account is already in another seat',
 
   'vote.preset.other': 'Other vote',
+
+  'paywall.recheck': 'I already have access, check',
+  'paywall.checking': 'Checking...',
+  'paywall.stillLocked': 'No access on record for this account yet',
+  'paywall.signInHint': 'Sign in from the settings',
+  'paywall.earlyAccess': 'During testing, access is granted manually, one by one.',
 
   'settings.title': 'Settings',
   'settings.sub': 'Apply to every match',
@@ -1222,6 +1234,12 @@ const ES = {
 
   'vote.preset.other': 'Otra votación',
 
+  'paywall.recheck': 'Ya tengo acceso, comprobar',
+  'paywall.checking': 'Comprobando...',
+  'paywall.stillLocked': 'Aún no consta acceso para esta cuenta',
+  'paywall.signInHint': 'Entra en la cuenta desde los ajustes',
+  'paywall.earlyAccess': 'Durante las pruebas el acceso se concede a mano, uno a uno.',
+
   'settings.title': 'Ajustes',
   'settings.sub': 'Valen para todas las partidas',
   'settings.language': 'Idioma',
@@ -1632,6 +1650,12 @@ const DE = {
   'handle.accountTaken': 'Dieses Konto sitzt schon auf einem anderen Platz',
 
   'vote.preset.other': 'Andere Abstimmung',
+
+  'paywall.recheck': 'Ich habe Zugang, prüfen',
+  'paywall.checking': 'Wird geprüft...',
+  'paywall.stillLocked': 'Für dieses Konto ist noch kein Zugang vermerkt',
+  'paywall.signInHint': 'Melde dich in den Einstellungen an',
+  'paywall.earlyAccess': 'Während der Tests wird der Zugang von Hand vergeben, einzeln.',
 
   'settings.title': 'Einstellungen',
   'settings.sub': 'Gelten für alle Partien',

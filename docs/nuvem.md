@@ -157,3 +157,35 @@ de conversão que o app tem.
 outra pessoa já aceitou, a linha perde o dono em vez de morrer. Para o anfitrião
 o efeito é o mesmo (some da conta dele); para o convidado, o histórico continua
 de pé. Sem isso, apagar viraria um jeito de editar a estatística dos outros.
+
+---
+
+## 5. Liberar o premium na mão (enquanto não há cobrança)
+
+As estatísticas já estão atrás da paywall. Quem não tem assinatura ativa vê a
+tela de bloqueio no lugar do histórico — e continua jogando e gravando
+normalmente, porque só a *leitura* é paga.
+
+Para liberar alguém, use os blocos de `sql/acesso-manual.sql` no SQL Editor.
+Cada um é para copiar sozinho, trocando o e-mail.
+
+**A pessoa precisa ter entrado no app pelo menos uma vez** antes de poder ser
+liberada — sem conta criada não há a quem dar acesso, e o comando devolve
+`INSERT 0 0`.
+
+Depois de liberar, o app não descobre sozinho: no aparelho dela, a tela de
+bloqueio tem **"Já tenho acesso, conferir"**, que relê a assinatura. Sem esse
+botão a pessoa teria de fechar e abrir o aplicativo sem nenhuma pista de que era
+isso que faltava.
+
+### Por que não há um botão de admin no app
+
+O portão é o RLS. A tabela `subscriptions` não tem política de `insert` nem de
+`update`, de propósito: o aplicativo **não consegue** escrever nela. Só o SQL
+Editor e, no futuro, o webhook do Stripe.
+
+E não criei uma função `liberar_premium(email)` no banco porque o Supabase
+concede `execute` a `anon` e `authenticated` por privilégio padrão. Isso já
+mordeu este projeto uma vez — `buscar_handle` ficou aberta para quem não tinha
+conta nenhuma, e só apareceu testando contra o servidor. Uma função que libera
+premium com o mesmo descuido deixaria qualquer pessoa logada se auto-liberar.
