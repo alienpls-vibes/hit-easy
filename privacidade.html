@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Política de Privacidade — Hit Easy</title>
+<meta name="description" content="Como o Hit Easy trata dados pessoais.">
+<style>
+  :root {
+    --bg: #f7f6f4; --fg: #1a1917; --muted: #6b6862;
+    --line: #dedbd4; --card: #ffffff; --accent: #b4472b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131211; --fg: #ece9e3; --muted: #9a958c;
+      --line: #2c2a27; --card: #1b1a18; --accent: #d9613f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 20px calc(env(safe-area-inset-bottom, 0px) + 56px);
+    background: var(--bg);
+    color: var(--fg);
+    font: 400 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  main { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 4px; }
+  h2 {
+    font-size: 1.12rem; line-height: 1.3; margin: 36px 0 10px;
+    padding-top: 18px; border-top: 1px solid var(--line);
+  }
+  h3 { font-size: 1rem; margin: 22px 0 6px; }
+  p, li { color: var(--fg); }
+  .sub { color: var(--muted); font-size: 0.9rem; margin: 0 0 8px; }
+  ul { padding-left: 20px; }
+  li { margin: 6px 0; }
+  code {
+    padding: 1px 5px; border-radius: 5px;
+    background: var(--card); border: 1px solid var(--line);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.86em;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  .box {
+    margin: 16px 0; padding: 14px 16px;
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+  }
+  .box strong { color: var(--accent); }
+  a { color: var(--accent); }
+  footer { margin-top: 40px; color: var(--muted); font-size: 0.86rem; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Política de Privacidade — Hit Easy</h1>
+<p class="sub">Última atualização: 28 de agosto de 2026</p>
+
+<p>
+  O Hit Easy é um contador de vida para mesas de Magic: The Gathering no formato
+  Commander. Esta política explica, sem rodeios, o que o aplicativo guarda, onde
+  guarda, por quê, e o que você pode exigir a respeito.
+</p>
+
+<div class="box">
+  <p style="margin:0">
+    <strong>O resumo honesto:</strong> se você não criar uma conta, nada sai do
+    seu aparelho. Criar conta é opcional e serve para o histórico acompanhar
+    você entre aparelhos. Você pode apagar tudo a qualquer momento, e apagar
+    <em>nunca</em> depende de assinatura.
+  </p>
+</div>
+
+<h2>1. Quem é o responsável</h2>
+<p>
+  O controlador dos dados, nos termos da Lei Geral de Proteção de Dados
+  (Lei 13.709/2018), é
+  <strong>Alexandre Parma</strong>, pessoa física.
+</p>
+<p>
+  Para exercer qualquer direito descrito aqui, ou tirar dúvidas sobre esta
+  política, escreva para
+  <a href="mailto:alexlopesp97@gmail.com">alexlopesp97@gmail.com</a>.
+  Respondemos em até 15 dias.
+</p>
+
+<h2>2. O que fica só no seu aparelho</h2>
+<p>
+  A maior parte do aplicativo funciona sem servidor nenhum. Estes dados ficam no
+  armazenamento local do seu navegador e <strong>não são enviados a lugar
+  algum</strong> enquanto você não criar uma conta:
+</p>
+<table>
+  <tr><th>O quê</th><th>Onde</th></tr>
+  <tr><td>Partida em andamento e histórico de partidas</td><td><code>mtglc.db.v1</code></td></tr>
+  <tr><td>Nomes de jogadores e comandantes já usados</td><td><code>mtglc.db.v1</code></td></tr>
+  <tr><td>Preferências (idioma, tema, vida inicial, vibração)</td><td><code>mtglc.db.v1</code></td></tr>
+  <tr><td>Resultados de busca de cartas, para funcionar sem internet</td><td><code>mtglc.scryfallCache.v1</code></td></tr>
+  <tr><td>Sua sessão, se você entrou numa conta</td><td><code>mtglc.session.v1</code></td></tr>
+  <tr><td>Arquivos do aplicativo e artes das cartas, para abrir offline</td><td>Cache do navegador</td></tr>
+</table>
+<p>
+  Apagar os dados do site pelo navegador, ou desinstalar o aplicativo, remove
+  tudo isso. Se você não tiver conta, não haverá cópia em lugar nenhum — e não
+  teremos como recuperar.
+</p>
+
+<h2>3. O que vai para a nuvem, e somente se você criar conta</h2>
+<p>Criar conta é opcional. Fazendo isso, passamos a guardar:</p>
+<table>
+  <tr><th>Dado</th><th>Para quê</th></tr>
+  <tr>
+    <td>Seu e-mail e, se você definir uma, sua senha</td>
+    <td>Identificar você e permitir entrar em outro aparelho. A senha é guardada
+        apenas como resumo criptográfico (<em>hash</em>) pelo provedor de
+        autenticação — nem nós nem ninguém consegue lê-la.</td>
+  </tr>
+  <tr>
+    <td>Seu <code>@</code> público e nome de exibição, se você escolher um</td>
+    <td>Permitir que amigos marquem você numa mesa. A busca aceita apenas o
+        <code>@</code> exato: não existe listagem nem busca por parte do nome,
+        então ninguém consegue descobrir quem tem conta no aplicativo.</td>
+  </tr>
+  <tr>
+    <td>As partidas que você registrar</td>
+    <td>Guardar seu histórico e calcular estatísticas. Inclui os nomes usados na
+        mesa, os comandantes, os eventos da partida (dano, cura, eliminações,
+        turnos) e as escolhas em votações secretas.</td>
+  </tr>
+  <tr>
+    <td>Convites de participação em mesas de outras pessoas</td>
+    <td>Levar até você uma partida que alguém registrou dizendo que você jogou —
+        e que só entra no seu histórico se você aceitar.</td>
+  </tr>
+  <tr>
+    <td>Sua lista de anfitriões de confiança</td>
+    <td>Aceitar automaticamente as partidas registradas por quem você já
+        confiou.</td>
+  </tr>
+  <tr>
+    <td>Situação da sua assinatura</td>
+    <td>Liberar o acesso ao histórico completo.</td>
+  </tr>
+</table>
+
+<h3>Base legal</h3>
+<ul>
+  <li><strong>Execução de contrato</strong> (art. 7º, V): conta, sessão,
+      histórico e assinatura — é o serviço que você pediu.</li>
+  <li><strong>Legítimo interesse</strong> (art. 7º, IX): registro dos nomes dos
+      demais jogadores da mesa, tratado no item 4.</li>
+  <li><strong>Consentimento</strong> (art. 7º, I): escolher um <code>@</code>
+      público, que é opcional e reversível.</li>
+</ul>
+
+<h2>4. Nomes de outras pessoas na sua mesa</h2>
+<p>
+  Este é o ponto que merece mais atenção, e por isso está em seção própria.
+</p>
+<p>
+  Uma partida de Commander tem quatro pessoas, e o aplicativo registra o nome de
+  todas. Se você criar conta e o histórico for para a nuvem, os nomes que
+  <em>você</em> digitou vão junto — inclusive os de quem não usa o aplicativo e
+  nunca concordou com nada.
+</p>
+<div class="box">
+  <p style="margin:0 0 8px"><strong>O que pedimos de você:</strong></p>
+  <ul style="margin:0">
+    <li>use apelidos ou primeiros nomes, não nome completo;</li>
+    <li>não escreva nada sensível no nome de um jogador — nem no título de uma
+        votação, que também é gravado;</li>
+    <li>se alguém da sua mesa pedir para ser removido, apague aquelas partidas
+        ou remova o nome do histórico local.</li>
+  </ul>
+</div>
+<p>
+  Do nosso lado: esses nomes servem exclusivamente para montar a sua
+  estatística, nunca são usados para criar conta para ninguém, não são cruzados
+  com dados de fora e não são vendidos nem compartilhados com terceiros para
+  fins comerciais. Ninguém além de você — e das pessoas que <em>aceitaram</em> um
+  convite para aquela partida — consegue ler aquela mesa.
+</p>
+<p>
+  Se você é a pessoa mencionada numa partida alheia e quer ser removida, escreva
+  para o contato do item 1 com o nome usado e uma data aproximada.
+</p>
+
+<h2>5. Com quem os dados são compartilhados</h2>
+<p>Não vendemos dados. Não há publicidade nem rastreadores. Usamos:</p>
+<ul>
+  <li>
+    <strong>Supabase</strong> — banco de dados e autenticação. Guarda tudo do
+    item 3, na condição de operador, seguindo nossas instruções.
+    <a href="https://supabase.com/privacy" rel="noopener">Política do Supabase</a>.
+  </li>
+  <li>
+    <strong>GitHub Pages</strong> — hospeda os arquivos do aplicativo. Como todo
+    servidor web, registra o endereço IP e o navegador de quem acessa.
+    <a href="https://docs.github.com/pt/site-policy/privacy-policies/github-general-privacy-statement" rel="noopener">Política do GitHub</a>.
+  </li>
+  <li>
+    <strong>Scryfall</strong> — busca e imagens das cartas. Seu navegador fala
+    diretamente com eles, então a Scryfall vê o seu endereço IP e o nome das
+    cartas que você procura. Nós não intermediamos e não recebemos essas buscas.
+    <a href="https://scryfall.com/docs/privacy-policy" rel="noopener">Política da Scryfall</a>.
+  </li>
+  <li>
+    <strong>Stripe</strong> — pagamento da assinatura, <em>quando houver
+    cobrança</em>. Dados de cartão são tratados inteiramente pela Stripe e nunca
+    passam pelo aplicativo nem pelo nosso banco.
+    <a href="https://stripe.com/br/privacy" rel="noopener">Política da Stripe</a>.
+  </li>
+</ul>
+<p>
+  Também podemos divulgar dados quando houver ordem judicial ou obrigação legal.
+</p>
+
+<h2>6. Transferência internacional</h2>
+<p>
+  Os servidores usados ficam em
+  região das Américas, escolhida na criação do projeto,
+  e os arquivos do aplicativo são distribuídos pela infraestrutura global do
+  GitHub. Isso pode significar tratamento de dados fora do Brasil, o que a LGPD
+  admite quando o país ou o fornecedor oferece grau de proteção adequado
+  (art. 33).
+</p>
+
+<h2>7. Por quanto tempo guardamos</h2>
+<ul>
+  <li><strong>Partidas:</strong> enquanto você mantiver a conta, ou até você
+      apagá-las.</li>
+  <li><strong>Conta e perfil:</strong> até você pedir exclusão.</li>
+  <li><strong>Dados de assinatura:</strong> pelo prazo exigido pela legislação
+      fiscal, mesmo após o encerramento da conta.</li>
+  <li><strong>Dados no seu aparelho:</strong> até você limpar os dados do site
+      ou desinstalar.</li>
+</ul>
+
+<h2>8. Seus direitos</h2>
+<p>A LGPD (art. 18) garante a você:</p>
+<ul>
+  <li>saber se tratamos seus dados e acessá-los;</li>
+  <li>corrigir dados incompletos ou desatualizados;</li>
+  <li>pedir anonimização, bloqueio ou eliminação de dados desnecessários;</li>
+  <li>pedir a portabilidade;</li>
+  <li>revogar o consentimento e pedir a exclusão da conta;</li>
+  <li>ser informado sobre com quem compartilhamos;</li>
+  <li>opor-se a um tratamento feito com base em legítimo interesse.</li>
+</ul>
+<div class="box">
+  <p style="margin:0">
+    <strong>Apagar não depende de pagamento.</strong> Isto não é uma promessa de
+    texto: o banco de dados permite excluir suas partidas mesmo sem assinatura
+    ativa, e essa permissão foi escrita assim de propósito. Ter deixado de pagar
+    nunca vai impedir você de tirar os seus dados daqui.
+  </p>
+</div>
+<p>
+  Uma ressalva honesta: se você apagar uma partida que <em>outra pessoa</em>
+  também aceitou, ela deixa de aparecer para você, mas o registro continua
+  existindo para essa pessoa. Foi feito assim para que ninguém possa apagar
+  pedaços do histórico alheio.
+</p>
+<p>
+  Para exportar ou apagar tudo de uma vez, use as opções em Configurações do
+  aplicativo, ou escreva para o contato do item 1.
+</p>
+
+<h2>9. Segurança</h2>
+<ul>
+  <li>Todo o tráfego é criptografado (HTTPS).</li>
+  <li>Senhas são guardadas apenas como resumo criptográfico.</li>
+  <li>O acesso aos dados é controlado por regras no próprio banco de dados
+      (<em>Row Level Security</em>), e não apenas pelo aplicativo: mesmo que
+      alguém altere o aplicativo no próprio navegador, o servidor continua não
+      entregando dados de outra pessoa.</li>
+  <li>Ninguém consegue escrever no histórico de outra pessoa: uma partida só
+      entra no histórico de alguém quando essa pessoa aceita o convite.</li>
+</ul>
+<p>
+  Nenhum sistema é imune. Se houver incidente de segurança com risco relevante,
+  comunicaremos os afetados e a ANPD, como manda o art. 48 da LGPD.
+</p>
+
+<h2>10. Crianças e adolescentes</h2>
+<p>
+  O aplicativo não é dirigido a menores de 13 anos. Se você é responsável por um
+  menor que criou conta e quer removê-la, escreva para o contato do item 1 e
+  faremos a exclusão.
+</p>
+
+<h2>11. Mudanças nesta política</h2>
+<p>
+  Se algo mudar de forma relevante, atualizaremos a data no topo e avisaremos
+  dentro do aplicativo. Continuar usando depois disso significa que você tomou
+  conhecimento.
+</p>
+
+<footer>
+  <p><a href="./">← Voltar ao Hit Easy</a></p>
+</footer>
+
+</main>
+</body>
+</html>

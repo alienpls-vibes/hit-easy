@@ -41,6 +41,7 @@ function canalDoCache(nome) {
 const ASSETS = [
   './',
   './index.html',
+  './privacidade.html',
   './manifest.webmanifest',
   './src/styles.css',
   './src/app.js',

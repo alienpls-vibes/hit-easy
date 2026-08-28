@@ -412,6 +412,9 @@ const PT = {
 
   'settings.staleCache': 'cache {n}',
 
+  'settings.privacy': 'Política de privacidade',
+  'settings.privacySub': 'O que o app guarda, onde, e como apagar',
+
   'settings.title': 'Configurações',
   'settings.sub': 'Valem para todas as partidas',
   'settings.language': 'Idioma',
@@ -834,6 +837,9 @@ const EN = {
   'settings.updateNone': 'Already on the newest version',
 
   'settings.staleCache': 'cache {n}',
+
+  'settings.privacy': 'Privacy policy',
+  'settings.privacySub': 'What the app stores, where, and how to erase it',
 
   'settings.title': 'Settings',
   'settings.sub': 'Apply to every match',
@@ -1258,6 +1264,9 @@ const ES = {
 
   'settings.staleCache': 'caché {n}',
 
+  'settings.privacy': 'Política de privacidad',
+  'settings.privacySub': 'Qué guarda la app, dónde, y cómo borrarlo',
+
   'settings.title': 'Ajustes',
   'settings.sub': 'Valen para todas las partidas',
   'settings.language': 'Idioma',
@@ -1680,6 +1689,9 @@ const DE = {
   'settings.updateNone': 'Bereits auf der neuesten Version',
 
   'settings.staleCache': 'Cache {n}',
+
+  'settings.privacy': 'Datenschutzerklärung',
+  'settings.privacySub': 'Was die App speichert, wo, und wie man es löscht',
 
   'settings.title': 'Einstellungen',
   'settings.sub': 'Gelten für alle Partien',
