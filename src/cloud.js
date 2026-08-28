@@ -509,6 +509,7 @@ export async function carregarAssinatura() {
 export function esquecerSessao() {
   assinatura = null;
   assinaturaLida = false;
+  convites = [];
   perfil = null;
   gravarSessao(null);
 }
@@ -582,6 +583,9 @@ export async function iniciar() {
       await carregarUsuario();
       await carregarPerfil();
       await carregarAssinatura();
+      // Convites tambem: sem isto a home nao teria como saber que ha algo
+      // esperando, e o recurso so existiria para quem fosse procurar.
+      await convitesPendentes();
     } catch {
       /* sessao invalida ja foi limpa por pedir() */
     }
@@ -597,6 +601,7 @@ export async function iniciar() {
 
 let perfil = null;
 let assinaturaLida = false;
+let convites = [];
 
 export function meuPerfil() {
   return perfil;
@@ -684,14 +689,27 @@ export async function enviarParticipantes(match) {
   return linhas.length;
 }
 
+/**
+ * Convites em aberto, como este aparelho os conhece.
+ *
+ * Fica guardado porque a home precisa saber se ha algo esperando sem pedir a
+ * rede a cada desenho - e a home se redesenha o tempo todo.
+ */
+export function convitesAbertos() {
+  return convites;
+}
+
 /** Convites enderecados a mim que ainda nao respondi. */
 export async function convitesPendentes() {
   const dono = currentUser();
-  if (!dono) return [];
-  return (await pedir(
+  if (!dono) { convites = []; return []; }
+  const linhas = (await pedir(
     '/rest/v1/match_players?select=*&status=eq.pendente'
     + '&user_id=eq.' + encodeURIComponent(dono.id),
   )) || [];
+  convites = linhas;
+  avisar();
+  return linhas;
 }
 
 /** Quem registrou a partida a que este convite se refere. */

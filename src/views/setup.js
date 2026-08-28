@@ -122,6 +122,10 @@ export function renderSetup(root, { onStart, onStats, onRefresh }) {
         ]),
       ]),
 
+      // Logo abaixo do cabeçalho: é a primeira coisa depois do nome do app,
+      // que é onde um aviso é visto sem precisar rolar nada.
+      convitesBanner(onRefresh),
+
       el('div', { class: 'field-row setup-life' }, [
         el('span', { class: 'label' }, [t('setup.startingLife')]),
         el('div', { class: 'chips' }, LIFE_PRESETS.map((v) =>
@@ -1342,11 +1346,11 @@ function invitesBlock() {
 
   const pintar = async () => {
     clear(caixa);
-    let convites = [];
+    let convites = cloud.convitesAbertos();
     try {
       convites = await cloud.convitesPendentes();
     } catch {
-      return; // sem rede: a secao simplesmente nao aparece
+      /* sem rede: mostra o que este aparelho ja sabia */
     }
     if (!convites.length) return;
 
@@ -1691,4 +1695,57 @@ function syncBlock() {
 
   pintar();
   return caixa;
+}
+
+
+/**
+ * Aviso de convite na home.
+ *
+ * Antes, uma partida registrada por outra pessoa so aparecia dentro de
+ * Configuracoes > Conta. Quem nao soubesse que aquilo existia nunca ia
+ * encontrar - e nao ha por que esperar que alguem procure por um recurso que
+ * ninguem contou que existe.
+ *
+ * Some sozinho quando nao ha nada esperando: um aviso permanente vira parte do
+ * cenario e deixa de ser aviso.
+ */
+function convitesBanner(onRefresh) {
+  const abertos = cloudEnabled() ? cloud.convitesAbertos() : [];
+  if (!abertos.length) return null;
+
+  return el('button', {
+    class: 'invite-banner',
+    onClick: () => openSheet({
+      title: t('invites.title'),
+      subtitle: t('invites.sub'),
+      build: (pane) => {
+        const lista = el('div', { class: 'account-invites' });
+        const pintar = async () => {
+          clear(lista);
+          let convites = cloud.convitesAbertos();
+          try {
+            convites = await cloud.convitesPendentes();
+          } catch {
+            /* sem rede: o que este aparelho ja sabia */
+          }
+          if (!convites.length) {
+            lista.append(el('p', { class: 'search-status', text: t('invites.none') }));
+            if (onRefresh) onRefresh();
+            return;
+          }
+          for (const c of convites) lista.append(inviteRow(c, pintar));
+        };
+        pintar();
+        pane.append(lista);
+        pane.append(el('p', { class: 'account-note', text: t('invites.explain') }));
+      },
+    }),
+  }, [
+    el('span', { class: 'invite-banner-n', text: String(abertos.length) }),
+    el('span', { class: 'invite-banner-txt' }, [
+      el('span', { class: 'menu-label', text: abertos.length === 1
+        ? t('invites.one') : t('invites.many', { n: abertos.length }) }),
+      el('span', { class: 'menu-sub', text: t('invites.cta') }),
+    ]),
+  ]);
 }

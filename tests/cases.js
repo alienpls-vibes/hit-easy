@@ -284,6 +284,35 @@ export const cases = [
     eq(players.find((p) => p.label === 'P1').healed, 4, 'cura de P1');
   }],
 
+  ['o convite sempre carrega o @, mesmo sem saber o id da conta', () => {
+    // O defeito que isto guarda: quando o aparelho LEMBRA a que conta um nome
+    // pertence, ele preenche o @ mas não o id - ele não tem, porque lembrar
+    // existe justamente para não buscar de novo. A linha ia para o banco com
+    // user_id nulo, e a política de resposta exige `user_id = auth.uid()`.
+    // Em SQL null não é igual a nada: o convite nascia impossível de
+    // reivindicar, sem erro e sem aviso.
+    //
+    // A correção é do servidor (sql/003), que resolve o @ ao inserir. O que o
+    // cliente precisa garantir é a matéria-prima dessa resolução: nunca mandar
+    // uma cadeira marcada sem o @.
+    const match = createMatch([
+      { id: 's0', name: 'Alexandre', handle: 'alienpls', userId: 'uid-1', commanders: [commander(0)] },
+      { id: 's1', name: 'Bruno', handle: 'brunomtg', commanders: [commander(1)] },
+      { id: 's2', name: 'Carla', commanders: [commander(2)] },
+    ], 40);
+
+    const linhas = participantesDe(match);
+    eq(linhas.length, 2, 'só as cadeiras marcadas');
+    ok(linhas.every((l) => l.handle && l.handle.length > 0),
+      'toda linha leva o @: é por ele que o servidor descobre de quem é');
+
+    const comId = linhas.find((l) => l.seat_id === 's0');
+    const semId = linhas.find((l) => l.seat_id === 's1');
+    eq(comId.user_id, 'uid-1', 'quando o cliente sabe o id, manda');
+    eq(semId.user_id, null, 'quando não sabe, manda nulo - e o servidor resolve');
+    eq(semId.handle, 'brunomtg', 'mas o @ vai sempre, senão não há como resolver');
+  }],
+
   ['a conta vinculada sobrevive da mesa até o convite', () => {
     // Este é o caminho inteiro, e ele estava rompido no primeiro elo:
     // createMatch montava o assento com id, nome e comandantes, e descartava

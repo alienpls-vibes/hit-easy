@@ -430,6 +430,10 @@ const PT = {
 
   'common.error': 'Algo deu errado',
 
+  'invites.sub': 'Alguém registrou uma mesa dizendo que você jogou',
+  'invites.cta': 'Toque para ver e responder',
+  'invites.explain': 'Aceitar coloca a partida no seu histórico e nas suas estatísticas. Recusar não afeta a cópia de quem registrou.',
+
   'settings.title': 'Configurações',
   'settings.sub': 'Valem para todas as partidas',
   'settings.language': 'Idioma',
@@ -870,6 +874,10 @@ const EN = {
   'sync.hint': 'Happens on its own when the app opens and when a match ends. Nothing is deleted from here.',
 
   'common.error': 'Something went wrong',
+
+  'invites.sub': 'Someone recorded a table saying you played',
+  'invites.cta': 'Tap to see and respond',
+  'invites.explain': "Accepting puts the match in your history and stats. Declining does not affect the recorder's copy.",
 
   'settings.title': 'Settings',
   'settings.sub': 'Apply to every match',
@@ -1312,6 +1320,10 @@ const ES = {
 
   'common.error': 'Algo salió mal',
 
+  'invites.sub': 'Alguien registró una mesa diciendo que jugaste',
+  'invites.cta': 'Toca para ver y responder',
+  'invites.explain': 'Aceptar mete la partida en tu historial y estadísticas. Rechazar no afecta la copia de quien la registró.',
+
   'settings.title': 'Ajustes',
   'settings.sub': 'Valen para todas las partidas',
   'settings.language': 'Idioma',
@@ -1752,6 +1764,10 @@ const DE = {
   'sync.hint': 'Passiert von selbst beim Öffnen und am Ende einer Partie. Hier wird nichts gelöscht.',
 
   'common.error': 'Etwas ist schiefgelaufen',
+
+  'invites.sub': 'Jemand hat einen Tisch eingetragen, an dem du gespielt hast',
+  'invites.cta': 'Tippen zum Ansehen und Antworten',
+  'invites.explain': 'Annehmen bringt die Partie in deinen Verlauf und deine Statistik. Ablehnen ändert nichts an der Kopie des Eintragenden.',
 
   'settings.title': 'Einstellungen',
   'settings.sub': 'Gelten für alle Partien',
