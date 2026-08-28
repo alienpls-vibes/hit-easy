@@ -75,9 +75,12 @@ export function presetById(id) {
  * `voters` e [{ id, name, votes }]. `votes` cobre os efeitos que dao voto
  * extra; o padrao e 1.
  */
-export function createSession({ question = '', kind = 'opcoes', options = [], voters = [] }) {
+export function createSession({
+  question = '', preset = '', kind = 'opcoes', options = [], voters = [],
+}) {
   return {
     question,
+    preset,
     kind,
     options: [...options],
     voters: voters.map((v) => ({ id: v.id, name: v.name, votes: Math.max(1, v.votes || 1) })),

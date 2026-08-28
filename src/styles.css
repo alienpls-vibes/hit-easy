@@ -2415,3 +2415,15 @@ button {
   color: #d9613f;
   font: 500 13px/1.4 var(--font, system-ui, sans-serif);
 }
+
+/* Direita da linha de votação: as escolhas e, no fim, quantas foram. */
+.vote-history-a { display: flex; align-items: baseline; gap: 8px; justify-content: flex-end; }
+.vote-history-picks { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.vote-history-total {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font: 600 11px/1.6 var(--font, system-ui, sans-serif);
+}

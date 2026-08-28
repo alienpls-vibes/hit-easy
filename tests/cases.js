@@ -17,6 +17,7 @@ import {
   playerColorOrder, playerColor,
   identityOf, labelOf,
   chaveDaVotacao, rotuloDaVotacao, orientarRival,
+  categoriaDaVotacao, rotuloDaCategoria,
 } from '../src/stats.js';
 import { LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf } from '../src/seating.js';
 import { createSession, cast, tally, pending, isComplete, describe } from '../src/vote.js';
@@ -1195,6 +1196,7 @@ export const cases = [
     const votar = (escolhas) => push(m, {
       type: 'vote',
       question: "Prisoner's Dilemma",
+      preset: 'dilema',
       kind: 'opcoes',
       options: ['Silence', 'Snitch'],
       ballots: [
@@ -1211,9 +1213,9 @@ export const cases = [
     const p3 = players.find((p) => p.label === 'P3');
 
     eq(p1.votes, 2, 'P1 participou de duas');
-    eq(p1.voteChoices["Prisoner's Dilemma"], { Silence: 2 }, 'P1 escolheu Silence nas duas');
-    eq(p3.voteChoices["Prisoner's Dilemma"], { Snitch: 2 }, 'P3 delatou nas duas');
-    eq(players.find((p) => p.label === 'P2').voteChoices["Prisoner's Dilemma"],
+    eq(p1.voteChoices.dilema, { Silence: 2 }, 'P1 escolheu Silence nas duas');
+    eq(p3.voteChoices.dilema, { Snitch: 2 }, 'P3 delatou nas duas');
+    eq(players.find((p) => p.label === 'P2').voteChoices.dilema,
       { Silence: 1, Snitch: 1 }, 'P2 fez uma de cada');
   }],
 
@@ -1232,55 +1234,60 @@ export const cases = [
     eq(players.find((p) => p.label === 'P0').voteChoices, {}, 'e sem escolhas nenhuma');
   }],
 
-  ['votações diferentes não misturam as escolhas', () => {
-    const m = mesa(4);
+  ['a estatística agrupa por categoria, não pela pergunta escrita', () => {
+    const m = mesa(2);
+    const votar = (extra, escolha) => push(m, Object.assign({
+      type: 'vote', kind: 'opcoes', options: ['Silence', 'Snitch'],
+      ballots: [{ seatId: 's0', name: 'P0', choices: [escolha] }],
+    }, extra));
+
+    // Duas noites, o mesmo modelo, perguntas escritas de jeitos diferentes.
+    // Antes isso virava duas linhas - e a pergunta livre muda toda vez, então
+    // a lista crescia sem nunca responder "essa pessoa costuma delatar?".
+    votar({ preset: 'dilema', question: "Prisoner's Dilemma" }, 0);
+    votar({ preset: 'dilema', question: 'Quem entrega quem?' }, 0);
+    votar({ preset: 'jogador', question: 'Quem leva o combo?', options: ['P0', 'P1'] }, 1);
     push(m, {
-      type: 'vote', question: "Prisoner's Dilemma", kind: 'opcoes',
-      options: ['Silence', 'Snitch'],
-      ballots: [{ seatId: 's0', name: 'P0', choices: [1] }],
-    });
-    push(m, {
-      type: 'vote', question: 'Carnage ou homage?', kind: 'opcoes',
-      options: ['Carnage', 'Homage'],
-      ballots: [{ seatId: 's0', name: 'P0', choices: [0] }],
-    });
-    push(m, {
-      type: 'vote', question: '', kind: 'numero',
-      options: [],
+      type: 'vote', preset: 'numero', kind: 'numero', question: '', options: [],
       ballots: [{ seatId: 's0', name: 'P0', choices: [7] }],
     });
-    const p0 = aggregate([m]).players.find((p) => p.label === 'P0');
-    eq(p0.votes, 3, 'três votações');
-    eq(Object.keys(p0.voteChoices).sort(),
-      ['#numero', 'Carnage ou homage?', "Prisoner's Dilemma"], 'cada pergunta na sua linha');
 
-    // O agrupamento NÃO pode depender do idioma. Antes a chave era o texto da
-    // tela, então trocar de língua partia o histórico de votações da pessoa em
-    // dois montes sem que nada tivesse mudado na mesa.
+    const p0 = aggregate([m]).players.find((x) => x.label === 'P0');
+    eq(p0.votes, 4, 'quatro votações');
+    eq(Object.keys(p0.voteChoices).sort(), ['dilema', 'jogador', 'numero'],
+      'três categorias, não quatro perguntas');
+    eq(p0.voteChoices.dilema, { Silence: 2 }, 'as duas noites de dilema somam junto');
+    eq(p0.voteChoices.numero, { 7: 1 }, 'número secreto guarda o valor');
+
+    // A chave é o modelo, e o modelo não é texto de tela: trocar o idioma não
+    // pode partir o histórico em dois montes.
     const chavesEm = (lang) => {
       setLang(lang);
-      return Object.keys(aggregate([m]).players.find((p) => p.label === 'P0').voteChoices).sort();
+      return Object.keys(aggregate([m]).players.find((x) => x.label === 'P0').voteChoices).sort();
     };
-    eq(chavesEm('en'), chavesEm('pt'), 'as mesmas votações em qualquer idioma');
-    eq(chavesEm('de'), chavesEm('pt'));
-
-    // E a tradução acontece só na hora de mostrar.
+    eq(chavesEm('en'), chavesEm('pt'), 'as mesmas categorias em qualquer idioma');
     setLang('pt');
-    eq(rotuloDaVotacao('#numero'), t('vote.preset.number'), 'a chave interna vira texto');
-    setLang('en');
-    eq(rotuloDaVotacao('#numero'), t('vote.preset.number'), 'e acompanha o idioma');
-    setLang('pt');
-    eq(rotuloDaVotacao('Carnage ou homage?'), 'Carnage ou homage?',
-      'pergunta digitada é mostrada como foi escrita');
 
-    // A chave interna começa com # para nunca colidir com o que alguém digitou.
-    eq(chaveDaVotacao({ question: '  ', kind: 'numero' }), '#numero');
-    eq(chaveDaVotacao({ question: 'Número secreto', kind: 'numero' }), 'Número secreto',
-      'quem digitou esse texto continua com ele');
-    eq(chaveDaVotacao({ kind: 'opcoes', options: ['Sim', 'Não'] }), 'Sim / Não',
-      'sem título, as opções nomeiam a votação');
-    eq(chaveDaVotacao({ kind: 'opcoes', options: [] }), '#semtitulo');
-    eq(p0.voteChoices['#numero'], { 7: 1 }, 'número secreto guarda o valor');
+    // Só a tela traduz. O nome da carta não se traduz nunca.
+    eq(rotuloDaCategoria('numero'), t('vote.preset.number'));
+    eq(rotuloDaCategoria('dilema'), "Prisoner's Dilemma", 'nome de carta fica como é');
+    setLang('de');
+    eq(rotuloDaCategoria('dilema'), "Prisoner's Dilemma", 'inclusive em alemão');
+    eq(rotuloDaCategoria('numero'), t('vote.preset.number'), 'o resto acompanha o idioma');
+    setLang('pt');
+  }],
+
+  ['votação antiga, sem categoria gravada, não é chutada', () => {
+    // O campo `preset` não existia. Dá para recuperar o essencial pelo `kind`;
+    // o resto vira categoria genérica. Inventar qual modelo foi usado seria
+    // pior que admitir que não se sabe.
+    eq(categoriaDaVotacao({ kind: 'numero' }), 'numero', 'número se reconhece sozinho');
+    eq(categoriaDaVotacao({ kind: 'opcoes', options: ['Silence', 'Snitch'] }), 'opcoes',
+      'parecer um dilema não prova que era');
+    eq(categoriaDaVotacao({ preset: 'jogador', kind: 'opcoes' }), 'jogador',
+      'gravada, a categoria manda');
+    eq(categoriaDaVotacao(null), 'opcoes', 'sem evento, categoria genérica');
+    eq(rotuloDaCategoria('opcoes'), t('vote.preset.other'));
   }],
 
   ['votação sem título é nomeada pelas próprias opções', () => {
@@ -1295,14 +1302,19 @@ export const cases = [
     eq(tituloDaVotacao({ kind: 'opcoes', options: [], question: 'Carnage?' }),
       'Carnage?', 'título dado ganha da derivação');
 
-    // E chega assim na estatística.
+    // Isso é o TÍTULO, usado na linha do tempo da partida - onde interessa
+    // saber qual votação foi aquela. A estatística agrupa por categoria, que é
+    // outra pergunta: o que essa pessoa costuma escolher.
     const m = mesa(2);
     push(m, {
-      type: 'vote', kind: 'opcoes', options: ['Silence', 'Snitch'], question: '',
+      type: 'vote', preset: 'dilema', kind: 'opcoes',
+      options: ['Silence', 'Snitch'], question: '',
       ballots: [{ seatId: 's0', name: 'P0', choices: [0] }],
     });
     const p0 = aggregate([m]).players.find((x) => x.label === 'P0');
-    eq(Object.keys(p0.voteChoices), ['Silence / Snitch'], 'agrupado pelo nome derivado');
+    eq(Object.keys(p0.voteChoices), ['dilema'], 'a estatística agrupa pelo modelo');
+    eq(chaveDaVotacao(m.events[0]), 'Silence / Snitch',
+      'e o título continua saindo das opções quando ninguém escreveu um');
   }],
 
   ['rivalidades somam o dano de cada um contra o outro', () => {
@@ -1352,6 +1364,35 @@ export const cases = [
     const pares = rivalries([m]);
     eq(pares.length, 3, 'três pares, um por alvo');
     ok(pares.every((r) => r.total === 3), 'três de dano em cada');
+  }],
+
+  ['a linha de votação mostra a categoria e o total', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    store.wipe();
+    const m = mesa(2);
+    const votar = (q) => push(m, {
+      type: 'vote', preset: 'dilema', kind: 'opcoes', question: q,
+      options: ['Silence', 'Snitch'],
+      ballots: [{ seatId: 's0', name: 'P0', choices: [0] }],
+    });
+    votar("Prisoner's Dilemma");
+    votar('Quem entrega quem?');   // outra pergunta, mesmo modelo
+    store.archive(m);
+
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    renderStats(root, { onBack() {} });
+    fire(findAll(root, 'tab').find((b) => textOf(b) === t('stats.players')), 'click');
+
+    const perguntas = findAll(root, 'vote-history-q').map(textOf);
+    eq(perguntas.length, 1, 'as duas noites do mesmo modelo dão uma linha só');
+    eq(perguntas[0], "Prisoner's Dilemma", 'à esquerda, o tipo da votação');
+
+    const totais = findAll(root, 'vote-history-total').map(textOf);
+    eq(totais[0], '2', 'à direita, quantos votos a pessoa deu nessa categoria');
+    ok(findAll(root, 'vote-history-picks').map(textOf)[0].includes('Silence'),
+      'e o que ela escolheu continua ali');
   }],
 
   ['a aba de rivalidades compara um par por vez', () => {

@@ -33,7 +33,7 @@ function blank(key, label, extra = {}) {
     matchTime: 0,
     winReasons: {},  // motivo declarado -> quantas vitorias assim
     votes: 0,        // quantas votacoes secretas este jogador participou
-    voteChoices: {}, // pergunta -> { rotulo escolhido: quantas vezes }
+    voteChoices: {}, // categoria -> { rotulo escolhido: quantas vezes }
     ...extra,
   };
 }
@@ -209,8 +209,9 @@ export function aggregate(matches, apelidos = null) {
           }
           break;
         case 'vote': {
-          // Agrupa pela chave estavel; a traducao so acontece na tela.
-          const pergunta = chaveDaVotacao(ev);
+          // Agrupa pela CATEGORIA: e ela que diz o que a pessoa costuma
+          // escolher. A traducao so acontece na tela.
+          const pergunta = categoriaDaVotacao(ev);
           for (const cedula of ev.ballots || []) {
             const rotulos = (cedula.choices || []).map((c) => (
               ev.kind === 'numero' ? String(c) : (ev.options || [])[c]
@@ -264,6 +265,33 @@ export function chaveDaVotacao(ev) {
   if (ev && ev.kind === 'numero') return '#numero';
   const opcoes = ((ev && ev.options) || []).filter(Boolean);
   return opcoes.length ? opcoes.join(' / ') : '#semtitulo';
+}
+
+/**
+ * A CATEGORIA de uma votacao: o modelo usado, nao a pergunta escrita.
+ *
+ * Agrupar por pergunta livre espalhava a mesma coisa por varias linhas - cada
+ * jeito de escrever "quem entrega quem?" virava uma categoria propria - e ao
+ * mesmo tempo juntava coisas diferentes que por acaso tinham o mesmo titulo.
+ * A categoria e o que responde "essa pessoa costuma delatar?".
+ *
+ * Votacoes gravadas antes deste campo existir nao tem o modelo registrado. Da
+ * para recuperar o essencial pelo `kind`, e o resto vira uma categoria generica
+ * - inventar qual modelo foi usado seria pior que admitir que nao se sabe.
+ */
+export function categoriaDaVotacao(ev) {
+  if (ev && ev.preset) return ev.preset;
+  if (ev && ev.kind === 'numero') return 'numero';
+  return 'opcoes';
+}
+
+/** O nome da categoria, na lingua de agora. */
+export function rotuloDaCategoria(chave) {
+  if (chave === 'dilema') return "Prisoner's Dilemma"; // nome de carta, nao se traduz
+  if (chave === 'duas') return t('vote.preset.two');
+  if (chave === 'numero') return t('vote.preset.number');
+  if (chave === 'jogador') return t('vote.preset.player');
+  return t('vote.preset.other');
 }
 
 /** O texto de uma chave, na lingua de agora. */

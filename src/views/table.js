@@ -902,6 +902,13 @@ export function renderTable(root, ctx) {
             .map((s) => ({ id: s.id, name: s.name, votes: votos.get(s.id) }));
           const sessao = createSession({
             question: pergunta.trim(),
+            // A CATEGORIA da votacao, que a pergunta livre nao guarda.
+            //
+            // "Quem leva o combo?" nao diz que aquilo era um Prisoner's
+            // Dilemma, e sem isso a estatistica so podia agrupar por texto -
+            // uma linha nova a cada vez que alguem escreve a pergunta com
+            // outras palavras.
+            preset: preset.id,
             kind: preset.kind,
             options: opcoes.map((o) => o.trim()).filter(Boolean),
             voters: votantes,
@@ -1092,6 +1099,7 @@ export function renderTable(root, ctx) {
               apply({
                 type: 'vote',
                 question: sessao.question,
+                preset: sessao.preset,
                 kind: sessao.kind,
                 options: sessao.options,
                 ballots: sessao.voters.map((v) => ({

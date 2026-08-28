@@ -8,7 +8,7 @@ import { accentOf, identityGradient, pips } from '../colors.js';
 import {
   aggregate, rivalries, summarize, timeline, formatDuration, formatDate, pct, num,
   playerColorOrder, playerColor,
-  rotuloDaVotacao, rivalPeople, rivalBetween, orientarRival,
+  rotuloDaCategoria, rivalPeople, rivalBetween, orientarRival,
 } from '../stats.js';
 import { deckNameOf } from '../engine.js';
 import * as store from '../store.js';
@@ -304,24 +304,35 @@ function rivalCard(r, corDe) {
  * numa carta dessas.
  */
 function voteBlock(row) {
-  const perguntas = Object.entries(row.voteChoices || {});
-  if (!row.votes || !perguntas.length) return null;
+  const categorias = Object.entries(row.voteChoices || {});
+  if (!row.votes || !categorias.length) return null;
 
+  // Esquerda: que TIPO de votação era. Direita: o que a pessoa escolheu, e
+  // quantas vezes. Antes a esquerda trazia a pergunta escrita, que muda de
+  // uma noite para a outra e não diz nada sobre o comportamento de ninguém.
   return el('div', { class: 'vote-history' }, [
     el('span', { class: 'vote-history-title' }, [
       t('stats.voteChoices'),
       el('span', { class: 'vote-history-count', text: String(row.votes) }),
     ]),
-    ...perguntas.map(([pergunta, escolhas]) => el('div', { class: 'vote-history-row' }, [
-      el('span', { class: 'vote-history-q', text: rotuloDaVotacao(pergunta) }),
-      el('span', {
-        class: 'vote-history-a',
-        text: Object.entries(escolhas)
-          .sort((a, b) => b[1] - a[1])
-          .map(([rotulo, n]) => (n > 1 ? rotulo + ' ×' + n : rotulo))
-          .join(' · '),
-      }),
-    ])),
+    ...categorias
+      .map(([chave, escolhas]) => {
+        const itens = Object.entries(escolhas).sort((a, b) => b[1] - a[1]);
+        const total = itens.reduce((soma, [, n]) => soma + n, 0);
+        return { chave, itens, total };
+      })
+      // Categoria mais usada primeiro: é a que descreve melhor a pessoa.
+      .sort((a, b) => b.total - a.total)
+      .map(({ chave, itens, total }) => el('div', { class: 'vote-history-row' }, [
+        el('span', { class: 'vote-history-q', text: rotuloDaCategoria(chave) }),
+        el('span', { class: 'vote-history-a' }, [
+          el('span', {
+            class: 'vote-history-picks',
+            text: itens.map(([rotulo, n]) => (n > 1 ? rotulo + ' ×' + n : rotulo)).join(' · '),
+          }),
+          el('span', { class: 'vote-history-total', text: String(total) }),
+        ]),
+      ])),
   ]);
 }
 

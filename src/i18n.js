@@ -398,6 +398,8 @@ const PT = {
   'player.nameTaken': 'Esse jogador já está na mesa',
   'handle.accountTaken': 'Essa conta já está em outra cadeira',
 
+  'vote.preset.other': 'Outra votação',
+
   'settings.title': 'Configurações',
   'settings.sub': 'Valem para todas as partidas',
   'settings.language': 'Idioma',
@@ -806,6 +808,8 @@ const EN = {
 
   'player.nameTaken': 'That player is already at the table',
   'handle.accountTaken': 'That account is already in another seat',
+
+  'vote.preset.other': 'Other vote',
 
   'settings.title': 'Settings',
   'settings.sub': 'Apply to every match',
@@ -1216,6 +1220,8 @@ const ES = {
   'player.nameTaken': 'Ese jugador ya está en la mesa',
   'handle.accountTaken': 'Esa cuenta ya está en otro asiento',
 
+  'vote.preset.other': 'Otra votación',
+
   'settings.title': 'Ajustes',
   'settings.sub': 'Valen para todas las partidas',
   'settings.language': 'Idioma',
@@ -1624,6 +1630,8 @@ const DE = {
 
   'player.nameTaken': 'Diese Person sitzt schon am Tisch',
   'handle.accountTaken': 'Dieses Konto sitzt schon auf einem anderen Platz',
+
+  'vote.preset.other': 'Andere Abstimmung',
 
   'settings.title': 'Einstellungen',
   'settings.sub': 'Gelten für alle Partien',
