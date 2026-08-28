@@ -21,6 +21,29 @@
 
 export const NOVIDADES = [
   {
+    versao: '1.1.1',
+    data: '2026-08-28',
+    titulo: 'Colocação no idioma certo',
+    itens: [
+      {
+        tipo: 'corrigido',
+        texto: 'A colocação aparecia com a marca do português em qualquer '
+          + 'idioma — "1º" também para quem usa o app em inglês ou alemão. '
+          + 'Agora sai 1st, 2nd, 3rd em inglês e 1., 2., 3. em alemão.',
+      },
+      {
+        tipo: 'corrigido',
+        texto: 'Em inglês o texto era pior que a marca: a tradução produzia '
+          + '"1th place" e "2th place".',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'A colocação média deixou de levar marca de ordinal. Uma média '
+          + 'de 2,3 não é uma colocação, e o rótulo ao lado já diz o que é.',
+      },
+    ],
+  },
+  {
     versao: '1.1.0',
     data: '2026-08-28',
     titulo: 'Conta, nuvem e estatísticas por pessoa',

@@ -38,7 +38,7 @@ import { formatDuration, totalDamage } from '../stats.js';
 import * as store from '../store.js';
 import { layoutFor } from '../seating.js';
 import { preferOrientation, grausNaMesa, apontadorPreciso } from '../orientation.js';
-import { t, tn } from '../i18n.js';
+import { t, tn, ordinal } from '../i18n.js';
 // `pending` vira `faltamVotar`: renderTable ja tem um `pending` local (o Map
 // dos toques ainda nao confirmados), e o de fora ficaria sombreado.
 import {
@@ -1168,7 +1168,7 @@ export function renderTable(root, ctx) {
             // por turno os dois numeros passariam a discordar: o painel diria
             // 3o e o resumo diria 4o para a mesma pessoa, na mesma partida.
             text: lugarNaMesa.has(seat.id)
-              ? t('table.place', { n: lugarNaMesa.get(seat.id) })
+              ? t('table.place', { n: ordinal(lugarNaMesa.get(seat.id)) })
               : t('table.eliminated'),
           }),
         );
@@ -1624,6 +1624,3 @@ function bindHold(node, fn) {
   node.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
-function ordinal(n) {
-  return n + 'º';
-}

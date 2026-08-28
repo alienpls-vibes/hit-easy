@@ -15,7 +15,7 @@ import * as store from '../store.js';
 import * as cloud from '../cloud.js';
 import * as sync from '../sync.js';
 import { cloudEnabled } from '../config.js';
-import { t, tn, locale } from '../i18n.js';
+import { t, tn, locale, ordinal } from '../i18n.js';
 
 const TABS = [
   { id: 'decks', key: 'stats.decks' },
@@ -355,7 +355,7 @@ function statGrid(row) {
     [t('stats.healed'), num(row.avgHealed, 0), t('stats.perMatch')],
     [t('stats.kills'), num(row.avgKills, 1), t('stats.perMatch')],
     [t('stats.turns'), num(row.avgTurns, 1), t('stats.played')],
-    [t('stats.place'), num(row.avgPlace, 1) + 'º', t('stats.average')],
+    [t('stats.place'), num(row.avgPlace, 1), t('stats.average')],
     [t('stats.turnTime'), formatDuration(row.avgTurnTime), t('stats.average')],
   ];
   return el('div', { class: 'stat-grid' }, cells.map(([label, value, sub]) =>
@@ -398,7 +398,7 @@ function matchCard(match, refresh) {
     el('ol', { class: 'placings' }, s.standings.map(({ seatId, place }) => {
       const seat = match.seats.find((x) => x.id === seatId);
       return el('li', { class: 'placing' }, [
-        el('span', { class: 'placing-pos', text: place + 'º' }),
+        el('span', { class: 'placing-pos', text: ordinal(place) }),
         el('span', { class: 'placing-name', text: seat.name }),
         el('span', { class: 'placing-deck', text: deckNameOf(seat.commanders) }),
       ]);

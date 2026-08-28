@@ -22,7 +22,7 @@ import {
 import { LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf } from '../src/seating.js';
 import { createSession, cast, tally, pending, isComplete, describe } from '../src/vote.js';
 import { openFlow, closeSheet, dismissOnBackdrop, el, isSheetOpen, onSheetChange } from '../src/ui.js';
-import { DICTS, LANGS, t, tn, setLang, currentLang } from '../src/i18n.js';
+import { DICTS, LANGS, t, tn, setLang, currentLang, ordinal } from '../src/i18n.js';
 import { fromRow as linhaParaPartida } from '../src/cloud.js';
 import {
   accountState, assinaturaAtiva, sessaoValida, toRow, fromRow, pendentes,
@@ -1791,6 +1791,41 @@ export const cases = [
     const m = mesa(4);
     push(m, { type: 'sweep', sourceId: 's0', amount: 2, gain: 6, targets: ['s1', 's2', 's3'] });
     eq(totalDamage(m), 6, 'só os 2 × 3 que saíram, não os 6 que entraram');
+  }],
+
+  ['a colocação é escrita como cada língua escreve', () => {
+    // O `º` é indicador ordinal do português e do espanhol. Em inglês e alemão
+    // ele não existe, e estava aparecendo assim mesmo.
+    eq(ordinal(1, 'pt'), '1º');
+    eq(ordinal(4, 'es'), '4º');
+    eq(ordinal(1, 'de'), '1.', 'alemão usa ponto');
+    eq(ordinal(4, 'de'), '4.');
+
+    // O inglês era pior que um caractere errado: a tradução dizia "{n}th
+    // place", que produz "1th place", "2th place", "3th place".
+    eq(ordinal(1, 'en'), '1st');
+    eq(ordinal(2, 'en'), '2nd');
+    eq(ordinal(3, 'en'), '3rd');
+    eq(ordinal(4, 'en'), '4th');
+
+    // As exceções do inglês: 11, 12 e 13 levam "th" apesar de terminarem em 1,
+    // 2 e 3. Numa mesa de Commander isso nunca acontece - mas a função não sabe
+    // de onde é chamada, e regra pela metade é a que quebra quando alguém reusa.
+    eq(ordinal(11, 'en'), '11th');
+    eq(ordinal(12, 'en'), '12th');
+    eq(ordinal(13, 'en'), '13th');
+    eq(ordinal(21, 'en'), '21st');
+    eq(ordinal(111, 'en'), '111th', 'a regra olha os dois últimos dígitos');
+    eq(ordinal(101, 'en'), '101st');
+
+    // E a frase inteira, montada, em cada idioma.
+    setLang('pt'); eq(t('table.place', { n: ordinal(1) }), '1º lugar');
+    setLang('en'); eq(t('table.place', { n: ordinal(1) }), '1st place');
+    setLang('es'); eq(t('table.place', { n: ordinal(3) }), '3º puesto');
+    setLang('de'); eq(t('table.place', { n: ordinal(2) }), '2. Platz');
+    setLang('pt');
+
+    eq(ordinal('abc', 'en'), 'abc', 'o que não é número passa direto');
   }],
 
   ['os quatro idiomas têm exatamente as mesmas chaves', () => {
