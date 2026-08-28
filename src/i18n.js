@@ -395,6 +395,9 @@ const PT = {
   'stats.rivalSame': 'Escolha duas pessoas diferentes',
   'stats.rivalNone': 'Esses dois ainda não se enfrentaram',
 
+  'player.nameTaken': 'Esse jogador já está na mesa',
+  'handle.accountTaken': 'Essa conta já está em outra cadeira',
+
   'settings.title': 'Configurações',
   'settings.sub': 'Valem para todas as partidas',
   'settings.language': 'Idioma',
@@ -800,6 +803,9 @@ const EN = {
   'stats.rivalB': 'Against',
   'stats.rivalSame': 'Pick two different people',
   'stats.rivalNone': 'These two have not faced each other yet',
+
+  'player.nameTaken': 'That player is already at the table',
+  'handle.accountTaken': 'That account is already in another seat',
 
   'settings.title': 'Settings',
   'settings.sub': 'Apply to every match',
@@ -1207,6 +1213,9 @@ const ES = {
   'stats.rivalSame': 'Elige dos personas distintas',
   'stats.rivalNone': 'Estos dos aún no se han enfrentado',
 
+  'player.nameTaken': 'Ese jugador ya está en la mesa',
+  'handle.accountTaken': 'Esa cuenta ya está en otro asiento',
+
   'settings.title': 'Ajustes',
   'settings.sub': 'Valen para todas las partidas',
   'settings.language': 'Idioma',
@@ -1612,6 +1621,9 @@ const DE = {
   'stats.rivalB': 'Gegen',
   'stats.rivalSame': 'Wähle zwei verschiedene Personen',
   'stats.rivalNone': 'Diese beiden sind sich noch nicht begegnet',
+
+  'player.nameTaken': 'Diese Person sitzt schon am Tisch',
+  'handle.accountTaken': 'Dieses Konto sitzt schon auf einem anderen Platz',
 
   'settings.title': 'Einstellungen',
   'settings.sub': 'Gelten für alle Partien',

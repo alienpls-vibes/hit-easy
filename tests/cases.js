@@ -9,7 +9,7 @@
 // Primeiro de todos: instala o DOM simulado antes que ui.js seja avaliado.
 import { simulated, flushFrames, findAll, fire, textOf } from './dom-stub.js';
 import {
-  createMatch, replay, push, undo, standings, elapsedOf,
+  createMatch, replay, push, undo, standings, elapsedOf, pessoaRepetida,
   cmdKeyOf, CMD_LETHAL, POISON_LETHAL,
 } from '../src/engine.js';
 import {
@@ -175,6 +175,33 @@ export const cases = [
     const s = replay(m);
     eq(s.winnerId, 's0', 'vencedor');
     eq(s.finished, true, 'finalizada');
+  }],
+
+  ['a mesma pessoa não pode ocupar duas cadeiras', () => {
+    const mesa4 = [
+      { id: 's0', name: 'Alexandre', handle: 'alienpls' },
+      { id: 's1', name: 'Bruno' },
+      { id: 's2', name: 'Carla', handle: 'carlinha' },
+    ];
+    const nova = { id: 's3', name: '' };
+
+    eq(pessoaRepetida(mesa4, nova, { name: 'Davi' }), null, 'gente nova entra');
+    eq(pessoaRepetida(mesa4, nova, { name: 'Bruno' }), 'nome', 'nome repetido barra');
+    eq(pessoaRepetida(mesa4, nova, { name: ' bruno ' }), 'nome', 'espaço e caixa não driblam');
+
+    // O outro caminho para a mesma pessoa: a conta. Era o que não tinha trava
+    // nenhuma - dava para vincular @alienpls em duas cadeiras.
+    eq(pessoaRepetida(mesa4, nova, { handle: 'alienpls' }), 'conta', 'conta repetida barra');
+    eq(pessoaRepetida(mesa4, nova, { handle: '@AlienPls' }), 'conta', 'arroba e caixa não driblam');
+    eq(pessoaRepetida(mesa4, nova, { handle: 'outro' }), null, 'outra conta entra');
+
+    // A própria cadeira nunca conflita consigo mesma: editar quem já está
+    // sentado não pode ser recusado por ele próprio já estar ali.
+    eq(pessoaRepetida(mesa4, mesa4[1], { name: 'Bruno' }), null, 'a própria cadeira não conta');
+    eq(pessoaRepetida(mesa4, mesa4[0], { handle: 'alienpls' }), null);
+
+    eq(pessoaRepetida(mesa4, nova, {}), null, 'sem nada declarado, nada a barrar');
+    eq(pessoaRepetida(null, nova, { name: 'Bruno' }), null, 'sem mesa, sem conflito');
   }],
 
   ['colocação: vencedor em 1º, quem saiu por último vem antes', () => {
@@ -1971,6 +1998,41 @@ export const cases = [
     eq(findAll(pane, 'is-find').length, 1, 'caminho 2: procurar a conta');
     closeSheet();
     esquecerSessao();
+  }],
+
+  ['digitar o nome de quem já está na mesa é recusado', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+
+    // A lista de salvos já desabilitava quem estava sentado, mas digitar o
+    // mesmo nome na mão passava direto.
+    // Os nomes vêm da tela, não do padrão: o rascunho é compartilhado entre
+    // casos e pode ter sido mexido antes.
+    const nomes = () => findAll(root, 'seat-name-text').map(textOf);
+    const primeiro = nomes()[0];
+    const jaSentado = nomes()[1];
+    ok(primeiro !== jaSentado, 'as duas cadeiras começam com nomes distintos');
+
+    fire(findAll(root, 'seat-name')[0], 'click');
+    flushFrames();
+    const pane = telas()[telas().length - 1];
+    const campo = findAll(pane, 'search-input')[0];
+    const usar = findAll(pane, 'btn').find((b) => textOf(b) === t('player.use'));
+
+    campo.value = jaSentado;
+    fire(campo, 'input', { target: { value: jaSentado } });
+    fire(usar, 'click');
+    flushFrames();
+
+    // Não avançou para o deck, e a cadeira não virou a segunda pessoa.
+    const titulo = findAll(document.body, 'sheet-title').map(textOf).join(' ');
+    ok(titulo !== t('commander.title'), 'não pode seguir para o deck com nome repetido');
+    eq(nomes()[0], primeiro, 'a primeira cadeira continua sendo ela mesma');
+
+    closeSheet();
   }],
 
   ['digitar um nome vai direto ao deck', () => {

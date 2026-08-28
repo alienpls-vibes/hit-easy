@@ -131,4 +131,42 @@ if (policiesRuins.length) {
   process.exit(1);
 }
 
+/*
+ * O convite de instalacao tem de ser capturado ANTES dos modulos.
+ *
+ * O Chrome dispara `beforeinstallprompt` assim que decide que a pagina e
+ * instalavel, e isso pode acontecer antes de src/install.js ser avaliado.
+ * Quando acontecia, o evento se perdia e o botao de instalar aparecia so as
+ * vezes - o mesmo app, a mesma pagina, resultado diferente a cada abertura.
+ *
+ * A ordem no HTML e o conserto inteiro, e nada no codigo a defende: um dia
+ * alguem move o bloco "solto" para junto do resto e o defeito volta, sem que
+ * teste nenhum reclame.
+ */
+function conferirInstall() {
+  const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+  const captura = html.indexOf('beforeinstallprompt');
+  const modulo = html.indexOf('type="module"');
+  const install = readFileSync(join(ROOT, 'src/install.js'), 'utf8');
+
+  if (captura === -1) {
+    return 'index.html nao captura beforeinstallprompt: o botao de instalar fica intermitente';
+  }
+  if (modulo === -1) return 'index.html nao carrega o modulo do app';
+  if (captura > modulo) {
+    return 'a captura de beforeinstallprompt vem DEPOIS do modulo em index.html. '
+      + 'Nessa ordem o evento se perde quando o Chrome o dispara cedo.';
+  }
+  if (!install.includes('__hitEasyInstall')) {
+    return 'src/install.js nao le a gaveta window.__hitEasyInstall que index.html preenche';
+  }
+  return null;
+}
+
+const installRuim = conferirInstall();
+if (installRuim) {
+  console.error('\n\x1b[31m Convite de instalacao:\x1b[0m\n  ' + installRuim + '\n');
+  process.exit(1);
+}
+
 console.log(` \x1b[2m${files.length} módulos com sintaxe válida\x1b[0m`);

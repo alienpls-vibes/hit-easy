@@ -12,7 +12,7 @@ import {
 import { accentOf, pips } from '../colors.js';
 import { searchCommanders, isOffline } from '../scryfall.js';
 import * as store from '../store.js';
-import { uid, deckNameOf } from '../engine.js';
+import { uid, deckNameOf, pessoaRepetida } from '../engine.js';
 import { variantsFor, layoutFor } from '../seating.js';
 import { MODES, currentMode, applyTheme } from '../theme.js';
 import { t, tn, LANGS, currentLang, setLang } from '../i18n.js';
@@ -317,6 +317,7 @@ function playerStep(seat, refresh) {
       );
 
       const escolher = (nome) => {
+        if (nomeNaMesa(seat, nome)) { toast(t('player.nameTaken')); return; }
         seat.name = nome;
         store.rememberPlayer(nome);
         // Se ja se soube a que conta este nome pertence, nao pergunta de novo.
@@ -982,6 +983,15 @@ function accountBlock(onRefresh) {
 /* Vinculo com uma conta                                               */
 /* ------------------------------------------------------------------ */
 
+/** Atalhos sobre o rascunho; a regra em si mora no motor. */
+function nomeNaMesa(seat, nome) {
+  return pessoaRepetida(ensureDraft().seats, seat, { name: nome }) === 'nome';
+}
+
+function contaNaMesa(seat, handle) {
+  return pessoaRepetida(ensureDraft().seats, seat, { handle }) === 'conta';
+}
+
 /** So faz sentido oferecer vinculo para quem esta numa conta. */
 function podeVincular() {
   return cloudEnabled() && cloud.state() !== 'deslogado';
@@ -1043,6 +1053,11 @@ function buscaHandleStep(seat, refresh, { adotarNome = false, aoFim = 'fechar' }
       };
 
       const prender = (perfilAchado) => {
+        if (contaNaMesa(seat, perfilAchado.handle)) {
+          clear(achado);
+          achado.append(el('p', { class: 'account-erro is-on', text: t('handle.accountTaken') }));
+          return;
+        }
         if (adotarNome) {
           // O nome da conta e o que o resto da mesa reconhece. Sem isto a
           // cadeira ficaria com "Jogador 2" enquanto a estatistica registra

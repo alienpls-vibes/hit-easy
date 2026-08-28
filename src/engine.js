@@ -374,3 +374,32 @@ export function standings(match, state) {
   }
   return out;
 }
+
+/**
+ * Esta pessoa ja esta em outra cadeira?
+ *
+ * Regra da partida, nao da tela: uma mesa com alguem duplicado estraga tudo que
+ * vem depois - dano contra si mesma, rivalidade consigo, e uma classificacao
+ * que nao corresponde ao que aconteceu.
+ *
+ * Confere as duas identidades, porque sao dois caminhos diferentes de chegar na
+ * mesma pessoa: o nome digitado e a conta vinculada. Havia so meia trava - a
+ * lista de jogadores salvos desabilitava quem ja estava sentado, mas digitar o
+ * mesmo nome na mao passava, e a mesma CONTA em duas cadeiras nao era conferida
+ * em lugar nenhum.
+ */
+export function pessoaRepetida(seats, cadeira, { name, handle } = {}) {
+  const outros = (seats || []).filter((s) => s && s !== cadeira);
+
+  const h = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
+  if (h && outros.some((s) => String(s.handle || '').trim().replace(/^@+/, '').toLowerCase() === h)) {
+    return 'conta';
+  }
+
+  const n = String(name || '').trim().toLowerCase();
+  if (n && outros.some((s) => String(s.name || '').trim().toLowerCase() === n)) {
+    return 'nome';
+  }
+
+  return null;
+}

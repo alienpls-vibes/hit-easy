@@ -15,7 +15,15 @@
  * a opcao e deixar a pessoa sem saida.
  */
 
-let deferred = null;
+/**
+ * O evento pode ter chegado antes deste modulo existir.
+ *
+ * index.html guarda `beforeinstallprompt` numa gaveta desde o primeiro
+ * instante da pagina, justamente porque o Chrome costuma dispara-lo antes de os
+ * modulos terminarem de carregar. Ler a gaveta aqui e o que transforma o botao
+ * de instalar de intermitente em confiavel.
+ */
+let deferred = (typeof window !== 'undefined' && window.__hitEasyInstall) || null;
 const listeners = new Set();
 
 function notify() {
@@ -30,6 +38,7 @@ if (typeof window !== 'undefined') {
   });
   window.addEventListener('appinstalled', () => {
     deferred = null;
+    window.__hitEasyInstall = null;
     notify();
   });
 }
@@ -75,6 +84,9 @@ export async function promptInstall() {
   if (!deferred) return 'indisponivel';
   const evento = deferred;
   deferred = null; // so vale uma vez, mesmo que a pessoa recuse
+  // A gaveta tambem: senao um recarregamento de tela leria de novo um evento
+  // ja gasto e ofereceria um botao que nao faz nada.
+  if (typeof window !== 'undefined') window.__hitEasyInstall = null;
   notify();
   try {
     evento.prompt();
