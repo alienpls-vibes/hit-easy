@@ -8,9 +8,12 @@ import { accentOf, identityGradient, pips } from '../colors.js';
 import {
   aggregate, rivalries, summarize, timeline, formatDuration, formatDate, pct, num,
   playerColorOrder, playerColor,
+  rotuloDaCategoria, rivalPeople, rivalBetween, orientarRival,
 } from '../stats.js';
 import { deckNameOf } from '../engine.js';
 import * as store from '../store.js';
+import * as cloud from '../cloud.js';
+import { cloudEnabled } from '../config.js';
 import { t, tn, locale } from '../i18n.js';
 
 const TABS = [
@@ -22,11 +25,21 @@ const TABS = [
 
 let activeTab = 'decks';
 
+// Quem esta selecionado nos filtros de rivalidade. Fora do render porque a
+// tela se redesenha inteira ao ocultar um jogador ou apagar uma partida, e
+// perder a comparacao escolhida a cada mexida seria insuportavel.
+let rivalA = null;
+let rivalB = null;
+
 export function renderStats(root, { onBack }) {
   clear(root);
   const db = store.getDB();
   const matches = db.history || [];
-  const bruto = aggregate(matches);
+
+  // O aparelho sabe a que conta cada nome pertence; isso junta partidas
+  // gravadas antes de o @ existir com a conta certa.
+  const apelidos = store.knownHandles();
+  const bruto = aggregate(matches, apelidos);
   const recarregar = () => renderStats(root, { onBack });
 
   // Ocultar tira a LINHA da lista, nao os dados: o dano que essa pessoa causou
@@ -37,10 +50,10 @@ export function renderStats(root, { onBack }) {
   };
   // Uma cor por pessoa, estável entre partidas: é isso que deixa reconhecer
   // o mesmo jogador de relance. Deck continua com a identidade do comandante.
-  const ordemCores = playerColorOrder(matches);
-  const corDe = (nome) => playerColor(ordemCores, nome);
+  const ordemCores = playerColorOrder(matches, apelidos);
+  const corDe = (chave) => playerColor(ordemCores, chave);
 
-  const rivais = rivalries(matches).filter(
+  const rivais = rivalries(matches, apelidos).filter(
     (r) => !store.isPlayerHidden(r.a) && !store.isPlayerHidden(r.b),
   );
 
@@ -70,7 +83,7 @@ export function renderStats(root, { onBack }) {
       agg.players.forEach((row) => panel.append(playerCard(row, recarregar, corDe)));
     } else if (activeTab === 'rivals') {
       if (!rivais.length) panel.append(emptyRivals());
-      else rivais.forEach((r) => panel.append(rivalCard(r, corDe)));
+      else panel.append(rivalsTab(rivais, corDe, paint));
     } else {
       matches.forEach((m) => panel.append(matchCard(m, recarregar)));
     }
@@ -147,7 +160,7 @@ function deckCard(row, recarregar) {
 }
 
 function playerCard(row, recarregar, corDe) {
-  return el('article', { class: 'card', style: { '--accent': corDe(row.label) } }, [
+  return el('article', { class: 'card', style: { '--accent': corDe(row.key) } }, [
     el('header', { class: 'card-head' }, [
       el('div', {
         class: 'card-avatar is-tinted',
@@ -246,9 +259,9 @@ function rivalCard(r, corDe) {
   const total = r.total || 1;
   const ladoA = Math.round((r.aToB.damage / total) * 100);
 
-  const coluna = (nome, lado, alinhar) => el('div', {
+  const coluna = (nome, chave, lado, alinhar) => el('div', {
     class: 'rival-side' + (alinhar === 'end' ? ' is-end' : ''),
-    style: { '--accent': corDe(nome) },
+    style: { '--accent': corDe(chave) },
   }, [
     el('span', { class: 'rival-name', text: nome }),
     el('span', { class: 'rival-damage', text: String(lado.damage) }),
@@ -264,17 +277,17 @@ function rivalCard(r, corDe) {
 
   return el('article', {
     class: 'card rival-card',
-    style: { '--rival-b': corDe(r.b) },
+    style: { '--rival-b': corDe(r.keyB) },
   }, [
     el('div', { class: 'rival-head' }, [
-      coluna(r.a, r.aToB),
+      coluna(r.a, r.keyA, r.aToB),
       el('span', { class: 'rival-vs', text: 'vs' }),
-      coluna(r.b, r.bToA, 'end'),
+      coluna(r.b, r.keyB, r.bToA, 'end'),
     ]),
     el('div', { class: 'rival-bar' }, [
       el('div', {
         class: 'rival-bar-a',
-        style: { width: ladoA + '%', background: corDe(r.a) },
+        style: { width: ladoA + '%', background: corDe(r.keyA) },
       }),
     ]),
     el('span', {
@@ -294,24 +307,35 @@ function rivalCard(r, corDe) {
  * numa carta dessas.
  */
 function voteBlock(row) {
-  const perguntas = Object.entries(row.voteChoices || {});
-  if (!row.votes || !perguntas.length) return null;
+  const categorias = Object.entries(row.voteChoices || {});
+  if (!row.votes || !categorias.length) return null;
 
+  // Esquerda: que TIPO de votação era. Direita: o que a pessoa escolheu, e
+  // quantas vezes. Antes a esquerda trazia a pergunta escrita, que muda de
+  // uma noite para a outra e não diz nada sobre o comportamento de ninguém.
   return el('div', { class: 'vote-history' }, [
     el('span', { class: 'vote-history-title' }, [
       t('stats.voteChoices'),
       el('span', { class: 'vote-history-count', text: String(row.votes) }),
     ]),
-    ...perguntas.map(([pergunta, escolhas]) => el('div', { class: 'vote-history-row' }, [
-      el('span', { class: 'vote-history-q', text: pergunta }),
-      el('span', {
-        class: 'vote-history-a',
-        text: Object.entries(escolhas)
-          .sort((a, b) => b[1] - a[1])
-          .map(([rotulo, n]) => (n > 1 ? rotulo + ' ×' + n : rotulo))
-          .join(' · '),
-      }),
-    ])),
+    ...categorias
+      .map(([chave, escolhas]) => {
+        const itens = Object.entries(escolhas).sort((a, b) => b[1] - a[1]);
+        const total = itens.reduce((soma, [, n]) => soma + n, 0);
+        return { chave, itens, total };
+      })
+      // Categoria mais usada primeiro: é a que descreve melhor a pessoa.
+      .sort((a, b) => b.total - a.total)
+      .map(({ chave, itens, total }) => el('div', { class: 'vote-history-row' }, [
+        el('span', { class: 'vote-history-q', text: rotuloDaCategoria(chave) }),
+        el('span', { class: 'vote-history-a' }, [
+          el('span', {
+            class: 'vote-history-picks',
+            text: itens.map(([rotulo, n]) => (n > 1 ? rotulo + ' ×' + n : rotulo)).join(' · '),
+          }),
+          el('span', { class: 'vote-history-total', text: String(total) }),
+        ]),
+      ])),
   ]);
 }
 
@@ -518,4 +542,157 @@ function nomeDoDeck(chave) {
     }
   }
   return chave;
+}
+
+
+/**
+ * A aba de rivalidades: escolhe-se o par, e so ele aparece.
+ *
+ * Antes a aba despejava TODAS as duplas. Numa mesa de cinco isso ja da dez
+ * cartoes, e depois de algumas noites a comparacao que interessa esta perdida
+ * no meio de outras nove que ninguem pediu. Rivalidade e uma pergunta sobre
+ * duas pessoas especificas - a tela agora pergunta quais.
+ */
+function rivalsTab(pares, corDe, repintar) {
+  const gente = rivalPeople(pares);
+
+  // Sem escolha ainda: comeca pelo par de cima, que e o de maior atrito. Uma
+  // tela que abre vazia obrigaria a mexer em dois campos antes de ver qualquer
+  // coisa.
+  //
+  // A condicao e "esta pessoa ainda existe?", e nao "esta combinacao tem
+  // grafico?". Resetar por combinacao vazia desfazia a escolha no meio do
+  // caminho: ao trocar o campo da esquerda para quem ja estava na direita, os
+  // dois campos voltavam sozinhos ao par inicial - e era impossivel chegar ao
+  // par invertido, que e justamente o que se queria ver.
+  const conhecido = (k) => gente.some((g) => g.key === k);
+  if (!conhecido(rivalA) || !conhecido(rivalB)) {
+    rivalA = pares[0].keyA;
+    rivalB = pares[0].keyB;
+  }
+
+  const caixa = el('div', { class: 'rival-filters' });
+
+  const campo = (qual, escolhido, aoTrocar) => {
+    const sel = el('select', { class: 'rival-select', 'aria-label': qual });
+    gente.forEach((g) => {
+      const op = el('option', { value: g.key, text: g.label });
+      if (g.key === escolhido) op.setAttribute('selected', '');
+      sel.append(op);
+    });
+    sel.addEventListener('change', (e) => { aoTrocar(e.target.value); repintar(); });
+    return el('label', { class: 'rival-field' }, [
+      el('span', { class: 'menu-sub', text: qual }),
+      sel,
+    ]);
+  };
+
+  caixa.append(
+    campo(t('stats.rivalA'), rivalA, (v) => { rivalA = v; }),
+    el('span', { class: 'rival-vs', text: 'vs' }),
+    campo(t('stats.rivalB'), rivalB, (v) => { rivalB = v; }),
+  );
+
+  const fora = el('div', { class: 'rival-tab' }, [caixa]);
+
+  if (rivalA === rivalB) {
+    fora.append(el('p', { class: 'search-status', text: t('stats.rivalSame') }));
+    return fora;
+  }
+
+  const par = rivalBetween(pares, rivalA, rivalB);
+  if (!par) {
+    // Existir na lista nao garante ter cruzado com todo mundo.
+    fora.append(el('p', { class: 'search-status', text: t('stats.rivalNone') }));
+    return fora;
+  }
+
+  // O campo da esquerda manda no lado esquerdo do gráfico.
+  fora.append(rivalCard(orientarRival(par, rivalA), corDe));
+  return fora;
+}
+
+
+/**
+ * A tela de quem ainda nao tem acesso.
+ *
+ * Ela conta quantas partidas ja estao guardadas de proposito. Nao e enfeite: e
+ * a diferenca entre "pague para usar" e "o que e seu esta aqui, esperando".
+ * Continuar jogando e continuar gravando nunca foi bloqueado - so a leitura do
+ * historico e.
+ *
+ * O botao de conferir de novo existe porque a liberacao acontece FORA do app,
+ * na mao. Sem ele, a pessoa liberada teria de fechar e abrir o aplicativo para
+ * a assinatura ser relida, sem nenhuma pista de que era isso que faltava.
+ */
+export function renderPaywall(root, { onBack, onUnlock, verificando = false }) {
+  clear(root);
+  const quantas = (store.getDB().history || []).length;
+  const repintar = () => (onUnlock ? onUnlock() : null);
+  const estado = cloud.state();
+
+  const conferir = el('button', { class: 'btn ghost block' }, [t('paywall.recheck')]);
+  conferir.addEventListener('click', async () => {
+    conferir.disabled = true;
+    conferir.textContent = t('paywall.checking');
+    try {
+      await cloud.carregarAssinatura();
+    } catch {
+      /* sem rede: o estado continua o que era */
+    }
+    if (cloud.podeVerEstatisticas(cloudEnabled(), cloud.state())) { repintar(); return; }
+    conferir.disabled = false;
+    conferir.textContent = t('paywall.recheck');
+    toast(t('paywall.stillLocked'));
+  });
+
+  // Ainda perguntando ao servidor: nao da para NEGAR o que ainda nao se sabe.
+  // Antes o app tratava "nao perguntei" como "nao tem", e a tela de bloqueio
+  // piscava na cara de quem assina toda vez que o app subia.
+  if (verificando) {
+    root.append(el('div', { class: 'stats' }, [
+      el('header', { class: 'stats-head' }, [
+        el('button', {
+          class: 'icon-btn',
+          'aria-label': t('common.back'),
+          onClick: () => onBack && onBack(),
+        }, [icon('arrow')]),
+        el('h1', { class: 'stats-title', text: t('stats.title') }),
+      ]),
+      el('div', { class: 'paywall' }, [
+        el('p', { class: 'paywall-body', text: t('paywall.checking') }),
+      ]),
+    ]));
+    return;
+  }
+
+  const corpo = el('div', { class: 'paywall' }, [
+    el('h2', { class: 'paywall-title', text: t('paywall.title') }),
+    el('p', { class: 'paywall-body', text: t('paywall.body') }),
+    quantas
+      ? el('p', {
+        class: 'paywall-count',
+        text: quantas === 1 ? t('paywall.savedOne') : t('paywall.savedCount', { n: quantas }),
+      })
+      : null,
+    estado === 'deslogado'
+      ? el('button', {
+        class: 'btn primary block',
+        onClick: () => { toast(t('paywall.signInHint')); if (onBack) onBack(); },
+      }, [t('paywall.signInFirst')])
+      : conferir,
+    el('p', { class: 'account-note', text: t('paywall.earlyAccess') }),
+  ]);
+
+  root.append(el('div', { class: 'stats' }, [
+    el('header', { class: 'stats-head' }, [
+      el('button', {
+        class: 'icon-btn',
+        'aria-label': t('common.back'),
+        onClick: () => onBack && onBack(),
+      }, [icon('arrow')]),
+      el('h1', { class: 'stats-title', text: t('stats.title') }),
+    ]),
+    corpo,
+  ]));
 }

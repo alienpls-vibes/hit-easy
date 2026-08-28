@@ -15,7 +15,15 @@
  * a opcao e deixar a pessoa sem saida.
  */
 
-let deferred = null;
+/**
+ * O evento pode ter chegado antes deste modulo existir.
+ *
+ * index.html guarda `beforeinstallprompt` numa gaveta desde o primeiro
+ * instante da pagina, justamente porque o Chrome costuma dispara-lo antes de os
+ * modulos terminarem de carregar. Ler a gaveta aqui e o que transforma o botao
+ * de instalar de intermitente em confiavel.
+ */
+let deferred = (typeof window !== 'undefined' && window.__hitEasyInstall) || null;
 const listeners = new Set();
 
 function notify() {
@@ -30,6 +38,7 @@ if (typeof window !== 'undefined') {
   });
   window.addEventListener('appinstalled', () => {
     deferred = null;
+    window.__hitEasyInstall = null;
     notify();
   });
 }
@@ -75,6 +84,9 @@ export async function promptInstall() {
   if (!deferred) return 'indisponivel';
   const evento = deferred;
   deferred = null; // so vale uma vez, mesmo que a pessoa recuse
+  // A gaveta tambem: senao um recarregamento de tela leria de novo um evento
+  // ja gasto e ofereceria um botao que nao faz nada.
+  if (typeof window !== 'undefined') window.__hitEasyInstall = null;
   notify();
   try {
     evento.prompt();
@@ -83,4 +95,91 @@ export async function promptInstall() {
   } catch {
     return 'dismissed';
   }
+}
+
+/**
+ * Buscar uma versao nova do aplicativo instalado.
+ *
+ * O service worker ja se troca sozinho (skipWaiting no install), mas a PAGINA
+ * aberta continua rodando o codigo antigo ate ser recarregada - e um app
+ * instalado costuma ficar dias sem nunca ser fechado. Sem este botao, a pessoa
+ * relata um defeito ja corrigido e nao ha como pedir que ela "atualize".
+ *
+ * O detalhe que faz isto funcionar ou nao: `reg.update()` resolve quando a
+ * CHECAGEM termina, nao quando a instalacao acaba. Recarregar ali recarrega com
+ * o worker velho ainda no comando, que serve o shell antigo do cache - o app
+ * volta identico e parece que o botao nao fez nada. Por isso esperamos o
+ * `controllerchange`, que so dispara quando o worker novo assume de verdade.
+ *
+ * Devolve 'atualizando' quando ha versao nova, 'atual' quando nao ha.
+ */
+export async function atualizarApp(esperaMax = 10000) {
+  if (typeof navigator === 'undefined' || !navigator.serviceWorker) {
+    if (typeof location !== 'undefined') location.reload();
+    return 'atualizando';
+  }
+
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) { location.reload(); return 'atualizando'; }
+
+    await reg.update();
+
+    // Nem instalando nem esperando: nao veio codigo novo.
+    if (!reg.installing && !reg.waiting) return 'atual';
+
+    await new Promise((resolve) => {
+      let feito = false;
+      const terminar = () => {
+        if (feito) return;
+        feito = true;
+        resolve();
+      };
+      navigator.serviceWorker.addEventListener('controllerchange', terminar, { once: true });
+
+      // Worker parado em "waiting" de uma tentativa anterior nao sai de la
+      // sozinho: um empurrao resolve. O install ja chama skipWaiting, entao
+      // isto so importa para o caso preso.
+      if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+
+      // Rede ruim nao pode deixar a pessoa presa numa tela travada: passado o
+      // limite, recarrega assim mesmo. No pior caso ela toca de novo.
+      setTimeout(terminar, esperaMax);
+    });
+
+    location.reload();
+    return 'atualizando';
+  } catch {
+    return 'atual';
+  }
+}
+
+/**
+ * Que versao o service worker diz que e.
+ *
+ * A tela mostra APP_VERSION, que vem do modulo - e o modulo vem do cache. Se o
+ * cache estiver velho, a tela mente com toda a confianca do mundo. O worker e
+ * a unica parte que o navegador atualiza por fora, entao perguntar a ele revela
+ * a divergencia.
+ *
+ * Devolve null quando nao ha worker ou ele nao responde a tempo.
+ */
+export function versaoDoWorker(esperaMax = 1500) {
+  if (typeof navigator === 'undefined'
+    || !navigator.serviceWorker
+    || !navigator.serviceWorker.controller) {
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    let feito = false;
+    const responder = (v) => { if (!feito) { feito = true; resolve(v); } };
+    try {
+      const canal = new MessageChannel();
+      canal.port1.onmessage = (e) => responder(e.data || null);
+      navigator.serviceWorker.controller.postMessage({ type: 'VERSION' }, [canal.port2]);
+      setTimeout(() => responder(null), esperaMax);
+    } catch {
+      responder(null);
+    }
+  });
 }

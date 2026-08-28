@@ -36,7 +36,24 @@ Se devolver suas partidas sem assinatura ativa, alguma política não foi aplica
 
 ---
 
-## 2. Login com Google e Apple
+## 2. Como se entra
+
+**E-mail e senha** é o caminho normal, e funciona em qualquer aparelho sem
+depender da caixa de entrada. Quem chegou por link mágico define uma senha uma
+vez nas configurações e nunca mais precisa de e-mail.
+
+O **link por e-mail** continua ali, discreto: é o caminho de quem esqueceu a
+senha, e o único que não exige lembrar de nada.
+
+A sessão **se renova sozinha** pelo `refresh_token`. Antes disso ela era
+descartada ao vencer — o login durava uma hora e depois exigia um e-mail novo,
+para sempre. Se o servidor recusar o token no meio de uma sincronização, o app
+tenta renovar e refaz o pedido uma vez antes de desistir.
+
+O mínimo de senha aqui é 8 caracteres; o do Supabase é 6. Ser mais exigente que
+o servidor é seguro — o contrário produziria um 400 que o app não previu.
+
+## 2b. Login com Google e Apple
 
 **Authentication → Providers**, no painel do Supabase.
 
@@ -107,3 +124,68 @@ sessão autenticada na mão: gravar partida devolveu `201`, ler de volta sem
 assinatura devolveu `[]` (o portão fechado, exatamente como projetado), e apagar
 devolveu `204` mesmo sem assinar — o direito de tirar o próprio dado não pode
 depender de pagamento.
+
+---
+
+## 4. Participantes de uma partida (v1)
+
+Rode `sql/002-participantes.sql` no SQL Editor, depois de `schema.sql`.
+
+O problema: a partida tem **um** aparelho que a registrou e **vários** jogadores.
+Quem jogou no celular do amigo não tinha aquela partida.
+
+A solução **não** é o anfitrião marcar `@fulano` e pronto — isso deixaria outra
+pessoa escrever no seu histórico. O anfitrião **convida**; a partida só entra no
+histórico de alguém quando essa pessoa aceita. Quem confia no anfitrião marca
+"aceitar sempre" e nunca mais pensa nisso.
+
+| peça | onde |
+|---|---|
+| `@` público, busca só por igualdade exata | `profiles` + `buscar_handle()` |
+| quem sentou em cada cadeira | `match_players` |
+| aceitar sozinho de quem você confia | `trusted_hosts` + gatilho |
+| quem te convidou, sem entregar a partida | `anfitriao_do_convite()` |
+
+Dois pontos que valem saber:
+
+**O convite aparece sem assinatura, de propósito.** Quem não assina precisa ver
+que há partidas esperando, senão nunca aceita e nunca soube que existiam. Ler o
+*conteúdo* é que é pago — e "3 partidas esperando por você" é o melhor argumento
+de conversão que o app tem.
+
+**Apagar não reescreve o passado alheio.** Se o anfitrião apagar uma mesa que
+outra pessoa já aceitou, a linha perde o dono em vez de morrer. Para o anfitrião
+o efeito é o mesmo (some da conta dele); para o convidado, o histórico continua
+de pé. Sem isso, apagar viraria um jeito de editar a estatística dos outros.
+
+---
+
+## 5. Liberar o premium na mão (enquanto não há cobrança)
+
+As estatísticas já estão atrás da paywall. Quem não tem assinatura ativa vê a
+tela de bloqueio no lugar do histórico — e continua jogando e gravando
+normalmente, porque só a *leitura* é paga.
+
+Para liberar alguém, use os blocos de `sql/acesso-manual.sql` no SQL Editor.
+Cada um é para copiar sozinho, trocando o e-mail.
+
+**A pessoa precisa ter entrado no app pelo menos uma vez** antes de poder ser
+liberada — sem conta criada não há a quem dar acesso, e o comando devolve
+`INSERT 0 0`.
+
+Depois de liberar, o app não descobre sozinho: no aparelho dela, a tela de
+bloqueio tem **"Já tenho acesso, conferir"**, que relê a assinatura. Sem esse
+botão a pessoa teria de fechar e abrir o aplicativo sem nenhuma pista de que era
+isso que faltava.
+
+### Por que não há um botão de admin no app
+
+O portão é o RLS. A tabela `subscriptions` não tem política de `insert` nem de
+`update`, de propósito: o aplicativo **não consegue** escrever nela. Só o SQL
+Editor e, no futuro, o webhook do Stripe.
+
+E não criei uma função `liberar_premium(email)` no banco porque o Supabase
+concede `execute` a `anon` e `authenticated` por privilégio padrão. Isso já
+mordeu este projeto uma vez — `buscar_handle` ficou aberta para quem não tinha
+conta nenhuma, e só apareceu testando contra o servidor. Uma função que libera
+premium com o mesmo descuido deixaria qualquer pessoa logada se auto-liberar.

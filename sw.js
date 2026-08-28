@@ -11,7 +11,9 @@
  *    proprio cache de busca em localStorage).
  */
 
-const VERSION = 'v27';
+// Mesma string de APP_VERSION em src/version.js - worker nao importa modulo.
+// Se mudar la, mude aqui; check-syntax.js confere os dois.
+const VERSION = '1.1.0';
 
 /**
  * Producao e beta dividem a mesma origem, e Cache Storage e por origem. O canal
@@ -55,6 +57,7 @@ const ASSETS = [
   './src/i18n.js',
   './src/canal.js',
   './src/config.js',
+  './src/version.js',
   './src/cloud.js',
   './src/scryfall.js',
   './src/views/setup.js',
@@ -64,13 +67,47 @@ const ASSETS = [
   './icons/icon-512.png',
 ];
 
+/**
+ * Pedido que NAO aceita resposta do cache do navegador.
+ *
+ * `cache.add(url)` faz um fetch comum, e fetch comum passa pelo cache HTTP. O
+ * GitHub Pages manda `max-age=600` em tudo, entao um worker novo instalava e
+ * enchia o cache novo com os arquivos VELHOS que o navegador ainda guardava:
+ * versao nova do worker, conteudo antigo. O app "atualizava" e continuava
+ * exatamente igual - por ate dez minutos, sem explicacao visivel.
+ *
+ * `cache: 'reload'` obriga a ir na rede.
+ */
+function daRede(url) {
+  return new Request(url, { cache: 'reload' });
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(SHELL)
       // addAll falha inteiro se um item faltar; item a item e mais tolerante.
-      .then((cache) => Promise.allSettled(ASSETS.map((url) => cache.add(url))))
+      .then((cache) => Promise.allSettled(ASSETS.map((url) => cache.add(daRede(url)))))
       .then(() => self.skipWaiting()),
   );
+});
+
+/**
+ * Destravar um worker parado em "waiting".
+ *
+ * O install ja chama skipWaiting, entao normalmente nao ha ninguem esperando.
+ * Mas se uma atualizacao anterior ficou presa - a aba ficou aberta durante a
+ * troca, por exemplo -, o botao de atualizar manda esta mensagem e o worker
+ * novo assume em vez de esperar todas as abas fecharem.
+ */
+self.addEventListener('message', (event) => {
+  if (!event.data) return;
+  if (event.data.type === 'SKIP_WAITING') self.skipWaiting();
+  // Diagnostico: a tela mostra a versao do MODULO, que vem do cache. Se o
+  // worker responder outra, e sinal de cache velho servindo codigo antigo -
+  // exatamente o que aconteceu e nao dava para ver de fora.
+  if (event.data.type === 'VERSION' && event.ports && event.ports[0]) {
+    event.ports[0].postMessage(VERSION);
+  }
 });
 
 self.addEventListener('activate', (event) => {
@@ -117,7 +154,9 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.open(SHELL).then(async (cache) => {
       const hit = await cache.match(request, { ignoreSearch: true });
-      const fresh = fetch(request)
+      // Tambem sem o cache do navegador: revalidar contra ele nao revalida
+      // nada, so recopia o que ja estava velho.
+      const fresh = fetch(new Request(request, { cache: 'reload' }))
         .then((res) => {
           if (res.ok) cache.put(request, res.clone());
           return res;

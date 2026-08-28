@@ -7,17 +7,22 @@
  */
 
 import {
-  el, clear, icon, brandMark, openSheet, openFlow, buzz, toast, setHaptics,
+  el, clear, icon, brandMark, openSheet, openFlow, closeSheet, buzz, toast, setHaptics,
 } from '../ui.js';
 import { accentOf, pips } from '../colors.js';
 import { searchCommanders, isOffline } from '../scryfall.js';
 import * as store from '../store.js';
-import { uid, deckNameOf } from '../engine.js';
+import { uid, deckNameOf, pessoaRepetida } from '../engine.js';
 import { variantsFor, layoutFor } from '../seating.js';
 import { MODES, currentMode, applyTheme } from '../theme.js';
 import { t, tn, LANGS, currentLang, setLang } from '../i18n.js';
-import { state as installState, promptInstall, onInstallChange } from '../install.js';
+import {
+  state as installState, promptInstall, onInstallChange, atualizarApp, versaoDoWorker,
+} from '../install.js';
+import { APP_VERSION } from '../version.js';
+import { canal } from '../canal.js';
 import * as cloud from '../cloud.js';
+import { handleValido, exibirHandle, normalizarHandle } from '../cloud.js';
 import { cloudEnabled, CHECKOUT_URL } from '../config.js';
 import { formatDate } from '../stats.js';
 
@@ -198,7 +203,7 @@ function seatCard(seat, index, refresh) {
     el('div', { class: 'seat-grip', 'aria-label': t('setup.reorder') }, [icon('grip')]),
     seatSpot(index),
     art,
-    el('div', { class: 'seat-info' }, [nameBtn, deckLine, partnerBtn]),
+    el('div', { class: 'seat-info' }, [nameBtn, handleLine(seat, refresh), deckLine, partnerBtn]),
     el('button', {
       class: 'seat-remove',
       'aria-label': t('setup.removePlayer'),
@@ -316,11 +321,16 @@ function playerStep(seat, refresh) {
       );
 
       const escolher = (nome) => {
+        if (nomeNaMesa(seat, nome)) { toast(t('player.nameTaken')); return; }
         seat.name = nome;
         store.rememberPlayer(nome);
+        // Se ja se soube a que conta este nome pertence, nao pergunta de novo.
+        const lembrado = store.handleOf(nome);
+        if (lembrado) { seat.handle = lembrado; seat.userId = null; }
+        else if (seat.handle) { seat.handle = ''; seat.userId = null; }
         buzz(12);
         refresh();
-        api.next(commanderStep(seat, 0, refresh)); // segue direto para o deck
+        api.next(commanderStep(seat, 0, refresh));
       };
 
       const input = el('input', {
@@ -333,6 +343,7 @@ function playerStep(seat, refresh) {
         },
       });
 
+      pane.append(el('p', { class: 'sheet-legend', text: t('player.createNew') }));
       pane.append(el('div', { class: 'name-row' }, [
         input,
         el('button', {
@@ -340,6 +351,25 @@ function playerStep(seat, refresh) {
           onClick: () => { if (input.value.trim()) escolher(input.value.trim()); },
         }, [t('player.use')]),
       ]));
+
+      // O outro caminho: em vez de digitar um nome solto, achar a CONTA da
+      // pessoa. A partida ja nasce ligada a ela, e a estatistica dela recebe
+      // esta mesa sem ninguem precisar lembrar de vincular depois.
+      if (podeVincular()) {
+        pane.append(el('button', {
+          class: 'player-row is-find',
+          onClick: () => api.next(buscaHandleStep(seat, refresh, {
+            adotarNome: true,
+            aoFim: 'deck',
+          })),
+        }, [
+          el('span', { class: 'player-avatar', text: '@' }),
+          el('span', { class: 'player-text' }, [
+            el('span', { class: 'player-name', text: t('player.findUser') }),
+            el('span', { class: 'player-sub', text: t('player.findUserSub') }),
+          ]),
+        ]));
+      }
 
       const salvos = store.knownPlayers();
       if (!salvos.length) {
@@ -349,7 +379,7 @@ function playerStep(seat, refresh) {
       }
 
       const linha = (nome, ocupado) => {
-        const decks = store.decksOfPlayer(nome);
+        const decks = store.decksOfPlayer(nome, store.handleOf(nome));
         return el('button', {
           class: 'player-row' + (ocupado ? ' is-busy' : ''),
           disabled: ocupado,
@@ -438,7 +468,7 @@ function commanderStep(seat, slot, refresh) {
 
       const showSaved = () => {
         clear(results);
-        const meus = store.decksOfPlayer(seat.name);
+        const meus = store.decksOfPlayer(seat.name, seat.handle);
         const jaListados = new Set();
 
         if (meus.length) {
@@ -585,7 +615,7 @@ function openPreGame(d, onStart) {
               onClick: () => { layoutId = v.id; pintarLayout(); buzz(); },
             }, [
               layoutPreview(v),
-              el('span', { class: 'layout-label', text: v.label }),
+              el('span', { class: 'layout-label', text: t(v.labelKey) }),
             ]));
           });
         };
@@ -652,8 +682,16 @@ function seatSpot(index) {
 
 /** Miniatura da mesa, com o número mostrando a ordem dos turnos. */
 function layoutPreview(layout) {
+  // A previa assume a proporcao do APARELHO, nao so a da grade.
+  //
+  // Com dois jogadores as duas opcoes tem a mesma grade - uma pilha de dois -,
+  // e sem isto elas ficariam identicas na tela, parecendo defeito. O que muda
+  // de verdade e o formato do aparelho na mesa, entao e o formato que a
+  // miniatura precisa mostrar.
+  const forma = layout.orient === 'landscape' ? ' is-land'
+    : layout.orient === 'portrait' ? ' is-port' : '';
   return el('div', {
-    class: 'layout-mini',
+    class: 'layout-mini' + forma,
     style: {
       gridTemplateColumns: 'repeat(' + layout.cols + ', 1fr)',
       gridTemplateRows: 'repeat(' + layout.rows + ', 1fr)',
@@ -768,6 +806,27 @@ function openSettings(onRefresh) {
         class: 'settings-note',
         text: t('settings.dataNote'),
       }));
+
+      // A versao fecha as configuracoes.
+      //
+      // Quem relata um problema precisa conseguir dizer QUAL app quebrou, e o
+      // canal precisa aparecer junto: um defeito do beta investigado como se
+      // fosse de producao custa horas.
+      const linhaVersao = el('p', {
+        class: 'settings-version',
+        text: 'Hit Easy ' + APP_VERSION
+          + (canal() === 'beta' ? ' \u00b7 beta' : ''),
+      });
+      pane.append(linhaVersao);
+
+      // Se o worker disser outra versao, e cache velho servindo codigo antigo.
+      // Sem isto o defeito e invisivel: a tela mostra a versao do modulo, o
+      // modulo vem do cache, e o cache mente com toda a confianca do mundo.
+      versaoDoWorker().then((v) => {
+        if (v && v !== APP_VERSION) {
+          linhaVersao.textContent += ' \u00b7 ' + t('settings.staleCache', { n: v });
+        }
+      });
     },
   });
 }
@@ -829,6 +888,25 @@ function installBlock(onRefresh) {
         el('span', { class: 'menu-label', text: t('settings.installed') }),
         el('span', { class: 'menu-sub', text: t('settings.installedSub') }),
       ]));
+
+      // Instalado, o app costuma ficar dias sem nunca ser fechado - e a pagina
+      // aberta continua rodando o codigo antigo mesmo depois de o service
+      // worker se trocar. Sem este botao, quem relata um defeito ja corrigido
+      // nao tem como ser atendido com "atualize".
+      const atualizar = el('button', { class: 'menu-item' }, [
+        el('span', { class: 'menu-label' }, [icon('download'), t('settings.update')]),
+        el('span', { class: 'menu-sub', text: t('settings.updateSub') }),
+      ]);
+      atualizar.addEventListener('click', async () => {
+        atualizar.disabled = true;
+        const r = await atualizarApp();
+        if (r === 'atual') {
+          atualizar.disabled = false;
+          toast(t('settings.updateNone'));
+        }
+        // 'atualizando' recarrega a pagina sozinho: nao ha o que fazer aqui.
+      });
+      box.append(atualizar);
       return;
     }
 
@@ -893,46 +971,7 @@ function accountBlock(onRefresh) {
     const estado = cloud.state();
 
     if (estado === 'deslogado') {
-      const campo = el('input', {
-        class: 'search-input',
-        type: 'email',
-        inputmode: 'email',
-        autocomplete: 'email',
-        placeholder: t('account.emailLabel'),
-        'aria-label': t('account.emailLabel'),
-      });
-      const enviar = el('button', { class: 'btn primary block' }, [t('account.sendLink')]);
-      const aviso = el('p', { class: 'account-note', text: t('account.why') });
-
-      enviar.addEventListener('click', async () => {
-        const email = campo.value.trim();
-        if (!emailValido(email)) { toast(t('account.invalidEmail')); return; }
-        enviar.disabled = true;
-        enviar.textContent = t('account.sending');
-        try {
-          await cloud.enviarLink(email);
-          clear(caixa);
-          caixa.append(
-            el('p', { class: 'account-sent', text: t('account.linkSent', { email }) }),
-            el('p', { class: 'account-note', text: t('account.linkSentHint') }),
-          );
-        } catch {
-          enviar.disabled = false;
-          enviar.textContent = t('account.sendLink');
-          toast(t('account.failed'));
-        }
-      });
-
-      caixa.append(campo, enviar);
-      // Google so aparece se estiver configurado no Supabase - um botao que
-      // leva a erro e pior que botao nenhum.
-      if (cloud.provedores().includes('google')) {
-        caixa.append(el('button', {
-          class: 'btn ghost block',
-          onClick: () => cloud.entrarCom('google'),
-        }, [t('account.withGoogle')]));
-      }
-      caixa.append(aviso);
+      caixa.append(loginBlock(pintar, onRefresh));
       return;
     }
 
@@ -947,6 +986,10 @@ function accountBlock(onRefresh) {
         onClick: async () => { await cloud.sair(); pintar(); if (onRefresh) onRefresh(); },
       }, [t('account.signOut')]),
     ]));
+
+    caixa.append(senhaBlock());
+    caixa.append(handleBlock());
+    caixa.append(invitesBlock());
 
     const assinatura = cloud.subscription();
     if (estado === 'assinante') {
@@ -976,5 +1019,609 @@ function accountBlock(onRefresh) {
 
   pintar();
   cloud.onAccountChange(pintar);
+  return caixa;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Vinculo com uma conta                                               */
+/* ------------------------------------------------------------------ */
+
+/** Atalhos sobre o rascunho; a regra em si mora no motor. */
+function nomeNaMesa(seat, nome) {
+  return pessoaRepetida(ensureDraft().seats, seat, { name: nome }) === 'nome';
+}
+
+function contaNaMesa(seat, handle) {
+  return pessoaRepetida(ensureDraft().seats, seat, { handle }) === 'conta';
+}
+
+/** So faz sentido oferecer vinculo para quem esta numa conta. */
+function podeVincular() {
+  return cloudEnabled() && cloud.state() !== 'deslogado';
+}
+
+/**
+ * O @ logo abaixo do nome, na mesma coluna do deck.
+ *
+ * Antes era um chip solto no canto do cartao: ficava longe do nome a que se
+ * referia e disputava espaco com a alca de arrastar. Aqui ele le como o que e -
+ * uma segunda linha do jogador, do lado do deck que tambem descreve a cadeira.
+ */
+function handleLine(seat, refresh) {
+  if (!podeVincular()) return null;
+
+  const vinculado = handleValido(seat.handle);
+  return el('button', {
+    class: 'seat-handle' + (vinculado ? ' is-on' : ''),
+    'aria-label': vinculado ? exibirHandle(seat.handle) : t('handle.link'),
+    onClick: () => openFlow(buscaHandleStep(seat, refresh, {
+      adotarNome: false,
+      aoFim: 'fechar',
+    })),
+  }, [vinculado ? exibirHandle(seat.handle) : t('handle.link')]);
+}
+
+/**
+ * Procura a conta pelo @ e prende a cadeira nela.
+ *
+ * A busca e por igualdade exata, do lado do servidor. Nao existe lista nem
+ * sugestao por prefixo: da para confirmar um @ que voce ja conhece, nunca para
+ * descobrir quem tem conta no app.
+ *
+ * Serve aos dois caminhos, porque sao a mesma tela com dois destinos:
+ *
+ *   adotarNome  a pessoa esta ESCOLHENDO quem senta aqui, entao o nome da
+ *               cadeira passa a ser o nome da conta encontrada;
+ *   aoFim       'deck' segue para o comandante (veio do fluxo de montar a
+ *               mesa), 'fechar' so fecha (veio do cartao, para editar).
+ */
+function buscaHandleStep(seat, refresh, { adotarNome = false, aoFim = 'fechar' } = {}) {
+  return {
+    title: adotarNome ? t('player.findUser') : t('handle.title'),
+    subtitle: adotarNome ? t('player.findUserSub') : t('handle.sub', { name: seat.name }),
+    build: (pane, api) => {
+      const achado = el('div', { class: 'handle-result' });
+
+      const adiante = () => {
+        if (aoFim === 'deck') api.next(commanderStep(seat, 0, refresh));
+        else closeSheet();
+      };
+
+      const soltar = () => {
+        seat.handle = '';
+        seat.userId = null;
+        store.rememberHandle(seat.name, '');
+        refresh();
+        adiante();
+      };
+
+      const prender = (perfilAchado) => {
+        if (contaNaMesa(seat, perfilAchado.handle)) {
+          clear(achado);
+          achado.append(el('p', { class: 'account-erro is-on', text: t('handle.accountTaken') }));
+          return;
+        }
+        if (adotarNome) {
+          // O nome da conta e o que o resto da mesa reconhece. Sem isto a
+          // cadeira ficaria com "Jogador 2" enquanto a estatistica registra
+          // outra pessoa - dois nomes para a mesma cadeira.
+          const nome = (perfilAchado.display_name || perfilAchado.handle).slice(0, 18);
+          seat.name = nome;
+          store.rememberPlayer(nome);
+        }
+        seat.handle = perfilAchado.handle;
+        seat.userId = perfilAchado.id;
+        store.rememberHandle(seat.name, perfilAchado.handle);
+        buzz(12);
+        refresh();
+        adiante();
+      };
+
+      const input = el('input', {
+        class: 'search-input',
+        placeholder: '@exemplo',
+        autocapitalize: 'none',
+        autocorrect: 'off',
+        spellcheck: 'false',
+        maxlength: '21',
+        value: !adotarNome && seat.handle ? exibirHandle(seat.handle) : '',
+        'aria-label': t('handle.title'),
+      });
+
+      const procurar = async () => {
+        const bruto = input.value;
+        clear(achado);
+        if (!handleValido(bruto)) {
+          achado.append(el('p', { class: 'account-note', text: t('handle.invalid') }));
+          return;
+        }
+        achado.append(el('p', { class: 'account-note', text: t('handle.searching') }));
+        try {
+          const perfilAchado = await cloud.buscarHandle(bruto);
+          clear(achado);
+          if (!perfilAchado) {
+            achado.append(el('p', {
+              class: 'account-note',
+              text: t('handle.notFound', { handle: exibirHandle(bruto) }),
+            }));
+            return;
+          }
+          achado.append(el('div', { class: 'handle-found' }, [
+            el('span', { class: 'menu-label', text: exibirHandle(perfilAchado.handle) }),
+            perfilAchado.display_name
+              ? el('span', { class: 'menu-sub', text: perfilAchado.display_name })
+              : null,
+          ]));
+          achado.append(el('button', {
+            class: 'btn primary block',
+            onClick: () => prender(perfilAchado),
+          }, [t('handle.use')]));
+        } catch {
+          clear(achado);
+          achado.append(el('p', { class: 'account-note', text: t('account.failed') }));
+        }
+      };
+
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') procurar(); });
+
+      pane.append(el('div', { class: 'name-row' }, [
+        input,
+        el('button', { class: 'btn primary', onClick: procurar }, [t('handle.search')]),
+      ]));
+      pane.append(achado);
+      pane.append(el('p', { class: 'account-note', text: t('handle.why') }));
+
+      if (!adotarNome && handleValido(seat.handle)) {
+        pane.append(el('button', { class: 'btn ghost block', onClick: soltar },
+          [t('handle.unlink')]));
+      }
+    },
+  };
+}
+
+/**
+ * O proprio @: como amigos marcam voce na mesa deles.
+ *
+ * Quem nao escolher um @ continua usando o app inteiro normalmente - so nao
+ * pode ser convidado. E opcional de proposito.
+ */
+function handleBlock() {
+  const caixa = el('div', { class: 'account-handle' });
+  const perfil = cloud.meuPerfil();
+
+  caixa.append(el('p', { class: 'sheet-legend', text: t('account.yourHandle') }));
+
+  if (perfil && perfil.handle) {
+    // Ja criado: nao e um campo de texto.
+    //
+    // O @ e por onde os amigos marcam a pessoa na mesa deles. Deixar isso como
+    // um input com botao de salvar convida a trocar sem querer - e trocar de @
+    // quebra a marcacao que os outros ja tinham guardado. Trocar continua
+    // possivel, mas por uma porta separada, que confere se o nome esta livre
+    // antes de deixar salvar.
+    caixa.append(el('div', { class: 'account-row' }, [
+      el('span', { class: 'account-handle-fixo', text: exibirHandle(perfil.handle) }),
+      el('button', {
+        class: 'account-out',
+        onClick: () => openFlow(trocarHandleStep()),
+      }, [t('account.handleChange')]),
+    ]));
+    caixa.append(el('p', { class: 'account-note', text: t('account.handleLocked') }));
+    return caixa;
+  }
+
+  caixa.append(el('button', {
+    class: 'btn primary block',
+    onClick: () => openFlow(trocarHandleStep()),
+  }, [t('account.handleCreate')]));
+  caixa.append(el('p', { class: 'account-note', text: t('account.handleHint') }));
+  return caixa;
+}
+
+/**
+ * Escolher ou trocar o proprio @, conferindo antes se esta livre.
+ *
+ * A conferencia e uma consulta, nao uma reserva: entre a resposta e o
+ * salvamento alguem pode pegar o mesmo nome. Quem decide de verdade e o indice
+ * unico do banco. O valor disto e nao deixar a pessoa digitar, confirmar e so
+ * entao descobrir que o nome era de outro.
+ */
+function trocarHandleStep() {
+  const perfil = cloud.meuPerfil();
+  return {
+    title: perfil && perfil.handle ? t('handle.changeTitle') : t('handle.chooseTitle'),
+    subtitle: t('account.handleHint'),
+    build: (pane) => {
+      const recado = el('div', { class: 'handle-result' });
+      let livre = null;   // o @ conferido e aprovado, se houver
+
+      const usar = el('button', { class: 'btn primary block' }, [t('handle.useThis')]);
+      usar.disabled = true;
+
+      const input = el('input', {
+        class: 'search-input',
+        placeholder: '@exemplo',
+        autocapitalize: 'none',
+        autocorrect: 'off',
+        spellcheck: 'false',
+        maxlength: '21',
+        'aria-label': t('account.yourHandle'),
+      });
+
+      // Qualquer letra nova invalida a conferencia anterior: sem isto daria
+      // para conferir um nome livre, digitar outro e salvar o segundo sem
+      // nunca ter perguntado nada sobre ele.
+      input.addEventListener('input', () => {
+        livre = null;
+        usar.disabled = true;
+        clear(recado);
+      });
+
+      const conferir = async () => {
+        clear(recado);
+        livre = null;
+        usar.disabled = true;
+        const bruto = normalizarHandle(input.value);
+        if (!handleValido(bruto)) {
+          recado.append(el('p', { class: 'account-note', text: t('handle.invalid') }));
+          return;
+        }
+        recado.append(el('p', { class: 'account-note', text: t('handle.searching') }));
+        try {
+          const ok = await cloud.handleDisponivel(bruto);
+          clear(recado);
+          recado.append(el('p', {
+            class: ok ? 'account-sent' : 'account-note',
+            text: ok
+              ? t('handle.free', { handle: exibirHandle(bruto) })
+              : t('handle.taken', { handle: exibirHandle(bruto) }),
+          }));
+          if (ok) { livre = bruto; usar.disabled = false; }
+        } catch {
+          clear(recado);
+          recado.append(el('p', { class: 'account-note', text: t('account.failed') }));
+        }
+      };
+
+      usar.addEventListener('click', async () => {
+        if (!livre) return;
+        usar.disabled = true;
+        try {
+          const novo = await cloud.salvarHandle(livre, null);
+          toast(t('account.handleSaved', { handle: exibirHandle(novo.handle) }));
+          closeSheet();
+        } catch (err) {
+          usar.disabled = false;
+          // O 409 do banco e a unica resposta confiavel: alguem pode ter pegado
+          // o nome entre a conferencia e o salvamento.
+          toast(String(err && err.message) === 'handle ocupado'
+            ? t('account.handleTaken')
+            : t('account.failed'));
+        }
+      });
+
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') conferir(); });
+
+      pane.append(el('div', { class: 'name-row' }, [
+        input,
+        el('button', { class: 'btn primary', onClick: conferir }, [t('handle.check')]),
+      ]));
+      pane.append(recado);
+      pane.append(usar);
+      pane.append(el('p', { class: 'account-note', text: t('account.handleWarn') }));
+    },
+  };
+}
+
+/**
+ * Convites: partidas que alguem registrou dizendo que voce estava na mesa.
+ *
+ * Aparece SEM assinatura, de proposito - e o portao funcionando, nao um furo.
+ * Quem nao assina precisa poder ver que ha partidas esperando, senao nunca
+ * aceita e nunca soube que existiam. O convite e livre; o conteudo e que e
+ * pago, e "3 partidas esperando por voce" e o melhor argumento que o app tem.
+ */
+function invitesBlock() {
+  const caixa = el('div', { class: 'account-invites' });
+
+  const pintar = async () => {
+    clear(caixa);
+    let convites = [];
+    try {
+      convites = await cloud.convitesPendentes();
+    } catch {
+      return; // sem rede: a secao simplesmente nao aparece
+    }
+    if (!convites.length) return;
+
+    caixa.append(el('p', { class: 'sheet-legend', text: t('invites.title') }));
+    caixa.append(el('p', {
+      class: 'account-note',
+      text: convites.length === 1
+        ? t('invites.one')
+        : t('invites.many', { n: convites.length }),
+    }));
+
+    for (const convite of convites) caixa.append(inviteRow(convite, pintar));
+  };
+
+  pintar();
+  return caixa;
+}
+
+function inviteRow(convite, recarregar) {
+  const linha = el('div', { class: 'invite' });
+  const quem = el('span', { class: 'menu-sub', text: t('invites.locked') });
+
+  // Quem convidou so o servidor sabe dizer sem entregar a partida inteira.
+  cloud.anfitriaoDoConvite(convite.match_id).then((anfitriao) => {
+    if (!anfitriao) return;
+    quem.textContent = exibirHandle(anfitriao.handle)
+      + (anfitriao.display_name ? ' - ' + anfitriao.display_name : '');
+    confiar.hidden = false;
+    confiar.dataset.host = anfitriao.id;
+  }).catch(() => {});
+
+  const responder = async (aceitar) => {
+    try {
+      await cloud.responderConvite(convite.match_id, convite.seat_id, aceitar);
+      buzz(12);
+      recarregar();
+    } catch {
+      toast(t('account.failed'));
+    }
+  };
+
+  const confiar = el('button', { class: 'btn ghost block' }, [t('invites.trust')]);
+  confiar.hidden = true;
+  confiar.addEventListener('click', async () => {
+    try {
+      await cloud.confiarEm(confiar.dataset.host);
+      await responder(true);
+    } catch {
+      toast(t('account.failed'));
+    }
+  });
+
+  linha.append(el('div', { class: 'invite-who' }, [
+    el('span', {
+      class: 'menu-label',
+      text: t('invites.seat', { handle: exibirHandle(convite.handle) }),
+    }),
+    quem,
+  ]));
+  linha.append(el('div', { class: 'invite-acts' }, [
+    el('button', { class: 'btn primary', onClick: () => responder(true) },
+      [t('invites.accept')]),
+    el('button', { class: 'btn ghost', onClick: () => responder(false) },
+      [t('invites.decline')]),
+  ]));
+  linha.append(confiar);
+  return linha;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Entrar                                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Traduz o que o servidor reclamou.
+ *
+ * "servidor respondeu 400" nao ajuda ninguem a entrar. Os codigos que importam
+ * sao poucos e cada um tem uma saida diferente: senha errada se corrige
+ * digitando de novo, conta existente se corrige entrando em vez de criar.
+ */
+function motivoDoErro(err) {
+  const c = String((err && err.codigo) || '');
+  const m = String((err && err.message) || '').toLowerCase();
+  if (c === 'invalid_credentials' || m.includes('invalid login')) return t('account.wrongCredentials');
+  if (c === 'user_already_exists' || m.includes('already registered')) return t('account.accountExists');
+  if (c === 'weak_password' || m.includes('password')) return t('account.passwordShort');
+  if (c === 'email_not_confirmed' || m.includes('not confirmed')) return t('account.notConfirmed');
+  return t('account.failed');
+}
+
+/**
+ * Entrar com e-mail e senha.
+ *
+ * O link por e-mail continua ali embaixo, e continua sendo importante: e o
+ * caminho de quem esqueceu a senha e o unico que nao exige lembrar de nada. So
+ * deixou de ser o caminho de todo dia - abrir a caixa de entrada para entrar no
+ * proprio aparelho e atrito demais, e num aparelho emprestado, pior ainda.
+ */
+function loginBlock(repintar, onRefresh) {
+  const caixa = el('div', { class: 'account-login' });
+
+  const email = el('input', {
+    class: 'search-input',
+    type: 'email',
+    inputmode: 'email',
+    autocomplete: 'email',
+    placeholder: t('account.emailLabel'),
+    'aria-label': t('account.emailLabel'),
+  });
+  const senha = el('input', {
+    class: 'search-input',
+    type: 'password',
+    autocomplete: 'current-password',
+    placeholder: t('account.password'),
+    'aria-label': t('account.password'),
+  });
+
+  // O erro de login precisa ser visto.
+  //
+  // Antes era um parágrafo cinza depois dos dois botões: quem errava a senha
+  // apertava "Entrar", nada visível acontecia, e a explicação ficava fora do
+  // campo de visão. `role="alert"` faz o leitor de tela anunciar, e o lugar
+  // dele agora é logo abaixo dos campos que precisam ser corrigidos.
+  const recado = el('p', { class: 'account-erro', role: 'alert' });
+  const limparRecado = () => { recado.textContent = ''; recado.classList.remove('is-on'); };
+  const erro = (texto) => {
+    recado.textContent = texto;
+    recado.classList.add('is-on');
+    toast(texto);
+  };
+  const entrar = el('button', { class: 'btn primary block' }, [t('account.signIn')]);
+  const criar = el('button', { class: 'btn ghost block' }, [t('account.createAccount')]);
+
+  const ocupado = (ligado, botao, rotulo) => {
+    entrar.disabled = ligado;
+    criar.disabled = ligado;
+    botao.textContent = ligado ? t('account.sending') : rotulo;
+  };
+
+  const pronto = () => {
+    if (onRefresh) onRefresh();
+    repintar();
+  };
+
+  entrar.addEventListener('click', async () => {
+    limparRecado();
+    if (!emailValido(email.value)) { erro(t('account.invalidEmail')); return; }
+    ocupado(true, entrar, t('account.signIn'));
+    try {
+      await cloud.entrarComSenha(email.value, senha.value);
+      buzz(12);
+      pronto();
+    } catch (err) {
+      ocupado(false, entrar, t('account.signIn'));
+      erro(motivoDoErro(err));
+    }
+  });
+
+  criar.addEventListener('click', async () => {
+    limparRecado();
+    if (!emailValido(email.value)) { erro(t('account.invalidEmail')); return; }
+    if (!cloud.senhaValida(senha.value)) {
+      erro(t('account.passwordShort'));
+      return;
+    }
+    ocupado(true, criar, t('account.createAccount'));
+    try {
+      const r = await cloud.criarConta(email.value, senha.value);
+      // Com confirmacao de e-mail ligada o servidor nao devolve sessao. Dizer
+      // "entrou" ali seria mentira, e a pessoa ficaria esperando algo acontecer.
+      if (r.entrou) { buzz(12); pronto(); return; }
+      clear(caixa);
+      caixa.append(
+        el('p', { class: 'account-sent', text: t('account.confirmEmail', { email: email.value.trim() }) }),
+        el('p', { class: 'account-note', text: t('account.linkSentHint') }),
+      );
+    } catch (err) {
+      ocupado(false, criar, t('account.createAccount'));
+      erro(motivoDoErro(err));
+    }
+  });
+
+  // Mexer num campo apaga o erro: ele fala do que estava ali antes.
+  email.addEventListener('input', limparRecado);
+  senha.addEventListener('input', limparRecado);
+
+  caixa.append(email, senha, recado, entrar, criar);
+
+  if (cloud.provedores().includes('google')) {
+    caixa.append(el('button', {
+      class: 'btn ghost block',
+      onClick: () => cloud.entrarCom('google'),
+    }, [t('account.withGoogle')]));
+  }
+
+  // O link por e-mail: discreto, sempre disponivel, sem exigir senha nenhuma.
+  caixa.append(el('button', {
+    class: 'account-link',
+    onClick: async () => {
+      if (!emailValido(email.value)) { erro(t('account.invalidEmail')); return; }
+      limparRecado();
+      try {
+        await cloud.enviarLink(email.value);
+        clear(caixa);
+        caixa.append(
+          el('p', { class: 'account-sent', text: t('account.linkSent', { email: email.value.trim() }) }),
+          el('p', { class: 'account-note', text: t('account.linkSentHint') }),
+        );
+      } catch {
+        erro(t('account.failed'));
+      }
+    },
+  }, [t('account.orMagicLink')]));
+
+  caixa.append(el('p', { class: 'account-note', text: t('account.why') }));
+  return caixa;
+}
+
+/**
+ * Definir senha depois de ja estar dentro.
+ *
+ * E o passo que fecha o problema para quem entrou por link magico: uma senha,
+ * uma vez, e nunca mais e-mail em aparelho nenhum.
+ */
+function senhaBlock() {
+  const caixa = el('div', { class: 'account-senha' });
+  caixa.append(el('p', { class: 'sheet-legend', text: t('account.password') }));
+
+  // Ja tem senha: trocar passa pelo e-mail.
+  //
+  // Definir a PRIMEIRA senha estando logado e seguro - quem esta dentro ja
+  // provou ser o dono. Trocar e outra coisa: um contador de vida de mesa vive
+  // emprestado, e quem pegasse o aparelho destravado poderia trocar a senha e
+  // tomar a conta. O e-mail e o que prova que o pedido e do dono.
+  if (cloud.temSenha()) {
+    const usuario = cloud.currentUser();
+    const email = (usuario && usuario.email) || '';
+    const trocar = el('button', { class: 'btn ghost block' }, [t('account.changePassword')]);
+
+    trocar.addEventListener('click', async () => {
+      trocar.disabled = true;
+      trocar.textContent = t('account.sending');
+      try {
+        await cloud.pedirTrocaDeSenha(email);
+        clear(caixa);
+        caixa.append(
+          el('p', { class: 'sheet-legend', text: t('account.password') }),
+          el('p', { class: 'account-sent', text: t('account.recoverSent', { email }) }),
+          el('p', { class: 'account-note', text: t('account.linkSentHint') }),
+        );
+      } catch {
+        trocar.disabled = false;
+        trocar.textContent = t('account.changePassword');
+        toast(t('account.failed'));
+      }
+    });
+
+    caixa.append(trocar);
+    caixa.append(el('p', { class: 'account-note', text: t('account.changePasswordHint') }));
+    return caixa;
+  }
+
+  const campo = el('input', {
+    class: 'search-input',
+    type: 'password',
+    autocomplete: 'new-password',
+    placeholder: t('account.newPassword'),
+    'aria-label': t('account.newPassword'),
+  });
+  const salvar = el('button', { class: 'btn primary' }, [t('account.setPassword')]);
+
+  salvar.addEventListener('click', async () => {
+    if (!cloud.senhaValida(campo.value)) { toast(t('account.passwordShort')); return; }
+    salvar.disabled = true;
+    try {
+      await cloud.definirSenha(campo.value);
+      campo.value = '';
+      toast(t('account.passwordSaved'));
+      // A secao inteira muda de forma: daqui em diante so existe trocar.
+      const nova = senhaBlock();
+      if (caixa.parentElement) caixa.parentElement.replaceChild(nova, caixa);
+    } catch {
+      toast(t('account.failed'));
+    } finally {
+      salvar.disabled = false;
+    }
+  });
+
+  caixa.append(el('div', { class: 'name-row' }, [campo, salvar]));
+  caixa.append(el('p', { class: 'account-note', text: t('account.setPasswordHint') }));
   return caixa;
 }

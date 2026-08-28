@@ -31,13 +31,13 @@
 import { el, clear, icon, openFlow, openSheet, closeSheet, buzz, toast, confirmAction, dismissOnBackdrop } from '../ui.js';
 import { accentOf, colorHex, identityGradient, withAlpha } from '../colors.js';
 import {
-  replay, push, undo, redo, canUndo, canRedo, elapsedOf,
+  replay, push, undo, redo, canUndo, canRedo, elapsedOf, standings,
   cmdKeyOf, deckNameOf, CMD_LETHAL, POISON_LETHAL,
 } from '../engine.js';
 import { formatDuration, totalDamage } from '../stats.js';
 import * as store from '../store.js';
 import { layoutFor } from '../seating.js';
-import { preferOrientation } from '../orientation.js';
+import { preferOrientation, grausNaMesa, apontadorPreciso } from '../orientation.js';
 import { t, tn } from '../i18n.js';
 // `pending` vira `faltamVotar`: renderTable ja tem um `pending` local (o Map
 // dos toques ainda nao confirmados), e o de fora ficaria sombreado.
@@ -65,6 +65,13 @@ export function renderTable(root, ctx) {
   const tiles = new Map();
   const pending = new Map(); // seatId -> { delta, timer }
   const rotOf = new Map();   // seatId -> graus, para orientar o teclado de dano
+
+  // Quanto o teclado de dano gira.
+  //
+  // Deitado na mesa, ele acompanha o assento de quem esta agindo - e assim que
+  // a pessoa consegue ler o proprio ataque. Num computador o monitor esta de pe
+  // diante de uma pessoa so, e o mesmo giro punha a tela de cabeca para baixo.
+  const rotDoPad = (seatId) => grausNaMesa(rotOf.get(seatId), apontadorPreciso());
   let state = replay(match);
   let victoryShown = false;
   let destroyed = false;
@@ -469,7 +476,7 @@ export function renderTable(root, ctx) {
 
     const pad = el('div', {
       class: 'pad',
-      style: { '--accent': accent, '--rot': (rotOf.get(sourceId) || 0) + 'deg' },
+      style: { '--accent': accent, '--rot': rotDoPad(sourceId) },
     }, [
       el('div', { class: 'pad-head' }, [
         el('span', { class: 'pad-from', text: source.name }),
@@ -585,7 +592,7 @@ export function renderTable(root, ctx) {
 
     const pad = el('div', {
       class: 'pad',
-      style: { '--accent': accent, '--rot': (rotOf.get(sourceId) || 0) + 'deg' },
+      style: { '--accent': accent, '--rot': rotDoPad(sourceId) },
     }, [
       el('div', { class: 'pad-head' }, [
         el('span', { class: 'pad-from', text: source.name }),
@@ -779,6 +786,13 @@ export function renderTable(root, ctx) {
       build: (pane, api) => {
         let preset = PRESETS[0];
         let pergunta = '';
+        // O titulo atual veio de um preset, ou foi a pessoa que digitou?
+        //
+        // Sem esta distincao, tocar em "Prisoner's Dilemma" (que se auto-
+        // intitula) e depois trocar para "Jogador" deixava o titulo antigo
+        // grudado - e a votacao ia para a estatistica com a pergunta errada,
+        // dizendo que a mesa jogou um dilema que nunca aconteceu.
+        let tituloAutomatico = true;
         let opcoes = [...preset.options];
         const votos = new Map(vivos.map((s) => [s.id, 1])); // 0 = fora da votação
 
@@ -788,8 +802,8 @@ export function renderTable(root, ctx) {
 
         const aplicarPreset = (p) => {
           preset = p;
-          // So sobrescreve o que o usuario ainda nao digitou.
-          if (!pergunta.trim()) pergunta = p.title || '';
+          // So sobrescreve titulo que o proprio app pos ali.
+          if (tituloAutomatico) pergunta = p.title || '';
           opcoes = p.fromPlayers ? vivos.map((s) => s.name) : [...p.options];
           vivos.forEach((s) => {
             const fora = p.excludeActive && s.id === state.activeSeatId;
@@ -813,7 +827,12 @@ export function renderTable(root, ctx) {
             placeholder: t('vote.questionPlaceholder'),
             value: pergunta,
             maxlength: '48',
-            onInput: (e) => { pergunta = e.target.value; },
+            // Campo vazio volta a ser "automatico": quem apagou tudo nao tem
+            // opiniao sobre o titulo, e o proximo preset pode preencher.
+            onInput: (e) => {
+              pergunta = e.target.value;
+              tituloAutomatico = !pergunta.trim();
+            },
           }));
 
           if (preset.kind === 'opcoes') {
@@ -883,6 +902,13 @@ export function renderTable(root, ctx) {
             .map((s) => ({ id: s.id, name: s.name, votes: votos.get(s.id) }));
           const sessao = createSession({
             question: pergunta.trim(),
+            // A CATEGORIA da votacao, que a pergunta livre nao guarda.
+            //
+            // "Quem leva o combo?" nao diz que aquilo era um Prisoner's
+            // Dilemma, e sem isso a estatistica so podia agrupar por texto -
+            // uma linha nova a cada vez que alguem escreve a pergunta com
+            // outras palavras.
+            preset: preset.id,
             kind: preset.kind,
             options: opcoes.map((o) => o.trim()).filter(Boolean),
             voters: votantes,
@@ -1073,6 +1099,7 @@ export function renderTable(root, ctx) {
               apply({
                 type: 'vote',
                 question: sessao.question,
+                preset: sessao.preset,
                 kind: sessao.kind,
                 options: sessao.options,
                 ballots: sessao.voters.map((v) => ({
@@ -1098,6 +1125,10 @@ export function renderTable(root, ctx) {
   // ---------- render ----------
 
   function sync() {
+    // A colocação vem da mesma fonte que a tela de encerramento: com empate
+    // por turno, dois cálculos diferentes discordariam na mesma partida.
+    const lugarNaMesa = new Map(standings(match, state).map((x) => [x.seatId, x.place]));
+
     for (const seat of match.seats) {
       const p = state.players[seat.id];
       const tile = tiles.get(seat.id);
@@ -1131,8 +1162,13 @@ export function renderTable(root, ctx) {
         tile.status.append(
           icon('skull'),
           el('span', {
-            text: p.elim
-              ? t('table.place', { n: match.seats.length - p.elim.place + 1 })
+            // A mesma colocacao da tela de encerramento.
+            //
+            // Antes saia de elim.place, que e a ORDEM de saida - e com empate
+            // por turno os dois numeros passariam a discordar: o painel diria
+            // 3o e o resumo diria 4o para a mesma pessoa, na mesma partida.
+            text: lugarNaMesa.has(seat.id)
+              ? t('table.place', { n: lugarNaMesa.get(seat.id) })
               : t('table.eliminated'),
           }),
         );
@@ -1194,7 +1230,10 @@ export function renderTable(root, ctx) {
       style: {
         gridRow: spec.cs ? String(spec.r) : String(spec.r),
         gridColumn: spec.cs ? spec.c + ' / span ' + spec.cs : String(spec.c),
-        transform: 'rotate(' + spec.rot + 'deg)',
+        // Mesma regra do teclado de dano: no computador ninguem senta do
+        // outro lado do monitor, e o giro deixava metade dos nomes, vidas e
+        // comandantes de cabeca para baixo.
+        transform: 'rotate(' + grausNaMesa(spec.rot, apontadorPreciso()) + ')',
         '--accent': accent,
         '--tint': identityGradient(colors, 0.16),
         '--glow': withAlpha(accent, 0.34),

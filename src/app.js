@@ -9,13 +9,16 @@
 import { toast, setHaptics, isSheetOpen, onSheetChange } from './ui.js';
 import { renderSetup, seedDraftFrom } from './views/setup.js';
 import { renderTable } from './views/table.js';
-import { renderStats } from './views/stats.js';
+import { renderStats, renderPaywall } from './views/stats.js';
 import { createMatch } from './engine.js';
 import { applyTheme, watchTheme } from './theme.js';
 import { t, setLang, detectLang } from './i18n.js';
 import { preferOrientation, isWide } from './orientation.js';
+import { orientOf } from './seating.js';
 import * as store from './store.js';
 import * as cloud from './cloud.js';
+import { podeVerEstatisticas } from './cloud.js';
+import { cloudEnabled } from './config.js';
 import { ehTeste } from './canal.js';
 
 const root = document.getElementById('app');
@@ -62,7 +65,26 @@ function render() {
   }
 
   if (route === 'stats') {
-    renderStats(root, { onBack: () => go(previous === 'stats' ? 'setup' : previous) });
+    // O portao e decisao de ROTA, nao da tela de estatisticas: qual tela
+    // mostrar e pergunta do roteador, e assim a view continua sendo so uma
+    // leitura dos dados - testavel sem conta nem assinatura.
+    //
+    // Isto e a tela. O portao de verdade e o RLS do Postgres: sem assinatura
+    // ele devolve lista vazia, entao burlar este `if` nao entrega partida
+    // nenhuma da nuvem.
+    const voltar = () => go(previous === 'stats' ? 'setup' : previous);
+    if (podeVerEstatisticas(cloudEnabled(), cloud.state())) {
+      renderStats(root, { onBack: voltar });
+    } else {
+      renderPaywall(root, {
+        onBack: voltar,
+        onUnlock: () => go('stats'),
+        // Enquanto a assinatura nao voltou do servidor, a resposta e "ainda
+        // nao sei" - e negar o que nao se sabe e o pior jeito de receber quem
+        // paga.
+        verificando: !cloud.assinaturaConhecida(),
+      });
+    }
     return;
   }
 
@@ -157,8 +179,21 @@ document.addEventListener('visibilitychange', () => {
 const observer = new MutationObserver(() => {
   const naMesa = document.body.dataset.route === 'table';
   keepAwake(naMesa);
-  preferOrientation(naMesa ? 'landscape' : null);
+  // A mesa pede a orientacao que a PESSOA escolheu ao montar o jogo. Antes
+  // pedia paisagem sempre, o que contrariava quem tinha escolhido apoiar o
+  // aparelho em pe entre dois jogadores.
+  preferOrientation(naMesa ? orientacaoDaMesa() : null, naMesa);
 });
+
+/** A orientacao declarada pela mesa em andamento; paisagem quando nao ha. */
+function orientacaoDaMesa() {
+  try {
+    const m = store.getCurrent();
+    return (m && orientOf(m.seats.length, m.layoutId)) || 'landscape';
+  } catch {
+    return 'landscape';
+  }
+}
 observer.observe(document.body, { attributes: true, attributeFilter: ['data-route'] });
 
 /* ---------------------------------------------------------------- */
@@ -188,6 +223,13 @@ render();
 // app. Quando o estado chegar, quem depende dele se redesenha.
 cloud.iniciar().then((estado) => {
   if (estado !== 'desligado') render();
+});
+
+// A conta pode mudar depois da primeira tela - a assinatura chega da rede, e o
+// login acontece dentro das configuracoes. Quem esta olhando as estatisticas
+// precisa ver a mudanca sem sair e voltar.
+cloud.onAccountChange(() => {
+  if (route === 'stats') render();
 });
 
 if ('serviceWorker' in navigator) {

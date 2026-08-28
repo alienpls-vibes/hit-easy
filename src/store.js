@@ -7,6 +7,7 @@
  */
 
 import { chave } from './canal.js';
+import { identityOf } from './stats.js';
 
 const KEY = chave('mtglc.db.v1');
 
@@ -16,6 +17,10 @@ const EMPTY = {
   history: [],
   commanders: {}, // oracleId -> commander (reuso offline)
   playerNames: [],
+  // Nome de jogador -> @ da conta dele. Grupo de Commander joga toda
+  // semana com a mesma gente: digitar o @ de novo a cada mesa seria o
+  // tipo de atrito que faz o recurso nao ser usado.
+  playerHandles: {},
   // Escondidos das estatisticas, e so delas: as partidas continuam
   // inteiras, com todos os eventos e a linha do tempo completa.
   hiddenDecks: [],
@@ -118,11 +123,31 @@ export function rememberPlayer(name) {
   save();
 }
 
+/** Guarda a que conta um nome de jogador corresponde. */
+export function rememberHandle(name, handle) {
+  const nome = String(name || '').trim();
+  const h = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
+  if (!nome) return;
+  if (!db.playerHandles) db.playerHandles = {};
+  if (h) db.playerHandles[nome.toLowerCase()] = h;
+  else delete db.playerHandles[nome.toLowerCase()];
+  save();
+}
+
+/** O @ ja conhecido deste jogador, se houver. */
+export function handleOf(name) {
+  const nome = String(name || '').trim().toLowerCase();
+  return (db.playerHandles && db.playerHandles[nome]) || '';
+}
+
 export function knownPlayers() {
   return db.playerNames;
 }
 
 export function forgetPlayer(name) {
+  // O @ acompanha o nome: esquecer pela metade deixaria a conta de outra
+  // pessoa presa a um jogador que ja nao existe mais na lista.
+  if (db.playerHandles) delete db.playerHandles[String(name || '').trim().toLowerCase()];
   const clean = String(name || '').trim();
   db.playerNames = db.playerNames.filter((n) => n !== clean);
   save();
@@ -135,14 +160,27 @@ export function forgetPlayer(name) {
  * escrito nas partidas salvas, e duplicar isso so criaria uma segunda verdade
  * para sair de sincronia depois.
  */
-export function decksOfPlayer(name) {
-  const key = String(name || '').trim().toLowerCase();
-  if (!key) return [];
+/** Nome (minusculo) -> handle, do que este aparelho ja viu. */
+export function knownHandles() {
+  return { ...(db.playerHandles || {}) };
+}
+
+/**
+ * Os decks desta PESSOA, nao deste nome.
+ *
+ * Com conta vinculada, os comandantes seguem a conta: quem foi cadastrado como
+ * "Alex" numa quinta e "Alexandre" na outra continua vendo os proprios decks,
+ * porque a busca e pela identidade e nao pelo texto que alguem digitou.
+ */
+export function decksOfPlayer(name, handle) {
+  const apelidos = db.playerHandles || {};
+  const key = identityOf({ name, handle }, apelidos);
+  if (!key || key === '?') return [];
 
   const seen = new Map();
   for (const match of db.history) { // historico ja vem do mais recente
     for (const seat of match.seats || []) {
-      if ((seat.name || '').trim().toLowerCase() !== key) continue;
+      if (identityOf(seat, apelidos) !== key) continue;
       const deckKey = (seat.commanders || []).map((c) => c.oracleId).sort().join('+');
       if (!deckKey || seen.has(deckKey)) continue;
       seen.set(deckKey, { commanders: seat.commanders, lastUsed: match.startedAt });

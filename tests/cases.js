@@ -9,25 +9,35 @@
 // Primeiro de todos: instala o DOM simulado antes que ui.js seja avaliado.
 import { simulated, flushFrames, findAll, fire, textOf } from './dom-stub.js';
 import {
-  createMatch, replay, push, undo, standings, elapsedOf,
+  createMatch, replay, push, undo, standings, elapsedOf, pessoaRepetida,
   cmdKeyOf, CMD_LETHAL, POISON_LETHAL,
 } from '../src/engine.js';
 import {
   aggregate, rivalries, tituloDaVotacao, totalDamage, summarize,
   playerColorOrder, playerColor,
+  identityOf, labelOf,
+  chaveDaVotacao, rotuloDaVotacao, orientarRival,
+  categoriaDaVotacao, rotuloDaCategoria,
 } from '../src/stats.js';
-import { LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle } from '../src/seating.js';
+import { LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf } from '../src/seating.js';
 import { createSession, cast, tally, pending, isComplete, describe } from '../src/vote.js';
 import { openFlow, closeSheet, dismissOnBackdrop, el, isSheetOpen, onSheetChange } from '../src/ui.js';
 import { DICTS, LANGS, t, tn, setLang, currentLang } from '../src/i18n.js';
 import {
   accountState, assinaturaAtiva, sessaoValida, toRow, fromRow, pendentes,
   state as accountNow, provedores, pedidoDeLink, urlDeRetorno,
+  capturarRetorno, esquecerSessao, precisaRenovar, sessaoAproveitavel, senhaValida,
+  podeVerEstatisticas, assinaturaConhecida,
+  jaTinhaConta,
+  sessaoGuardada,
+  normalizarHandle, handleValido, exibirHandle, participantesDe, montarConvites,
 } from '../src/cloud.js';
 import { cloudEnabled } from '../src/config.js';
 import { canalDe, canalDoCache } from '../src/canal.js';
+import { giraComOAssento, grausNaMesa, rotatesToSeat } from '../src/orientation.js';
 import { renderTable } from '../src/views/table.js';
 import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
+import { renderStats, renderPaywall } from '../src/views/stats.js';
 import { brandMark } from '../src/ui.js';
 import * as store from '../src/store.js';
 // Importar app.js JA e o teste: ele sobe sozinho ao ser avaliado.
@@ -169,12 +179,78 @@ export const cases = [
     eq(s.finished, true, 'finalizada');
   }],
 
+  ['a mesma pessoa não pode ocupar duas cadeiras', () => {
+    const mesa4 = [
+      { id: 's0', name: 'Alexandre', handle: 'alienpls' },
+      { id: 's1', name: 'Bruno' },
+      { id: 's2', name: 'Carla', handle: 'carlinha' },
+    ];
+    const nova = { id: 's3', name: '' };
+
+    eq(pessoaRepetida(mesa4, nova, { name: 'Davi' }), null, 'gente nova entra');
+    eq(pessoaRepetida(mesa4, nova, { name: 'Bruno' }), 'nome', 'nome repetido barra');
+    eq(pessoaRepetida(mesa4, nova, { name: ' bruno ' }), 'nome', 'espaço e caixa não driblam');
+
+    // O outro caminho para a mesma pessoa: a conta. Era o que não tinha trava
+    // nenhuma - dava para vincular @alienpls em duas cadeiras.
+    eq(pessoaRepetida(mesa4, nova, { handle: 'alienpls' }), 'conta', 'conta repetida barra');
+    eq(pessoaRepetida(mesa4, nova, { handle: '@AlienPls' }), 'conta', 'arroba e caixa não driblam');
+    eq(pessoaRepetida(mesa4, nova, { handle: 'outro' }), null, 'outra conta entra');
+
+    // A própria cadeira nunca conflita consigo mesma: editar quem já está
+    // sentado não pode ser recusado por ele próprio já estar ali.
+    eq(pessoaRepetida(mesa4, mesa4[1], { name: 'Bruno' }), null, 'a própria cadeira não conta');
+    eq(pessoaRepetida(mesa4, mesa4[0], { handle: 'alienpls' }), null);
+
+    eq(pessoaRepetida(mesa4, nova, {}), null, 'sem nada declarado, nada a barrar');
+    eq(pessoaRepetida(null, nova, { name: 'Bruno' }), null, 'sem mesa, sem conflito');
+  }],
+
   ['colocação: vencedor em 1º, quem saiu por último vem antes', () => {
+    const m = mesa();
+    // Um por turno: aqui há de fato quem sobreviveu a quem.
+    push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
+    push(m, { type: 'turn' });
+    push(m, { type: 'life', targetId: 's2', delta: -40, sourceId: 's0' });
+    push(m, { type: 'turn' });
+    push(m, { type: 'life', targetId: 's3', delta: -40, sourceId: 's0' });
+
+    eq(standings(m).map((x) => x.seatId), ['s0', 's3', 's2', 's1'], 'ordem final');
+    eq(standings(m).map((x) => x.place), [1, 2, 3, 4], 'sem empate, colocações distintas');
+  }],
+
+  ['quem morre no mesmo turno divide a colocação', () => {
+    // O caso que a mesa reconhece: alguém estoura a mesa inteira de uma vez.
+    // Não há nada que separe os três - eles não se sobreviveram, e a ordem em
+    // que o motor processou os eventos é detalhe interno que não significa
+    // nada. Desempatar por ali seria inventar um resultado.
     const m = mesa();
     push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
     push(m, { type: 'life', targetId: 's2', delta: -40, sourceId: 's0' });
     push(m, { type: 'life', targetId: 's3', delta: -40, sourceId: 's0' });
-    eq(standings(m).map((x) => x.seatId), ['s0', 's3', 's2', 's1'], 'ordem final');
+
+    const lugar = new Map(standings(m).map((x) => [x.seatId, x.place]));
+    eq(lugar.get('s0'), 1, 'quem sobrou é o primeiro');
+    // O grupo leva a PIOR colocação que ocupa. Dizer que dois deles foram 2º e
+    // 3º daria a eles um lugar que ninguém conquistou.
+    eq(lugar.get('s1'), 4, 'os três caíram juntos');
+    eq(lugar.get('s2'), 4);
+    eq(lugar.get('s3'), 4);
+  }],
+
+  ['empate parcial: só quem caiu junto divide o lugar', () => {
+    const m = mesa();
+    push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
+    push(m, { type: 'turn' });
+    // Estes dois caem no mesmo turno, depois do s1.
+    push(m, { type: 'life', targetId: 's2', delta: -40, sourceId: 's0' });
+    push(m, { type: 'life', targetId: 's3', delta: -40, sourceId: 's0' });
+
+    const lugar = new Map(standings(m).map((x) => [x.seatId, x.place]));
+    eq(lugar.get('s0'), 1, 'o vencedor');
+    eq(lugar.get('s2'), 3, 'os dois do último turno ocupam 2º e 3º, e levam o 3º');
+    eq(lugar.get('s3'), 3);
+    eq(lugar.get('s1'), 4, 'quem caiu antes fica atrás dos dois');
   }],
 
   ['desistir tira o jogador da mesa', () => {
@@ -204,6 +280,87 @@ export const cases = [
     eq(players.find((p) => p.label === 'P0').damageDealt, 16, 'dano causado por P0');
     eq(players.find((p) => p.label === 'P1').damageTaken, 10, 'dano recebido por P1');
     eq(players.find((p) => p.label === 'P1').healed, 4, 'cura de P1');
+  }],
+
+  ['a conta vinculada sobrevive da mesa até o convite', () => {
+    // Este é o caminho inteiro, e ele estava rompido no primeiro elo:
+    // createMatch montava o assento com id, nome e comandantes, e descartava
+    // handle e userId. A escolha do @ morria no rascunho. A partida gravada não
+    // sabia de conta nenhuma, participantesDe() nunca achava cadeira para
+    // convidar, e a estatística voltava a ter só o nome digitado.
+    //
+    // Nada falhava com estardalhaço: o convite simplesmente nunca chegava.
+    const m = createMatch([
+      { id: 's0', name: 'Alexandre', handle: 'alienpls', userId: 'uid-1', commanders: [commander(0)] },
+      { id: 's1', name: 'Bruno', commanders: [commander(1)] },
+    ], 40);
+
+    eq(m.seats[0].handle, 'alienpls', 'o assento guarda o @');
+    eq(m.seats[0].userId, 'uid-1', 'e a conta');
+    eq(m.seats[1].handle, null, 'cadeira sem conta continua sem conta');
+
+    // E a partida gravada gera o convite de verdade.
+    const linhas = participantesDe(m);
+    eq(linhas.length, 1, 'uma cadeira reivindicável');
+    eq(linhas[0].handle, 'alienpls');
+    eq(linhas[0].user_id, 'uid-1');
+    eq(linhas[0].seat_id, 's0');
+
+    // E a estatística identifica a pessoa, não o texto.
+    eq(identityOf(m.seats[0]), '@alienpls', 'a estatística vê a conta');
+  }],
+
+  ['a mesma conta com nomes diferentes é uma pessoa só', () => {
+    // O ponto do recurso inteiro: o nome é como a mesa chama alguém NAQUELE
+    // dia. Cadastrar "Alex" numa quinta e "Alexandre" na outra não pode
+    // produzir duas linhas, duas cores e duas histórias - nem transformar a
+    // rivalidade dessa pessoa com o Bruno em duas rivalidades pela metade.
+    const comConta = (nome) => {
+      const m = createMatch([
+        { id: 's0', name: nome, handle: 'alienpls', commanders: [commander(0)] },
+        { id: 's1', name: 'Bruno', commanders: [commander(1)] },
+      ], 40);
+      push(m, { type: 'life', targetId: 's1', delta: -7, sourceId: 's0' });
+      return m;
+    };
+
+    const partidas = [comConta('Alexandre'), comConta('Alex')];
+    const { players } = aggregate(partidas);
+
+    const dele = players.filter((p) => p.key === '@alienpls');
+    eq(dele.length, 1, 'uma linha só para a conta');
+    eq(dele[0].games, 2, 'as duas partidas somam na mesma pessoa');
+    eq(dele[0].damageDealt, 14, 'o dano das duas mesas soma junto');
+    eq(dele[0].label, 'Alexandre', 'o rótulo é o nome mais recente');
+    eq(players.length, 2, 'só existem duas pessoas: a conta e o Bruno');
+
+    // A cor acompanha a conta, não o texto digitado.
+    const ordem = playerColorOrder(partidas);
+    eq(playerColor(ordem, '@alienpls'), playerColor(ordem, '@alienpls'), 'cor estável');
+
+    const rivais = rivalries(partidas);
+    eq(rivais.length, 1, 'uma rivalidade, não duas metades');
+    eq(rivais[0].games, 2, 'as duas mesas contam para o mesmo par');
+  }],
+
+  ['identidade cai no nome quando não há conta, e nunca colide com uma', () => {
+    eq(identityOf({ id: 's0', name: 'Ana' }), 'ana', 'sem conta, o nome serve');
+    eq(identityOf({ id: 's0', name: ' ANA ' }), 'ana', 'espaço e caixa não criam outra pessoa');
+    eq(identityOf({ id: 's0', name: 'Ana', handle: '@Ana' }), '@ana', 'com conta, a conta manda');
+
+    // O prefixo existe para isto: quem digitou "ana" sem conta nenhuma não é a
+    // dona da conta @ana até que alguém diga que é.
+    ok(identityOf({ id: 's0', name: 'ana' }) !== identityOf({ id: 's1', handle: 'ana' }),
+      'nome solto não vira dono da conta de mesmo texto');
+
+    // Partida antiga, gravada antes de existir @: o aparelho lembra a quem
+    // aquele nome pertence, e ela se junta à conta em vez de ficar órfã.
+    eq(identityOf({ id: 's0', name: 'Alex' }, { alex: 'alienpls' }), '@alienpls',
+      'o que o aparelho lembra reconcilia o histórico antigo');
+
+    eq(identityOf({ id: 's9' }), 's9', 'sem nome e sem conta, resta o assento');
+    eq(labelOf({ id: 's0', handle: 'alienpls' }), '@alienpls', 'sem nome, mostra o @');
+    eq(labelOf({ id: 's0', name: 'Ana', handle: 'alienpls' }), 'Ana', 'com nome, mostra o nome');
   }],
 
   ['vida perdida sem autor conta como paga, não como dano levado', () => {
@@ -295,7 +452,15 @@ export const cases = [
       for (const v of variantes) {
         ok(!ids.has(v.id), n + ': id de variante repetido');
         ids.add(v.id);
-        ok(v.label, n + '/' + v.id + ': variante sem rótulo para mostrar ao usuário');
+        // O rótulo era texto fixo em português dentro do seating.js, então a
+        // escolha de mesa aparecia em português para quem usava o app em
+        // inglês, espanhol ou alemão. Agora é chave, e a chave tem de existir
+        // nos quatro - senão a tela mostra o nome cru da chave.
+        ok(v.labelKey, n + '/' + v.id + ': variante sem rótulo para mostrar ao usuário');
+        for (const [codigo] of LANGS) {
+          ok(DICTS[codigo][v.labelKey],
+            n + '/' + v.id + ': falta ' + v.labelKey + ' em ' + codigo);
+        }
 
         for (const { nome, shape } of shapesOf(v)) {
           const onde = n + ' jogadores / ' + v.id + ' / ' + nome;
@@ -329,10 +494,74 @@ export const cases = [
 
   ['layoutFor escolhe variante e orientação', () => {
     eq(layoutFor(5, 'inventado').id, variantsFor(5)[0].id, 'cai no padrão');
-    eq(layoutFor(3, '1-2').id, '1-2', 'variante válida é respeitada');
+    eq(layoutFor(3, 'paisagem').id, 'paisagem', 'variante válida é respeitada');
+
+    // 4 e 6 não têm o que escolher, e seguem se adaptando pela tela.
     eq(layoutFor(6, 'padrao', false).cols, 2, 'em pé: duas colunas');
     eq(layoutFor(6, 'padrao', true).cols, 3, 'deitado: três colunas');
     eq(layoutFor(4, 'padrao', true).cols, 2, 'sem forma deitada, mantém a mesma');
+  }],
+
+  ['partida antiga não troca as pessoas de lugar ao atualizar o app', () => {
+    // Uma partida em andamento guarda o id de variante de quando começou.
+    // Renomear as variantes sem tratar isso jogaria a mesa no padrão no meio
+    // do jogo, movendo todo mundo de lugar sem aviso.
+    const mesmo = (n, velho, novo) => {
+      const a = layoutFor(n, velho);
+      const b = layoutFor(n, novo);
+      eq(JSON.stringify(a.seats), JSON.stringify(b.seats),
+        n + '/' + velho + ' precisa cair exatamente em ' + novo);
+    };
+    mesmo(3, '2-1', 'retrato');
+    mesmo(3, '1-2', 'paisagem');
+    mesmo(5, 'volta', 'retrato');
+
+    // Este não tem equivalente exato; o que importa é que vá para a deitada em
+    // vez de cair no padrão em pé, que seria a mudança mais brusca.
+    eq(layoutFor(5, '3-2').id, 'paisagem', 'sem equivalente exato, vai para a mais parecida');
+
+    // E id inventado ainda cai no padrão, como sempre.
+    eq(layoutFor(3, 'nao-existe').id, variantsFor(3)[0].id, 'id desconhecido cai no padrão');
+  }],
+
+  ['com 2, 3 e 5 a escolha é como o aparelho fica na mesa', () => {
+    // A pergunta que a pessoa responde passa a ser concreta: em pé ou deitado
+    // no meio da mesa. "2 embaixo, 1 em cima" descrevia a consequência de uma
+    // escolha que ninguém tinha feito ainda.
+    for (const n of [2, 3, 5]) {
+      const vs = variantsFor(n);
+      eq(vs.length, 2, n + ' jogadores: exatamente duas opções');
+      eq(vs.map((v) => v.orient).sort().join(','), 'landscape,portrait',
+        n + ' jogadores: uma em pé e uma deitada');
+      eq(orientOf(n, 'retrato'), 'portrait');
+      eq(orientOf(n, 'paisagem'), 'landscape');
+    }
+
+    // 4 e 6 não pedem orientação nenhuma: travar a tela ali só tiraria
+    // liberdade de quem joga, sem resolver ambiguidade alguma.
+    eq(orientOf(4, 'padrao'), null, 'quatro é simétrico');
+    eq(orientOf(6, 'padrao'), null, 'seis é três de cada lado');
+  }],
+
+  ['a orientação escolhida não é desmentida pela tela', () => {
+    // O que garante isto é o DADO, não o `if`: variante que declara orientação
+    // não tem forma alternativa para trocar. Vale prender a invariante, porque
+    // é ela que sustenta o comportamento - a guarda em layoutFor é só cinto e
+    // suspensório para o dia em que alguém acrescentar as duas coisas juntas.
+    for (const [n, variantes] of Object.entries(LAYOUTS)) {
+      for (const v of variantes) {
+        ok(!(v.orient && v.land),
+          n + '/' + v.id + ': declara orientação E forma alternativa - uma das '
+          + 'duas vai ser ignorada, e ninguém vai saber qual');
+      }
+    }
+
+    for (const wide of [false, true]) {
+      eq(layoutFor(5, 'retrato', wide).cols, 2, 'em pé continua 2 colunas (wide=' + wide + ')');
+      eq(layoutFor(5, 'retrato', wide).rows, 3, 'em pé continua 3 linhas (wide=' + wide + ')');
+      eq(layoutFor(5, 'paisagem', wide).cols, 3, 'deitado continua 3 colunas (wide=' + wide + ')');
+      eq(layoutFor(5, 'paisagem', wide).rows, 2, 'deitado continua 2 linhas (wide=' + wide + ')');
+    }
   }],
 
   ['a partida pode começar por qualquer jogador', () => {
@@ -365,6 +594,40 @@ export const cases = [
     const s = replay(m);
     eq(s.activeSeatId, 's1', 'voltou ao primeiro vivo');
     eq(s.turn, inicio + 1, 'exatamente uma volta contada');
+  }],
+
+  ['no computador nenhum painel da mesa fica invertido', () => {
+    if (!simulated) return 'skip';
+    // O que a pessoa via: no monitor, os jogadores "de cima" apareciam com
+    // nome, vida e comandante de cabeça para baixo. Na mesa isso é o certo -
+    // cada painel aponta para o dono. Num monitor de pé não há ninguém do
+    // outro lado, e metade da tela ficava ilegível.
+    const girosDaMesa = () => {
+      const root = document.createElement('div');
+      const view = renderTable(root, {
+        match: mesa(4),
+        onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
+      });
+      const giros = findAll(root, 'tile').map((n) => String(n.style.transform || ''));
+      view.destroy();
+      return giros;
+    };
+
+    const antes = globalThis.matchMedia;
+    try {
+      // Sem ponteiro preciso: aparelho deitado na mesa, os painéis giram.
+      globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+      ok(girosDaMesa().some((g) => g.includes('180deg')), 'na mesa, os de frente giram');
+
+      // Com mouse ou trackpad: monitor de pé, ninguém do outro lado.
+      globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+      const noPc = girosDaMesa();
+      eq(noPc.length, 4, 'os quatro painéis foram desenhados');
+      ok(!noPc.some((g) => g.includes('180deg')), 'no computador, nenhum de cabeça para baixo');
+      ok(noPc.every((g) => g.includes('0deg')), 'e todos com unidade, senão o CSS descarta a regra');
+    } finally {
+      globalThis.matchMedia = antes;
+    }
   }],
 
   ['painel: a primeira tela entra visível e clicável', () => {
@@ -625,6 +888,58 @@ export const cases = [
     eq(describe(v), 'A 1 × B 1', 'resumo para o histórico');
   }],
 
+  ['trocar de modelo de votação não deixa o título antigo grudado', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    // O bug relatado: tocar em "Prisoner's Dilemma" - que se auto-intitula - e
+    // depois trocar para "Jogador" deixava a pergunta antiga no campo. A
+    // votação ia para a estatística dizendo que a mesa jogou um dilema que
+    // nunca aconteceu.
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    const view = renderTable(root, {
+      match: mesa(4), onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
+    });
+
+    const telaAtiva = () => {
+      const p = findAll(document.body, 'flow-pane');
+      return p[p.length - 1];
+    };
+    const acharTexto = (cls, txt) =>
+      findAll(telaAtiva(), cls).find((n) => textOf(n).includes(txt));
+    const campo = () => findAll(telaAtiva(), 'search-input')[0];
+    const modelo = (txt) => findAll(telaAtiva(), 'pad-mode').find((b) => textOf(b).includes(txt));
+
+    fire(findAll(root, 'hub-btn').find((b) => b.attributes['aria-label'] === 'Menu'), 'click');
+    fire(acharTexto('menu-item', 'Votação secreta'), 'click');
+
+    eq(campo().value, '', 'começa sem título');
+
+    fire(modelo('Prisoner'), 'click');
+    eq(campo().value, "Prisoner's Dilemma", 'o modelo preenche o título sozinho');
+
+    fire(modelo(t('vote.preset.player')), 'click');
+    eq(campo().value, '', 'trocar de modelo limpa o título que o próprio app pôs');
+
+    // O que a pessoa digitou é intocável: só o app apaga o que o app escreveu.
+    fire(modelo('Prisoner'), 'click');
+    const c = campo();
+    c.value = 'Quem leva o combo?';
+    fire(c, 'input');
+    fire(modelo(t('vote.preset.player')), 'click');
+    eq(campo().value, 'Quem leva o combo?', 'título digitado sobrevive à troca');
+
+    // E apagar tudo devolve o campo ao app: quem esvaziou não tem opinião.
+    const c2 = campo();
+    c2.value = '';
+    fire(c2, 'input');
+    fire(modelo('Prisoner'), 'click');
+    eq(campo().value, "Prisoner's Dilemma", 'campo vazio volta a aceitar o modelo');
+
+    closeSheet();
+    view.destroy();
+  }],
+
   ['a votação vai do menu até a revelação sem travar', () => {
     if (!simulated) return 'skip';
     // Nasceu de um bug real: renderTable já tinha um `pending` local (o Map dos
@@ -882,6 +1197,7 @@ export const cases = [
     const votar = (escolhas) => push(m, {
       type: 'vote',
       question: "Prisoner's Dilemma",
+      preset: 'dilema',
       kind: 'opcoes',
       options: ['Silence', 'Snitch'],
       ballots: [
@@ -898,9 +1214,9 @@ export const cases = [
     const p3 = players.find((p) => p.label === 'P3');
 
     eq(p1.votes, 2, 'P1 participou de duas');
-    eq(p1.voteChoices["Prisoner's Dilemma"], { Silence: 2 }, 'P1 escolheu Silence nas duas');
-    eq(p3.voteChoices["Prisoner's Dilemma"], { Snitch: 2 }, 'P3 delatou nas duas');
-    eq(players.find((p) => p.label === 'P2').voteChoices["Prisoner's Dilemma"],
+    eq(p1.voteChoices.dilema, { Silence: 2 }, 'P1 escolheu Silence nas duas');
+    eq(p3.voteChoices.dilema, { Snitch: 2 }, 'P3 delatou nas duas');
+    eq(players.find((p) => p.label === 'P2').voteChoices.dilema,
       { Silence: 1, Snitch: 1 }, 'P2 fez uma de cada');
   }],
 
@@ -919,28 +1235,60 @@ export const cases = [
     eq(players.find((p) => p.label === 'P0').voteChoices, {}, 'e sem escolhas nenhuma');
   }],
 
-  ['votações diferentes não misturam as escolhas', () => {
-    const m = mesa(4);
+  ['a estatística agrupa por categoria, não pela pergunta escrita', () => {
+    const m = mesa(2);
+    const votar = (extra, escolha) => push(m, Object.assign({
+      type: 'vote', kind: 'opcoes', options: ['Silence', 'Snitch'],
+      ballots: [{ seatId: 's0', name: 'P0', choices: [escolha] }],
+    }, extra));
+
+    // Duas noites, o mesmo modelo, perguntas escritas de jeitos diferentes.
+    // Antes isso virava duas linhas - e a pergunta livre muda toda vez, então
+    // a lista crescia sem nunca responder "essa pessoa costuma delatar?".
+    votar({ preset: 'dilema', question: "Prisoner's Dilemma" }, 0);
+    votar({ preset: 'dilema', question: 'Quem entrega quem?' }, 0);
+    votar({ preset: 'jogador', question: 'Quem leva o combo?', options: ['P0', 'P1'] }, 1);
     push(m, {
-      type: 'vote', question: "Prisoner's Dilemma", kind: 'opcoes',
-      options: ['Silence', 'Snitch'],
-      ballots: [{ seatId: 's0', name: 'P0', choices: [1] }],
-    });
-    push(m, {
-      type: 'vote', question: 'Carnage ou homage?', kind: 'opcoes',
-      options: ['Carnage', 'Homage'],
-      ballots: [{ seatId: 's0', name: 'P0', choices: [0] }],
-    });
-    push(m, {
-      type: 'vote', question: '', kind: 'numero',
-      options: [],
+      type: 'vote', preset: 'numero', kind: 'numero', question: '', options: [],
       ballots: [{ seatId: 's0', name: 'P0', choices: [7] }],
     });
-    const p0 = aggregate([m]).players.find((p) => p.label === 'P0');
-    eq(p0.votes, 3, 'três votações');
-    eq(Object.keys(p0.voteChoices).sort(),
-      ['Carnage ou homage?', 'Número secreto', "Prisoner's Dilemma"], 'cada pergunta na sua linha');
-    eq(p0.voteChoices['Número secreto'], { 7: 1 }, 'número secreto guarda o valor');
+
+    const p0 = aggregate([m]).players.find((x) => x.label === 'P0');
+    eq(p0.votes, 4, 'quatro votações');
+    eq(Object.keys(p0.voteChoices).sort(), ['dilema', 'jogador', 'numero'],
+      'três categorias, não quatro perguntas');
+    eq(p0.voteChoices.dilema, { Silence: 2 }, 'as duas noites de dilema somam junto');
+    eq(p0.voteChoices.numero, { 7: 1 }, 'número secreto guarda o valor');
+
+    // A chave é o modelo, e o modelo não é texto de tela: trocar o idioma não
+    // pode partir o histórico em dois montes.
+    const chavesEm = (lang) => {
+      setLang(lang);
+      return Object.keys(aggregate([m]).players.find((x) => x.label === 'P0').voteChoices).sort();
+    };
+    eq(chavesEm('en'), chavesEm('pt'), 'as mesmas categorias em qualquer idioma');
+    setLang('pt');
+
+    // Só a tela traduz. O nome da carta não se traduz nunca.
+    eq(rotuloDaCategoria('numero'), t('vote.preset.number'));
+    eq(rotuloDaCategoria('dilema'), "Prisoner's Dilemma", 'nome de carta fica como é');
+    setLang('de');
+    eq(rotuloDaCategoria('dilema'), "Prisoner's Dilemma", 'inclusive em alemão');
+    eq(rotuloDaCategoria('numero'), t('vote.preset.number'), 'o resto acompanha o idioma');
+    setLang('pt');
+  }],
+
+  ['votação antiga, sem categoria gravada, não é chutada', () => {
+    // O campo `preset` não existia. Dá para recuperar o essencial pelo `kind`;
+    // o resto vira categoria genérica. Inventar qual modelo foi usado seria
+    // pior que admitir que não se sabe.
+    eq(categoriaDaVotacao({ kind: 'numero' }), 'numero', 'número se reconhece sozinho');
+    eq(categoriaDaVotacao({ kind: 'opcoes', options: ['Silence', 'Snitch'] }), 'opcoes',
+      'parecer um dilema não prova que era');
+    eq(categoriaDaVotacao({ preset: 'jogador', kind: 'opcoes' }), 'jogador',
+      'gravada, a categoria manda');
+    eq(categoriaDaVotacao(null), 'opcoes', 'sem evento, categoria genérica');
+    eq(rotuloDaCategoria('opcoes'), t('vote.preset.other'));
   }],
 
   ['votação sem título é nomeada pelas próprias opções', () => {
@@ -955,14 +1303,19 @@ export const cases = [
     eq(tituloDaVotacao({ kind: 'opcoes', options: [], question: 'Carnage?' }),
       'Carnage?', 'título dado ganha da derivação');
 
-    // E chega assim na estatística.
+    // Isso é o TÍTULO, usado na linha do tempo da partida - onde interessa
+    // saber qual votação foi aquela. A estatística agrupa por categoria, que é
+    // outra pergunta: o que essa pessoa costuma escolher.
     const m = mesa(2);
     push(m, {
-      type: 'vote', kind: 'opcoes', options: ['Silence', 'Snitch'], question: '',
+      type: 'vote', preset: 'dilema', kind: 'opcoes',
+      options: ['Silence', 'Snitch'], question: '',
       ballots: [{ seatId: 's0', name: 'P0', choices: [0] }],
     });
     const p0 = aggregate([m]).players.find((x) => x.label === 'P0');
-    eq(Object.keys(p0.voteChoices), ['Silence / Snitch'], 'agrupado pelo nome derivado');
+    eq(Object.keys(p0.voteChoices), ['dilema'], 'a estatística agrupa pelo modelo');
+    eq(chaveDaVotacao(m.events[0]), 'Silence / Snitch',
+      'e o título continua saindo das opções quando ninguém escreveu um');
   }],
 
   ['rivalidades somam o dano de cada um contra o outro', () => {
@@ -1012,6 +1365,184 @@ export const cases = [
     const pares = rivalries([m]);
     eq(pares.length, 3, 'três pares, um por alvo');
     ok(pares.every((r) => r.total === 3), 'três de dano em cada');
+  }],
+
+  ['sem assinatura, o histórico fica fechado', () => {
+    // Não existe caso de "deslogado vê o que é dele": bastaria sair da conta
+    // para abrir a porta, e um portão que se abre ao ser evitado não é portão.
+    ok(!podeVerEstatisticas(true, 'deslogado'), 'sem conta, fechado');
+    ok(!podeVerEstatisticas(true, 'sem-assinatura'), 'com conta e sem assinar, fechado');
+    ok(podeVerEstatisticas(true, 'assinante'), 'assinando, abre');
+
+    // Sem nuvem configurada o app roda como sempre rodou. Trancar ali não
+    // protegeria nada: os dados estão no aparelho de quem está olhando.
+    ok(podeVerEstatisticas(false, 'desligado'), 'sem nuvem, nada muda');
+    ok(podeVerEstatisticas(false, 'deslogado'), 'sem nuvem, nem o login importa');
+  }],
+
+  ['não se nega o que ainda não se sabe', () => {
+    if (!simulated || !cloudEnabled()) return 'skip';
+    // O defeito relatado: a tela de bloqueio aparecia por alguns segundos e
+    // depois liberava sozinha. Não era o status mudando - era o app tratando
+    // "ainda não perguntei ao servidor" como "não tem". Para quem paga, ser
+    // informado de que não pagou é o pior defeito possível.
+    esquecerSessao();
+    ok(assinaturaConhecida(), 'sem sessão a resposta é imediata: não há assinatura');
+
+    location.hash = '#access_token=faz-de-conta&expires_at=99999999999';
+    ok(capturarRetorno(), 'sessão capturada');
+    ok(!assinaturaConhecida(), 'com sessão e sem ter perguntado, ainda não se sabe');
+
+    esquecerSessao();
+    ok(assinaturaConhecida(), 'sair fecha a pergunta de novo');
+  }],
+
+  ['enquanto verifica, a paywall não acusa ninguém', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    store.wipe();
+    store.archive(mesa(4));
+
+    const desenhar = (verificando) => {
+      document.body.childNodes.length = 0;
+      const root = document.createElement('div');
+      renderPaywall(root, { onBack() {}, onUnlock() {}, verificando });
+      return root;
+    };
+
+    const checando = desenhar(true);
+    eq(findAll(checando, 'paywall-title').length, 0, 'não diz que o histórico está fechado');
+    eq(findAll(checando, 'btn').length, 0, 'nem oferece entrar ou conferir');
+    ok(findAll(checando, 'paywall-body').map(textOf).join('').includes(t('paywall.checking')),
+      'só avisa que está conferindo');
+
+    // E quando a resposta chega, aí sim.
+    const negado = desenhar(false);
+    eq(findAll(negado, 'paywall-title').length, 1, 'com resposta, explica o bloqueio');
+  }],
+
+  ['a paywall diz quantas partidas estão esperando', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    store.wipe();
+    store.archive(mesa(4));
+    store.archive(mesa(3));
+
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    renderPaywall(root, { onBack() {}, onUnlock() {} });
+
+    // O número não é enfeite: é a diferença entre "pague para usar" e "o que é
+    // seu está aqui, esperando". Continuar jogando nunca foi bloqueado.
+    const texto = findAll(root, 'paywall-count').map(textOf).join('');
+    ok(texto.includes('2'), 'mostra as duas partidas guardadas');
+    ok(findAll(root, 'paywall-title').length === 1, 'e explica por quê');
+
+    // Deslogado, o caminho é entrar; a checagem de assinatura viria depois.
+    eq(accountNow(), 'deslogado');
+    const botoes = findAll(root, 'btn').map(textOf);
+    ok(botoes.includes(t('paywall.signInFirst')), 'oferece entrar na conta');
+    ok(!botoes.includes(t('paywall.recheck')), 'sem conta não há assinatura a conferir');
+  }],
+
+  ['a linha de votação mostra a categoria e o total', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    store.wipe();
+    const m = mesa(2);
+    const votar = (q) => push(m, {
+      type: 'vote', preset: 'dilema', kind: 'opcoes', question: q,
+      options: ['Silence', 'Snitch'],
+      ballots: [{ seatId: 's0', name: 'P0', choices: [0] }],
+    });
+    votar("Prisoner's Dilemma");
+    votar('Quem entrega quem?');   // outra pergunta, mesmo modelo
+    store.archive(m);
+
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    renderStats(root, { onBack() {} });
+    fire(findAll(root, 'tab').find((b) => textOf(b) === t('stats.players')), 'click');
+
+    const perguntas = findAll(root, 'vote-history-q').map(textOf);
+    eq(perguntas.length, 1, 'as duas noites do mesmo modelo dão uma linha só');
+    eq(perguntas[0], "Prisoner's Dilemma", 'à esquerda, o tipo da votação');
+
+    const totais = findAll(root, 'vote-history-total').map(textOf);
+    eq(totais[0], '2', 'à direita, quantos votos a pessoa deu nessa categoria');
+    ok(findAll(root, 'vote-history-picks').map(textOf)[0].includes('Silence'),
+      'e o que ela escolheu continua ali');
+  }],
+
+  ['a aba de rivalidades compara um par por vez', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    // Antes a aba despejava TODAS as duplas: cinco jogadores dão dez cartões, e
+    // a comparação que interessa fica perdida no meio de nove que ninguém
+    // pediu. Rivalidade é uma pergunta sobre duas pessoas - a tela pergunta
+    // quais.
+    store.wipe();
+    const m = mesa(4);
+    push(m, { type: 'life', targetId: 's1', delta: -9, sourceId: 's0' });
+    push(m, { type: 'life', targetId: 's2', delta: -5, sourceId: 's0' });
+    push(m, { type: 'life', targetId: 's0', delta: -4, sourceId: 's3' });
+    store.archive(m);
+
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    renderStats(root, { onBack() {} });
+
+    const aba = findAll(root, 'tab').find((b) => textOf(b) === t('stats.rivals'));
+    ok(aba, 'a aba de rivalidades existe');
+    fire(aba, 'click');
+
+    // Três pares de fato (s0-s1, s0-s2, s0-s3), mas um gráfico só.
+    eq(findAll(root, 'rival-select').length, 2, 'dois campos de filtro');
+    eq(findAll(root, 'rival-card').length, 1, 'um gráfico por vez, não todos');
+
+    // E os filtros oferecem só quem tem rivalidade registrada: oferecer alguém
+    // que nunca cruzou com ninguém só produziria combinações vazias.
+    const opcoes = findAll(root, 'rival-select')[0].childNodes.length;
+    eq(opcoes, 4, 'os quatro que se enfrentaram');
+
+    // O campo da esquerda manda no lado esquerdo do gráfico. Sem isso o desenho
+    // contradiz o controle logo acima dele.
+    const nomeEsquerda = () => textOf(findAll(root, 'rival-name')[0]);
+    const seletor = (i) => findAll(root, 'rival-select')[i];
+    const trocar = (i, valor) => {
+      const sel = seletor(i);
+      sel.value = valor;
+      fire(sel, 'change', { target: { value: valor } });
+    };
+
+    eq(nomeEsquerda(), 'P0', 'começa com quem está no campo da esquerda');
+    trocar(0, 'p1');          // esquerda = P1 (aqui os dois campos coincidem)
+    trocar(1, 'p0');          // direita = P0
+    eq(nomeEsquerda(), 'P1', 'trocar o campo da esquerda vira o gráfico');
+    eq(findAll(root, 'rival-card').length, 1, 'continua sendo um gráfico só');
+  }],
+
+  ['virar o gráfico troca os dois lados inteiros', () => {
+    // Trocar só o nome inverteria a leitura do dano - pior que não trocar.
+    const par = {
+      a: 'Ana', keyA: 'ana', aToB: { damage: 9, kills: 1 },
+      b: 'Bruno', keyB: 'bruno', bToA: { damage: 4, kills: 0 },
+      games: 2, total: 13,
+    };
+
+    eq(orientarRival(par, 'ana'), par, 'já está do jeito pedido');
+
+    const virado = orientarRival(par, 'bruno');
+    eq(virado.a, 'Bruno', 'nome trocou');
+    eq(virado.keyA, 'bruno', 'chave trocou junto - é ela que dá a cor');
+    eq(virado.aToB.damage, 4, 'e o dano acompanha quem passou para a esquerda');
+    eq(virado.b, 'Ana');
+    eq(virado.bToA.damage, 9);
+    eq(virado.games, 2, 'o que é do par não muda');
+    eq(virado.total, 13);
+
+    eq(orientarRival(par, 'carla'), par, 'chave de fora do par não vira nada');
+    eq(orientarRival(null, 'ana'), null, 'sem par, sem gráfico');
   }],
 
   ['ocultar tira da lista sem tocar nas partidas', () => {
@@ -1452,7 +1983,15 @@ export const cases = [
 
     ok(conta, 'com nuvem, a seção de conta precisa existir');
     eq(accountNow(), 'deslogado', 'ninguém entrou ainda');
-    ok(findAll(conta, 'search-input').length === 1, 'campo de e-mail');
+
+    // E-mail e senha: entrar num aparelho novo não pode depender de abrir a
+    // caixa de entrada. O link por e-mail continua ali, como recuperação.
+    const campos = findAll(conta, 'search-input');
+    eq(campos.length, 2, 'e-mail e senha');
+    eq(campos[1].attributes.type, 'password', 'o segundo campo é senha');
+    eq(campos[1].attributes.autocomplete, 'current-password',
+      'o gerenciador de senhas do aparelho precisa reconhecer o campo');
+    ok(findAll(conta, 'account-link').length === 1, 'o link por e-mail segue disponível');
 
     // Botão de provedor social só existe se o servidor disser que está ligado.
     const rotulos = findAll(conta, 'btn').map(textOf);
@@ -1460,6 +1999,288 @@ export const cases = [
     eq(temGoogle, provedores().includes('google'),
       'botão do Google precisa acompanhar o que o servidor aceita');
     closeSheet();
+  }],
+
+  ['sessão vencida com refresh não é sessão perdida', () => {
+    // Este era o bug: guardava-se o refresh_token e nunca se usava, então a
+    // sessão morria em uma hora e a pessoa tinha de pedir e-mail de novo. Para
+    // sempre. Descartar a sessão vencida aqui era o que fechava a porta.
+    const agora = 1000000000000;
+    const hora = 3600 * 1000;
+
+    const viva = { access_token: 'a', expires_at: (agora + hora) / 1000 };
+    const vencidaComRefresh = { access_token: 'a', refresh_token: 'r', expires_at: (agora - hora) / 1000 };
+    const vencidaSemRefresh = { access_token: 'a', expires_at: (agora - hora) / 1000 };
+
+    ok(sessaoAproveitavel(viva, agora), 'sessão no prazo serve');
+    ok(sessaoAproveitavel(vencidaComRefresh, agora), 'vencida com refresh se renova');
+    ok(!sessaoAproveitavel(vencidaSemRefresh, agora), 'vencida sem refresh acabou');
+    ok(!sessaoAproveitavel(null, agora), 'nenhuma sessão');
+
+    // A margem evita o caso em que o token vence ENTRE decidir e o pedido
+    // chegar ao servidor - rede lenta e relógio de aparelho fora de hora.
+    ok(!precisaRenovar(viva, agora), 'faltando uma hora, não mexe');
+    ok(precisaRenovar({ ...vencidaComRefresh, expires_at: (agora + 30000) / 1000 }, agora),
+      'faltando 30s, renova antes de usar');
+    ok(!precisaRenovar(viva, agora), 'sem refresh_token não há o que renovar, mesmo no prazo');
+    ok(precisaRenovar(vencidaComRefresh, agora), 'já vencida, renova');
+    ok(!precisaRenovar(vencidaSemRefresh, agora), 'sem refresh não há o que renovar');
+    ok(!precisaRenovar({ access_token: 'a', refresh_token: 'r' }, agora),
+      'sem prazo declarado, não fica renovando à toa');
+
+    // E a decisão de verdade: o que sai do disco. Uma regra correta guardada
+    // num lugar que ninguém consulta não conserta nada - era exatamente aqui
+    // que a sessão morria, e o teste da regra solta não perceberia.
+    ok(sessaoGuardada(JSON.stringify(vencidaComRefresh), agora), 'volta do disco para ser renovada');
+    ok(!sessaoGuardada(JSON.stringify(vencidaSemRefresh), agora), 'essa não volta');
+    ok(!sessaoGuardada(null, agora), 'disco vazio');
+    ok(!sessaoGuardada('{quebrado', agora), 'lixo no disco não derruba o app');
+  }],
+
+  ['cadastro não promete e-mail para quem já tem conta', () => {
+    // Com confirmação de e-mail ligada, o GoTrue NÃO diz "esse e-mail já
+    // existe" - responder isso transformaria o cadastro num verificador de
+    // endereços para qualquer um. Ele devolve um usuário de fachada com
+    // `identities` vazio, e esse array vazio é o único sinal.
+    //
+    // Sem lê-lo, o app dizia "confira sua caixa de entrada" para quem já tinha
+    // conta, e a pessoa ficava esperando um e-mail que não ia resolver nada.
+    ok(jaTinhaConta({ id: 'x', identities: [] }), 'array vazio: a conta já existia');
+    ok(!jaTinhaConta({ id: 'x', identities: [{ provider: 'email' }] }), 'conta nova de verdade');
+    ok(!jaTinhaConta({ access_token: 'a', identities: [] }),
+      'se veio sessão, entrou - não importa o resto');
+    ok(!jaTinhaConta(null), 'resposta vazia não é conta existente');
+    ok(!jaTinhaConta({ id: 'x' }), 'sem o campo, não dá para afirmar nada');
+  }],
+
+  ['senha curta nem sai do aparelho', () => {
+    ok(!senhaValida(''), 'vazia');
+    ok(!senhaValida('1234567'), 'sete não bastam');
+    ok(senhaValida('12345678'), 'oito bastam');
+    ok(!senhaValida(null), 'nulo não explode');
+  }],
+
+  ['no computador nada da mesa vira de cabeça para baixo', () => {
+    // Deitado na mesa, o teclado gira para o assento de quem age - é assim que
+    // a pessoa lê o próprio ataque. Num monitor de pé, de frente para uma
+    // pessoa só, o mesmo giro entregava a tela invertida.
+    //
+    // O sinal é o ponteiro, não o tamanho: tablet grande em paisagem tem a
+    // largura de um notebook, e chutar por pixels erraria nos dois sentidos.
+    ok(giraComOAssento(false), 'sem mouse: está na mesa, gira');
+    ok(!giraComOAssento(true), 'com mouse ou trackpad: está de pé, não gira');
+
+    // O valor que chega ao CSS, com unidade. Sem o sufixo, `rotate(0)` é
+    // inválido e o navegador descarta a regra inteira em silêncio.
+    eq(grausNaMesa(180, false), '180deg', 'na mesa, acompanha o assento');
+    eq(grausNaMesa(180, true), '0deg', 'no computador, sempre de pé');
+    eq(grausNaMesa(undefined, false), '0deg', 'assento sem giro declarado');
+
+    // E que a leitura do ponteiro realmente chegue até a decisão.
+    if (simulated) {
+      const antes = globalThis.matchMedia;
+      try {
+        globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+        eq(rotatesToSeat(), false, 'ponteiro preciso: não gira');
+        globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+        eq(rotatesToSeat(), true, 'sem ponteiro preciso: gira');
+      } finally {
+        globalThis.matchMedia = antes;
+      }
+    }
+  }],
+
+  ['escolher jogador oferece criar OU procurar conta', () => {
+    if (!simulated || !cloudEnabled()) return 'skip';
+    setLang('pt');
+
+    const abrirEscolha = () => {
+      document.body.childNodes.length = 0;
+      const root = document.createElement('div');
+      renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+      fire(findAll(root, 'seat-name')[0], 'click');
+      flushFrames();
+      const t2 = telas();
+      return t2[t2.length - 1];
+    };
+
+    // Deslogado: só dá para digitar um nome. Procurar conta exigiria conta.
+    eq(accountNow(), 'deslogado', 'cada caso começa sem sessão');
+    ok(findAll(abrirEscolha(), 'search-input').length >= 1, 'sempre dá para digitar');
+    eq(findAll(abrirEscolha(), 'is-find').length, 0, 'sem conta, não há o que procurar');
+    closeSheet();
+
+    location.hash = '#access_token=faz-de-conta&expires_at=99999999999';
+    ok(capturarRetorno(), 'sessão capturada');
+
+    const pane = abrirEscolha();
+    ok(findAll(pane, 'search-input').length >= 1, 'caminho 1: digitar um nome');
+    eq(findAll(pane, 'is-find').length, 1, 'caminho 2: procurar a conta');
+    closeSheet();
+    esquecerSessao();
+  }],
+
+  ['digitar o nome de quem já está na mesa é recusado', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+
+    // A lista de salvos já desabilitava quem estava sentado, mas digitar o
+    // mesmo nome na mão passava direto.
+    // Os nomes vêm da tela, não do padrão: o rascunho é compartilhado entre
+    // casos e pode ter sido mexido antes.
+    const nomes = () => findAll(root, 'seat-name-text').map(textOf);
+    const primeiro = nomes()[0];
+    const jaSentado = nomes()[1];
+    ok(primeiro !== jaSentado, 'as duas cadeiras começam com nomes distintos');
+
+    fire(findAll(root, 'seat-name')[0], 'click');
+    flushFrames();
+    const pane = telas()[telas().length - 1];
+    const campo = findAll(pane, 'search-input')[0];
+    const usar = findAll(pane, 'btn').find((b) => textOf(b) === t('player.use'));
+
+    campo.value = jaSentado;
+    fire(campo, 'input', { target: { value: jaSentado } });
+    fire(usar, 'click');
+    flushFrames();
+
+    // Não avançou para o deck, e a cadeira não virou a segunda pessoa.
+    const titulo = findAll(document.body, 'sheet-title').map(textOf).join(' ');
+    ok(titulo !== t('commander.title'), 'não pode seguir para o deck com nome repetido');
+    eq(nomes()[0], primeiro, 'a primeira cadeira continua sendo ela mesma');
+
+    closeSheet();
+  }],
+
+  ['digitar um nome vai direto ao deck', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+    fire(findAll(root, 'seat-name')[0], 'click');
+    flushFrames();
+
+    const pane = telas()[telas().length - 1];
+    findAll(pane, 'search-input')[0].value = 'Zé da Mesa';
+    const usar = findAll(pane, 'btn').find((b) => textOf(b) === t('player.use'));
+    ok(usar, 'o botão de usar o nome digitado');
+    fire(usar, 'click');
+    flushFrames();
+
+    // Antes havia uma pergunta de @ no meio do caminho. Ela virou uma escolha
+    // no INÍCIO - quem digitou um nome já decidiu que não vai vincular conta,
+    // e perguntar de novo logo depois era refazer a pergunta já respondida.
+    const titulo = findAll(document.body, 'sheet-title').map(textOf).join(' ');
+    eq(titulo, t('commander.title'), 'o passo seguinte é o deck');
+    closeSheet();
+  }],
+
+  ['o @ fica sob o nome, e some para quem não entrou', () => {
+    if (!simulated || !cloudEnabled()) return 'skip';
+    setLang('pt');
+
+    const desenhar = () => {
+      document.body.childNodes.length = 0;
+      const root = document.createElement('div');
+      renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+      return root;
+    };
+
+    // Deslogado: a regra que não pode quebrar. Quem nunca vai criar conta não
+    // ganha um controle a mais na tela por causa de um recurso que não usa.
+    eq(accountNow(), 'deslogado', 'cada caso começa sem sessão');
+    eq(findAll(desenhar(), 'seat-handle').length, 0, 'sem conta, nada de @ na cadeira');
+
+    // Agora com sessão. Entrar pelo fragmento é o mesmo caminho do link
+    // mágico, então o teste usa a porta de entrada real e não um atalho.
+    location.hash = '#access_token=faz-de-conta&expires_at=99999999999';
+    ok(capturarRetorno(), 'a sessão foi capturada da URL');
+    ok(accountNow() !== 'deslogado', 'agora há sessão');
+
+    const root = desenhar();
+    const cartoes = findAll(root, 'seat-card');
+    const linhas = findAll(root, 'seat-handle');
+    ok(cartoes.length >= 2, 'a home desenha as cadeiras');
+    eq(linhas.length, cartoes.length, 'uma linha de @ por cadeira');
+
+    // Sob o NOME, não solto no canto do cartão: tem de estar no mesmo bloco de
+    // texto que o nome e o deck. Antes era um chip na borda, longe daquilo que
+    // descrevia e disputando espaço com a alça de arrastar.
+    const info = linhas[0].closest('.seat-info');
+    ok(info, 'a linha do @ mora dentro de .seat-info');
+
+    const irmaos = info.childNodes.filter((n) => n && n.classList);
+    const iNome = irmaos.findIndex((n) => n.classList.contains('seat-name'));
+    const iArroba = irmaos.findIndex((n) => n.classList.contains('seat-handle'));
+    ok(iNome >= 0 && iArroba >= 0, 'nome e @ estão os dois na coluna');
+    ok(iArroba > iNome, 'o @ vem DEPOIS do nome, não antes');
+
+    esquecerSessao();
+  }],
+
+  ['o @ é normalizado antes de qualquer coisa', () => {
+    eq(normalizarHandle('  @AlienPls '), 'alienpls', 'tira arroba, espaço e caixa');
+    eq(normalizarHandle('@@alex'), 'alex', 'arroba repetida');
+    eq(normalizarHandle(null), '', 'nulo não explode');
+    eq(exibirHandle('AlienPls'), '@alienpls', 'na tela volta com arroba');
+    eq(exibirHandle(''), '', 'sem @ não inventa arroba');
+
+    ok(handleValido('@AlienPls'), 'o que a pessoa digita costuma ter arroba e maiúscula');
+    ok(handleValido('abc'), 'mínimo de 3');
+    ok(!handleValido('ab'), 'curto demais');
+    ok(!handleValido('a'.repeat(21)), 'longo demais');
+    ok(!handleValido('alex parma'), 'espaço no meio não vale');
+    ok(!handleValido('alex@exemplo.com'), 'e-mail não é @ público');
+    ok(!handleValido('alex-parma'), 'só letra, número e sublinhado');
+  }],
+
+  ['só cadeira marcada com @ vira convite', () => {
+    // A regra que não pode quebrar: quem nunca vai criar conta continua usando
+    // o app exatamente como antes. Cadeira é texto livre, e assim segue.
+    const match = {
+      id: 'p1',
+      seats: [
+        { id: 's1', name: 'Alexandre', handle: '@AlienPls' },
+        { id: 's2', name: 'Bruno' },
+        { id: 's3', name: 'Carla', handle: '   ' },
+        { id: 's4', name: 'Davi', handle: 'nome invalido!' },
+      ],
+    };
+
+    const linhas = participantesDe(match);
+    eq(linhas.length, 1, 'três das quatro cadeiras não viram convite nenhum');
+    eq(linhas[0].seat_id, 's1');
+    eq(linhas[0].handle, 'alienpls', 'vai normalizado para o banco');
+    eq(linhas[0].match_id, 'p1');
+    eq(linhas[0].user_id, null, 'sem @ resolvido ainda, a cadeira fica sem dono');
+
+    eq(participantesDe(null).length, 0, 'sem partida, sem convite');
+    eq(participantesDe({ seats: [{ id: 's1', handle: 'alex' }] }).length, 0,
+      'partida sem id não gera linha órfã');
+  }],
+
+  ['convite aparece mesmo quando a partida não vem junto', () => {
+    // É o portão funcionando, não um erro. Quem não assina precisa VER que há
+    // partidas esperando - senão nunca aceita e nunca soube que existiam. O
+    // convite é livre; ler o conteúdo é que é pago.
+    const linhas = [
+      { match_id: 'p1', seat_id: 's1', status: 'pendente', handle: 'alienpls' },
+      { match_id: 'p2', seat_id: 's3', status: 'pendente', handle: 'alienpls' },
+    ];
+    const semAssinar = montarConvites(linhas, []);
+    eq(semAssinar.length, 2, 'os dois convites aparecem');
+    ok(semAssinar.every((c) => c.match === null), 'sem assinatura, nada do conteúdo');
+    eq(semAssinar[0].matchId, 'p1');
+
+    const assinando = montarConvites(linhas, [{ id: 'p2', seats: [] }]);
+    eq(assinando[0].match, null, 'esta ainda não veio');
+    ok(assinando[1].match, 'esta veio e pode ser mostrada');
+
+    eq(montarConvites(null, null).length, 0, 'listas vazias não explodem');
   }],
 
   ['o canal sai do caminho da URL', () => {
@@ -1536,6 +2357,38 @@ export const cases = [
     ok(!limpo.includes('?'), 'sem query');
   }],
 
+  ['senha errada mostra um erro visível no login', () => {
+    if (!simulated || !cloudEnabled()) return 'skip';
+    setLang('pt');
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+    fire(findAll(root, 'icon-btn').find((b) => b.attributes['aria-label'] === t('common.settings')), 'click');
+
+    const conta = findAll(document.body, 'account')[0];
+    ok(conta, 'a seção de conta');
+
+    const aviso = findAll(conta, 'account-erro')[0];
+    ok(aviso, 'existe um lugar para o erro aparecer');
+    ok(!aviso.classList.contains('is-on'), 'sem erro, ele não ocupa espaço');
+
+    // Erra o e-mail e aperta entrar: antes isso era um parágrafo cinza depois
+    // dos dois botões, fora do campo de visão de quem acabou de errar.
+    const entrar = findAll(conta, 'btn').find((b) => textOf(b) === t('account.signIn'));
+    ok(entrar, 'o botão de entrar');
+    fire(entrar, 'click');
+
+    ok(aviso.classList.contains('is-on'), 'o erro aparece');
+    eq(textOf(aviso), t('account.invalidEmail'), 'e diz o que houve');
+
+    // Mexer no campo apaga: a mensagem falava do que estava ali antes.
+    const campos = findAll(conta, 'search-input');
+    fire(campos[0], 'input', { target: { value: 'a@b.co' } });
+    ok(!aviso.classList.contains('is-on'), 'corrigir o campo limpa o aviso');
+
+    closeSheet();
+  }],
+
   ['e-mail inválido não dispara pedido de link', () => {
     if (!simulated) return 'skip';
     // Sem isto, cada dedo errado vira uma chamada à rede e um e-mail perdido.
@@ -1572,6 +2425,7 @@ export function runAll() {
       // dele.
       setLang('pt');
       if (typeof closeSheet === 'function') closeSheet();
+      esquecerSessao();
 
       const r = fn();
       if (r === 'skip') return { name, ok: true, skipped: true };

@@ -33,7 +33,7 @@ function blank(key, label, extra = {}) {
     matchTime: 0,
     winReasons: {},  // motivo declarado -> quantas vitorias assim
     votes: 0,        // quantas votacoes secretas este jogador participou
-    voteChoices: {}, // pergunta -> { rotulo escolhido: quantas vezes }
+    voteChoices: {}, // categoria -> { rotulo escolhido: quantas vezes }
     ...extra,
   };
 }
@@ -56,11 +56,54 @@ function finalize(row) {
   };
 }
 
+/* ------------------------------------------------------------------ */
+/* Quem e a pessoa                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A identidade de um assento, estavel entre mesas.
+ *
+ * Antes a estatistica usava o NOME digitado, em minusculas. Isso significa que
+ * "Alex" numa quinta e "Alexandre" na outra viravam duas pessoas diferentes, com
+ * duas linhas, duas cores e duas historias - e a rivalidade entre elas era
+ * contada como se fossem estranhos. O nome e como a mesa chama alguem naquele
+ * dia; nao e quem a pessoa e.
+ *
+ * Quando ha conta vinculada, e ela que manda, e o nome passa a ser so rotulo.
+ * O prefixo `@` impede que uma conta chamada `ana` colida com alguem que
+ * digitou "ana" sem conta nenhuma - sao pessoas diferentes ate prova em
+ * contrario.
+ *
+ * `apelidos` e o que o APARELHO ja sabe: nome (minusculo) -> handle. Serve para
+ * partidas gravadas antes de existir @, que assim se juntam a conta certa em vez
+ * de ficarem orfas para sempre.
+ */
+export function identityOf(seat, apelidos) {
+  if (!seat) return '?';
+  const h = String(seat.handle || '').trim().replace(/^@+/, '').toLowerCase();
+  if (h) return '@' + h;
+
+  const nome = String(seat.name || '').trim().toLowerCase();
+  if (nome && apelidos) {
+    const lembrado = apelidos[nome] || (apelidos.get ? apelidos.get(nome) : null);
+    if (lembrado) return '@' + String(lembrado).trim().replace(/^@+/, '').toLowerCase();
+  }
+  return nome || seat.id || '?';
+}
+
+/** Como esta pessoa aparece na tela. O nome, quando ha; senao o @. */
+export function labelOf(seat) {
+  const nome = String((seat && seat.name) || '').trim();
+  if (nome) return nome;
+  const h = String((seat && seat.handle) || '').trim().replace(/^@+/, '');
+  return h ? '@' + h : 'Sem nome';
+}
+
 /**
  * Percorre as partidas uma unica vez e acumula em dois recortes:
- * por deck (combinacao de comandantes) e por jogador (nome).
+ * por deck (combinacao de comandantes) e por jogador (identidade).
  */
-export function aggregate(matches) {
+export function aggregate(matches, apelidos = null) {
   const decks = new Map();
   const players = new Map();
 
@@ -77,8 +120,11 @@ export function aggregate(matches) {
       if (!decks.has(dKey)) {
         decks.set(dKey, blank(dKey, deckNameOf(seat.commanders), { commanders: seat.commanders }));
       }
-      const pKey = (seat.name || '').trim().toLowerCase() || seat.id;
-      if (!players.has(pKey)) players.set(pKey, blank(pKey, seat.name || 'Sem nome'));
+      // A primeira partida encontrada define o rotulo, e o historico vem do
+      // mais recente para o mais antigo - entao a linha mostra o nome que a
+      // pessoa usou por ultimo, que e o que a mesa vai reconhecer.
+      const pKey = identityOf(seat, apelidos);
+      if (!players.has(pKey)) players.set(pKey, blank(pKey, labelOf(seat)));
       targets[seat.id] = [decks.get(dKey), players.get(pKey)];
     }
 
@@ -163,7 +209,9 @@ export function aggregate(matches) {
           }
           break;
         case 'vote': {
-          const pergunta = tituloDaVotacao(ev);
+          // Agrupa pela CATEGORIA: e ela que diz o que a pessoa costuma
+          // escolher. A traducao so acontece na tela.
+          const pergunta = categoriaDaVotacao(ev);
           for (const cedula of ev.ballots || []) {
             const rotulos = (cedula.choices || []).map((c) => (
               ev.kind === 'numero' ? String(c) : (ev.options || [])[c]
@@ -200,12 +248,62 @@ export function aggregate(matches) {
  * proprias opcoes ja identificam a carta melhor que qualquer rotulo generico:
  * "Silence ou Snitch" e reconhecivel na hora.
  */
-export function tituloDaVotacao(ev) {
-  const dado = (ev.question || '').trim();
+/**
+ * A chave que agrupa uma votacao no historico.
+ *
+ * NAO pode ser texto traduzido. Antes o agrupamento usava o rotulo da tela, e
+ * "Numero secreto" em portugues e "Secret number" em ingles viravam duas
+ * perguntas diferentes: trocar o idioma do app partia o historico de votacoes
+ * da pessoa em dois montes, sem que nada tivesse mudado na mesa.
+ *
+ * As chaves internas comecam com `#` para nunca colidirem com uma pergunta que
+ * alguem tenha digitado.
+ */
+export function chaveDaVotacao(ev) {
+  const dado = ((ev && ev.question) || '').trim();
   if (dado) return dado;
-  if (ev.kind === 'numero') return t('vote.preset.number');
-  const opcoes = (ev.options || []).filter(Boolean);
-  return opcoes.length ? opcoes.join(' / ') : t('vote.untitled');
+  if (ev && ev.kind === 'numero') return '#numero';
+  const opcoes = ((ev && ev.options) || []).filter(Boolean);
+  return opcoes.length ? opcoes.join(' / ') : '#semtitulo';
+}
+
+/**
+ * A CATEGORIA de uma votacao: o modelo usado, nao a pergunta escrita.
+ *
+ * Agrupar por pergunta livre espalhava a mesma coisa por varias linhas - cada
+ * jeito de escrever "quem entrega quem?" virava uma categoria propria - e ao
+ * mesmo tempo juntava coisas diferentes que por acaso tinham o mesmo titulo.
+ * A categoria e o que responde "essa pessoa costuma delatar?".
+ *
+ * Votacoes gravadas antes deste campo existir nao tem o modelo registrado. Da
+ * para recuperar o essencial pelo `kind`, e o resto vira uma categoria generica
+ * - inventar qual modelo foi usado seria pior que admitir que nao se sabe.
+ */
+export function categoriaDaVotacao(ev) {
+  if (ev && ev.preset) return ev.preset;
+  if (ev && ev.kind === 'numero') return 'numero';
+  return 'opcoes';
+}
+
+/** O nome da categoria, na lingua de agora. */
+export function rotuloDaCategoria(chave) {
+  if (chave === 'dilema') return "Prisoner's Dilemma"; // nome de carta, nao se traduz
+  if (chave === 'duas') return t('vote.preset.two');
+  if (chave === 'numero') return t('vote.preset.number');
+  if (chave === 'jogador') return t('vote.preset.player');
+  return t('vote.preset.other');
+}
+
+/** O texto de uma chave, na lingua de agora. */
+export function rotuloDaVotacao(chave) {
+  if (chave === '#numero') return t('vote.preset.number');
+  if (chave === '#semtitulo') return t('vote.untitled');
+  return chave;
+}
+
+/** Como uma votacao aparece na linha do tempo. */
+export function tituloDaVotacao(ev) {
+  return rotuloDaVotacao(chaveDaVotacao(ev));
 }
 
 function byRelevance(a, b) {
@@ -370,24 +468,30 @@ export function num(v, digits = 1) {
  * mesma pessoa entre partidas. Por primeira aparicao, quem chega depois so
  * ganha o proximo numero da fila e ninguem antes se mexe.
  */
-export function playerColorOrder(matches) {
+export function playerColorOrder(matches, apelidos = null) {
   const ordem = new Map();
   const antigas = [...(matches || [])].sort(
     (a, b) => (a.startedAt || 0) - (b.startedAt || 0),
   );
   for (const match of antigas) {
     for (const seat of match.seats || []) {
-      const chave = (seat.name || '').trim().toLowerCase();
-      if (chave && !ordem.has(chave)) ordem.set(chave, ordem.size);
+      const chave = identityOf(seat, apelidos);
+      if (chave && chave !== '?' && !ordem.has(chave)) ordem.set(chave, ordem.size);
     }
   }
   return ordem;
 }
 
-/** Atalho: a cor de um nome, dada a ordem ja calculada. */
-export function playerColor(ordem, nome) {
-  const chave = (nome || '').trim().toLowerCase();
-  return seriesColor(ordem.has(chave) ? ordem.get(chave) : 0);
+/**
+ * Atalho: a cor de uma identidade, dada a ordem ja calculada.
+ *
+ * Recebe a CHAVE, nao o nome que aparece na tela - se recebesse o nome, a
+ * mesma pessoa mudaria de cor ao ser cadastrada com outro nome, que e
+ * exatamente o que se quer evitar.
+ */
+export function playerColor(ordem, chave) {
+  const k = String(chave || '').trim().toLowerCase();
+  return seriesColor(ordem.has(k) ? ordem.get(k) : 0);
 }
 
 /* ------------------------------------------------------------------ */
@@ -409,7 +513,7 @@ function parVazio() {
  * O par e guardado em ordem alfabetica para que A-B e B-A caiam na mesma
  * linha, e cada sentido soma no seu proprio lado.
  */
-export function rivalries(matches) {
+export function rivalries(matches, apelidos = null) {
   const pares = new Map();
 
   const chave = (a, b) => (a < b ? a + '\u0000' + b : b + '\u0000' + a);
@@ -417,28 +521,37 @@ export function rivalries(matches) {
   for (const match of matches) {
     if (!match || !match.seats) continue;
 
-    const nome = {};
+    // Rivalidade e entre PESSOAS. Parear por nome faria "Alex contra Bruno" e
+    // "Alexandre contra Bruno" virarem duas rivalidades separadas, cada uma
+    // contando metade da historia.
+    const quem = {};
+    const rotulo = {};
     for (const seat of match.seats) {
-      nome[seat.id] = (seat.name || '').trim() || seat.id;
+      quem[seat.id] = identityOf(seat, apelidos);
+      rotulo[seat.id] = labelOf(seat);
     }
 
     const par = (deId, paraId) => {
-      const de = nome[deId];
-      const para = nome[paraId];
+      const de = quem[deId];
+      const para = quem[paraId];
       if (!de || !para || de === para) return null;
 
-      const k = chave(de.toLowerCase(), para.toLowerCase());
+      const k = chave(de, para);
       if (!pares.has(k)) {
-        const [primeiro, segundo] = de.toLowerCase() < para.toLowerCase() ? [de, para] : [para, de];
+        const [ka, kb] = de < para ? [de, para] : [para, de];
+        const [primeiro, segundo] = de < para
+          ? [rotulo[deId], rotulo[paraId]]
+          : [rotulo[paraId], rotulo[deId]];
         pares.set(k, {
-          a: primeiro, b: segundo, games: 0, total: 0,
+          a: primeiro, b: segundo, keyA: ka, keyB: kb,
+          games: 0, total: 0,
           aToB: parVazio(), bToA: parVazio(),
           _partidas: new Set(),
         });
       }
       const linha = pares.get(k);
       linha._partidas.add(match.id);
-      return { linha, lado: de === linha.a ? linha.aToB : linha.bToA };
+      return { linha, lado: de === linha.keyA ? linha.aToB : linha.bToA };
     };
 
     const somar = (deId, paraId, campo, quanto) => {
@@ -488,4 +601,51 @@ export function rivalries(matches) {
       return { ...resto, games: _partidas.size };
     })
     .sort((x, y) => y.total - x.total);
+}
+
+/**
+ * Quem aparece em alguma rivalidade, para popular os filtros.
+ *
+ * Sai das PROPRIAS rivalidades e nao da lista de jogadores: oferecer alguem que
+ * nunca cruzou com ninguem so produziria combinacoes vazias, e a pessoa ficaria
+ * caçando um par que existe entre opcoes que nao levam a lugar nenhum.
+ */
+export function rivalPeople(pares) {
+  const vistos = new Map();
+  for (const r of pares || []) {
+    if (!vistos.has(r.keyA)) vistos.set(r.keyA, { key: r.keyA, label: r.a });
+    if (!vistos.has(r.keyB)) vistos.set(r.keyB, { key: r.keyB, label: r.b });
+  }
+  return [...vistos.values()].sort((x, y) => x.label.localeCompare(y.label));
+}
+
+/** A rivalidade entre duas pessoas, em qualquer ordem. */
+export function rivalBetween(pares, a, b) {
+  if (!a || !b || a === b) return null;
+  return (pares || []).find(
+    (r) => (r.keyA === a && r.keyB === b) || (r.keyA === b && r.keyB === a),
+  ) || null;
+}
+
+/**
+ * O mesmo par, visto com uma pessoa especifica a esquerda.
+ *
+ * A rivalidade e guardada numa ordem interna (a chave menor primeiro), que e o
+ * que faz "A contra B" e "B contra A" serem a mesma linha. Mas na tela quem
+ * manda e o filtro: se a pessoa escolheu Bruno no campo da esquerda, e do lado
+ * esquerdo do grafico que Bruno tem de aparecer - senao o desenho contradiz o
+ * controle logo acima dele, e a barra parece dizer o contrario do que diz.
+ *
+ * Troca os dois lados por inteiro: nome, chave e o que cada um fez ao outro.
+ * Trocar so o nome inverteria a leitura do dano, que e pior que nao trocar.
+ */
+export function orientarRival(par, chaveEsquerda) {
+  if (!par) return null;
+  if (!chaveEsquerda || par.keyA === chaveEsquerda) return par;
+  if (par.keyB !== chaveEsquerda) return par; // nao e deste par: deixa como esta
+  return {
+    ...par,
+    a: par.b, keyA: par.keyB, aToB: par.bToA,
+    b: par.a, keyB: par.keyA, bToA: par.aToB,
+  };
 }
