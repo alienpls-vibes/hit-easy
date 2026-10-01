@@ -40,6 +40,7 @@ const EMPTY = {
     keepAwake: true,
     autoRotate: true,     // tenta tela cheia + travar deitado na partida
     dragHintSeen: false,
+    versaoVista: null,
   },
 };
 
@@ -65,10 +66,35 @@ function read() {
       // porque uma partida sem assentos nem eventos nao tem nada a perder: ela
       // ja nao pode ser lida por ninguem.
       history: (parsed.history || []).filter(partidaValida),
+      // Ocultos passam a ser chaveados por IDENTIDADE (ver migrarOcultos).
+      hiddenPlayers: migrarOcultos(parsed.hiddenPlayers, parsed.playerHandles),
     };
   } catch {
     return structuredClone(EMPTY);
   }
+}
+
+/**
+ * Ocultos passam a ser chaveados por identidade, e nao pelo nome mostrado.
+ *
+ * A tela ocultava o rotulo, que era o nome digitado. Quando a pessoa ganhava
+ * conta a identidade dela virava `@handle`, a chave deixava de casar e a linha
+ * reaparecia - o "ocultar" se desfazia sozinho, sem ninguem pedir.
+ *
+ * Reescreve uma vez, na leitura. Para quem nao tem conta a identidade JA e o
+ * nome em minusculas, entao a esmagadora maioria das entradas antigas
+ * atravessa sem mudar.
+ */
+function migrarOcultos(ocultos, apelidos) {
+  const vistos = new Set();
+  for (const entrada of ocultos || []) {
+    const nome = String(entrada || '').trim().toLowerCase();
+    if (!nome) continue;
+    if (nome.startsWith('@')) { vistos.add(nome); continue; }
+    const handle = apelidos && apelidos[nome];
+    vistos.add(handle ? '@' + String(handle).toLowerCase() : nome);
+  }
+  return [...vistos];
 }
 
 export function save() {
@@ -225,10 +251,6 @@ export function handleOf(name) {
   return (db.playerHandles && db.playerHandles[nome]) || '';
 }
 
-export function knownPlayers() {
-  return db.playerNames;
-}
-
 export function forgetPlayer(name) {
   // O @ acompanha o nome: esquecer pela metade deixaria a conta de outra
   // pessoa presa a um jogador que ja nao existe mais na lista.
@@ -248,6 +270,93 @@ export function forgetPlayer(name) {
 /** Nome (minusculo) -> handle, do que este aparelho ja viu. */
 export function knownHandles() {
   return { ...(db.playerHandles || {}) };
+}
+
+/**
+ * Guarda um apelido APRENDIDO, sem sobrescrever o que este aparelho decidiu.
+ *
+ * Diferente de rememberHandle, que e a pessoa marcando na mao. Este entra pelo
+ * que chega da nuvem, e ai a regra e outra: uma partida baixada pode dizer que
+ * "Alexandre" e @alex, mas se este aparelho ja tem "Alexandre" apontando para
+ * outra conta, quem decide e quem esta aqui. Divergencia nao se resolve
+ * adivinhando - fica como esta, e a pessoa marca na mao se quiser.
+ *
+ * Devolve se, no fim, o nome aponta para esse handle.
+ */
+export function aprenderApelido(name, handle) {
+  const nome = String(name || '').trim().toLowerCase();
+  const h = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
+  if (!nome || !h) return false;
+  if (!db.playerHandles) db.playerHandles = {};
+
+  const atual = db.playerHandles[nome];
+  if (atual) return atual === h;
+
+  db.playerHandles[nome] = h;
+  // Aprender a conta de alguem que este aparelho nunca digitou tambem o
+  // acrescenta a lista de selecao: e uma pessoa que a mesa ja conhece.
+  if (!db.playerNames.some((n) => String(n).trim().toLowerCase() === nome)) {
+    db.playerNames = [...db.playerNames, name].slice(0, 30);
+  }
+  save();
+  return true;
+}
+
+/**
+ * As PESSOAS que este aparelho conhece - uma linha por pessoa, nao por nome.
+ *
+ * A lista de selecao mostrava `playerNames` cru, entao quem foi digitado como
+ * "Alex" numa quinta e "Alexandre" na outra aparecia duas vezes, cada uma com
+ * metade dos decks. Aqui os nomes que apontam para a mesma conta se juntam, e
+ * a linha passa a se chamar pelo @.
+ *
+ * A ordem de `playerNames` (mais recente primeiro) e preservada: a pessoa
+ * herda a posicao do nome mais recente dela.
+ */
+export function pessoasConhecidas() {
+  const apelidos = db.playerHandles || {};
+  const porChave = new Map();
+
+  for (const nome of db.playerNames) {
+    const limpo = String(nome || '').trim();
+    if (!limpo) continue;
+    // Mesma regra de chave da estatistica, e de proposito: se as duas
+    // divergirem, a lista de selecao e a lista de jogadores falam de pessoas
+    // diferentes com o mesmo nome na tela.
+    const chave = identityOf({ name: limpo }, apelidos);
+    if (!porChave.has(chave)) {
+      const handle = chave.startsWith('@') ? chave.slice(1) : '';
+      porChave.set(chave, {
+        chave,
+        handle,
+        label: handle ? '@' + handle : limpo,
+        nomes: [],
+      });
+    }
+    porChave.get(chave).nomes.push(limpo);
+  }
+
+  return [...porChave.values()];
+}
+
+/** Os nomes que este aparelho ja ligou a esta conta. */
+export function nomesDaPessoa(handle) {
+  const h = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
+  if (!h) return [];
+  const apelidos = db.playerHandles || {};
+  return Object.keys(apelidos).filter((nome) => apelidos[nome] === h);
+}
+
+/**
+ * Esquece a PESSOA, e nao um dos nomes dela.
+ *
+ * Esquecer so um nome deixaria a mesma pessoa meio na lista: o @ continuaria
+ * conhecido pelos outros nomes, e a linha voltaria na proxima abertura.
+ */
+export function esquecerPessoa(chave) {
+  const alvo = String(chave || '').trim().toLowerCase();
+  const pessoa = pessoasConhecidas().find((x) => x.chave === alvo);
+  for (const nome of (pessoa ? pessoa.nomes : [alvo])) forgetPlayer(nome);
 }
 
 /**
@@ -290,8 +399,14 @@ export function hideDeck(deckKey) {
   save();
 }
 
-export function hidePlayer(name) {
-  const chave = String(name || '').trim().toLowerCase();
+/**
+ * Oculta uma pessoa das listas. Recebe a IDENTIDADE, nao o rotulo.
+ *
+ * Com o rotulo, ocultar se desfazia sozinho: a pessoa ganhava conta, o rotulo
+ * virava @alex, a chave guardada continuava "alexandre" e a linha reaparecia.
+ */
+export function hidePlayer(identidade) {
+  const chave = String(identidade || '').trim().toLowerCase();
   if (!chave || db.hiddenPlayers.includes(chave)) return;
   db.hiddenPlayers.push(chave);
   save();
@@ -302,8 +417,8 @@ export function unhideDeck(deckKey) {
   save();
 }
 
-export function unhidePlayer(name) {
-  const chave = String(name || '').trim().toLowerCase();
+export function unhidePlayer(identidade) {
+  const chave = String(identidade || '').trim().toLowerCase();
   db.hiddenPlayers = db.hiddenPlayers.filter((k) => k !== chave);
   save();
 }
@@ -312,8 +427,8 @@ export function isDeckHidden(deckKey) {
   return db.hiddenDecks.includes(deckKey);
 }
 
-export function isPlayerHidden(name) {
-  return db.hiddenPlayers.includes(String(name || '').trim().toLowerCase());
+export function isPlayerHidden(identidade) {
+  return db.hiddenPlayers.includes(String(identidade || '').trim().toLowerCase());
 }
 
 export function hiddenCount() {

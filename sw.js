@@ -13,7 +13,7 @@
 
 // Mesma string de APP_VERSION em src/version.js - worker nao importa modulo.
 // Se mudar la, mude aqui; check-syntax.js confere os dois.
-const VERSION = '1.1.0';
+const VERSION = '1.2.1';
 
 /**
  * Producao e beta dividem a mesma origem, e Cache Storage e por origem. O canal
@@ -38,33 +38,185 @@ function canalDoCache(nome) {
   return null;
 }
 
+/**
+ * O que entra no cache antes de faltar internet.
+ *
+ * Lista explicita porque o worker precisa saber o que baixar ANTES de ficar
+ * offline - nao da para descobrir modulo por modulo na hora. Sao 60+ arquivos,
+ * e entrada faltando nao da erro: o app so nao abre sem internet, e isso se
+ * descobre na mesa.
+ *
+ * `npm test` confere que todo .js e .css de src/ esta aqui.
+ */
+/**
+ * O que entra no cache antes de faltar internet.
+ *
+ * Lista explicita porque o worker precisa saber o que baixar ANTES de ficar
+ * offline - nao da para descobrir modulo por modulo na hora. Sao 60+ arquivos,
+ * e entrada faltando nao da erro: o app so nao abre sem internet, e isso se
+ * descobre na mesa.
+ *
+ * `npm test` confere que todo .js e .css de src/ esta aqui.
+ */
+/**
+ * O que entra no cache antes de faltar internet.
+ *
+ * Lista explicita porque o worker precisa saber o que baixar ANTES de ficar
+ * offline - nao da para descobrir modulo por modulo na hora. Sao 60+ arquivos,
+ * e entrada faltando nao da erro: o app so nao abre sem internet, e isso se
+ * descobre na mesa.
+ *
+ * `npm test` confere que todo .js e .css de src/ esta aqui.
+ */
+/**
+ * O que entra no cache antes de faltar internet.
+ *
+ * Lista explicita porque o worker precisa saber o que baixar ANTES de ficar
+ * offline - nao da para descobrir modulo por modulo na hora. Sao 60+ arquivos,
+ * e entrada faltando nao da erro: o app so nao abre sem internet, e isso se
+ * descobre na mesa.
+ *
+ * `npm test` confere que todo .js e .css de src/ esta aqui.
+ */
+/**
+ * O que entra no cache antes de faltar internet.
+ *
+ * Lista explicita porque o worker precisa saber o que baixar ANTES de ficar
+ * offline - nao da para descobrir modulo por modulo na hora. Sao 60+ arquivos,
+ * e entrada faltando nao da erro: o app so nao abre sem internet, e isso se
+ * descobre na mesa.
+ *
+ * `npm test` confere que todo .js e .css de src/ esta aqui.
+ */
+/**
+ * O que entra no cache antes de faltar internet.
+ *
+ * Lista explicita porque o worker precisa saber o que baixar ANTES de ficar
+ * offline - nao da para descobrir modulo por modulo na hora. Sao 60+ arquivos,
+ * e entrada faltando nao da erro: o app so nao abre sem internet, e isso se
+ * descobre na mesa.
+ *
+ * `npm test` confere que todo .js e .css de src/ esta aqui.
+ */
+/**
+ * O que entra no cache antes de faltar internet.
+ *
+ * Lista explicita porque o worker precisa saber o que baixar ANTES de ficar
+ * offline - nao da para descobrir modulo por modulo na hora. Sao 60+ arquivos,
+ * e entrada faltando nao da erro: o app so nao abre sem internet, e isso se
+ * descobre na mesa.
+ *
+ * `npm test` confere que todo .js e .css de src/ esta aqui.
+ */
 const ASSETS = [
   './',
   './index.html',
   './privacidade.html',
   './manifest.webmanifest',
-  './src/styles.css',
   './src/app.js',
-  './src/ui.js',
-  './src/store.js',
-  './src/engine.js',
-  './src/stats.js',
-  './src/colors.js',
-  './src/seating.js',
-  './src/theme.js',
-  './src/install.js',
-  './src/vote.js',
-  './src/orientation.js',
-  './src/i18n.js',
   './src/canal.js',
-  './src/config.js',
-  './src/version.js',
   './src/cloud.js',
-  './src/sync.js',
+  './src/cloud/assinatura.js',
+  './src/cloud/auth.js',
+  './src/cloud/convites.js',
+  './src/cloud/estado.js',
+  './src/cloud/http.js',
+  './src/cloud/iniciar.js',
+  './src/cloud/partidas.js',
+  './src/cloud/perfil.js',
+  './src/cloud/regras.js',
+  './src/colors.js',
+  './src/config.js',
+  './src/engine.js',
+  './src/estilos/base.css',
+  './src/estilos/configuracoes.css',
+  './src/estilos/conta.css',
+  './src/estilos/dano.css',
+  './src/estilos/erro.css',
+  './src/estilos/home.css',
+  './src/estilos/mana.css',
+  './src/estilos/mesa.css',
+  './src/estilos/motivos-de-vitoria.css',
+  './src/estilos/nucleo.css',
+  './src/estilos/ocultar-rivalidades.css',
+  './src/estilos/painel.css',
+  './src/estilos/stats-votacoes.css',
+  './src/estilos/stats.css',
+  './src/estilos/tela.css',
+  './src/estilos/telas-largas.css',
+  './src/estilos/tokens.css',
+  './src/estilos/vitoria-tela-baixa.css',
+  './src/estilos/vitoria.css',
+  './src/estilos/votacao.css',
+  './src/i18n.js',
+  './src/i18n/de.js',
+  './src/i18n/dicionarios.js',
+  './src/i18n/en.js',
+  './src/i18n/es.js',
+  './src/i18n/ordinal.js',
+  './src/i18n/pt.js',
+  './src/i18n/traduzir.js',
+  './src/install.js',
+  './src/novidades.js',
+  './src/orientation.js',
   './src/scryfall.js',
+  './src/seating.js',
+  './src/stats.js',
+  './src/stats/agregar.js',
+  './src/stats/cores.js',
+  './src/stats/formatar.js',
+  './src/stats/partida.js',
+  './src/stats/rivalidades.js',
+  './src/stats/votacoes.js',
+  './src/store.js',
+  './src/styles.css',
+  './src/sync.js',
+  './src/theme.js',
+  './src/ui.js',
+  './src/version.js',
   './src/views/setup.js',
-  './src/views/table.js',
+  './src/views/setup/antes-de-comecar.js',
+  './src/views/setup/cartao-jogador.js',
+  './src/views/setup/configuracoes.js',
+  './src/views/setup/conta.js',
+  './src/views/setup/convites.js',
+  './src/views/setup/escolher-deck.js',
+  './src/views/setup/escolher-jogador.js',
+  './src/views/setup/handle.js',
+  './src/views/setup/home.js',
+  './src/views/setup/instalar.js',
+  './src/views/setup/notas-de-versao.js',
+  './src/views/setup/rascunho.js',
+  './src/views/setup/sincronizacao.js',
   './src/views/stats.js',
+  './src/views/stats/backup.js',
+  './src/views/stats/deck.js',
+  './src/views/stats/jogador.js',
+  './src/views/stats/marcar-conta.js',
+  './src/views/stats/partida.js',
+  './src/views/stats/paywall.js',
+  './src/views/stats/pecas.js',
+  './src/views/stats/rivalidades.js',
+  './src/views/stats/tela.js',
+  './src/views/stats/vitoria.js',
+  './src/views/stats/votacoes.js',
+  './src/views/table.js',
+  './src/views/table/area.js',
+  './src/views/table/constantes.js',
+  './src/views/table/contexto.js',
+  './src/views/table/dano.js',
+  './src/views/table/estado.js',
+  './src/views/table/gestos.js',
+  './src/views/table/hub.js',
+  './src/views/table/jogador.js',
+  './src/views/table/mana.js',
+  './src/views/table/menu.js',
+  './src/views/table/mesa.js',
+  './src/views/table/pecas.js',
+  './src/views/table/pintar.js',
+  './src/views/table/vitoria.js',
+  './src/views/table/votacao.js',
+  './src/vote.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
 ];

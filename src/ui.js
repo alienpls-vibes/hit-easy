@@ -151,21 +151,83 @@ export function dismissOnBackdrop(scrim, close) {
 }
 
 /**
+ * Quanto da tela o teclado do celular tomou.
+ *
+ * `layout` tem de ser a altura do viewport de LAYOUT - a mesma referencia
+ * contra a qual `position: fixed` e `100%` resolvem. A leitura certa dela e
+ * `documentElement.clientHeight`.
+ *
+ * `window.innerHeight` NAO serve, e era o defeito: em navegador onde ele
+ * acompanha o viewport VISUAL, a conta virava
+ *
+ *     innerHeight - visivel - deslocamento  ==  visivel - visivel - 0  ==  0
+ *
+ * isto e, --kb zero, cobertura do tamanho inteiro e painel colado na borda de
+ * baixo - atras do teclado. Quem procurava um @ digitava sem ver.
+ *
+ * A conta: a regiao visivel vai de `deslocamento` a `deslocamento + visivel`.
+ * Um elemento fixo com `bottom: B` tem a base em `layout - B`. Para a base
+ * cair no fim da regiao visivel, B = layout - visivel - deslocamento.
+ */
+export function alturaDoTeclado(layout, visivel, deslocamento) {
+  const l = Number(layout) || 0;
+  const v = Number(visivel) || 0;
+  const d = Number(deslocamento) || 0;
+  if (!l || !v) return 0;
+  return Math.max(0, Math.round(l - v - d));
+}
+
+/**
+ * Garante que o campo focado esteja visivel DENTRO do painel.
+ *
+ * Complemento de --kb, nao substituto: --kb tira o painel de tras do teclado, e
+ * isto resolve o painel alto cujo campo fica no fim. A ordem importa - rolar
+ * antes de o painel subir mede a geometria errada, e e por isso que quem chama
+ * isto e a propria mudanca de viewport, e nao um temporizador apos o foco.
+ *
+ * `position: fixed` nao tem ancestral rolavel, entao rolar NUNCA resolveria um
+ * painel inteiro atras do teclado. Essa parte e do --kb.
+ */
+function revelarCampoFocado() {
+  const campo = document.activeElement;
+  if (!campo || !campo.closest || !campo.getBoundingClientRect) return;
+  if (campo.tagName !== 'INPUT' && campo.tagName !== 'TEXTAREA') return;
+  if (!campo.closest('.sheet')) return;
+
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const caixa = campo.getBoundingClientRect();
+  const topoVisivel = vv.offsetTop;
+  const fundoVisivel = vv.offsetTop + vv.height;
+  // Ja visivel com uma folga: mexer agora seria um salto sem motivo.
+  if (caixa.top >= topoVisivel && caixa.bottom <= fundoVisivel - 4) return;
+  if (campo.scrollIntoView) {
+    campo.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+}
+
+/**
  * Teclado do celular: o painel precisa subir junto.
  *
  * O painel e fixo na borda de baixo, e o teclado cobre justamente essa faixa -
  * entao o campo de texto some atras dele. `visualViewport` diz quanta tela o
  * teclado tomou; a cobertura encolhe na mesma medida e o painel sobe sozinho.
  *
- * Vale para TODO campo em painel, nao so o numero da votacao: a busca de
- * comandante e o nome do jogador tinham o mesmo problema.
+ * Vale para TODO campo em painel: busca de comandante, nome de jogador, numero
+ * da votacao secreta e busca de @ - todos passam pelo mesmo painel.
+ *
+ * Onde o navegador entende `interactive-widget=resizes-content` (ver o meta
+ * viewport em index.html) ele proprio encolhe o layout, e --kb da zero - as
+ * duas vias concordam em vez de competir.
  */
 function acompanharTeclado() {
   const vv = window.visualViewport;
   if (!vv) return;
   const ajustar = () => {
-    const tomado = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    const layout = document.documentElement.clientHeight || window.innerHeight;
+    const tomado = alturaDoTeclado(layout, vv.height, vv.offsetTop);
     document.documentElement.style.setProperty('--kb', tomado + 'px');
+    revelarCampoFocado();
   };
   vv.addEventListener('resize', ajustar);
   vv.addEventListener('scroll', ajustar);
@@ -241,12 +303,12 @@ export function openFlow(firstStep, opts = {}) {
   }, [sheet]);
   dismissOnBackdrop(sheetHost, closeSheet);
 
-  // Encolher a cobertura ja tira o campo de tras do teclado; isto garante que
-  // ele fique VISIVEL dentro do painel, e nao so fora do teclado.
-  sheetHost.addEventListener('focusin', (e) => {
-    const campo = e.target.closest && e.target.closest('input, textarea');
-    if (!campo || !campo.scrollIntoView) return;
-    setTimeout(() => campo.scrollIntoView({ block: 'center', behavior: 'smooth' }), 280);
+  // Rede para o caso em que focar nao mexe no viewport (teclado fisico, ou
+  // campo que ja cabia): ai `resize` nao dispara e a conferencia de --kb nao
+  // roda. Quando o teclado sobe, quem manda e revelarCampoFocado chamado pela
+  // mudanca de viewport - que mede depois de o painel ja ter subido.
+  sheetHost.addEventListener('focusin', () => {
+    setTimeout(revelarCampoFocado, 300);
   });
 
   const top = () => stack[stack.length - 1];

@@ -127,15 +127,29 @@ que ele é:
 |---|---|
 | toque rápido na borda esquerda | tira 1 de vida, sem autor |
 | toque rápido na borda direita | põe 1 de vida |
+| **segurar na borda** | tira ou põe repetidamente, acelerando |
 | toque rápido no centro | abre o painel do jogador |
 | **duplo toque no centro** | ação em área: dano em todos, ou dreno |
-| **segurar, ou arrastar** | arma o ataque — a única saída é causar dano |
+| **segurar no centro, ou arrastar** | arma o ataque — a única saída é causar dano |
 
-Mexer na própria vida só acontece no toque curto (até 260 ms). Passou disso, o
-gesto virou ataque e nenhum ponto de vida se move sozinho. Como nada é aplicado
-ao encostar — a vida só muda quando o dedo **solta** —, não existe o que
-desfazer: some por construção a classe de erro em que o dedo demora e a vida sai
-junto.
+Nas bordas, segurar repete — mesma gramática do marcador de mana, onde segurar
+também repete. Começa depois de 380 ms, em passos de 110 ms, e acelera para
+55 ms depois de oito passos: quem vai de 40 a 12 não devia precisar de vinte e
+oito toques. Abaixo desses 380 ms nada mudou — um toque lento continua valendo
+exatamente 1.
+
+Por isso **segurar parado na borda não arma mais o ataque**. Arrastar da borda
+arma (a direção do gesto é a declaração de autoria, e ela continua ali), e
+segurar no centro arma — nenhum ataque ficou inalcançável, só mudou de onde se
+começa segurando parado.
+
+Segurar aplica enquanto o dedo está em cima, e isso reabre uma porta que o
+desenho anterior tinha fechado: antes nada era aplicado ao encostar — a vida só
+mudava quando o dedo **soltava** —, e o dedo que demora na borda não tirava
+vida junto. O que mantém o erro barato é a coalescência que já existia: a
+seguradinha inteira entra como **um** evento, então um toque em *desfazer* volta
+os vinte e oito pontos de uma vez, e não um por um. O número no painel mostra o
+resultado antes de o evento existir, senão segurar pareceria travado.
 
 Toques rápidos seguidos se juntam num evento só depois de ~0,9s — sete toques
 viram uma linha no histórico, não sete. O círculo central mostra o turno e passa
@@ -153,6 +167,9 @@ longo da noite" na estatística.
 No menu da partida. Uma peça por cor (WUBRG + incolor), e cada uma é um painel
 de vida em miniatura: metade esquerda tira, metade direita põe, segurar repete.
 Mesma gramática da mesa, nada novo para aprender.
+
+A mesa também segura para repetir, nas bordas do painel, então a gramática é
+a mesma nos dois sentidos.
 
 **Zera ao passar a vez** — é mana flutuante, não recurso permanente. Enquanto
 houver mana marcada, aparece um **atalho no núcleo central**, ao lado do menu,
@@ -225,6 +242,68 @@ rótulo, e uma tela que não deixa sair seria pior que um dado faltando.
 Vitória por último vivo **não** passa por aí e não inventa causa nenhuma, então
 o bloco *Como venceu* só aparece para quem tem motivo registrado.
 
+## Quem é quem
+
+O nome é como a mesa chama alguém **naquele dia**. Não é quem a pessoa é. Quem
+tem conta é identificado pelo **@**, que é o único rótulo que significa a mesma
+coisa em todo aparelho — e é ele que aparece nas estatísticas, na seleção de
+jogador e em toda tela. O nome digitado fica guardado na cadeira e reaparece no
+detalhe da partida, como *registrado como Alexandre*.
+
+**A lista de seleção é de pessoas, não de nomes.** Com os nomes crus, quem foi
+cadastrado como "Alex" numa quinta e "Alexandre" na outra aparecia duas vezes,
+cada linha com metade dos decks — e escolher uma ou outra decidia, sem avisar,
+em qual metade a partida de hoje ia cair.
+
+### O caso de dois aparelhos
+
+O cenário que o desenho existe para resolver: dois aparelhos registraram a mesma
+pessoa **sem** conta, cada um digitando um nome, e a associação vem depois.
+
+Associar reescreve o **histórico inteiro**, não a cadeira que você estava
+olhando: o `@` é gravado em toda partida local onde aquela pessoa aparece, e as
+que já estavam na nuvem são reenviadas. A associação passa a estar no **dado**,
+e não num mapa que só existe naquele aparelho — é isso que a faz viajar.
+
+Do outro lado, ao baixar uma partida cuja cadeira tem nome **e** `@`, o aparelho
+aprende sozinho que aquele nome é aquela conta, e as partidas **próprias** dele
+convergem sem ninguém marcar nada de novo. Não há tabela nova para isso: o dado
+já viajava, só não estava sendo lido.
+
+Duas regras protegem esse aprendizado:
+
+- **Só de partida sua, ou de anfitrião que você confiou.** Aprender de qualquer
+  partida deixaria um anfitrião qualquer batizar gente no seu aparelho: bastaria
+  sentar uma cadeira chamada "Alexandre" com o `@` dele para o seu histórico do
+  Alexandre passar a somar na conta errada. É a mesma lista de confiança que já
+  decide o aceite automático de convite.
+- **O que chega nunca sobrescreve o que você decidiu.** Duas pessoas diferentes
+  podem ter o mesmo nome em mesas diferentes. Divergência não se resolve
+  adivinhando: fica como está, e você marca na mão se quiser.
+
+Quando os aparelhos digitaram nomes **diferentes**, ainda é preciso dizer uma
+vez por nome — o app não adivinha que "Alex" é "Alexandre" por semelhança de
+texto, porque isso erraria com dois irmãos na mesma mesa. O conserto é feito
+onde o problema aparece: na aba de **Jogadores** você vê duas linhas que são a
+mesma pessoa e usa *Ligar a uma conta* ali. A partir do segundo nome, o app já
+junta os dois — e alcança até as partidas que chegarem do outro aparelho
+**depois** disso.
+
+### O que ele se recusa a fazer
+
+Três recusas, e cada uma evita um estrago diferente:
+
+| situação | o que faz |
+|---|---|
+| a cadeira já tem outro `@` | não sobrescreve — decisão anterior manda |
+| esse `@` já está em outra cadeira daquela mesa | não grava: poria a mesma pessoa duas vezes na mesma partida, e a estatística somaria o dano dela contra si |
+| dois nomes do conjunto sentados na **mesma** mesa | não escolhe no chute; deixa a partida de fora e reporta |
+
+Atribuir não é o mesmo que **convidar**. Gravar o `@` numa cadeira é uma
+reivindicação do anfitrião; a partida só entra no histórico daquela pessoa
+quando ela aceita. Ninguém pode ser autor do registro alheio — ver
+`sql/002-participantes.sql`.
+
 ## Duas famílias de cor
 
 O app usa cor em dois eixos diferentes, e misturá-los confundia:
@@ -233,7 +312,8 @@ O app usa cor em dois eixos diferentes, e misturá-los confundia:
   aba de Decks.
 - **cor por jogador** — identifica a *pessoa*. Vale nas abas de Jogadores e
   Rivalidades, onde o que se quer rastrear é quem, não com quê. O mesmo jogador
-  troca de comandante e continua sendo ele.
+  troca de comandante e continua sendo ele — e, com conta vinculada, troca de
+  nome e continua sendo ele também (ver *Quem é quem*).
 
 A aba de **Partidas** fica sem cor nenhuma: a lista de colocações e a data já
 dizem o que ela precisa dizer, e cor em cima disso virava enfeite.
@@ -286,7 +366,8 @@ home **e reabre o painel** no idioma novo; sem isso ele ficaria em português at
 ser fechado na mão. Datas e horas seguem o
 locale do idioma escolhido; o padrão vem do navegador.
 
-Os textos vivem num dicionário plano em `src/i18n.js`, e três testes o protegem:
+Os textos vivem num dicionário plano, uma língua por arquivo em `src/i18n/`
+(`pt.js`, `en.js`, `es.js`, `de.js`), e três testes o protegem:
 as quatro línguas têm **exatamente** as mesmas chaves, nenhuma tradução perde
 uma variável de interpolação (`{name} venceu` sem o `{name}` viraria uma frase
 sem sujeito) e nenhum texto está vazio. Um quarto teste desenha a home e a mesa
@@ -309,9 +390,36 @@ deitado sobram ~390px de altura e a versão empilhada não cabia. Se ainda assim
 não couber, ele rola inteiro em vez de cortar o topo.
 
 Campos de texto em painel sobem junto com o **teclado do celular**: o painel é
-fixo na borda de baixo, que é justamente onde o teclado aparece. `visualViewport`
-diz quanto ele tomou e a cobertura encolhe na mesma medida. Vale para todos —
-busca de comandante, nome de jogador e o número da votação secreta.
+fixo na borda de baixo, que é justamente onde o teclado aparece. Vale para
+todos — busca de comandante, nome de jogador, busca de `@` e o número da
+votação secreta.
+
+Duas vias, e elas concordam em vez de competir:
+
+- `interactive-widget=resizes-content` no meta viewport. Onde há suporte, o
+  próprio navegador encolhe o viewport de **layout**, e `bottom: 0` já fica
+  acima do teclado sem conta nenhuma.
+- onde não há (Safari), `visualViewport` diz quanto o teclado tomou, a
+  cobertura encolhe na mesma medida e o painel sobe. A conta é
+  `layout − visível − deslocamento`, porque um elemento fixo com `bottom: B`
+  tem a base em `layout − B`.
+
+O `layout` dessa conta tem de ser `documentElement.clientHeight` — a mesma
+referência contra a qual `position: fixed` e `100%` resolvem. Com
+`window.innerHeight` ela **quebrava**, e de um jeito que não dava erro: em
+navegador onde `innerHeight` acompanha o viewport visual, a conta virava
+`visível − visível − 0`, ou seja zero. Cobertura do tamanho inteiro, painel
+colado na borda de baixo, atrás do teclado — quem procurava um `@` digitava sem
+ver. Há teste para exatamente esse navegador (`simularTeclado` em
+`tests/dom-stub.js`), porque a aritmética estava certa e o defeito era a
+referência: um teste da função pura passaria sem provar nada.
+
+Rolar **não** conserta isso, e vale saber por quê: o painel é `position: fixed`
+e não tem ancestral rolável, então `scrollIntoView` não tem o que mover quando
+o painel inteiro está atrás do teclado. Ele continua existindo, para o caso
+diferente do painel alto cujo campo fica no fim — e roda quando o viewport
+muda, não num temporizador após o foco, senão mediria a tela antes de o painel
+ter subido.
 
 Nenhuma das telas *quebra* na orientação errada: a home vira duas colunas
 quando deitada, com a lista de jogadores rolando sozinha, e a mesa encolhe
@@ -359,35 +467,185 @@ Event sourcing: a partida **é** a lista de eventos, e o estado visível é semp
 `replay(match)`. Daí saem de graça o desfazer, as estatísticas exatas e a
 garantia de que o placar nunca diverge do histórico.
 
+**Uma pasta por subsistema, com um arquivo de porta.** Quando um assunto passa
+de umas poucas centenas de linhas, ele vira pasta — e o arquivo com o nome dele
+continua existindo, agora só reexportando o que é público. Assim `src/cloud.js`
+segue sendo o que os outros módulos importam, enquanto por dentro são nove
+arquivos; dividir as peças de outro jeito amanhã não toca em quem depende
+delas. A porta também **documenta a fronteira**: `src/views/setup.js` tem três
+linhas de `export`, e são exatamente os três nomes que a tela inteira expõe.
+
+Depois da divisão, o maior módulo de comportamento em `src/` tem 449 linhas
+(`ui.js`), e o maior de uma tela tem 386 (`views/table/votacao.js`). Os quatro
+dicionários de idioma ficaram em ~470 cada, e ficam: são ~460 chaves por língua,
+e quebrar um dicionário por assunto espalharia a mesma tradução por seis
+arquivos. **Não há ciclo de import** em lugar nenhum — `npm run check` avisa se
+um aparecer.
+
 ```
 index.html            página
 tests.html            autoteste no navegador
 servir.py             servidor local
-sw.js                 cache offline
+sw.js                 cache offline — lista explícita, conferida por npm test
 package.json          só para o Node rodar os testes — zero dependências
 src/
   app.js              rota e gravação
   engine.js           eventos, replay, eliminação, colocação   ← núcleo
-  stats.js            agregações e formatação
+  stats.js            porta — 21 nomes
+  stats/
+    agregar.js        o histórico virando número por deck e por jogador
+    partida.js        uma partida só: resumo, linha do tempo, dano total
+    rivalidades.js    o mesmo log lido por par de jogadores
+    votacoes.js       escolhas em votação, agrupadas por pergunta
+    cores.js          a cor de cada pessoa (ângulo áureo, por 1ª aparição)
+    formatar.js       número e data como cada idioma escreve
   store.js            localStorage, histórico, backup
   scryfall.js         busca de comandantes + cache
   colors.js           paleta de identidade WUBRG (clara e escura)
   seating.js          disposição dos assentos, em pé e deitada — dado puro
   theme.js            claro/escuro/sistema
   ui.js               helpers de DOM, sheet, toast
-  views/              setup, table, stats
+  vote.js             votação secreta
+  install.js          instalação como PWA
+  orientation.js      em pé / deitado
+  sync.js             fila de subida para a nuvem
+  canal.js            produção ou beta
+  novidades.js        notas de versão (dado)
+
+  i18n.js             porta — 9 nomes
+  i18n/
+    pt.js en.js es.js de.js    uma língua por arquivo (~460 chaves cada)
+    dicionarios.js             quais línguas existem, e onde moram
+    traduzir.js                a mecânica do t() e a interpolação
+    ordinal.js                 1º, 1st, 1. — uma regra por língua
+
+  cloud.js            porta — 59 nomes
+  cloud/              camadas que só olham para baixo
+    regras.js         função pura — a parte que os testes alcançam sem rede
+    estado.js         o que se lembra de quem entrou
+    http.js           um pedido, com renovação de token em volta
+    auth.js           entrar e sair
+    assinatura.js     se a assinatura vale
+    partidas.js       subir, baixar e apagar partida
+    perfil.js         o nome e o @
+    convites.js       partida em que alguém diz que você estava
+    iniciar.js        a subida, em ordem
+
+  views/
+    setup.js          porta — 3 nomes
+    setup/            um arquivo por elemento da home
+      rascunho.js            a mesa sendo montada
+      home.js                a tela em si
+      cartao-jogador.js      o cartão de um assento, e o arraste
+      escolher-jogador.js    quem senta aqui
+      escolher-deck.js       qual deck ele leva
+      antes-de-comecar.js    quem abre, e o layout da mesa
+      configuracoes.js       as preferências do app
+      instalar.js            o bloco de instalação
+      conta.js               entrar, criar conta, assinatura
+      handle.js              o próprio @
+      convites.js            partidas esperando por você
+      sincronizacao.js       o que subiu e o que falta
+      notas-de-versao.js     o que mudou nesta versão
+
+    table.js          porta — 1 nome
+    table/
+      contexto.js     o que todas as peças compartilham
+      mesa.js         monta a tela e liga as peças
+      constantes.js   as medidas do gesto, e as cores de mana
+      pecas.js        rótulo/número, a linha com − e +, o "segurar repete"
+      estado.js       quem muda a partida: apply, desfazer, vez, pausa
+      pintar.js       desenhar a mesa a partir do estado
+      gestos.js       a duração do toque decide o que ele é
+      dano.js         a seta direcional e o teclado do dano
+      area.js         dano em todos, e dreno
+      mana.js         o marcador de mana
+      votacao.js      votação secreta, de mão em mão
+      jogador.js      o painel de um jogador
+      hub.js          o núcleo central, e a cobertura da pausa
+      menu.js         o menu da partida
+      vitoria.js      quem ganhou, como ganhou, e o cartaz
+
+    stats.js          porta — 2 nomes
+    stats/
+      tela.js         as abas, e qual está aberta
+      pecas.js        as peças pequenas que várias abas reúsam
+      deck.js         o cartão de um deck (cor pela identidade WUBRG)
+      jogador.js      o cartão de um jogador (cor pela pessoa)
+      rivalidades.js  o par de jogadores, e quem persegue quem
+      partida.js      o cartão de uma partida e a linha do tempo
+      vitoria.js      como as vitórias foram ganhas
+      votacoes.js     escolhas em votações secretas
+      backup.js       exportar e importar JSON
+      marcar-conta.js ligar alguém a uma conta (e juntar o histórico)
+      paywall.js      o que se vê sem assinatura
+
+  styles.css          entrada — só @import, e **essa ordem é a cascata**
+  estilos/            20 folhas, uma por área (tokens, home, mesa, dano,
+                      núcleo, painel, stats, mana, votação, conta...)
 tests/
   cases.js            casos do motor, sem DOM — fonte única
   dom-stub.js         DOM mínimo para testar os painéis fora do navegador
   run-node.js         runner de terminal
 tools/
   make_icons.py       gera os ícones do PWA
-  check-syntax.js     node --check em todo módulo
-  check_modules.py    confere imports/exports e delimitadores
+  check-syntax.js     node --check, versão, @, RLS, instalação e cache do SW
+  check_modules.py    imports, exports, reexports, delimitadores e cascata CSS
 ```
 
-`engine.js` e `stats.js` não tocam no DOM. Se um dia isso virar React ou React
-Native, eles vão junto sem alteração.
+`engine.js` e todo o `stats/` não tocam no DOM. Se um dia isso virar React ou
+React Native, eles vão junto sem alteração — e é também por isso que são a parte
+que os testes alcançam inteira.
+
+### A ordem dos @import é a cascata
+
+`src/styles.css` não tem regra nenhuma: são vinte `@import`, e cada um é uma
+faixa **contígua** da folha antiga, na mesma sequência em que estava. Trocar
+duas de lugar muda quem vence um empate de especificidade, e o sintoma é visual
+e silencioso. As últimas folhas são ajustes que nasceram depois e sobrepõem as
+de cima de propósito — subi-las na lista as faria perder para o que vinham
+corrigir.
+
+`npm run check` segue esses `@import` e confere a cascata **entre** folhas, não
+só dentro de cada uma.
+
+### A mesa: de closure a contexto
+
+`src/views/table.js` era o caso difícil, e vale saber por quê. As outras
+divisões foram mudança de endereço: pegar uma declaração de topo e mover de
+arquivo. Aqui não havia declarações de topo — `renderTable()` era **uma função**
+de ~1500 linhas, com 39 funções aninhadas que compartilhavam um closure de 22
+valores (`state`, `tiles`, `fx`, `hub`, `gesture`, `pauseTimer`…).
+
+Closure é cômodo enquanto é um arquivo, e intratável depois: qualquer peça que
+saia dele perde tudo de uma vez, e nada avisa — o código compila, os testes
+passam, e um gesto para de responder sem erro no console.
+
+Então o que era invisível passou a estar escrito. `contexto.js` devolve um
+objeto `mesa`, cada peça o recebe, e as peças se penduram nele:
+
+```js
+const mesa = criarContexto(root, ctx);
+Object.assign(mesa, criarEstado(mesa), criarGestos(mesa), criarDano(mesa), …);
+```
+
+Daí `gestos.js` chama `mesa.openDamagePad()`, que chama `mesa.apply()`, que
+chama `mesa.sync()` — **sem que nenhum dos quatro arquivos importe outro**. Zero
+ciclos de import, e cada peça abre sozinha.
+
+Objeto, e não variáveis exportadas, porque `let` exportado é somente leitura de
+fora: `mesa.state = …` precisa funcionar de sete arquivos diferentes, e
+atribuir a uma *propriedade* é legal onde atribuir ao *binding* é `TypeError`.
+
+Dois nomes locais tiveram de ser renomeados antes, porque repetiam nomes do
+escopo de cima e a reescrita os atingiria: a grade das peças de mana virou
+`gradeMana`, e a raiz do painel em `buildTile` virou `painel` (a chave devolvida
+segue sendo `root`, então `tile.root` não mudou).
+
+**O que os testes não alcançam continua não alcançando.** Toque curto contra
+toque segurado, arraste, alvo, o deslize entre telas — isso só o dedo verifica.
+Os testes de montagem cobrem a mesa subindo nos quatro idiomas e nas duas
+orientações, e é o que existe. Antes de publicar, vale jogar uma partida.
 
 ## Quando algo quebra
 
@@ -431,9 +689,15 @@ inteira e deixava a tela preta. Nos dois casos a sintaxe estava válida, os
 imports certos e todos os outros testes verdes. No navegador esses quatro
 aparecem como pulados.
 
-O que os testes **não** alcançam: gesto e aparência. Toque curto contra toque
-segurado, arraste, alvo, o deslize entre telas e como o tema claro fica de fato
-— isso só o dedo e o olho verificam.
+Três casos cobrem o **segurar na borda**, com o relógio trocado por um
+controlado (os casos rodam síncronos, então esperar de verdade não é opção): a
+cadência e a aceleração, o soltar que não pode cobrar um passo por cima do que a
+repetição já aplicou, e a seguradinha inteira virando um evento só. O último
+importa mais do que parece — sem ele, *desfazer* voltaria ponto por ponto.
+
+O que os testes **não** alcançam: o resto do gesto, e a aparência. Toque curto
+contra toque segurado no centro, arraste, alvo, o deslize entre telas e como o
+tema claro fica de fato — isso só o dedo e o olho verificam.
 
 `npm run check` também avisa quando duas classes usadas **no mesmo elemento**
 definem a mesma propriedade CSS — empate que só a ordem do arquivo resolve.

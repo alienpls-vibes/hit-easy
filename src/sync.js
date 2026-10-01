@@ -72,6 +72,95 @@ export function aApagar(enviadas, idsRemotos, podeConfiar) {
 }
 
 /** Vale a pena sincronizar agora? */
+/**
+ * Quais cadeiras recebem o handle, ao associar uma pessoa a uma conta.
+ *
+ * Pura de proposito: e a regra que decide "isto e a mesma pessoa", e uma regra
+ * dessas precisa ser conferivel sem localStorage e sem rede.
+ *
+ * `nomes` sao os nomes (minusculos) que se sabe serem dessa pessoa: o que
+ * acabou de ser marcado, mais os que o aparelho ja ligava a esse @.
+ *
+ * Tres recusas, e cada uma evita um estrago diferente:
+ *
+ *   ja tem outro @    A cadeira foi marcada antes, com outra conta. Nao se
+ *                     sobrescreve decisao anterior por causa de um nome igual.
+ *
+ *   o @ ja esta na mesa  Outra cadeira daquela partida ja e essa pessoa.
+ *                     Gravar de novo poria a mesma pessoa duas vezes na mesma
+ *                     mesa, e a estatistica somaria dano dela contra si.
+ *
+ *   duas candidatas   Dois nomes do conjunto sentados na MESMA mesa. Ou sao
+ *                     duas pessoas diferentes, ou um apelido esta errado - e
+ *                     nenhum dos dois se resolve adivinhando. A partida fica
+ *                     de fora e e reportada.
+ */
+export function cadeirasParaAssociar(partidas, nomes, handle) {
+  const alvo = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
+  const conjunto = new Set(
+    [...(nomes || [])].map((n) => String(n || '').trim().toLowerCase()).filter(Boolean),
+  );
+  const alvos = [];
+  const ambiguas = [];
+  if (!alvo || !conjunto.size) return { alvos, ambiguas };
+
+  for (const match of partidas || []) {
+    const cadeiras = (match && match.seats) || [];
+    const jaNaMesa = cadeiras.some(
+      (s) => String(s.handle || '').trim().replace(/^@+/, '').toLowerCase() === alvo,
+    );
+    if (jaNaMesa) continue;
+
+    const candidatas = cadeiras.filter((s) => {
+      if (String(s.handle || '').trim()) return false; // decisao anterior manda
+      return conjunto.has(String(s.name || '').trim().toLowerCase());
+    });
+
+    if (candidatas.length > 1) { ambiguas.push(match.id); continue; }
+    if (candidatas.length === 1) {
+      alvos.push({ matchId: match.id, seatId: candidatas[0].id });
+    }
+  }
+
+  return { alvos, ambiguas };
+}
+
+/**
+ * Apelidos (nome -> @) que da para aprender do que veio da nuvem.
+ *
+ * Uma cadeira com nome E handle e, por si, a informacao de que aquele nome e
+ * aquela conta. Lendo isso, o aparelho que nunca marcou nada descobre a
+ * associacao que o outro fez, e as partidas PROPRIAS dele convergem.
+ *
+ * O gate e de confianca, e nao e formalidade. Aprender de qualquer partida
+ * deixaria um anfitriao qualquer batizar gente no seu aparelho: bastaria
+ * sentar uma cadeira chamada "Alexandre" com o @ dele para o seu historico do
+ * Alexandre passar a somar na conta errada. Entao: partida sua, ou de
+ * anfitriao que voce confiou - a mesma lista que decide o aceite automatico.
+ *
+ * Quem aplica e store.aprenderApelido, que nunca sobrescreve o que este
+ * aparelho ja decidiu na mao.
+ */
+export function apelidosAprendidos(partidas, meuId, confiaveis) {
+  const confio = new Set((confiaveis || []).filter(Boolean));
+  const achados = [];
+
+  for (const match of partidas || []) {
+    const dono = match && match.owner;
+    if (!dono) continue; // partida sem dono: ninguem por quem responder
+    if (dono !== meuId && !confio.has(dono)) continue;
+
+    for (const cadeira of (match.seats || [])) {
+      const nome = String(cadeira.name || '').trim();
+      const handle = String(cadeira.handle || '')
+        .trim().replace(/^@+/, '').toLowerCase();
+      if (nome && handle) achados.push({ nome, handle });
+    }
+  }
+
+  return achados;
+}
+
 export function podeSincronizar(ligado, estado) {
   return Boolean(ligado) && estado !== 'desligado' && estado !== 'deslogado';
 }
@@ -132,6 +221,13 @@ export async function sincronizar({ aoProgresso } = {}) {
       }
       // O que veio de la ja esta la: marcar evita devolver na proxima passada.
       for (const m of remotas) store.marcarEnviada(m.id);
+
+      // Aprender quem e quem com o que veio.
+      //
+      // Roda sobre TODAS as remotas, e nao so as novas: uma partida que este
+      // aparelho ja tinha pode ter sido marcada no outro DEPOIS, e e
+      // justamente essa a informacao que se quer.
+      await aprenderQuemEQuem(remotas);
     } catch {
       resumo.falhou += 1;
     }
@@ -175,6 +271,26 @@ export async function sincronizar({ aoProgresso } = {}) {
  * O local sai primeiro: se a rede falhar, a pessoa ve o resultado que pediu, e
  * a linha da nuvem fica para a proxima tentativa em vez de travar a acao.
  */
+/**
+ * Aplica os apelidos aprendidos do que veio da nuvem.
+ *
+ * Falhar ao ler a lista de confianca nao pode derrubar a sincronizacao: sem
+ * ela, ainda da para aprender das partidas proprias - que e o caso de quem usa
+ * dois aparelhos com a mesma conta, o cenario mais comum de todos.
+ */
+async function aprenderQuemEQuem(remotas) {
+  const eu = cloud.currentUser();
+  let confiaveis = [];
+  try {
+    confiaveis = await cloud.anfitrioesConfiaveis();
+  } catch { /* segue so com as proprias */ }
+
+  const aprendidos = apelidosAprendidos(remotas, eu && eu.id, confiaveis);
+  for (const { nome, handle } of aprendidos) {
+    store.aprenderApelido(nome, handle);
+  }
+}
+
 export async function apagarPartida(matchId) {
   store.deleteMatch(matchId);
   store.esquecerEnviada(matchId);
@@ -203,6 +319,91 @@ export async function apagarPartida(matchId) {
  *     reescreve, e e isso que faz a estatistica ser confiavel. Abrir excecao
  *     para uma etiqueta abriria para o resto.
  */
+/**
+ * Associa um NOME a uma conta, e reescreve o historico inteiro.
+ *
+ * E o coracao da atribuicao. Antes, marcar a conta gravava o handle em uma
+ * cadeira de uma partida e o resto do historico se apoiava no mapa de apelidos
+ * do aparelho - o que resolvia a estatistica aqui e nao viajava: no outro
+ * aparelho aquelas partidas seguiam orfas, porque o mapa e local e o payload
+ * delas nunca ganhou o handle.
+ *
+ * Agora o handle e gravado em TODA partida local onde a pessoa aparece, e as que
+ * ja estavam na nuvem sao reenviadas. A associacao passa a estar no dado, e o
+ * dado viaja - e o outro aparelho a aprende ao baixar (ver apelidosAprendidos).
+ *
+ * Pega tambem os outros nomes que este aparelho ja ligava a esse @: quem marcou
+ * "Alexandre" ontem e marca "Alex" hoje ve as duas metades se juntarem agora, e
+ * nao so daqui para a frente.
+ */
+export async function associarConta(nome, perfil) {
+  if (!perfil || !perfil.handle) return { ok: false };
+  const limpo = String(nome || '').trim();
+  if (!limpo) return { ok: false };
+
+  // O aparelho passa a saber que este nome e esta conta. Vem ANTES do backfill
+  // porque e ele que junta os outros nomes que ja apontavam para o mesmo @.
+  store.rememberHandle(limpo, perfil.handle);
+
+  const nomes = new Set([
+    limpo.toLowerCase(),
+    ...store.nomesDaPessoa(perfil.handle),
+  ]);
+
+  // A partida em andamento entra junto: deixa-la de fora gravaria a mesa de
+  // hoje com a identidade velha, e seria a primeira a divergir.
+  const emAndamento = store.getCurrent();
+  const historico = store.partidas();
+  const todas = emAndamento ? [emAndamento, ...historico] : historico;
+
+  const { alvos, ambiguas } = cadeirasParaAssociar(todas, nomes, perfil.handle);
+
+  const alteradas = [];
+  for (const { matchId, seatId } of alvos) {
+    const m = todas.find((x) => x.id === matchId);
+    const cadeira = m && (m.seats || []).find((x) => x.id === seatId);
+    if (!cadeira) continue;
+    cadeira.handle = perfil.handle;
+    cadeira.userId = perfil.id || null;
+    if (emAndamento && m.id === emAndamento.id) store.setCurrent(m);
+    else store.atualizarPartida(m);
+    alteradas.push(m);
+  }
+
+  const resultado = {
+    ok: true,
+    convidou: false,
+    alteradas: alteradas.length,
+    ambiguas: ambiguas.length,
+  };
+  if (!podeSincronizar(cloudEnabled(), cloud.state())) return resultado;
+
+  // Reenvia o que mudou. `enviarPartida` cobre os dois casos: a partida ja
+  // estar la (ignorada como duplicata) e ainda nao estar. Sem ela existindo,
+  // nao ha a que prender o convite - ha chave estrangeira.
+  //
+  // Uma falha por partida nao pode derrubar as outras: o que nao subir agora
+  // continua sem a marca de enviada, e a proxima sincronizacao o pega.
+  let convidou = false;
+  for (const m of alteradas) {
+    if (emAndamento && m.id === emAndamento.id) continue; // mesa nao terminada
+    try {
+      await cloud.enviarPartida(m);
+      store.marcarEnviada(m.id);
+      convidou = true;
+    } catch { /* fica para a proxima sincronizacao */ }
+  }
+
+  return { ...resultado, convidou };
+}
+
+/**
+ * Marcar a conta de uma cadeira, a partir do detalhe de uma partida.
+ *
+ * Confere o que so faz sentido no contexto daquela mesa - a mesma conta nao
+ * pode ocupar duas cadeiras - e delega o resto a associarConta, que trata a
+ * pessoa e nao a cadeira.
+ */
 export async function marcarJogador(match, seatId, perfil) {
   if (!match || !perfil || !perfil.handle) return { ok: false };
   const cadeira = (match.seats || []).find((s) => s.id === seatId);
@@ -214,20 +415,5 @@ export async function marcarJogador(match, seatId, perfil) {
   );
   if (pessoaRepetidaAqui) return { ok: false, motivo: 'repetida' };
 
-  cadeira.handle = perfil.handle;
-  cadeira.userId = perfil.id || null;
-  store.atualizarPartida(match);
-  store.rememberHandle(cadeira.name, perfil.handle);
-
-  if (!podeSincronizar(cloudEnabled(), cloud.state())) return { ok: true, convidou: false };
-  try {
-    // enviarPartida cobre os dois casos: a partida ja estar la (ignorada como
-    // duplicata) e ainda nao estar. Sem ela existindo, nao ha a que prender o
-    // convite - ha chave estrangeira.
-    await cloud.enviarPartida(match);
-    store.marcarEnviada(match.id);
-    return { ok: true, convidou: true };
-  } catch {
-    return { ok: true, convidou: false };
-  }
+  return associarConta(cadeira.name, perfil);
 }

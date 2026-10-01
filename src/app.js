@@ -7,7 +7,7 @@
  */
 
 import { toast, setHaptics, isSheetOpen, onSheetChange } from './ui.js';
-import { renderSetup, seedDraftFrom } from './views/setup.js';
+import { renderSetup, seedDraftFrom, abrirNovidades } from './views/setup.js';
 import { renderTable } from './views/table.js';
 import { renderStats, renderPaywall } from './views/stats.js';
 import { createMatch } from './engine.js';
@@ -15,6 +15,8 @@ import { applyTheme, watchTheme } from './theme.js';
 import { t, setLang, detectLang } from './i18n.js';
 import { preferOrientation, isWide } from './orientation.js';
 import { orientOf } from './seating.js';
+import { APP_VERSION } from './version.js';
+import { novidadesDesde } from './novidades.js';
 import * as store from './store.js';
 import * as cloud from './cloud.js';
 import { podeVerEstatisticas } from './cloud.js';
@@ -255,6 +257,21 @@ if (ehTeste()) {
 }
 
 render();
+
+/*
+ * Novidades depois de atualizar, uma vez so.
+ *
+ * Quem instala agora nao ve nada: mostrar o historico inteiro de mudancas para
+ * quem nunca usou o app e ruido antes mesmo do primeiro uso. So quem ja estava
+ * aqui e ganhou versao nova tem o que ser avisado.
+ */
+(() => {
+  const vista = settings().versaoVista || null;
+  store.setSetting('versaoVista', APP_VERSION);
+  if (!vista || vista === APP_VERSION) return;
+  const novas = novidadesDesde(vista);
+  if (novas.length) setTimeout(() => abrirNovidades(novas), 700);
+})();
 
 // A conta sobe depois da primeira tela: ninguem deve esperar rede para ver o
 // app. Quando o estado chegar, quem depende dele se redesenha.

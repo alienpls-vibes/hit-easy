@@ -8,8 +8,8 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readdirSync, statSync, readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { readdirSync, statSync, readFileSync, existsSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -19,6 +19,16 @@ function walk(dir, out = []) {
     const full = join(dir, name);
     if (statSync(full).isDirectory()) walk(full, out);
     else if (name.endsWith('.js')) out.push(full);
+  }
+  return out;
+}
+
+/** O mesmo, para as folhas de estilo. */
+function walkCss(dir, out = []) {
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) walkCss(full, out);
+    else if (name.endsWith('.css')) out.push(full);
   }
   return out;
 }
@@ -53,17 +63,27 @@ if (falhas.length) {
  * 400 sem explicacao. Aqui os dois textos sao comparados de verdade.
  */
 function conferirHandle() {
-  const cliente = readFileSync(join(ROOT, 'src/cloud.js'), 'utf8');
+  // Procura em todo src/ em vez de abrir um caminho fixo: a regra e "o formato
+  // do @ vive em algum modulo do cliente", nao "vive neste arquivo". Mover a
+  // constante de pasta e refatoracao legitima e nao pode derrubar o build.
+  let noCliente = null;
+  let ondeCliente = null;
+  for (const file of walk(join(ROOT, 'src'))) {
+    const achado = readFileSync(file, 'utf8').match(/HANDLE_RE\s*=\s*\/\^(.+?)\$\//);
+    if (achado) {
+      noCliente = achado;
+      ondeCliente = relative(ROOT, file).split(sep).join('/');
+      break;
+    }
+  }
   const sql = readFileSync(join(ROOT, 'sql/002-participantes.sql'), 'utf8');
-
-  const noCliente = cliente.match(/HANDLE_RE\s*=\s*\/\^(.+?)\$\//);
   const noBanco = sql.match(/handle\s*~\s*'\^(.+?)\$'/);
 
-  if (!noCliente) return 'HANDLE_RE sumiu de src/cloud.js';
+  if (!noCliente) return 'HANDLE_RE sumiu de src/: nenhum modulo define o formato do @';
   if (!noBanco) return 'a constraint handle_formato sumiu do SQL';
   if (noCliente[1] !== noBanco[1]) {
     return 'o formato do @ diverge:\n'
-      + '    cliente: ^' + noCliente[1] + '$   (src/cloud.js)\n'
+      + '    cliente: ^' + noCliente[1] + '$   (' + ondeCliente + ')\n'
       + '    banco:   ^' + noBanco[1] + '$   (sql/002-participantes.sql)\n'
       + '    Divergir aqui faz o app aceitar um @ que o banco recusa com 400.';
   }
@@ -170,6 +190,58 @@ if (installRuim) {
 }
 
 /*
+ * Todo modulo e toda folha de estilo precisam estar na lista do service worker.
+ *
+ * A lista em sw.js e explicita porque o worker tem de saber o que baixar ANTES
+ * de faltar internet - nao da para descobrir import por import na hora. Sao
+ * mais de oitenta arquivos, e nada na linguagem liga um ao outro: criar um
+ * modulo novo e esquecer a linha no sw.js nao da erro, nao quebra teste e nao
+ * aparece no navegador com rede. O app simplesmente para de abrir offline, e
+ * isso se descobre na mesa, que e o unico lugar onde importa.
+ *
+ * Confere tambem o contrario - entrada na lista apontando para arquivo que nao
+ * existe mais -, porque `cache.addAll()` rejeita TUDO se um unico pedido falhar:
+ * um caminho morto na lista nao deixa nada ser cacheado.
+ */
+function conferirCache() {
+  const sw = readFileSync(join(ROOT, 'sw.js'), 'utf8');
+  const bloco = sw.match(/const ASSETS = \[([\s\S]*?)\n\];/);
+  if (!bloco) return ['a lista ASSETS sumiu de sw.js'];
+
+  const listados = new Set(
+    [...bloco[1].matchAll(/'([^']+)'/g)].map((m) => m[1]),
+  );
+
+  const naDisco = walk(join(ROOT, 'src'))
+    .concat(walkCss(join(ROOT, 'src')))
+    .map((f) => './' + relative(ROOT, f).split(sep).join('/'));
+
+  const problemas = [];
+  for (const caminho of naDisco.sort()) {
+    if (!listados.has(caminho)) {
+      problemas.push(caminho + ' existe em src/ e NAO esta na lista ASSETS de '
+        + 'sw.js: o app nao abriria offline.');
+    }
+  }
+  for (const caminho of [...listados].sort()) {
+    if (!caminho.startsWith('./src/')) continue;
+    if (!existsSync(join(ROOT, caminho))) {
+      problemas.push(caminho + ' esta na lista ASSETS de sw.js e nao existe '
+        + 'mais: addAll() rejeita tudo se um pedido falhar.');
+    }
+  }
+  return problemas;
+}
+
+const cacheRuim = conferirCache();
+if (cacheRuim.length) {
+  console.error('\n\x1b[31m Cache do service worker:\x1b[0m');
+  for (const x of cacheRuim) console.error('  ' + x);
+  console.error('');
+  process.exit(1);
+}
+
+/*
  * A versao vive em dois lugares que nao se enxergam: src/version.js e sw.js.
  *
  * Worker nao importa modulo, entao a string e repetida na mao. Divergirem tem
@@ -220,6 +292,40 @@ if (lacunas) {
   console.error('\n\x1b[33m Politica de privacidade:\x1b[0m '
     + lacunas + ' campo(s) por preencher (nome do controlador, contato, regiao).'
     + '\n  Nao publique em producao assim.\n');
+}
+
+/*
+ * A versao atual precisa ter notas de versao.
+ *
+ * Notas escritas "depois" nao sao escritas: a memoria do que mudou dura horas,
+ * nao dias, e quem le a nota nao tem como saber que ela esta incompleta. Ligar
+ * isto ao build e o unico jeito de a nota acompanhar a publicacao em vez de
+ * depender de disciplina.
+ *
+ * Derruba o build de proposito, ao contrario do aviso da politica de
+ * privacidade: aquele campo precisa de decisao humana e travaria o canal de
+ * teste, este e so escrever o que acabou de ser feito.
+ */
+function conferirNovidades() {
+  const versao = readFileSync(join(ROOT, 'src/version.js'), 'utf8')
+    .match(/APP_VERSION\s*=\s*'([^']+)'/);
+  if (!versao) return null; // o conferidor de versao ja reclama disto
+
+  const notas = readFileSync(join(ROOT, 'src/novidades.js'), 'utf8');
+  const temEntrada = new RegExp("versao:\\s*'" + versao[1].replace(/\./g, '\\.') + "'")
+    .test(notas);
+
+  if (!temEntrada) {
+    return 'a versao ' + versao[1] + ' nao tem entrada em src/novidades.js. '
+      + 'Escreva o que mudou antes de publicar.';
+  }
+  return null;
+}
+
+const notasRuins = conferirNovidades();
+if (notasRuins) {
+  console.error('\n\x1b[31m Notas de versao:\x1b[0m\n  ' + notasRuins + '\n');
+  process.exit(1);
 }
 
 console.log(` \x1b[2m${files.length} módulos com sintaxe válida\x1b[0m`);

@@ -109,7 +109,7 @@ nomes de terceiros — LGPD), e alguma forma de emitir nota. Um MEI resolve.
 | parte | situação |
 |---|---|
 | Esquema do banco e políticas de acesso | pronto (`sql/schema.sql`) |
-| Cliente de conta e partidas | pronto (`src/cloud.js`) |
+| Cliente de conta e partidas | pronto (`src/cloud.js`, peças em `src/cloud/`) |
 | Testes da lógica de conta e sincronização | prontos, 5 casos |
 | Provisionar Supabase e colar as chaves | **com você** |
 | Histórico sair do aparelho e ir para a nuvem | a fazer |

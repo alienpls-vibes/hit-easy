@@ -7,7 +7,9 @@
  */
 
 // Primeiro de todos: instala o DOM simulado antes que ui.js seja avaliado.
-import { simulated, flushFrames, findAll, fire, textOf } from './dom-stub.js';
+import {
+  simulated, flushFrames, findAll, fire, textOf, simularTeclado, kbAtual,
+} from './dom-stub.js';
 import {
   createMatch, replay, push, undo, standings, elapsedOf, pessoaRepetida, partidaValida,
   cmdKeyOf, CMD_LETHAL, POISON_LETHAL,
@@ -15,14 +17,17 @@ import {
 import {
   aggregate, rivalries, tituloDaVotacao, totalDamage, summarize,
   playerColorOrder, playerColor,
-  identityOf, labelOf,
+  identityOf, labelOf, nomeRegistrado,
   chaveDaVotacao, rotuloDaVotacao, orientarRival,
   categoriaDaVotacao, rotuloDaCategoria,
 } from '../src/stats.js';
 import { LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf } from '../src/seating.js';
 import { createSession, cast, tally, pending, isComplete, describe } from '../src/vote.js';
-import { openFlow, closeSheet, dismissOnBackdrop, el, isSheetOpen, onSheetChange } from '../src/ui.js';
-import { DICTS, LANGS, t, tn, setLang, currentLang } from '../src/i18n.js';
+import {
+  openFlow, closeSheet, dismissOnBackdrop, el, isSheetOpen, onSheetChange,
+  alturaDoTeclado,
+} from '../src/ui.js';
+import { DICTS, LANGS, t, tn, setLang, currentLang, ordinal } from '../src/i18n.js';
 import { fromRow as linhaParaPartida } from '../src/cloud.js';
 import {
   accountState, assinaturaAtiva, sessaoValida, toRow, fromRow, pendentes,
@@ -35,9 +40,21 @@ import {
 } from '../src/cloud.js';
 import { cloudEnabled } from '../src/config.js';
 import { canalDe, canalDoCache } from '../src/canal.js';
-import { aSubir, aBaixar, aApagar, podeSincronizar } from '../src/sync.js';
+import { NOVIDADES, novidadesDesde, novidadesDe } from '../src/novidades.js';
+import { APP_VERSION } from '../src/version.js';
+import {
+  aSubir, aBaixar, aApagar, podeSincronizar,
+  cadeirasParaAssociar, apelidosAprendidos, associarConta,
+} from '../src/sync.js';
 import { giraComOAssento, grausNaMesa, rotatesToSeat } from '../src/orientation.js';
 import { renderTable } from '../src/views/table.js';
+// Direto da peca, e nao pela porta: a cadencia do "segurar repete" e detalhe
+// interno da mesa, e exporta-la no barril a anunciaria como API publica.
+import { repetirSegurando } from '../src/views/table/pecas.js';
+import {
+  COMMIT_MS, DOUBLE_TAP_MS, HOLD_DELAY, REPEAT_ACCEL_AFTER, REPEAT_FAST_MS,
+  REPEAT_MS,
+} from '../src/views/table/constantes.js';
 import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
 import { renderStats, renderPaywall } from '../src/views/stats.js';
 import { brandMark } from '../src/ui.js';
@@ -54,6 +71,86 @@ function eq(actual, expected, what) {
 function ok(cond, what) {
   if (!cond) throw new Error(what || 'condicao falsa');
 }
+
+/**
+ * Relogio controlado, para medir gesto que depende de tempo.
+ *
+ * runAll() e sincrono (nao ha `await` aqui), entao esperar de verdade nao e
+ * opcao: dormir dois segundos por caso multiplicaria a suite, e medir
+ * "quantos passos sairam de uma seguradinha" exigiria adivinhar. Trocando os
+ * temporizadores, o teste ANDA o relogio e conta exatamente.
+ *
+ * Devolve o que `fn(avancar)` devolver, e restaura os temporizadores de
+ * verdade mesmo se o caso falhar no meio - senao o proximo caso rodaria com o
+ * relogio parado e acusaria um erro que nao e dele.
+ */
+function comRelogioFalso(fn) {
+  const reais = {
+    setTimeout: globalThis.setTimeout,
+    clearTimeout: globalThis.clearTimeout,
+    setInterval: globalThis.setInterval,
+    clearInterval: globalThis.clearInterval,
+  };
+
+  let agora = 0;
+  let proximoId = 1;
+  const agendados = new Map();
+
+  globalThis.setTimeout = (f, ms = 0) => {
+    const id = proximoId; proximoId += 1;
+    agendados.set(id, { quando: agora + ms, cada: null, fn: f });
+    return id;
+  };
+  globalThis.setInterval = (f, ms = 0) => {
+    const id = proximoId; proximoId += 1;
+    agendados.set(id, { quando: agora + ms, cada: ms, fn: f });
+    return id;
+  };
+  globalThis.clearTimeout = (id) => { agendados.delete(id); };
+  globalThis.clearInterval = (id) => { agendados.delete(id); };
+
+  /** Anda o relogio, rodando o que vencer no caminho, em ordem de tempo. */
+  const avancar = (ms) => {
+    const fim = agora + ms;
+    // Teto de seguranca: um intervalo de 0ms que se reagenda sozinho travaria
+    // a suite em vez de falhar.
+    for (let volta = 0; volta < 20000; volta += 1) {
+      let alvo = null;
+      for (const [id, tarefa] of agendados) {
+        if (tarefa.quando <= fim && (!alvo || tarefa.quando < alvo.tarefa.quando)) {
+          alvo = { id, tarefa };
+        }
+      }
+      if (!alvo) break;
+      agora = alvo.tarefa.quando;
+      if (alvo.tarefa.cada === null) agendados.delete(alvo.id);
+      else alvo.tarefa.quando = agora + alvo.tarefa.cada;
+      alvo.tarefa.fn();
+    }
+    agora = fim;
+  };
+
+  try {
+    return fn(avancar);
+  } finally {
+    Object.assign(globalThis, reais);
+  }
+}
+
+/** Monta a mesa no DOM simulado e devolve o que os casos de gesto precisam. */
+function mesaNaTela(m) {
+  document.body.childNodes.length = 0;
+  const root = document.createElement('div');
+  const view = renderTable(root, {
+    match: m, onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
+  });
+  return { root, view, tiles: findAll(root, 'tile') };
+}
+
+const eventosDeVida = (m) => m.events.filter((e) => e.type === 'life');
+
+/** Abaixo de HOLD_DELAY: um toque que nao chega a virar repeticao. */
+const TOQUE_CURTO = HOLD_DELAY - 100;
 
 const commander = (n) => ({
   oracleId: 'o' + n, name: 'Cmd ' + n, colors: ['U'], art: null, thumb: null,
@@ -362,7 +459,13 @@ export const cases = [
     eq(dele.length, 1, 'uma linha só para a conta');
     eq(dele[0].games, 2, 'as duas partidas somam na mesma pessoa');
     eq(dele[0].damageDealt, 14, 'o dano das duas mesas soma junto');
-    eq(dele[0].label, 'Alexandre', 'o rótulo é o nome mais recente');
+    // O rótulo é o @, e não o nome mais recente. Enquanto era o nome, a mesma
+    // pessoa aparecia como "Alexandre" neste aparelho e "Alex" no de quem
+    // digitou diferente - com a identidade por baixo já unificada. O @ é o
+    // único rótulo que significa a mesma coisa nos dois.
+    eq(dele[0].label, '@alienpls', 'o rótulo de quem tem conta é o @');
+    // Os nomes digitados não se perdem: viram o "registrado como".
+    eq(dele[0].nomes, ['Alexandre', 'Alex'], 'os nomes que a mesa usou');
     eq(players.length, 2, 'só existem duas pessoas: a conta e o Bruno');
 
     // A cor acompanha a conta, não o texto digitado.
@@ -391,7 +494,18 @@ export const cases = [
 
     eq(identityOf({ id: 's9' }), 's9', 'sem nome e sem conta, resta o assento');
     eq(labelOf({ id: 's0', handle: 'alienpls' }), '@alienpls', 'sem nome, mostra o @');
-    eq(labelOf({ id: 's0', name: 'Ana', handle: 'alienpls' }), 'Ana', 'com nome, mostra o nome');
+    // Com conta, o @ ganha do nome digitado: ver labelOf() em stats/agregar.js.
+    eq(labelOf({ id: 's0', name: 'Ana', handle: 'alienpls' }), '@alienpls',
+      'com conta, o rótulo é o @ mesmo havendo nome');
+    eq(labelOf({ id: 's0', name: 'Ana' }), 'Ana', 'sem conta, o nome digitado');
+    // E o apelido do aparelho também troca o rótulo, senão a mesma pessoa
+    // voltaria a ter dois: o @ nas mesas marcadas e o nome nas antigas.
+    eq(labelOf({ id: 's0', name: 'Alex' }, { alex: 'alienpls' }), '@alienpls',
+      'apelido conhecido também mostra o @');
+    eq(nomeRegistrado({ id: 's0', name: 'Ana', handle: 'alienpls' }), 'Ana',
+      'o nome digitado fica disponível para o "registrado como"');
+    eq(nomeRegistrado({ id: 's0', name: 'Ana' }), '',
+      'sem conta o rótulo já é o nome, e repetir não informa nada');
   }],
 
   ['vida perdida sem autor conta como paga, não como dano levado', () => {
@@ -1791,6 +1905,41 @@ export const cases = [
     eq(totalDamage(m), 6, 'só os 2 × 3 que saíram, não os 6 que entraram');
   }],
 
+  ['a colocação é escrita como cada língua escreve', () => {
+    // O `º` é indicador ordinal do português e do espanhol. Em inglês e alemão
+    // ele não existe, e estava aparecendo assim mesmo.
+    eq(ordinal(1, 'pt'), '1º');
+    eq(ordinal(4, 'es'), '4º');
+    eq(ordinal(1, 'de'), '1.', 'alemão usa ponto');
+    eq(ordinal(4, 'de'), '4.');
+
+    // O inglês era pior que um caractere errado: a tradução dizia "{n}th
+    // place", que produz "1th place", "2th place", "3th place".
+    eq(ordinal(1, 'en'), '1st');
+    eq(ordinal(2, 'en'), '2nd');
+    eq(ordinal(3, 'en'), '3rd');
+    eq(ordinal(4, 'en'), '4th');
+
+    // As exceções do inglês: 11, 12 e 13 levam "th" apesar de terminarem em 1,
+    // 2 e 3. Numa mesa de Commander isso nunca acontece - mas a função não sabe
+    // de onde é chamada, e regra pela metade é a que quebra quando alguém reusa.
+    eq(ordinal(11, 'en'), '11th');
+    eq(ordinal(12, 'en'), '12th');
+    eq(ordinal(13, 'en'), '13th');
+    eq(ordinal(21, 'en'), '21st');
+    eq(ordinal(111, 'en'), '111th', 'a regra olha os dois últimos dígitos');
+    eq(ordinal(101, 'en'), '101st');
+
+    // E a frase inteira, montada, em cada idioma.
+    setLang('pt'); eq(t('table.place', { n: ordinal(1) }), '1º lugar');
+    setLang('en'); eq(t('table.place', { n: ordinal(1) }), '1st place');
+    setLang('es'); eq(t('table.place', { n: ordinal(3) }), '3º puesto');
+    setLang('de'); eq(t('table.place', { n: ordinal(2) }), '2. Platz');
+    setLang('pt');
+
+    eq(ordinal('abc', 'en'), 'abc', 'o que não é número passa direto');
+  }],
+
   ['os quatro idiomas têm exatamente as mesmas chaves', () => {
     // Sem isto, uma tradução esquecida só aparece quando alguém troca de
     // idioma e encontra uma frase em português no meio do alemão.
@@ -2486,6 +2635,53 @@ export const cases = [
     eq(montarConvites(null, null).length, 0, 'listas vazias não explodem');
   }],
 
+  ['as notas de versão descrevem a versão que está no ar', () => {
+    ok(NOVIDADES.length, 'existe pelo menos uma versão anotada');
+    ok(novidadesDe(APP_VERSION), 'a versão atual tem notas: ' + APP_VERSION);
+
+    // Ordem importa: a tela mostra da mais nova para a mais antiga, e
+    // novidadesDesde() corta pela posição.
+    eq(NOVIDADES[0].versao, APP_VERSION, 'a mais recente vem primeiro');
+
+    for (const v of NOVIDADES) {
+      ok(/^\d+\.\d+\.\d+$/.test(v.versao), v.versao + ': número de versão malformado');
+      ok(/^\d{4}-\d{2}-\d{2}$/.test(v.data), v.versao + ': data malformada');
+      ok(v.itens && v.itens.length, v.versao + ': versão sem nenhuma mudança anotada');
+      for (const item of v.itens) {
+        ok(['novo', 'corrigido', 'mudou'].includes(item.tipo),
+          v.versao + ': tipo desconhecido "' + item.tipo + '"');
+        ok(item.texto && String(item.texto).length > 20,
+          v.versao + ': nota curta demais para dizer alguma coisa');
+      }
+      // Cada tipo tem tradução nos quatro idiomas, senão a etiqueta sai crua.
+      for (const [codigo] of LANGS) {
+        for (const tipo of ['novo', 'corrigido', 'mudou']) {
+          ok(DICTS[codigo]['news.' + tipo], 'falta news.' + tipo + ' em ' + codigo);
+        }
+      }
+    }
+  }],
+
+  ['quem atualiza vê só o que ainda não viu', () => {
+    // Ler de novo o que já se leu treina a ignorar a tela. E quem instala
+    // agora não vê nada: o histórico inteiro de mudanças é ruído antes do
+    // primeiro uso.
+    const falso = [{ versao: '1.3.0' }, { versao: '1.2.0' }, { versao: '1.1.0' }];
+    const desde = (vista) => {
+      const onde = falso.findIndex((n) => n.versao === vista);
+      return onde < 0 ? falso : falso.slice(0, onde);
+    };
+    eq(desde('1.2.0').map((n) => n.versao), ['1.3.0'], 'só o que veio depois');
+    eq(desde('1.3.0').length, 0, 'já está na mais nova: nada a mostrar');
+    eq(desde('1.1.0').map((n) => n.versao), ['1.3.0', '1.2.0'], 'pulou duas, vê as duas');
+
+    // Versão desconhecida devolve tudo - é o caso de quem voltou de um app
+    // muito antigo, e mostrar demais é melhor que mostrar nada.
+    eq(novidadesDesde('0.0.1').length, NOVIDADES.length, 'versão que não existe: tudo');
+    eq(novidadesDesde(null).length, NOVIDADES.length, 'sem referência: tudo');
+    eq(novidadesDesde(APP_VERSION).length, 0, 'quem já está na atual não vê nada');
+  }],
+
   ['o canal sai do caminho da URL', () => {
     eq(canalDe('/hit-easy/'), 'producao', 'raiz publicada');
     eq(canalDe('/hit-easy/beta/'), 'beta', 'canal de teste');
@@ -2609,6 +2805,384 @@ export const cases = [
     push(m, { type: 'turn' });
     push(m, { type: 'poison', targetId: 's2', delta: 3, sourceId: 's1' });
     eq(JSON.stringify(replay(m)), JSON.stringify(replay(m)), 'dois replays');
+  }],
+
+  ['segurar repete e acelera, na cadência que os dois lugares compartilham', () => (
+    comRelogioFalso((avancar) => {
+      let passos = 0;
+      const parar = repetirSegurando(() => { passos += 1; }, { passoInicial: true });
+
+      avancar(HOLD_DELAY - 1);
+      eq(passos, 0, 'antes do atraso não sai passo nenhum');
+
+      avancar(1);
+      eq(passos, 1, 'o primeiro passo sai ao completar o atraso');
+
+      avancar(REPEAT_MS * 3);
+      eq(passos, 4, 'na cadência lenta, um passo por REPEAT_MS');
+
+      // Depois de REPEAT_ACCEL_AFTER passos lentos, a cadência troca.
+      avancar(REPEAT_MS * (REPEAT_ACCEL_AFTER - 3));
+      eq(passos, 1 + REPEAT_ACCEL_AFTER, 'os passos lentos antes de acelerar');
+
+      avancar(REPEAT_FAST_MS * 4);
+      eq(passos, 1 + REPEAT_ACCEL_AFTER + 4, 'acelerado, um passo por REPEAT_FAST_MS');
+
+      parar();
+      avancar(5000);
+      eq(passos, 1 + REPEAT_ACCEL_AFTER + 4, 'soltar para de verdade');
+      return undefined;
+    })
+  )],
+
+  ['segurar na borda do painel tira vida acelerando, e vira um evento só', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      const m = mesa(4);
+      const { tiles, view } = mesaNaTela(m);
+      const menos = findAll(tiles[0], 'tap-minus')[0];
+      ok(menos, 'o painel não tem a faixa de tirar vida');
+
+      // O número do painel, que é o que o jogador realmente vê: ele já traz o
+      // pendente somado. Ler o log aqui seria ler o lugar errado - `nudge()`
+      // acumula, e só `commit()` grava.
+      const noPainel = () => textOf(findAll(tiles[0], 'tile-life')[0]);
+      const pendente = () => textOf(findAll(tiles[0], 'tile-delta')[0]);
+
+      eq(noPainel(), '40', 'a mesa não começou em 40');
+
+      fire(menos, 'pointerdown', { pointerId: 1, clientX: 5, clientY: 5 });
+
+      // Antes do atraso, segurar ainda não é repetição: nada foi aplicado.
+      avancar(HOLD_DELAY - 1);
+      eq(noPainel(), '40', 'a vida andou antes da hora');
+
+      // O passo do atraso, mais três da cadência lenta.
+      avancar(1 + REPEAT_MS * 3);
+      eq(noPainel(), '36', 'quatro passos, quatro pontos de vida');
+      eq(pendente(), '-4', 'o delta flutuante não mostra o que ainda não gravou');
+
+      fire(menos, 'pointerup', { pointerId: 1, clientX: 5, clientY: 5 });
+
+      // Soltar não pode cobrar um passo por cima do que a repetição aplicou.
+      eq(noPainel(), '36', 'soltar cobrou um passo a mais');
+      eq(eventosDeVida(m).length, 0, 'gravou antes da coalescência fechar');
+
+      // E a seguradinha inteira entra como UM evento, senão "desfazer"
+      // voltaria ponto por ponto - quarenta toques para desfazer um gesto.
+      avancar(COMMIT_MS + 10);
+      const vida = eventosDeVida(m);
+      eq(vida.length, 1, 'a seguradinha inteira virou um evento só');
+      eq(vida[0].delta, -4, 'o evento não soma os quatro passos');
+      eq(vida[0].sourceId, null, 'borda do painel não tem autor: é vida paga');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['o painel sobe com o teclado, medindo o viewport de layout', () => {
+    if (!simulated) return 'skip';
+
+    // A conta: a região visível vai de `deslocamento` a
+    // `deslocamento + visível`. Um elemento fixo com `bottom: B` tem a base em
+    // `layout - B`, então B = layout - visível - deslocamento.
+    eq(alturaDoTeclado(800, 800, 0), 0, 'sem teclado, nada a descontar');
+    eq(alturaDoTeclado(800, 500, 0), 300, 'o teclado tomou 300');
+    eq(alturaDoTeclado(800, 500, 60), 240, 'e a página rolada desconta junto');
+    eq(alturaDoTeclado(0, 500, 0), 0, 'sem layout não há conta a fazer');
+
+    // E a fiação. Este é o caso que o defeito produzia: um navegador em que
+    // `innerHeight` acompanha o viewport VISUAL. Lendo innerHeight, a conta
+    // dava 500 - 500 - 0 = 0: --kb zero, painel colado na borda de baixo,
+    // atrás do teclado. Quem procurava um @ digitava sem ver.
+    simularTeclado({ layout: 800, visivel: 500 });
+    eq(kbAtual(), '300px', 'o app leu a altura errada e o painel não sobe');
+
+    // Teclado fechando: volta a zero, senão sobraria um vão embaixo do painel.
+    simularTeclado({ layout: 800, visivel: 800 });
+    eq(kbAtual(), '0px', 'fechar o teclado devolve a tela inteira');
+  }],
+
+  ['associar uma conta escolhe a cadeira certa, e recusa o que é ambíguo', () => {
+    // A regra de "isto é a mesma pessoa", sozinha. Ela decide onde gravar o
+    // handle no histórico inteiro, então cada recusa dela evita um estrago
+    // diferente - e nenhuma das três é hipotética.
+    const mesaCom = (id, cadeiras) => ({
+      id,
+      seats: cadeiras.map((c, i) => ({ id: 's' + i, ...c })),
+    });
+
+    // O caso comum: uma cadeira com o nome, sem conta.
+    const simples = mesaCom('m1', [{ name: 'Alexandre' }, { name: 'Bruno' }]);
+    const r1 = cadeirasParaAssociar([simples], ['alexandre'], 'alienpls');
+    eq(r1.alvos, [{ matchId: 'm1', seatId: 's0' }], 'acha a cadeira');
+    eq(r1.ambiguas, [], 'e não há nada ambíguo');
+
+    // Cadeira já marcada com OUTRA conta: decisão anterior manda. Sem isto, um
+    // nome repetido reescreveria a conta de outra pessoa.
+    const jaMarcada = mesaCom('m2', [{ name: 'Alexandre', handle: 'outro' }]);
+    eq(cadeirasParaAssociar([jaMarcada], ['alexandre'], 'alienpls').alvos, [],
+      'não sobrescreve conta já marcada');
+
+    // O @ já está na mesa, em outra cadeira. Gravar de novo poria a mesma
+    // pessoa duas vezes na mesma partida, e a estatística somaria dano dela
+    // contra si mesma.
+    const jaNaMesa = mesaCom('m3', [
+      { name: 'Alexandre' }, { name: 'Alex', handle: 'alienpls' },
+    ]);
+    eq(cadeirasParaAssociar([jaNaMesa], ['alexandre'], 'alienpls').alvos, [],
+      'não senta a mesma pessoa duas vezes');
+
+    // Dois nomes do conjunto na MESMA mesa: ou são duas pessoas, ou um apelido
+    // está errado. Nenhum dos dois se resolve adivinhando.
+    const duasCandidatas = mesaCom('m4', [{ name: 'Alexandre' }, { name: 'Alex' }]);
+    const r4 = cadeirasParaAssociar([duasCandidatas], ['alexandre', 'alex'], 'alienpls');
+    eq(r4.alvos, [], 'não escolhe uma das duas no chute');
+    eq(r4.ambiguas, ['m4'], 'e reporta a partida para quem chamou');
+  }],
+
+  ['só aprende quem é quem de partida própria ou de anfitrião confiável', () => {
+    // O aprendizado é o que faz a associação viajar sem tabela nova. O gate não
+    // é formalidade: sem ele, bastaria um anfitrião qualquer sentar uma cadeira
+    // chamada "Alexandre" com o @ dele para o SEU histórico do Alexandre passar
+    // a somar na conta errada.
+    const partida = (id, dono) => ({
+      id,
+      owner: dono,
+      seats: [{ id: 's0', name: 'Alexandre', handle: 'alienpls' }],
+    });
+
+    eq(apelidosAprendidos([partida('m1', 'eu')], 'eu', []),
+      [{ nome: 'Alexandre', handle: 'alienpls' }], 'da minha própria, aprende');
+
+    eq(apelidosAprendidos([partida('m2', 'amigo')], 'eu', ['amigo']),
+      [{ nome: 'Alexandre', handle: 'alienpls' }], 'de quem eu confio, aprende');
+
+    eq(apelidosAprendidos([partida('m3', 'estranho')], 'eu', ['amigo']), [],
+      'de estranho, não aprende');
+
+    eq(apelidosAprendidos([partida('m4', null)], 'eu', ['amigo']), [],
+      'sem dono não há por quem responder');
+
+    // Cadeira sem @ não ensina nada - é justamente o estado de quem ainda não
+    // foi associado.
+    eq(apelidosAprendidos([{ id: 'm5', owner: 'eu', seats: [{ id: 's0', name: 'Ana' }] }],
+      'eu', []), [], 'cadeira sem conta não ensina');
+  }],
+
+  ['dois aparelhos, a mesma pessoa: associar depois junta o histórico', () => {
+    // O cenário inteiro. O aparelho A registrou a pessoa como "Alexandre", o B
+    // como "Alex", e nenhum dos dois associou conta na hora - foi feito depois.
+    store.wipe();
+
+    const mesaDe = (nome, sufixo) => {
+      const m = createMatch([
+        { id: 's0', name: nome, commanders: [commander(0)] },
+        { id: 's1', name: 'Bruno', commanders: [commander(1)] },
+      ], 40);
+      m.id = 'partida-' + sufixo;
+      push(m, { type: 'life', targetId: 's1', delta: -7, sourceId: 's0' });
+      return m;
+    };
+
+    store.mesclarPartidas([mesaDe('Alexandre', 'a'), mesaDe('Alex', 'b')]);
+    // Como o app faz ao escolher cada jogador na montagem da mesa.
+    ['Alexandre', 'Alex', 'Bruno'].forEach(store.rememberPlayer);
+
+    // Antes: são duas pessoas estranhas entre si, cada uma com metade do dano.
+    const antes = aggregate(store.partidas(), store.knownHandles());
+    eq(antes.players.length, 3, 'antes, "Alex" e "Alexandre" são estranhos');
+    eq(antes.players.filter((x) => x.damageDealt === 7).length, 2,
+      'e o dano dela sai partido em duas metades');
+
+    // A associação, feita depois - uma vez por nome que a mesa usou. O segundo
+    // já sabe do primeiro: rememberHandle junta os nomes do mesmo @.
+    associarConta('Alexandre', { handle: 'alienpls', id: 'u-1' });
+
+    // Uma terceira partida chega do outro aparelho DEPOIS da primeira
+    // associação, e vem com o nome antigo. Não é hipótese: é o que a
+    // sincronização faz toda vez que o outro aparelho sobe o que tinha.
+    store.mesclarPartidas([mesaDe('Alexandre', 'c')]);
+
+    // A segunda associação junta os nomes que já apontavam para este @, então
+    // ela alcança a partida que acabou de chegar - e não só a que fala "Alex".
+    associarConta('Alex', { handle: 'alienpls', id: 'u-1' });
+
+    const depois = aggregate(store.partidas(), store.knownHandles());
+    const dela = depois.players.filter((x) => x.key === '@alienpls');
+    eq(depois.players.length, 2, 'depois, só a pessoa e o Bruno');
+    eq(dela.length, 1, 'uma linha só');
+    eq(dela[0].games, 3, 'as três mesas somam na mesma pessoa');
+    eq(dela[0].damageDealt, 21, 'e o dano das três soma junto');
+    eq(dela[0].label, '@alienpls', 'a linha se chama pelo @');
+    eq(dela[0].nomes.slice().sort(), ['Alex', 'Alexandre'],
+      'sem perder os nomes que a mesa usou');
+
+    // O handle foi GRAVADO nas partidas, e não só no mapa deste aparelho. É
+    // isto que faz a associação viajar: o payload vai para a nuvem, o outro
+    // aparelho baixa e aprende.
+    ok(store.partidas().every((m) => m.seats[0].handle === 'alienpls'),
+      'o handle não entrou no payload das partidas');
+
+    // E o que o outro aparelho aprenderia dessas partidas.
+    const comDono = store.partidas().map((m) => ({ ...m, owner: 'eu' }));
+    const aprendidos = apelidosAprendidos(comDono, 'eu', []);
+    // Conjunto, e não lista: a mesma pessoa aparece em três mesas, então o
+    // nome repete - e aprender duas vezes o mesmo apelido não faz nada.
+    eq([...new Set(aprendidos.map((x) => x.nome))].sort(), ['Alex', 'Alexandre'],
+      'os dois nomes viajam junto com as partidas');
+
+    // A lista de seleção passa a mostrar a PESSOA, e não os dois nomes.
+    const pessoas = store.pessoasConhecidas();
+    eq(pessoas.length, 2, 'duas pessoas na lista, e não três nomes');
+    const p = pessoas.find((x) => x.chave === '@alienpls');
+    eq(p.label, '@alienpls', 'a linha da lista se chama pelo @');
+    eq(p.nomes.slice().sort(), ['Alex', 'Alexandre'], 'e lembra os dois nomes');
+
+    // Esquecer é da pessoa, não de um dos nomes: esquecer só um a deixaria meia
+    // na lista, e ela voltaria pelo outro nome na próxima abertura.
+    store.esquecerPessoa('@alienpls');
+    eq(store.pessoasConhecidas().map((x) => x.label), ['Bruno'],
+      'esquecer a pessoa leva os dois nomes dela');
+
+    store.wipe();
+  }],
+
+  ['o apelido aprendido nunca sobrescreve o que este aparelho decidiu', () => {
+    // Duas pessoas diferentes podem ter o mesmo nome na mesa de gente
+    // diferente. Se o que vem da nuvem pudesse sobrescrever, uma partida
+    // baixada renomearia a SUA Ana para a Ana de outro grupo.
+    store.wipe();
+    store.rememberHandle('Ana', 'ana_daqui');
+
+    eq(store.aprenderApelido('Ana', 'ana_de_outro'), false,
+      'divergência não se resolve adivinhando');
+    eq(store.handleOf('Ana'), 'ana_daqui', 'a decisão local continua valendo');
+
+    // Mas um nome que este aparelho nunca viu, sim - e ele entra na lista de
+    // seleção, porque é gente com quem você jogou.
+    eq(store.aprenderApelido('Caio', 'caio99'), true, 'nome novo, aprende');
+    eq(store.handleOf('Caio'), 'caio99');
+    ok(store.pessoasConhecidas().some((x) => x.chave === '@caio99'),
+      'e passa a aparecer na seleção de jogador');
+
+    store.wipe();
+  }],
+
+  ['segurar -1 no painel do jogador repete, e vira um evento só', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      const m = mesa(4);
+      const { tiles, view } = mesaNaTela(m);
+
+      // Toque rápido no centro abre o painel do jogador - depois da janela do
+      // duplo toque, que é o que separa "abrir painel" de "ação em área".
+      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+      fire(centro, 'pointerdown', { pointerId: 1, clientX: 50, clientY: 50 });
+      fire(centro, 'pointerup', { pointerId: 1, clientX: 50, clientY: 50 });
+      avancar(DOUBLE_TAP_MS + 10);
+
+      const botaoDe = (texto) => findAll(document.body, 'step-btn')
+        .find((b) => textOf(b) === texto);
+      const menos = botaoDe('-1');
+      ok(menos, 'o painel do jogador não tem o botão de -1');
+
+      // O número que o painel mostra. Ele tem de andar durante a seguradinha,
+      // e sem o painel ser remontado - remontar destruiria o botão segurado.
+      const noPainel = () => textOf(findAll(document.body, 'stepper-value')[0]);
+      eq(noPainel(), '40', 'o painel não abriu em 40');
+
+      // Segurar: um passo no toque, e a repetição depois do atraso.
+      fire(menos, 'pointerdown', { pointerId: 2 });
+      eq(noPainel(), '39', 'o toque não valeu um ponto na hora');
+
+      avancar(HOLD_DELAY + REPEAT_MS * 2);
+      eq(noPainel(), '37', 'a repetição não andou enquanto o dedo segurava');
+      ok(menos.classList.contains('is-held'), 'o botão não mostra que repete');
+
+      // E o painel NÃO pode ter sido remontado no caminho. Num navegador o
+      // botão segurado seria destruído, o `pointerup` do dedo iria para o
+      // botão NOVO, e o intervalo do antigo nunca pararia: a vida continuaria
+      // caindo depois de soltar. O stub não modela isso, então a invariante
+      // é afirmada direto.
+      ok(botaoDe('-1') === menos, 'o painel foi remontado durante a seguradinha');
+
+      fire(menos, 'pointerup', { pointerId: 2 });
+      ok(!menos.classList.contains('is-held'), 'soltar não apagou o realce');
+
+      // Nada gravado ainda: a coalescência é o que faz desfazer voltar o gesto
+      // inteiro num toque, em vez de ponto por ponto.
+      eq(eventosDeVida(m).length, 0, 'gravou antes da coalescência fechar');
+
+      avancar(COMMIT_MS + 10);
+      const vida = eventosDeVida(m);
+      eq(vida.length, 1, 'a seguradinha inteira virou um evento só');
+      eq(vida[0].delta, -3, 'o evento não soma os três passos');
+      eq(vida[0].sourceId, null, 'ajuste no próprio painel não tem autor');
+      eq(replay(m).players.s0.life, 37, 'e a vida terminou em 37');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['o passo de 5 não repete ao segurar', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      const m = mesa(4);
+      const { tiles, view } = mesaNaTela(m);
+
+      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+      fire(centro, 'pointerdown', { pointerId: 1, clientX: 50, clientY: 50 });
+      fire(centro, 'pointerup', { pointerId: 1, clientX: 50, clientY: 50 });
+      avancar(DOUBLE_TAP_MS + 10);
+
+      const cinco = findAll(document.body, 'step-btn')
+        .find((b) => textOf(b) === '-5');
+      ok(cinco, 'o painel não tem o botão de -5');
+
+      // Na cadência acelerada seriam noventa pontos por segundo: o alvo
+      // passaria sempre. O passo de cinco já é o atalho rápido do toque.
+      fire(cinco, 'click');
+      avancar(HOLD_DELAY + REPEAT_MS * 8);
+      avancar(COMMIT_MS + 10);
+      eq(replay(m).players.s0.life, 35, 'o passo de 5 repetiu ao segurar');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['segurar na borda não arma ataque, e o toque curto ainda vale 1', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      const m = mesa(4);
+      const { root, tiles, view } = mesaNaTela(m);
+      const mais = findAll(tiles[0], 'tap-plus')[0];
+      const wrap = findAll(root, 'table-wrap')[0];
+      ok(mais && wrap, 'a mesa não montou as faixas');
+
+      // Segurar muito na borda: antes isso virava ataque. Agora repete, e a
+      // mesa não pode entrar em modo arraste - o gesto já é ajuste de vida.
+      fire(mais, 'pointerdown', { pointerId: 1, clientX: 5, clientY: 5 });
+      avancar(HOLD_DELAY + REPEAT_MS * 2);
+      ok(!wrap.classList.contains('is-dragging'), 'segurar na borda armou ataque');
+      fire(mais, 'pointerup', { pointerId: 1, clientX: 5, clientY: 5 });
+      avancar(COMMIT_MS + 10);
+      eq(replay(m).players.s0.life, 43, 'três passos para cima');
+
+      // Toque curto continua sendo um passo, aplicado só ao soltar.
+      fire(mais, 'pointerdown', { pointerId: 2, clientX: 5, clientY: 5 });
+      avancar(TOQUE_CURTO);
+      eq(replay(m).players.s0.life, 43, 'o toque curto aplicou antes de soltar');
+      fire(mais, 'pointerup', { pointerId: 2, clientX: 5, clientY: 5 });
+      avancar(COMMIT_MS + 10);
+      eq(replay(m).players.s0.life, 44, 'o toque curto não valeu 1');
+
+      view.destroy();
+      return undefined;
+    });
   }],
 ];
 

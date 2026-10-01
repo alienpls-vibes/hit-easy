@@ -1,0 +1,75 @@
+/* ==========================================================================
+   O cartaz de vitoria.
+   ========================================================================== */
+
+/* ---------- vitória ---------- */
+
+.victory {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  /* flex + margin auto no cartão, em vez de place-items: center. Centralizar
+     por grid corta o topo quando o conteúdo é mais alto que a tela; assim ele
+     rola inteiro. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+  background: var(--scrim-strong);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  opacity: 0;
+  transition: opacity var(--slow);
+}
+.victory.is-open { opacity: 1; }
+
+.victory-card {
+  width: min(440px, 100%);
+  margin: auto;
+  flex: none;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--bg-lift);
+  border: 1px solid var(--line);
+  transform: translateY(14px) scale(0.98);
+  transition: transform var(--slow);
+}
+.victory.is-open .victory-card { transform: none; }
+
+.victory-art {
+  height: 168px;
+  background-size: cover;
+  background-position: center 28%;
+  -webkit-mask-image: linear-gradient(180deg, #000 30%, transparent);
+  mask-image: linear-gradient(180deg, #000 30%, transparent);
+}
+
+.victory-body { padding: 4px 26px 26px; display: flex; flex-direction: column; gap: 5px; }
+
+.victory-eyebrow {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  color: var(--accent);
+}
+.victory-eyebrow .icon { width: 15px; height: 15px; }
+
+.victory-name { margin: 0; font-size: 2rem; font-weight: 300; letter-spacing: -0.03em; }
+.victory-deck { margin: 0; font-size: 0.84rem; color: var(--text-mid); }
+
+.victory-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 20px 0 22px;
+  padding: 16px 0;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+.stat { display: flex; flex-direction: column; gap: 3px; align-items: center; }
+.stat-value { font-size: 1.35rem; font-weight: 300; font-variant-numeric: tabular-nums; }
+.stat-label { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.16em; color: var(--text-dim); }
+
+.victory-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

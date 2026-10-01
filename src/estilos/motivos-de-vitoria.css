@@ -1,0 +1,30 @@
+/* ==========================================================================
+   Motivos de vitoria.
+   ========================================================================== */
+
+.win-reasons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.win-reason {
+  min-height: 56px;
+  padding: 0 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-soft);
+  background: var(--surface);
+  font-size: 0.9rem;
+  line-height: 1.25;
+  transition: all var(--fast);
+}
+.win-reason:hover { background: var(--surface-strong); border-color: var(--accent); }
+.win-reason:active { transform: scale(0.97); }
+
+.win-reason-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.win-reason-tag {
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  font-size: 0.7rem;
+  color: var(--text-mid);
+}
