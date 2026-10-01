@@ -169,12 +169,25 @@ export function dismissOnBackdrop(scrim, close) {
  * Um elemento fixo com `bottom: B` tem a base em `layout - B`. Para a base
  * cair no fim da regiao visivel, B = layout - visivel - deslocamento.
  */
-export function alturaDoTeclado(layout, visivel, deslocamento) {
+export function alturaDoTeclado(layout, visivel, deslocamento, temCampo) {
+  // Teclado so existe com campo de texto focado, e sem esta condicao a conta
+  // acusava teclado onde nao havia: a barra de URL do celular tambem encolhe o
+  // viewport visivel, e a diferenca saia como uns 60px de "teclado" - todo
+  // painel subia um pedaco, sem motivo.
+  if (temCampo === false) return 0;
+
   const l = Number(layout) || 0;
   const v = Number(visivel) || 0;
   const d = Number(deslocamento) || 0;
   if (!l || !v) return 0;
   return Math.max(0, Math.round(l - v - d));
+}
+
+/** Ha um campo de texto focado? E a unica situacao em que ha teclado. */
+function campoDeTextoFocado() {
+  const alvo = typeof document !== 'undefined' && document.activeElement;
+  if (!alvo) return false;
+  return alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA';
 }
 
 /**
@@ -216,16 +229,19 @@ function revelarCampoFocado() {
  * Vale para TODO campo em painel: busca de comandante, nome de jogador, numero
  * da votacao secreta e busca de @ - todos passam pelo mesmo painel.
  *
- * Onde o navegador entende `interactive-widget=resizes-content` (ver o meta
- * viewport em index.html) ele proprio encolhe o layout, e --kb da zero - as
- * duas vias concordam em vez de competir.
+ * Faz tudo sem tocar no layout da pagina, e isso e requisito e nao detalhe: as
+ * telas do app sao `height: 100%` em cadeia (html, #app, .stats), e mexer no
+ * viewport de LAYOUT durante a rolagem re-layouta a cadeia e mexe na ancora de
+ * scroll. Foi por isso que `interactive-widget=resizes-content` saiu do meta.
  */
 function acompanharTeclado() {
   const vv = window.visualViewport;
   if (!vv) return;
   const ajustar = () => {
     const layout = document.documentElement.clientHeight || window.innerHeight;
-    const tomado = alturaDoTeclado(layout, vv.height, vv.offsetTop);
+    const tomado = alturaDoTeclado(
+      layout, vv.height, vv.offsetTop, campoDeTextoFocado(),
+    );
     document.documentElement.style.setProperty('--kb', tomado + 'px');
     revelarCampoFocado();
   };
