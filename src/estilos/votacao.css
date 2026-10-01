@@ -1,0 +1,129 @@
+/* ==========================================================================
+   Votacao secreta, e o painel centralizado que ela usa.
+
+   No celular a votacao pede a tela em pe - o aparelho sai do meio da mesa e vai
+   para a mao de cada um. Em tablet e computador o pedido e ignorado de
+   proposito, e o painel aparece centralizado em vez de colado na borda.
+   ========================================================================== */
+
+.vote-presets { display: flex; gap: 5px; flex-wrap: wrap; }
+.vote-presets .pad-mode { flex: 1 1 44%; }
+
+.vote-body { display: flex; flex-direction: column; gap: 8px; }
+
+.vote-options { display: flex; flex-direction: column; gap: 6px; }
+.vote-option-row { display: flex; align-items: center; gap: 8px; }
+.vote-option-row .search-input { flex: 1; min-width: 0; height: 44px; }
+
+.vote-voters { display: flex; flex-wrap: wrap; gap: 6px; }
+.vote-voter {
+  flex: 1 1 46%;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-soft);
+  text-align: left;
+  opacity: 0.5;
+  transition: all var(--fast);
+}
+.vote-voter.is-on { opacity: 1; border-color: var(--accent); background: var(--surface); }
+.vote-voter-name { font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vote-voter-count { font-size: 0.66rem; color: var(--text-dim); }
+
+/* Cédula: alvos grandes, porque o aparelho está passando de mão em mão. */
+.vote-choices { display: flex; flex-direction: column; gap: 8px; }
+.vote-choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 62px;
+  padding: 0 20px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 1.05rem;
+  transition: all var(--fast);
+}
+.vote-choice:hover { background: var(--surface-strong); }
+.vote-choice:active { transform: scale(0.98); }
+.vote-choice.is-on { border-color: var(--contrast); }
+.vote-choice-count { font-variant-numeric: tabular-nums; color: var(--text-mid); }
+
+.vote-number { height: 64px; font-size: 1.6rem; text-align: center; }
+
+.vote-result { display: flex; flex-direction: column; gap: 4px; }
+.vote-result-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  border: 1px solid transparent;
+}
+.vote-result-row.is-high { border-color: var(--contrast-soft); background: var(--surface-strong); }
+.vote-result-row.is-low { border-color: rgba(226, 97, 74, 0.3); }
+.vote-result-label { font-size: 1rem; flex: none; }
+.vote-result-tag {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.vote-result-value {
+  font-size: 1.5rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+.vote-verdict {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--accent);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+/* ==========================================================================
+   Painel centralizado
+
+   Num tablet ou computador, um painel colado na borda de baixo obriga a olhar
+   para um canto de uma tela larga. A votação passa o aparelho de mão em mão e
+   merece o centro. No celular nada muda: lá o painel de baixo é o certo, e a
+   orientação já foi pedida em pé.
+
+   O corte é pelo LADO MENOR da tela — celular deitado tem altura pequena e não
+   entra aqui, tablet em qualquer orientação entra.
+   ========================================================================== */
+
+@media (min-width: 700px) and (min-height: 560px) {
+  .sheet-scrim.is-centered { align-items: center; }
+
+  .sheet-scrim.is-centered .sheet {
+    width: min(460px, 92vw);
+    max-height: min(84vh, 100%);
+    border-radius: var(--r-lg);
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0;
+    box-shadow: 0 30px 70px -24px var(--shadow);
+    transform: translateY(18px) scale(0.98);
+  }
+  .sheet-scrim.is-centered.is-open .sheet { transform: none; }
+
+  /* A alça é affordance de arrastar painel de baixo; centralizado não tem. */
+  .sheet-scrim.is-centered .sheet-grip { display: none; }
+  .sheet-scrim.is-centered .sheet-head { padding-top: 18px; }
+  .sheet-scrim.is-centered .sheet-body { padding-bottom: 22px; }
+}
+
+/* Cédula em pé no celular: alvos maiores, já que a tela é só dela. */
+@media (orientation: portrait) {
+  .vote-choice { min-height: 74px; font-size: 1.12rem; }
+  .vote-number { height: 72px; font-size: 1.8rem; }
+}

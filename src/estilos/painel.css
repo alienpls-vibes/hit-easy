@@ -1,0 +1,319 @@
+/* ==========================================================================
+   Painel deslizante, toast, menus e as telas que deslizam de lado.
+
+   Campos de texto sobem junto com o teclado do celular: o painel e fixo na
+   borda de baixo, que e justamente onde o teclado aparece.
+   ========================================================================== */
+
+.sheet-scrim {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  /* --kb é a altura que o teclado do celular tomou (ver ui.js). A cobertura
+     encolhe, e o painel sobe junto em vez de ficar atrás dele. */
+  bottom: var(--kb, 0px);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: transparent;
+  transition: background var(--slow);
+}
+.sheet-scrim.is-open { background: var(--scrim); }
+
+.sheet {
+  width: min(520px, 100%);
+  max-height: min(88vh, 100%);
+  display: flex;
+  flex-direction: column;
+  background: var(--sheet-bg);
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  transform: translateY(100%);
+  transition: transform var(--slow);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.sheet-scrim.is-open .sheet { transform: none; }
+
+.sheet-grip {
+  width: 34px; height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  margin: 10px auto 2px;
+  flex: none;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 18px 6px;
+}
+.sheet-heading { flex: 1; min-width: 0; }
+.sheet-title { margin: 0; font-size: 1.22rem; font-weight: 400; letter-spacing: -0.015em; }
+.sheet-sub {
+  margin: 3px 0 0;
+  font-size: 0.8rem;
+  color: var(--text-mid);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.flow-back { margin-top: 2px; }
+.flow-back[hidden], .sheet-sub[hidden] { display: none; }
+
+/* ---------- telas deslizantes ---------- */
+
+.flow {
+  position: relative;
+  overflow: hidden;
+  flex: none; /* dentro do flex column do sheet-body, não pode encolher */
+  transition: height var(--slow);
+}
+
+.flow-pane {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transform: translateX(var(--swipe, 0px));
+  opacity: 1;
+  transition: transform var(--slow), opacity 240ms var(--ease);
+}
+/* Tela que ainda não entrou fica à direita; a anterior recua um pouco para
+   dar a sensação de profundidade em vez de uma troca seca. */
+.flow-pane.is-next { transform: translateX(100%); opacity: 0; pointer-events: none; }
+.flow-pane.is-past { transform: translateX(-28%); opacity: 0; pointer-events: none; }
+
+/* Durante o arraste o painel acompanha o dedo, sem transição atrapalhando. */
+.flow.is-swiping .flow-pane { transition: none; }
+
+.sheet-body {
+  padding: 8px 18px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sheet-legend {
+  margin: 14px 0 2px;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+}
+
+.sheet-actions { display: flex; gap: 10px; margin-top: 16px; }
+.sheet-actions .btn { flex: 1; }
+
+.menu { display: flex; flex-direction: column; gap: 2px; }
+.menu-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 13px 14px;
+  border-radius: var(--r-sm);
+  text-align: left;
+  border-left: 2px solid transparent;
+  transition: background var(--fast), border-color var(--fast);
+}
+.menu-item:hover { background: var(--surface); border-left-color: var(--accent); }
+.menu-label { font-size: 0.96rem; }
+.menu-sub { font-size: 0.75rem; color: var(--text-dim); }
+.menu-item.is-danger .menu-label { color: var(--danger); }
+
+.area-shortcut {
+  margin-top: 6px;
+  border: 1px solid var(--line-soft);
+  border-left: 2px solid var(--accent);
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  border: 1px solid transparent;
+}
+.stepper.is-hot { border-color: rgba(226, 97, 74, 0.32); }
+.stepper-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.stepper-label { font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stepper-sub { font-size: 0.7rem; color: var(--text-dim); }
+.stepper-value {
+  font-size: 1.05rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-mid);
+  flex: none;
+}
+.stepper-btns { display: flex; gap: 5px; flex: none; }
+.step-btn {
+  min-width: 40px; height: 38px;
+  border-radius: 9px;
+  border: 1px solid var(--line-soft);
+  color: var(--text-mid);
+  font-size: 0.84rem;
+  font-variant-numeric: tabular-nums;
+  transition: all var(--fast);
+}
+.step-btn:hover { background: var(--surface-strong); color: var(--text); }
+.step-btn:active { transform: scale(0.94); }
+
+.search-input {
+  height: 50px;
+  padding: 0 16px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  outline: none;
+  font-size: 1rem;
+  transition: border-color var(--fast);
+}
+.search-input:focus { border-color: var(--text-dim); }
+
+.search-status {
+  margin: 6px 2px 0;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--text-dim);
+}
+
+.result-list { display: flex; flex-direction: column; gap: 2px; }
+.result-list .sheet-legend { margin: 12px 0 2px; }
+.result-list .sheet-legend:first-child { margin-top: 2px; }
+
+/* ---------- escolha de jogador salvo ---------- */
+
+.name-row { display: flex; gap: 8px; }
+.name-row .search-input { flex: 1; min-width: 0; }
+.name-row .btn { height: 50px; padding: 0 20px; flex: none; }
+
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: var(--r-sm);
+  text-align: left;
+  border-left: 2px solid transparent;
+  transition: background var(--fast), border-color var(--fast), opacity var(--fast);
+}
+.player-row:hover:not(:disabled) { background: var(--surface); border-left-color: var(--contrast-soft); }
+.player-row.is-busy { opacity: 0.35; cursor: default; }
+
+.player-avatar {
+  width: 40px; height: 40px;
+  flex: none;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--surface-strong);
+  font-size: 1.05rem;
+  font-weight: 300;
+  color: var(--text-mid);
+}
+.player-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.player-name { font-size: 0.94rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-sub { font-size: 0.7rem; color: var(--text-dim); }
+
+.player-forget {
+  width: 30px; height: 30px;
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  color: var(--text-dim);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity var(--fast), color var(--fast), background var(--fast);
+}
+.player-forget .icon { width: 14px; height: 14px; }
+.player-row:hover .player-forget { opacity: 1; }
+.player-forget:hover { color: var(--danger); background: rgba(226, 97, 74, 0.12); }
+/* Sem hover (celular) o botão precisa estar sempre visível. */
+@media (hover: none) {
+  .player-forget { opacity: 0.5; }
+}
+
+/* ---------- antes de começar ---------- */
+
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px 9px 10px;
+  border-radius: var(--r-sm);
+  text-align: left;
+  border: 1px solid transparent;
+  transition: background var(--fast), border-color var(--fast);
+}
+.pick-row:hover { background: var(--surface); }
+.pick-row.is-on { background: var(--surface); border-color: var(--accent); }
+
+.pick-dice {
+  width: 40px; height: 40px;
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  border: 1px dashed var(--line);
+  color: var(--text-mid);
+}
+
+.pick-mark {
+  width: 18px; height: 18px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  position: relative;
+  transition: border-color var(--fast);
+}
+.pick-row.is-on .pick-mark { border-color: var(--accent); }
+.pick-row.is-on .pick-mark::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.layout-picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+
+.layout-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-soft);
+  transition: all var(--fast);
+}
+.layout-option:hover { background: var(--surface); }
+.layout-option.is-on { border-color: var(--contrast-soft); background: var(--surface); }
+
+/* Miniatura da mesa: mesma grade do jogo, com a ordem dos turnos escrita. */
+.layout-mini {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+}
+.layout-cell {
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  background: var(--surface-strong);
+  border: 1px solid var(--line-soft);
+  font-size: 0.6rem;
+  color: var(--text-mid);
+  font-variant-numeric: tabular-nums;
+}
+.layout-option.is-on .layout-cell { background: var(--press); }
+/* Quem senta do outro lado aparece invertido também na miniatura. */
+.layout-cell.is-flipped { transform: rotate(180deg); }
+
+.layout-label { font-size: 0.7rem; color: var(--text-dim); text-align: center; }
+.layout-option.is-on .layout-label { color: var(--text); }

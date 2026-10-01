@@ -21,6 +21,67 @@
 
 export const NOVIDADES = [
   {
+    versao: '1.2.0',
+    data: '2026-10-01',
+    titulo: 'A mesma pessoa, um histórico só',
+    itens: [
+      {
+        tipo: 'mudou',
+        texto: 'Quem tem conta passou a aparecer pelo @ em toda tela — nas '
+          + 'estatísticas, nas rivalidades e na escolha do jogador. O nome '
+          + 'digitado continua guardado e aparece no detalhe da partida, como '
+          + '"registrado como". O @ é o único nome que significa a mesma '
+          + 'coisa em todo aparelho.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'A lista de jogadores passou a ser de pessoas, e não dos nomes '
+          + 'digitados. Quem foi cadastrado como "Alex" numa quinta e '
+          + '"Alexandre" na outra aparecia duas vezes, cada linha com metade '
+          + 'dos decks.',
+      },
+      {
+        tipo: 'novo',
+        texto: 'Ligar alguém a uma conta agora junta o histórico INTEIRO dela, '
+          + 'e não só a partida que você estava olhando. Dá para fazer isso '
+          + 'direto na aba de Jogadores, que é onde o problema aparece: duas '
+          + 'linhas que são a mesma pessoa.',
+      },
+      {
+        tipo: 'novo',
+        texto: 'Quando um aparelho marca a conta de alguém, o outro aprende '
+          + 'sozinho ao sincronizar — e as partidas dele com aquela pessoa '
+          + 'convergem sem ninguém marcar de novo. Só de partida sua ou de '
+          + 'anfitrião que você confiou.',
+      },
+      {
+        tipo: 'novo',
+        texto: 'Segurar na borda do painel agora tira ou põe vida '
+          + 'repetidamente, acelerando: 40 a 0 em cerca de três segundos, em '
+          + 'vez de quarenta toques. Toda a seguradinha entra como um evento '
+          + 'só, então desfazer volta tudo num toque. Segurar parado na borda '
+          + 'deixou de armar ataque — arrastar dela e segurar no centro '
+          + 'continuam armando.',
+      },
+      {
+        tipo: 'corrigido',
+        texto: 'O painel ficava atrás do teclado do celular ao procurar um @: '
+          + 'dava para digitar sem ver o que se digitava.',
+      },
+      {
+        tipo: 'corrigido',
+        texto: 'Ocultar um jogador se desfazia sozinho quando a pessoa ganhava '
+          + 'conta — a linha oculta reaparecia na abertura seguinte.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'Nada visível por fora, mas por dentro o app foi reorganizado: '
+          + 'de 23 arquivos para 104, uma pasta por assunto. Serve para o que '
+          + 'vem depois sair mais rápido e quebrar menos.',
+      },
+    ],
+  },
+  {
     versao: '1.1.1',
     data: '2026-08-28',
     titulo: 'Colocação no idioma certo',

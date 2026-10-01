@@ -1,0 +1,64 @@
+/* ==========================================================================
+   Ocultar decks e jogadores, e a aba de rivalidades.
+   ========================================================================== */
+
+.card-hide {
+  width: 28px; height: 28px;
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  color: var(--text-dim);
+  opacity: 0.4;
+  transition: opacity var(--fast), color var(--fast), background var(--fast);
+}
+.card-hide .icon { width: 14px; height: 14px; }
+.card:hover .card-hide { opacity: 1; }
+.card-hide:hover { color: var(--text); background: var(--surface-strong); }
+/* Sem hover (celular) o botão precisa estar sempre visível. */
+@media (hover: none) { .card-hide { opacity: 0.55; } }
+
+.rival-card { display: flex; flex-direction: column; gap: 10px; }
+
+.rival-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  gap: 12px;
+}
+.rival-side { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rival-side.is-end { text-align: right; }
+.rival-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--accent);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rival-damage {
+  font-size: 1.7rem;
+  font-weight: 250;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.rival-extra { font-size: 0.66rem; color: var(--text-dim); line-height: 1.4; }
+.rival-vs {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+  padding-top: 4px;
+}
+
+/* A barra mostra o desequilíbrio: quem bateu mais ocupa mais espaço. */
+/* Os dois lados coloridos: o vão que sobra é o do outro jogador. */
+.rival-bar {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--rival-b, var(--surface-strong));
+  overflow: hidden;
+}
+.rival-bar-a {
+  height: 100%;
+  transition: width var(--slow);
+}
+.rival-foot { font-size: 0.68rem; color: var(--text-dim); }

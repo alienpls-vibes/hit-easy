@@ -1,0 +1,174 @@
+/* ==========================================================================
+   Configuracoes, e o campo de escolha unica.
+
+   O <select> nativo resolve o espaco (quatro nomes de idioma nao cabem lado a
+   lado no celular) e entrega o seletor que o aparelho ja usa em todo lugar.
+   ========================================================================== */
+
+/* ---------- configurações ---------- */
+
+.chips-fill { display: flex; gap: 6px; }
+/* ---------- campo de escolha única ---------- */
+
+.select-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.select-input {
+  width: 100%;
+  height: 50px;
+  padding: 0 42px 0 16px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  color: var(--text);
+  font-size: 1rem;
+  /* Tira a aparência do sistema para o campo combinar com o resto; a lista
+     que abre ao tocar continua sendo a nativa do aparelho. */
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  transition: border-color var(--fast), background var(--fast);
+}
+.select-input:hover { background: var(--surface-strong); }
+.select-input:focus { outline: none; border-color: var(--text-dim); }
+/* A lista aberta é desenhada pelo sistema: sem isto, no tema escuro do app com
+   sistema claro, ela sairia com texto claro sobre fundo claro. */
+.select-input option { background: var(--sheet-bg); color: var(--text); }
+
+.select-caret {
+  position: absolute;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  color: var(--text-dim);
+  transform: rotate(90deg);
+}
+.select-caret .icon { width: 16px; height: 16px; }
+.chips-fill .chip { flex: 1; min-width: 0; }
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: var(--r-sm);
+  text-align: left;
+  transition: background var(--fast);
+}
+.toggle-row:hover { background: var(--surface); }
+
+.toggle-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.toggle-label { font-size: 0.94rem; }
+.toggle-sub { font-size: 0.72rem; color: var(--text-dim); }
+
+.switch {
+  position: relative;
+  width: 44px; height: 26px;
+  flex: none;
+  border-radius: 13px;
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  transition: background var(--fast), border-color var(--fast);
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: transform var(--fast), background var(--fast);
+}
+.switch.is-on { background: var(--contrast); border-color: var(--contrast); }
+.switch.is-on::after { transform: translateX(18px); background: var(--on-contrast); }
+
+.install-note {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 13px 14px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+}
+.install-note.is-done { border-color: rgba(79, 169, 124, 0.4); }
+.install-note .menu-sub { line-height: 1.45; }
+.install-note .menu-label,
+.install-cta .menu-label { display: flex; align-items: center; gap: 8px; }
+.install-note .icon, .install-cta .icon { width: 16px; height: 16px; color: var(--text-mid); }
+
+.install-cta {
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--contrast);
+  background: var(--surface);
+}
+.install-cta .menu-sub { line-height: 1.45; }
+
+.settings-note {
+  margin: 16px 2px 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.result-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  text-align: left;
+  border-left: 2px solid transparent;
+  transition: background var(--fast), border-color var(--fast);
+}
+.result-row:hover { background: var(--surface); border-left-color: var(--accent); }
+
+.result-art {
+  width: 46px; height: 46px;
+  flex: none;
+  border-radius: 9px;
+  background-color: var(--surface-strong);
+  background-size: cover;
+  background-position: center 28%;
+}
+.result-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.result-name { font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-type { font-size: 0.7rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-pips { font-size: 0.66rem; letter-spacing: 0.14em; color: var(--accent); flex: none; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(22px + env(safe-area-inset-bottom));
+  transform: translate(-50%, 14px);
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 8px 12px 18px;
+  border-radius: 30px;
+  background: var(--glass-strong);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--line);
+  box-shadow: 0 14px 40px -14px var(--shadow);
+  opacity: 0;
+  transition: opacity var(--fast), transform var(--fast);
+  max-width: calc(100vw - 32px);
+}
+.toast.is-open { opacity: 1; transform: translate(-50%, 0); }
+.toast-msg { font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.toast-action {
+  flex: none;
+  padding: 7px 15px;
+  border-radius: 20px;
+  background: var(--press);
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: background var(--fast);
+}
+.toast-action:hover { background: var(--surface-strong); }

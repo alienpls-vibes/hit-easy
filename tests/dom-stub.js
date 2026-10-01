@@ -171,6 +171,33 @@ class Node {
  * Dispara um evento no nó. Cobre addEventListener E a propriedade `on<tipo>`,
  * porque o DOM de verdade aceita as duas formas.
  */
+const ouvintesViewport = {};
+
+/**
+ * Simula o teclado do celular subindo.
+ *
+ * Modela o navegador onde o defeito aparecia: `innerHeight` acompanha o
+ * viewport VISUAL (encolhe com o teclado), enquanto
+ * `documentElement.clientHeight` - a referencia contra a qual
+ * `position: fixed` e `100%` resolvem - continua sendo o layout inteiro.
+ *
+ * E essa diferenca que o teste precisa: a conta antiga, lendo `innerHeight`,
+ * dava zero justamente aqui.
+ */
+export function simularTeclado({ layout, visivel, deslocamento = 0 }) {
+  if (!globalThis.visualViewport) return;
+  globalThis.document.documentElement.clientHeight = layout;
+  globalThis.innerHeight = visivel;
+  globalThis.visualViewport.height = visivel;
+  globalThis.visualViewport.offsetTop = deslocamento;
+  for (const fn of ouvintesViewport.resize || []) fn();
+}
+
+/** Quanto o app acha que o teclado tomou, em px. */
+export function kbAtual() {
+  return globalThis.document.documentElement.style.getPropertyValue('--kb');
+}
+
 export function fire(node, type, event = {}) {
   // Disparar num no que nao existe nao pode ser silencio: um seletor que
   // errou o alvo faria o teste 'passar' sem ter exercitado nada, e a
@@ -245,6 +272,21 @@ if (simulated) {
     removeItem: (k) => mem.delete(k),
   };
   globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+
+  /**
+   * visualViewport: o bastante para conferir a conta do teclado.
+   *
+   * Existe porque "o painel fica atras do teclado" foi defeito real, e a causa
+   * era qual altura se lia. Testar isso exige um viewport que o teste mexa.
+   */
+  globalThis.visualViewport = {
+    height: 800,
+    offsetTop: 0,
+    addEventListener(tipo, fn) {
+      (ouvintesViewport[tipo] = ouvintesViewport[tipo] || []).push(fn);
+    },
+    removeEventListener() {},
+  };
   globalThis.window = globalThis;
   globalThis.isSecureContext = true;
   globalThis.addEventListener = () => {};
