@@ -162,6 +162,14 @@
 }
 .step-btn:hover { background: var(--surface-strong); color: var(--text); }
 .step-btn:active { transform: scale(0.94); }
+/* Segurando: a repetição começou e o número está andando sozinho. Classe
+   explícita porque o pointerdown chama preventDefault(), e nem todo navegador
+   mantém :active depois disso. */
+.step-btn.is-held {
+  background: var(--contrast);
+  color: var(--bg);
+  transform: scale(0.94);
+}
 
 .search-input {
   height: 50px;

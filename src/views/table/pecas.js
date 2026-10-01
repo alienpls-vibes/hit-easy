@@ -17,8 +17,33 @@ export function stat(label, value) {
   ]);
 }
 
-export function stepperRow({ label, sub, value, steps, onStep, accent, hot }) {
-  return el('div', {
+/**
+ * Linha de ajuste: rotulo, numero e os botoes de passo.
+ *
+ * `value` aceita funcao, e nao so numero: com `segurarRepete` o numero muda
+ * enquanto o dedo esta em cima, e remontar a linha destruiria o proprio botao
+ * sendo segurado. Quem chama usa `linha.atualizar()` depois de cada passo.
+ *
+ * `segurarRepete` liga o "segurar repete" nos passos de UMA unidade apenas.
+ * Nos de cinco, nao: na cadencia acelerada seriam noventa pontos por segundo, e
+ * o alvo passaria sempre - o passo de cinco ja e o atalho rapido do toque.
+ */
+export function stepperRow({
+  label, sub, value, steps, onStep, accent, hot, segurarRepete,
+}) {
+  const ler = () => String(typeof value === 'function' ? value() : value);
+  const valorEl = el('span', { class: 'stepper-value', text: ler() });
+
+  const botoes = steps.map((n) => {
+    const botao = el('button', {
+      class: 'step-btn' + (n > 0 ? ' is-plus' : ''),
+    }, [(n > 0 ? '+' : '') + n]);
+    if (segurarRepete && Math.abs(n) === 1) bindHold(botao, () => onStep(n));
+    else botao.addEventListener('click', () => onStep(n));
+    return botao;
+  });
+
+  const linha = el('div', {
     class: 'stepper' + (hot ? ' is-hot' : ''),
     style: accent ? { '--accent': accent } : {},
   }, [
@@ -26,14 +51,13 @@ export function stepperRow({ label, sub, value, steps, onStep, accent, hot }) {
       el('span', { class: 'stepper-label', text: label }),
       sub ? el('span', { class: 'stepper-sub', text: sub }) : null,
     ]),
-    el('span', { class: 'stepper-value', text: String(value) }),
-    el('div', { class: 'stepper-btns' }, steps.map((n) =>
-      el('button', {
-        class: 'step-btn' + (n > 0 ? ' is-plus' : ''),
-        onClick: () => onStep(n),
-      }, [(n > 0 ? '+' : '') + n]),
-    )),
+    valorEl,
+    el('div', { class: 'stepper-btns' }, botoes),
   ]);
+
+  /** Atualiza o numero sem remontar a linha. */
+  linha.atualizar = () => { valorEl.textContent = ler(); };
+  return linha;
 }
 
 /**

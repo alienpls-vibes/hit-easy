@@ -52,7 +52,8 @@ import { renderTable } from '../src/views/table.js';
 // interno da mesa, e exporta-la no barril a anunciaria como API publica.
 import { repetirSegurando } from '../src/views/table/pecas.js';
 import {
-  COMMIT_MS, HOLD_DELAY, REPEAT_ACCEL_AFTER, REPEAT_FAST_MS, REPEAT_MS,
+  COMMIT_MS, DOUBLE_TAP_MS, HOLD_DELAY, REPEAT_ACCEL_AFTER, REPEAT_FAST_MS,
+  REPEAT_MS,
 } from '../src/views/table/constantes.js';
 import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
 import { renderStats, renderPaywall } from '../src/views/stats.js';
@@ -3067,6 +3068,90 @@ export const cases = [
       'e passa a aparecer na seleção de jogador');
 
     store.wipe();
+  }],
+
+  ['segurar -1 no painel do jogador repete, e vira um evento só', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      const m = mesa(4);
+      const { tiles, view } = mesaNaTela(m);
+
+      // Toque rápido no centro abre o painel do jogador - depois da janela do
+      // duplo toque, que é o que separa "abrir painel" de "ação em área".
+      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+      fire(centro, 'pointerdown', { pointerId: 1, clientX: 50, clientY: 50 });
+      fire(centro, 'pointerup', { pointerId: 1, clientX: 50, clientY: 50 });
+      avancar(DOUBLE_TAP_MS + 10);
+
+      const botaoDe = (texto) => findAll(document.body, 'step-btn')
+        .find((b) => textOf(b) === texto);
+      const menos = botaoDe('-1');
+      ok(menos, 'o painel do jogador não tem o botão de -1');
+
+      // O número que o painel mostra. Ele tem de andar durante a seguradinha,
+      // e sem o painel ser remontado - remontar destruiria o botão segurado.
+      const noPainel = () => textOf(findAll(document.body, 'stepper-value')[0]);
+      eq(noPainel(), '40', 'o painel não abriu em 40');
+
+      // Segurar: um passo no toque, e a repetição depois do atraso.
+      fire(menos, 'pointerdown', { pointerId: 2 });
+      eq(noPainel(), '39', 'o toque não valeu um ponto na hora');
+
+      avancar(HOLD_DELAY + REPEAT_MS * 2);
+      eq(noPainel(), '37', 'a repetição não andou enquanto o dedo segurava');
+      ok(menos.classList.contains('is-held'), 'o botão não mostra que repete');
+
+      // E o painel NÃO pode ter sido remontado no caminho. Num navegador o
+      // botão segurado seria destruído, o `pointerup` do dedo iria para o
+      // botão NOVO, e o intervalo do antigo nunca pararia: a vida continuaria
+      // caindo depois de soltar. O stub não modela isso, então a invariante
+      // é afirmada direto.
+      ok(botaoDe('-1') === menos, 'o painel foi remontado durante a seguradinha');
+
+      fire(menos, 'pointerup', { pointerId: 2 });
+      ok(!menos.classList.contains('is-held'), 'soltar não apagou o realce');
+
+      // Nada gravado ainda: a coalescência é o que faz desfazer voltar o gesto
+      // inteiro num toque, em vez de ponto por ponto.
+      eq(eventosDeVida(m).length, 0, 'gravou antes da coalescência fechar');
+
+      avancar(COMMIT_MS + 10);
+      const vida = eventosDeVida(m);
+      eq(vida.length, 1, 'a seguradinha inteira virou um evento só');
+      eq(vida[0].delta, -3, 'o evento não soma os três passos');
+      eq(vida[0].sourceId, null, 'ajuste no próprio painel não tem autor');
+      eq(replay(m).players.s0.life, 37, 'e a vida terminou em 37');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['o passo de 5 não repete ao segurar', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      const m = mesa(4);
+      const { tiles, view } = mesaNaTela(m);
+
+      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+      fire(centro, 'pointerdown', { pointerId: 1, clientX: 50, clientY: 50 });
+      fire(centro, 'pointerup', { pointerId: 1, clientX: 50, clientY: 50 });
+      avancar(DOUBLE_TAP_MS + 10);
+
+      const cinco = findAll(document.body, 'step-btn')
+        .find((b) => textOf(b) === '-5');
+      ok(cinco, 'o painel não tem o botão de -5');
+
+      // Na cadência acelerada seriam noventa pontos por segundo: o alvo
+      // passaria sempre. O passo de cinco já é o atalho rápido do toque.
+      fire(cinco, 'click');
+      avancar(HOLD_DELAY + REPEAT_MS * 8);
+      avancar(COMMIT_MS + 10);
+      eq(replay(m).players.s0.life, 35, 'o passo de 5 repetiu ao segurar');
+
+      view.destroy();
+      return undefined;
+    });
   }],
 
   ['segurar na borda não arma ataque, e o toque curto ainda vale 1', () => {

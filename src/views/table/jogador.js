@@ -35,15 +35,28 @@ export function criarPainelDoJogador(mesa) {
 
           // Ajuste sem origem: correcao de erro ou vida paga pelo proprio
           // jogador. Dano com autor entra pelo arraste.
-          body.append(stepperRow({
+          //
+          // Segurar -1 ou +1 repete, acelerando - mesma gramatica da borda do
+          // painel e do marcador de mana.
+          const vida = stepperRow({
             label: t('table.life'),
-            value: me.life,
-            steps: [-5, -1, +1, +5],
-            onStep: (n) => {
-              mesa.apply({ type: 'life', targetId: seat.id, delta: n, sourceId: null });
-              rebuild();
+            // Funcao: com o dedo segurando, o numero muda sem o painel ser
+            // remontado - e remontar destruiria o botao sendo segurado.
+            value: () => {
+              const pendente = mesa.pending.get(seat.id);
+              return mesa.state.players[seat.id].life + (pendente ? pendente.delta : 0);
             },
-          }));
+            steps: [-5, -1, +1, +5],
+            segurarRepete: true,
+            onStep: (n) => {
+              // nudge, e nao apply: toda a seguradinha entra como UM evento,
+              // igual a borda. Com apply seriam quarenta eventos, e desfazer
+              // pediria quarenta toques para voltar um gesto.
+              mesa.nudge(seat.id, n);
+              vida.atualizar();
+            },
+          });
+          body.append(vida);
 
           // Dano de comandante: uma linha por comandante adversario.
           const foes = [];

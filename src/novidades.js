@@ -21,6 +21,32 @@
 
 export const NOVIDADES = [
   {
+    versao: '1.2.1',
+    data: '2026-10-01',
+    titulo: 'Segurar também nos botões do painel',
+    itens: [
+      {
+        tipo: 'novo',
+        texto: 'Segurar −1 ou +1 no painel do jogador agora repete, '
+          + 'acelerando — é onde se corrige dano e cura próprios. A versão '
+          + 'anterior trouxe isso só para as bordas do painel na mesa; '
+          + 'dentro do painel continuava pedindo um toque por ponto.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'O ajuste de vida pelo painel passou a entrar como um evento '
+          + 'só, igual ao da borda. Antes era um evento por toque, então '
+          + 'desfazer voltava ponto por ponto.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'Os passos de 5 continuam só no toque. Segurar na cadência '
+          + 'acelerada seriam noventa pontos por segundo, e o alvo passaria '
+          + 'sempre.',
+      },
+    ],
+  },
+  {
     versao: '1.2.0',
     data: '2026-10-01',
     titulo: 'A mesma pessoa, um histórico só',
