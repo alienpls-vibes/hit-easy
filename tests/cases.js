@@ -2891,6 +2891,11 @@ export const cases = [
     eq(alturaDoTeclado(800, 500, 0), 300, 'o teclado tomou 300');
     eq(alturaDoTeclado(800, 500, 60), 240, 'e a página rolada desconta junto');
     eq(alturaDoTeclado(0, 500, 0), 0, 'sem layout não há conta a fazer');
+    // Sem campo de texto focado não há teclado, e a conta nem se faz: a barra
+    // de URL do celular também encolhe o viewport visível, e a diferença saía
+    // como uns 60px de "teclado" empurrando todo painel para cima.
+    eq(alturaDoTeclado(800, 500, 0, false), 0, 'sem campo focado não há teclado');
+    eq(alturaDoTeclado(800, 500, 0, true), 300, 'com campo focado, a conta vale');
 
     // E a fiação. Este é o caso que o defeito produzia: um navegador em que
     // `innerHeight` acompanha o viewport VISUAL. Lendo innerHeight, a conta
@@ -2902,6 +2907,11 @@ export const cases = [
     // Teclado fechando: volta a zero, senão sobraria um vão embaixo do painel.
     simularTeclado({ layout: 800, visivel: 800 });
     eq(kbAtual(), '0px', 'fechar o teclado devolve a tela inteira');
+
+    // A barra de URL encolhendo o viewport NÃO é teclado. Sem esta distinção,
+    // todo painel subia um pedaço só por existir barra de URL na tela.
+    simularTeclado({ layout: 800, visivel: 740, comCampo: false });
+    eq(kbAtual(), '0px', 'a barra de URL foi confundida com teclado');
   }],
 
   ['associar uma conta escolhe a cadeira certa, e recusa o que é ambíguo', () => {

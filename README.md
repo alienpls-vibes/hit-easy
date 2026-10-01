@@ -394,15 +394,22 @@ fixo na borda de baixo, que é justamente onde o teclado aparece. Vale para
 todos — busca de comandante, nome de jogador, busca de `@` e o número da
 votação secreta.
 
-Duas vias, e elas concordam em vez de competir:
+`visualViewport` diz quanto o teclado tomou, a cobertura encolhe na mesma
+medida e o painel sobe. A conta é `layout − visível − deslocamento`, porque um
+elemento fixo com `bottom: B` tem a base em `layout − B`.
 
-- `interactive-widget=resizes-content` no meta viewport. Onde há suporte, o
-  próprio navegador encolhe o viewport de **layout**, e `bottom: 0` já fica
-  acima do teclado sem conta nenhuma.
-- onde não há (Safari), `visualViewport` diz quanto o teclado tomou, a
-  cobertura encolhe na mesma medida e o painel sobe. A conta é
-  `layout − visível − deslocamento`, porque um elemento fixo com `bottom: B`
-  tem a base em `layout − B`.
+**Sem tocar no layout da página, e isso é requisito.** `interactive-widget=`
+`resizes-content` no meta viewport resolveria o Android sem JS, e chegou a
+entrar — mas ele faz o viewport de **layout** mudar, e as telas deste app são
+`height: 100%` em cadeia (`html`, `#app`, `.stats`). Mudar o layout durante a
+rolagem re-layouta a cadeia e mexe na âncora de scroll: a lista de
+estatísticas rolava e voltava ao topo. Saiu, e a conta de `--kb` já resolvia os
+dois sistemas sozinha — o meta era cinto e suspensório.
+
+**`--kb` só vale com campo de texto focado**, porque teclado só existe aí. Sem
+essa condição a conta acusava teclado onde não havia: a barra de URL do celular
+também encolhe o viewport visível, e a diferença saía como uns 60px de
+"teclado" empurrando todo painel para cima.
 
 O `layout` dessa conta tem de ser `documentElement.clientHeight` — a mesma
 referência contra a qual `position: fixed` e `100%` resolvem. Com

@@ -2,11 +2,12 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<!-- interactive-widget=resizes-content: o teclado do celular encolhe o
-     viewport de LAYOUT, e nao so o visual. Com isso um painel fixo na
-     borda de baixo fica acima do teclado sozinho, sem JS. Onde nao ha
-     suporte (Safari), ui.js cuida disso pela variavel --kb. -->
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content">
+<!-- Sem `interactive-widget`: ele faria o viewport de LAYOUT mudar, e as
+     telas deste app sao `height: 100%` em cadeia (html, #app, .stats) -
+     mudar o layout durante a rolagem re-layouta tudo e mexe na ancora de
+     scroll. Quem cuida do teclado e a variavel --kb, em src/ui.js, que
+     resolve nos dois sistemas sem tocar no layout. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Hit Easy — commander made simple</title>
 <meta name="description" content="Hit Easy — commander made simple. Contador de vida para mesas de Commander, com estatisticas por deck.">
 <meta name="theme-color" content="#08080a">

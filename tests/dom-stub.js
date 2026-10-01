@@ -184,12 +184,21 @@ const ouvintesViewport = {};
  * E essa diferenca que o teste precisa: a conta antiga, lendo `innerHeight`,
  * dava zero justamente aqui.
  */
-export function simularTeclado({ layout, visivel, deslocamento = 0 }) {
+export function simularTeclado({
+  layout, visivel, deslocamento = 0, comCampo = true,
+}) {
   if (!globalThis.visualViewport) return;
   globalThis.document.documentElement.clientHeight = layout;
   globalThis.innerHeight = visivel;
   globalThis.visualViewport.height = visivel;
   globalThis.visualViewport.offsetTop = deslocamento;
+
+  // Teclado so existe com campo de texto focado. `comCampo: false` modela o
+  // outro jeito de o viewport visivel encolher: a barra de URL do celular, que
+  // nao e teclado e nao pode empurrar painel nenhum.
+  const doc = globalThis.document;
+  doc.activeElement = comCampo ? doc.createElement('input') : doc.body;
+
   for (const fn of ouvintesViewport.resize || []) fn();
 }
 

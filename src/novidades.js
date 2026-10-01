@@ -21,6 +21,27 @@
 
 export const NOVIDADES = [
   {
+    versao: '1.2.2',
+    data: '2026-10-01',
+    titulo: 'A rolagem das estatísticas de volta',
+    itens: [
+      {
+        tipo: 'corrigido',
+        texto: 'A lista de estatísticas e de partidas rolava e voltava '
+          + 'instantaneamente para o topo. A causa era um ajuste de viewport '
+          + 'que entrou na versão anterior para resolver o teclado: ele mudava '
+          + 'o layout da página durante a rolagem. O conserto do teclado '
+          + 'continua, por outro caminho que não encosta no layout.',
+      },
+      {
+        tipo: 'corrigido',
+        texto: 'Os painéis subiam um pedaço sem motivo quando a barra de '
+          + 'endereço do navegador estava visível — ela era confundida com o '
+          + 'teclado.',
+      },
+    ],
+  },
+  {
     versao: '1.2.1',
     data: '2026-10-01',
     titulo: 'Segurar também nos botões do painel',
