@@ -21,6 +21,30 @@
 
 export const NOVIDADES = [
   {
+    versao: '1.8.0',
+    data: '2026-10-02',
+    titulo: 'O canal de teste não mexe mais no histórico real',
+    itens: [
+      {
+        tipo: 'corrigido',
+        texto: 'As partidas jogadas na versão de teste subiam para a mesma '
+          + 'base da versão de verdade e voltavam no histórico dela, contando '
+          + 'nas estatísticas. Agora cada canal só vê o que foi jogado nele.',
+      },
+      {
+        tipo: 'corrigido',
+        texto: 'Uma cadeira marcada com o @ de alguém numa mesa de teste '
+          + 'virava convite de verdade para aquela pessoa. Não vira mais.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'A marca no alto da tela inicial passou a usar o degradê do '
+          + 'ícone, para ser olhada no aparelho e comparada com a versão em '
+          + 'cor sólida.',
+      },
+    ],
+  },
+  {
     versao: '1.7.0',
     data: '2026-10-02',
     titulo: 'Cara nova, e listas que se ordenam',

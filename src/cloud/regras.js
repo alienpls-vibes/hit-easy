@@ -66,11 +66,19 @@ export function sessaoValida(sessao, agora = Date.now()) {
 }
 
 /** A partida como o banco a guarda. */
-export function toRow(match, ownerId) {
+export function toRow(match, ownerId, canal) {
   return {
     id: match.id,
     owner: ownerId,
     started_at: new Date(match.startedAt).toISOString(),
+    // Em que canal esta partida foi jogada. Coluna, e nao algo dentro do
+    // payload: e por ela que a leitura filtra, e o banco nao indexa o que
+    // esta enterrado num jsonb.
+    //
+    // Sem valor explicito o banco poria 'producao' por padrao, que e o certo
+    // para as linhas antigas e seria exatamente o errado para uma partida de
+    // teste: o beta subiria carimbado como real.
+    canal: canal || 'producao',
     // `redo` e estado de tela, nao historico. `owner` e coluna: guardar de
     // novo dentro do payload criaria uma segunda verdade sobre quem registrou.
     payload: { ...match, redo: [], owner: undefined },
@@ -183,7 +191,7 @@ export function exibirHandle(h) {
  * sempre foram: a esmagadora maioria das mesas nunca vai criar conta, e o app
  * nao pode piorar para elas.
  */
-export function participantesDe(match) {
+export function participantesDe(match, canal) {
   if (!match || !match.id) return [];
   return (match.seats || [])
     .filter((s) => s && s.id && handleValido(s.handle))
@@ -192,6 +200,10 @@ export function participantesDe(match) {
       seat_id: s.id,
       user_id: s.userId || null,
       handle: normalizarHandle(s.handle),
+      // O mesmo canal da partida. Sem isto, uma cadeira marcada numa mesa de
+      // teste viraria convite visivel no app de verdade - o canal de teste
+      // escrevendo na vida de outra pessoa.
+      canal: canal || 'producao',
     }));
 }
 

@@ -6,6 +6,7 @@
  * vier dele entrar sozinho.
  */
 
+import { canal } from '../canal.js';
 import { avisar, conta, currentUser } from './estado.js';
 import { pedir } from './http.js';
 import { participantesDe } from './regras.js';
@@ -18,7 +19,7 @@ import { participantesDe } from './regras.js';
  * so os convites ficam para a proxima tentativa.
  */
 export async function enviarParticipantes(match) {
-  const linhas = participantesDe(match);
+  const linhas = participantesDe(match, canal());
   if (!linhas.length) return 0;
   await pedir('/rest/v1/match_players', {
     method: 'POST',
@@ -42,8 +43,11 @@ export function convitesAbertos() {
 export async function convitesPendentes() {
   const dono = currentUser();
   if (!dono) { conta.convites = []; return []; }
+  // Pelo canal: um convite nascido numa mesa de teste nao pode aparecer no
+  // app de verdade, nem para quem registrou nem para quem foi marcado.
   const linhas = (await pedir(
     '/rest/v1/match_players?select=*&status=eq.pendente'
+    + '&canal=eq.' + canal()
     + '&user_id=eq.' + encodeURIComponent(dono.id),
   )) || [];
   conta.convites = linhas;

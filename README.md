@@ -489,6 +489,55 @@ Dá para trazer de volta em *Estatísticas → menu → Ocultos*.
 É por isso que ocultar e apagar são coisas separadas: apagar uma partida
 (também disponível, no detalhe dela) muda o histórico de verdade.
 
+## O beta não escreve na base de verdade
+
+Produção e beta moram na mesma origem, e isso já era resolvido para o DISCO:
+`chave()`, em [src/canal.js](src/canal.js), põe sufixo `.beta` em tudo que vai
+para o localStorage.
+
+A nuvem não sabia o que era canal. Uma partida jogada no beta subia para a mesma
+tabela `matches`, e o app de produção a baixava como real: partida de teste no
+histórico, nas estatísticas, na média de dano, na taxa de vitória de um deck.
+
+Pior que ruído. `aprenderQuemEQuem` aprende apelidos do que baixa, e uma cadeira
+de teste marcada com o `@` de um amigo virava convite para a pessoa real — o
+canal de teste escrevendo na vida de terceiros.
+
+Agora toda escrita leva a coluna `canal` e toda leitura filtra por ela. São as
+duas pontas da mesma regra, e falhar numa anula a outra: carimbar sem filtrar
+deixa produção baixando o que o beta subiu; filtrar sem carimbar faz o beta
+subir com o padrão `'producao'` e envenenar a base.
+
+O mesmo vale para `profiles.decks`, que a 1.6.0 criou: beta escreve em
+`decks_beta`. Sem isso, uma mesa de teste com comandantes inventados entraria no
+seletor de deck do app de verdade, desfazendo o recurso que existe justamente
+para o seletor conhecer os decks da pessoa.
+
+**O canal não é fronteira de segurança, é separação de dados.** As policies
+decidem por dono, e o canal não muda quem é dono de quê. Quem quiser ver as
+próprias partidas de beta consultando o banco na mão consegue — são dela. O que
+a coluna garante é que o app nunca mistura os dois sozinho.
+
+Por uma coluna, e não por um projeto Supabase separado: a conta, a assinatura e
+os `@` precisam ser os mesmos nos dois canais. Com dois projetos, testar o login
+seria testar outro login, e a pessoa teria de criar conta de novo para
+experimentar o beta. Ninguém testa assim.
+
+> **Precisa de migração.** Rode `sql/005-canal.sql` no Supabase. Até lá o app
+> novo pede `canal=eq.producao` a uma tabela sem essa coluna, e o PostgREST
+> recusa com 400 — a sincronização falha inteira e o app fica só local. Nada se
+> perde, mas nada sobe nem desce.
+
+### O que as subidas carimbam
+
+A cobertura dessa separação quase ficou pela metade: os testes verificavam
+`toRow` e `colunaDeDecks`, que são puras e recebem o canal pronto, e nada
+passava pelo ponto onde `canal()` é de fato chamado. Trocar essa chamada por
+`'producao'` dentro de `enviarPartida` passava pela suíte inteira — a mutação
+que significa, em uma linha, "o beta envenena a base de verdade". O teste de
+mutação foi quem contou; o caso de ponta a ponta captura o `fetch` e lê o corpo
+que sai.
+
 ## O ícone
 
 Três arquivos em `icons/`, e os três saem da mesma arte: gradiente de cor com a

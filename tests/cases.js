@@ -40,6 +40,8 @@ import {
   jaTinhaConta,
   sessaoGuardada,
   normalizarHandle, handleValido, exibirHandle, participantesDe, montarConvites,
+  colunaDeDecks, baixarPartidas, idsRemotos,
+  enviarPartida, enviarParticipantes, salvarMeusDecks, conta,
 } from '../src/cloud.js';
 import { cloudEnabled } from '../src/config.js';
 import { canalDe, canalDoCache } from '../src/canal.js';
@@ -1007,6 +1009,167 @@ export const cases = [
     } finally {
       if (!tinha) delete navigator.standalone;
       else navigator.standalone = false;
+    }
+    return undefined;
+  }],
+
+  ['o que sobe leva o carimbo do canal', () => {
+    // Produção e beta moram na mesma origem e na mesma base. O disco já era
+    // separado por `chave()`; a nuvem não sabia o que era canal, e uma mesa de
+    // teste subia para a mesma tabela que o app de verdade lê.
+    const m = createMatch([
+      { id: 's0', name: 'Alex', handle: 'alienpls', commanders: [commander(1)] },
+      { id: 's1', name: 'Bruno', handle: 'bruno', commanders: [commander(2)] },
+    ], 40);
+    m.id = 'p-canal';
+
+    eq(toRow(m, 'dono-1', 'beta').canal, 'beta', 'a partida subiu sem o canal');
+    eq(toRow(m, 'dono-1', 'producao').canal, 'producao');
+
+    // Sem canal, 'producao'. O banco também põe esse padrão, e é o certo para
+    // as linhas antigas - mas aqui o valor explícito é o que impede o caso
+    // perigoso: o beta subindo carimbado como real por omissão.
+    eq(toRow(m, 'dono-1').canal, 'producao', 'sem canal devia virar produção');
+
+    // As cadeiras também. Uma cadeira marcada numa mesa de teste viraria
+    // convite visível no app de verdade - o canal de teste escrevendo na vida
+    // de outra pessoa.
+    const cadeiras = participantesDe(m, 'beta');
+    eq(cadeiras.length, 2, 'as duas cadeiras marcadas deviam virar linha');
+    cadeiras.forEach((c, i) => {
+      eq(c.canal, 'beta', 'cadeira ' + i + ' subiu sem o canal');
+      eq(c.match_id, 'p-canal');
+    });
+    eq(participantesDe(m)[0].canal, 'producao', 'sem canal devia virar produção');
+  }],
+
+  ['os decks do perfil têm uma coluna por canal', () => {
+    // `decks` guarda os decks que seguem a conta. Sem separar, uma mesa de
+    // teste com comandantes inventados entraria no seletor de deck do app de
+    // verdade - e o recurso existe justamente para o seletor conhecer os
+    // decks da pessoa.
+    eq(colunaDeDecks('beta'), 'decks_beta');
+    eq(colunaDeDecks('producao'), 'decks');
+    eq(colunaDeDecks(undefined), 'decks', 'sem canal devia ser a coluna real');
+    eq(colunaDeDecks('qualquer-outra-coisa'), 'decks',
+      'canal desconhecido não pode virar a coluna de teste');
+  }],
+
+  ['o beta sobe carimbado como beta, de ponta a ponta', () => {
+    if (!simulated) return 'skip';
+    // Cobrir só `toRow` não bastava: ela é pura e recebe o canal pronto. O
+    // ponto que importa é onde `canal()` é CHAMADO, e trocar essa chamada por
+    // 'producao' passava pela suite inteira - a mutação que significa, em
+    // uma linha, "o beta envenena a base de verdade".
+    const fetchReal = globalThis.fetch;
+    const caminhoReal = location.pathname;
+    const sessaoReal = conta.sessao;
+    const perfilReal = conta.perfil;
+    const corpos = [];
+
+    globalThis.fetch = (u, o) => {
+      corpos.push({ url: String(u), corpo: JSON.parse((o && o.body) || 'null') });
+      return Promise.resolve({
+        ok: true, status: 200, json: () => Promise.resolve([]),
+      });
+    };
+    conta.sessao = { user: { id: 'dono-de-teste' }, access_token: 'x' };
+    conta.perfil = { id: 'dono-de-teste', handle: 'alienpls' };
+
+    try {
+      const m = createMatch([
+        { id: 's0', name: 'Alex', handle: 'alienpls', commanders: [commander(1)] },
+        { id: 's1', name: 'Bruno', handle: 'bruno', commanders: [commander(2)] },
+      ], 40);
+      m.id = 'p-subida';
+
+      const deMesa = () => corpos.find((c) => c.url.includes('/matches'));
+      const deCadeira = () => corpos.find((c) => c.url.includes('/match_players'));
+      const dePerfil = () => corpos.find((c) => c.url.includes('/profiles'));
+
+      location.pathname = '/hit-easy/beta/';
+      // As duas chamadas separadas de propósito: dentro de `enviarPartida` as
+      // cadeiras só saem DEPOIS do `await` da partida, e este runner é
+      // síncrono - esperar por elas aqui seria esperar para sempre.
+      enviarPartida(m);
+      enviarParticipantes(m);
+      salvarMeusDecks([{ commanders: [commander(1)], lastUsed: 10 }]);
+
+      ok(deMesa(), 'a partida não chegou a ser enviada');
+      eq(deMesa().corpo.canal, 'beta',
+        'o beta subiu a partida carimbada como produção');
+
+      ok(deCadeira(), 'as cadeiras marcadas não foram enviadas');
+      deCadeira().corpo.forEach((linha, i) => {
+        eq(linha.canal, 'beta', 'cadeira ' + i + ' subiu com o canal errado');
+      });
+
+      ok(dePerfil(), 'os decks não chegaram a ser enviados');
+      ok('decks_beta' in dePerfil().corpo,
+        'o beta escreveu os decks na coluna de verdade: '
+        + Object.keys(dePerfil().corpo).join(', '));
+      ok(!('decks' in dePerfil().corpo), 'o beta tocou a coluna de produção');
+
+      // E produção continua escrevendo onde sempre escreveu.
+      corpos.length = 0;
+      location.pathname = '/hit-easy/';
+      const m2 = createMatch([
+        { id: 's0', name: 'Alex', handle: 'alienpls', commanders: [commander(1)] },
+      ], 40);
+      m2.id = 'p-subida-2';
+      enviarPartida(m2);
+      salvarMeusDecks([{ commanders: [commander(1)], lastUsed: 10 }]);
+
+      eq(deMesa().corpo.canal, 'producao', 'produção subiu fora do seu canal');
+      ok('decks' in dePerfil().corpo, 'produção deixou de escrever em decks');
+      ok(!('decks_beta' in dePerfil().corpo),
+        'produção escreveu na coluna de teste');
+    } finally {
+      globalThis.fetch = fetchReal;
+      location.pathname = caminhoReal;
+      conta.sessao = sessaoReal;
+      conta.perfil = perfilReal;
+    }
+    return undefined;
+  }],
+
+  ['o que desce filtra pelo canal deste app', () => {
+    if (!simulated) return 'skip';
+    // Carimbar na subida e não filtrar na descida deixaria tudo como estava:
+    // produção continuaria baixando as partidas de teste. As duas pontas
+    // precisam valer, e aqui a prova é a URL que sai de verdade.
+    const fetchReal = globalThis.fetch;
+    const caminhoReal = location.pathname;
+    const pedidos = [];
+    globalThis.fetch = (u, o) => {
+      pedidos.push(String(u));
+      return Promise.resolve({
+        ok: true, status: 200, json: () => Promise.resolve([]),
+      });
+    };
+
+    try {
+      const ultima = () => pedidos[pedidos.length - 1];
+
+      location.pathname = '/hit-easy/beta/';
+      baixarPartidas();
+      ok(ultima().includes('canal=eq.beta'),
+        'o beta baixou sem filtrar o canal: ' + ultima());
+      idsRemotos();
+      ok(ultima().includes('canal=eq.beta'),
+        'a lista de ids do beta não filtrou: ' + ultima());
+
+      location.pathname = '/hit-easy/';
+      baixarPartidas();
+      ok(ultima().includes('canal=eq.producao'),
+        'produção baixou sem filtrar o canal: ' + ultima());
+      ok(!ultima().includes('beta'), 'produção pediu partidas de teste');
+      idsRemotos();
+      ok(ultima().includes('canal=eq.producao'),
+        'a lista de ids de produção não filtrou: ' + ultima());
+    } finally {
+      globalThis.fetch = fetchReal;
+      location.pathname = caminhoReal;
     }
     return undefined;
   }],
@@ -2704,13 +2867,33 @@ export const cases = [
     // que aconteceu, e o app ficou com duas identidades ao mesmo tempo.
     setLang('pt');
     const m = brandMark();
-    eq(m.childNodes.length, 1, 'a marca é uma forma só');
-
-    const forma = m.childNodes[0];
-    eq(forma.tagName, 'PATH', 'a marca deixou de ser um path');
-    eq(forma.attributes.fill, 'currentColor',
-      'cor fixa: a marca tem de acompanhar o tema junto com o texto');
+    const forma = m.childNodes.find((n) => n.tagName === 'PATH');
+    ok(forma, 'a marca deixou de ter um path');
     eq(m.attributes.viewBox, '0 0 24 24');
+
+    // A pintura pode ser sólida ou gradiente - as duas são legítimas, e o
+    // teste não escolhe por ninguém. O que ele exige é que a escolhida esteja
+    // inteira: `url(#algo)` apontando para nada pinta de preto, e no tema
+    // escuro isso é uma marca invisível que ninguém vê quebrar.
+    const pintura = forma.attributes.fill;
+    ok(pintura, 'o path ficou sem fill');
+
+    if (pintura === 'currentColor') {
+      eq(m.childNodes.length, 1, 'pintura sólida não precisa de defs');
+    } else {
+      const alvo = (pintura.match(/^url\(#(.+)\)$/) || [])[1];
+      ok(alvo, 'fill não é currentColor nem url(#id): ' + pintura);
+
+      const defs = m.childNodes.find((n) => n.tagName === 'DEFS');
+      ok(defs, 'o gradiente foi referenciado mas não definido');
+      const grad = defs.childNodes[0];
+      eq(grad.attributes.id, alvo, 'o fill aponta para um id que não existe');
+      ok(grad.childNodes.length >= 2, 'gradiente com menos de duas paradas');
+      grad.childNodes.forEach((parada, i) => {
+        ok(/^#[0-9a-fA-F]{6}$/.test(parada.attributes['stop-color'] || ''),
+          'parada ' + i + ' sem cor válida');
+      });
+    }
 
     // Todo ponto dentro do viewBox. Um path que vaza é cortado na borda, e o
     // corte só aparece no aparelho - aqui custa três linhas pegar.
@@ -2728,6 +2911,26 @@ export const cases = [
     const ys = nums.filter((_, i) => i % 2 === 1);
     ok(Math.max(...xs) - Math.min(...xs) > 18, 'a mesa não ocupa a largura');
     ok(Math.max(...ys) - Math.min(...ys) > 10, 'a mesa não ocupa a altura');
+  }],
+
+  ['duas marcas na tela não dividem o id do gradiente', () => {
+    if (!simulated) return 'skip';
+    // Dois SVG com o mesmo id de gradiente no documento fazem o segundo
+    // apontar para a definição do primeiro. Enquanto os dois existem nada
+    // parece errado; quando o primeiro sai da tela, o segundo fica sem
+    // pintura e vira uma silhueta preta - em algumas telas só, que é o tipo
+    // de defeito que ninguém consegue reproduzir.
+    const a = brandMark();
+    const b = brandMark();
+
+    const idDe = (m) => {
+      const forma = m.childNodes.find((n) => n.tagName === 'PATH');
+      return (String(forma.attributes.fill).match(/^url\(#(.+)\)$/) || [])[1];
+    };
+
+    const ia = idDe(a);
+    if (!ia) return 'skip'; // pintura sólida: não há id para colidir
+    ok(ia !== idDe(b), 'as duas marcas usam o mesmo id de gradiente');
   }],
 
   ['trocar o idioma pela tela de configurações funciona de verdade', () => {
