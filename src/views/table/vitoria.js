@@ -6,7 +6,7 @@
  * no rotulo, e uma tela que nao deixa sair seria pior que um dado faltando.
  */
 
-import { el, icon, openFlow, closeSheet, buzz } from '../../ui.js';
+import { el, icon, openFlow, buzz } from '../../ui.js';
 import { accentOf } from '../../colors.js';
 import { elapsedOf, deckNameOf } from '../../engine.js';
 import { formatDuration, totalDamage } from '../../stats.js';
@@ -101,15 +101,6 @@ export function criarVitoria(mesa) {
     requestAnimationFrame(() => overlay.classList.add('is-open'));
     buzz(24);
   }
-
-  return {
-    destroy: () => {
-      mesa.destroyed = true;
-      mesa.stopPauseClock();
-      mesa.commitAll(); // nada de perder o ultimo toque na troca de tela
-      closeSheet();
-    },
-  };
 
   return { pickWinner, winReasonStep, showVictory };
 }

@@ -3080,6 +3080,67 @@ export const cases = [
     store.wipe();
   }],
 
+  ['sobrando um vivo, o cartaz de vitória aparece', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      // Dois jogadores, um morre: a partida terminou e a mesa tem de dizer
+      // isso. Era o sintoma relatado - a partida não encerrava sozinha.
+      const m = mesa(2);
+      push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
+      ok(replay(m).finished, 'o motor não considerou a partida encerrada');
+
+      const { root, view } = mesaNaTela(m);
+
+      // O cartaz entra com um atraso curto, para a mesa não sumir no mesmo
+      // quadro em que o último ponto de vida saiu. Vai em `root`, e não no
+      // corpo: ele cobre a mesa, não a página.
+      eq(findAll(root, 'victory').length, 0, 'o cartaz veio sem espera');
+      avancar(500);
+
+      const cartaz = findAll(root, 'victory');
+      eq(cartaz.length, 1, 'a partida terminou e o cartaz não apareceu');
+      ok(textOf(cartaz[0]).includes('P0'), 'o cartaz não diz quem ganhou');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['declarar vencedor pelo menu abre a escolha', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      // O outro sintoma: o botão não fazia nada. Fazia-se nada porque
+      // `mesa.pickWinner` era undefined - o menu chamava um buraco.
+      const m = mesa(4);
+      const { root, view } = mesaNaTela(m);
+
+      const menu = findAll(root, 'hub-btn')
+        .find((b) => b.attributes['aria-label'] === 'Menu');
+      ok(menu, 'a mesa não tem o botão de menu');
+      fire(menu, 'click');
+
+      const telaAtiva = () => {
+        const p = findAll(document.body, 'flow-pane');
+        return p[p.length - 1];
+      };
+      const declarar = findAll(telaAtiva(), 'menu-item')
+        .find((x) => textOf(x).includes('vencedor'));
+      ok(declarar, 'o menu não oferece declarar vencedor');
+
+      // Aqui é onde o defeito aparecia: o item existia, estava habilitado, e
+      // tocar nele não fazia absolutamente nada.
+      fire(declarar, 'click');
+      avancar(400);
+
+      const escolhas = findAll(telaAtiva(), 'menu-label').map(textOf);
+      ok(escolhas.includes('P0') && escolhas.includes('P3'),
+        'a escolha de vencedor não abriu com os jogadores da mesa');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
   ['segurar -1 no painel do jogador repete, e vira um evento só', () => {
     if (!simulated) return 'skip';
     return comRelogioFalso((avancar) => {

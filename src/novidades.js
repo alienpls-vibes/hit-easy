@@ -21,6 +21,27 @@
 
 export const NOVIDADES = [
   {
+    versao: '1.2.3',
+    data: '2026-10-02',
+    titulo: 'A partida volta a encerrar',
+    itens: [
+      {
+        tipo: 'corrigido',
+        texto: 'A partida não encerrava sozinha quando sobrava um jogador '
+          + 'vivo: o cartaz de vitória simplesmente não aparecia. E declarar '
+          + 'o vencedor pelo menu não fazia nada — o item existia, estava '
+          + 'habilitado, e tocar nele não produzia efeito.',
+      },
+      {
+        tipo: 'corrigido',
+        texto: 'Eram o mesmo defeito, vindo da reorganização interna da '
+          + 'versão 1.2.0: um trecho de código ficou no lugar errado e deixou '
+          + 'inalcançável a parte que liga o cartaz de vitória e a escolha de '
+          + 'vencedor à mesa.',
+      },
+    ],
+  },
+  {
     versao: '1.2.2',
     data: '2026-10-01',
     titulo: 'A rolagem das estatísticas de volta',

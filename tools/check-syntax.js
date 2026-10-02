@@ -190,6 +190,84 @@ if (installRuim) {
 }
 
 /*
+ * Codigo depois de um `return`, no mesmo bloco, nunca roda.
+ *
+ * Isto nasceu de um defeito real e caro: a divisao do table.js deixou um
+ * `return` vazado dentro de `criarVitoria`, o `return` que instalava as
+ * funcoes ficou inalcancavel, e `mesa.showVictory` e `mesa.pickWinner` nunca
+ * foram pendurados no contexto. Na mesa, a partida nao encerrava sozinha com um
+ * jogador vivo e o botao de declarar vencedor nao fazia nada.
+ *
+ * Nada acusou: `node --check` passa, porque codigo inalcancavel e sintaxe
+ * valida; a checagem de imports passa; a de referencias passa, porque todas
+ * existem. E a suite tinha 150 casos verdes.
+ *
+ * A heuristica e a indentacao, que neste projeto e consistente: achado um
+ * `return` com N espacos, a proxima linha com EXATAMENTE N espacos tem de
+ * fechar o bloco. Qualquer outra coisa ali e inalcancavel.
+ */
+function conferirInalcancavel() {
+  const problemas = [];
+
+  for (const file of walk(join(ROOT, 'src')).concat(walk(join(ROOT, 'tools')))) {
+    const linhas = readFileSync(file, 'utf8').split('\n');
+
+    for (let i = 0; i < linhas.length; i += 1) {
+      const m = linhas[i].match(/^(\s+)return\b/);
+      if (!m) continue;
+      const recuo = m[1].length;
+
+      // Um `return` pode abrir objeto ou lista e fechar linhas depois. Anda
+      // ate o fim da propria instrucao antes de olhar o que vem a seguir.
+      //
+      // Contando PROFUNDIDADE, e nao "a primeira linha que termina em ponto e
+      // virgula": num `return { destroy: () => { ...; } };` aquela regra para
+      // dentro da arrow, e a checagem passa a olhar o lugar errado - foi assim
+      // que a primeira versao disto nao disparou no defeito que a motivou.
+      let j = i;
+      let fundo = 0;
+      for (; j < linhas.length; j += 1) {
+        for (const ch of linhas[j]) {
+          if (ch === '{' || ch === '(' || ch === '[') fundo += 1;
+          else if (ch === '}' || ch === ')' || ch === ']') fundo -= 1;
+        }
+        if (fundo <= 0 && /;\s*$/.test(linhas[j])) break;
+      }
+
+      // A proxima linha que importa: ignora vazia e comentario.
+      for (let k = j + 1; k < linhas.length; k += 1) {
+        const linha = linhas[k];
+        if (!linha.trim()) continue;
+        if (/^\s*(\/\/|\/\*|\*)/.test(linha)) continue;
+
+        const dela = linha.match(/^(\s*)/)[1].length;
+        // Recuo menor: o bloco acabou, nada a dizer.
+        if (dela < recuo) break;
+        // Mesmo recuo e nao fecha o bloco: inalcancavel.
+        if (dela === recuo && !/^\s*[}\)\]]/.test(linha)) {
+          problemas.push(
+            relative(ROOT, file).split(sep).join('/') + ':' + (k + 1)
+            + ': codigo depois de `return` (linha ' + (i + 1) + ') nunca roda.'
+            + '\n    ' + linha.trim().slice(0, 70),
+          );
+        }
+        break;
+      }
+    }
+  }
+
+  return problemas;
+}
+
+const inalcancavel = conferirInalcancavel();
+if (inalcancavel.length) {
+  console.error('\n\x1b[31m Codigo inalcancavel:\x1b[0m');
+  for (const x of inalcancavel) console.error('  ' + x);
+  console.error('');
+  process.exit(1);
+}
+
+/*
  * Todo modulo e toda folha de estilo precisam estar na lista do service worker.
  *
  * A lista em sw.js e explicita porque o worker tem de saber o que baixar ANTES
