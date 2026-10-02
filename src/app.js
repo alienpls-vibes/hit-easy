@@ -10,7 +10,7 @@ import { toast, setHaptics, isSheetOpen, onSheetChange } from './ui.js';
 import { renderSetup, seedDraftFrom, abrirNovidades } from './views/setup.js';
 import { renderTable } from './views/table.js';
 import { renderStats, renderPaywall } from './views/stats.js';
-import { createMatch } from './engine.js';
+import { createMatch, sairDaMesa, voltarAMesa } from './engine.js';
 import { applyTheme, watchTheme } from './theme.js';
 import { t, setLang, detectLang } from './i18n.js';
 import { preferOrientation, isWide } from './orientation.js';
@@ -75,6 +75,12 @@ function desenhar() {
   if (live && live.destroy) live.destroy();
   live = null;
   document.body.dataset.route = route;
+
+  // O relogio da partida so anda com alguem na mesa. Sair para as
+  // estatisticas ou para a home para; voltar retoma, sem a pessoa pedir e sem
+  // a cobertura da pausa manual - pausa que ninguem pediu nao deve exigir que
+  // alguem a desfaca.
+  relogioDaMesa();
 
   if (route === 'table') {
     const match = store.getCurrent();
@@ -211,9 +217,32 @@ async function keepAwake(on) {
   }
 }
 
+/**
+ * Para ou retoma o relogio, conforme a mesa estar a vista.
+ *
+ * Grava sempre que mexeu: o periodo aberto precisa sobreviver ao app fechar,
+ * senao o tempo de fora voltaria a contar no proximo arranque.
+ */
+function relogioDaMesa() {
+  const match = store.getCurrent();
+  if (!match) return;
+
+  const naMesa = route === 'table'
+    && (typeof document === 'undefined' || document.visibilityState !== 'hidden');
+  const mexeu = naMesa ? voltarAMesa(match) : sairDaMesa(match);
+  if (mexeu) store.setCurrent(match);
+}
+
 document.addEventListener('visibilitychange', () => {
+  // Bloquear o celular ou trocar de app tambem e sair da mesa.
+  relogioDaMesa();
   if (document.visibilityState === 'visible' && route === 'table') keepAwake(true);
 });
+
+// Fechar o app para o relogio. Melhor esforco: um encerramento forcado pelo
+// sistema pode nao disparar nada, e ai aquele tempo conta - nao ha evento que
+// o navegador garanta.
+window.addEventListener('pagehide', relogioDaMesa);
 
 const observer = new MutationObserver(() => {
   const naMesa = document.body.dataset.route === 'table';

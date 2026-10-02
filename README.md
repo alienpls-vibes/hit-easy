@@ -162,6 +162,31 @@ pausa. O tempo parado **não entra em lugar nenhum**: sai da duração da partid
 do tempo de turno de quem estava jogando. Ida ao banheiro não vira "o turno mais
 longo da noite" na estatística.
 
+**E o relógio para sozinho quando ninguém está na mesa.** Sair para as
+estatísticas ou para a home, trocar de app, bloquear o celular, fechar o app —
+tudo isso para a contagem, e voltar retoma. Sem pedir, e sem a cobertura da
+pausa manual: pausa que ninguém pediu não deve exigir que alguém a desfaça.
+
+Antes a duração era tempo de **parede** (`agora − startedAt − pausas`), então
+fechar o app por oito horas somava oito horas à partida — e, ao passar a vez,
+ao turno de quem estava jogando.
+
+O período fora da mesa é guardado **ao lado** do log, não dentro dele, como o
+mana já faz. Dois motivos, e os dois são sobre não estragar o que funciona:
+`undo` tira o último evento qualquer que seja, então uma pausa automática
+viraria o alvo do "desfazer" ao voltar; e `timeline()` desenha `pause` e
+`resume`, então cada olhada nas estatísticas acrescentaria duas linhas ao
+histórico daquela partida.
+
+A concessão é que `replay` passa a ler um campo que não é evento — o log
+sozinho deixa de determinar o tempo de turno. O **placar** continua saindo só
+do log: nenhuma vida, contador ou colocação depende disso.
+
+Fechar o app é melhor esforço: usa `pagehide`, e um encerramento forçado pelo
+sistema pode não disparar nada. Nesse caso aquele tempo conta — não há evento
+que o navegador garanta. Mas o período fica gravado **aberto**, então se o
+`pagehide` rodar, o arranque seguinte fecha a conta e desconta tudo.
+
 ## Marcador de mana
 
 No menu da partida. Uma peça por cor (WUBRG + incolor), e cada uma é um painel
@@ -451,6 +476,26 @@ uma seta na cor do deck do atacante liga os dois painéis e o alvo acende.
 Ao soltar, abre o teclado do dano: quanto foi. Os atalhos (1, 2, 3, 5, 7)
 confirmam no mesmo toque, então o caso comum fecha em dois gestos. O teclado
 gira junto com o assento de quem atacou, porque é ele que está mexendo.
+
+**A vida do alvo conta até o novo valor** quando a tela fecha, em vez de pular.
+Vale para os quatro casos que vêm de um painel: dano por arraste, dano em
+todos, dreno (que faz os oponentes descerem e quem drenou subir) e cura. Sem
+isso o número trocava de uma vez e nada dizia que algo tinha acontecido — e é
+justamente quando o dano foi grande que isso importa.
+
+Passo a passo pelos inteiros, porque vida *é* inteira: não há meia vida para
+interpolar. A duração total é fixa, então tirar 28 conta rápido e tirar 2 conta
+devagar; o passo tem um mínimo para que a mudança pequena ainda seja vista, em
+vez de piscar. A cor marca a direção enquanto anda, porque de longe, no meio da
+mesa, o número sozinho não diz se subiu ou caiu antes de parar.
+
+**A borda do painel e os botões −/+ não contam**, de propósito: ali o número já
+anda a cada toque, e contar por cima brigaria com o "segurar repete". Quem pede
+a contagem é o painel, uma vez — não o redesenho, sempre.
+
+Quem pediu `prefers-reduced-motion` recebe o número de uma vez. A regra de CSS
+global zera transição e animação, mas não alcança uma contagem feita em
+JavaScript: ela se recusa sozinha, e há teste para isso.
 
 Três modos, todos direcionais pelo mesmo gesto:
 

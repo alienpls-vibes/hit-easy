@@ -202,6 +202,20 @@ export function simularTeclado({
   for (const fn of ouvintesViewport.resize || []) fn();
 }
 
+/**
+ * Quem esta sob o dedo, para o arraste.
+ *
+ * O stub nao tem layout, entao nao da para calcular quem ocupa um ponto da
+ * tela. O teste aponta: `apontarPara(node)` e o que `elementFromPoint`
+ * devolve na proxima consulta. Sem isto, o gesto central da mesa - arrastar de
+ * um painel ao outro - nao tem como ser exercitado.
+ */
+let sobODedo = null;
+
+export function apontarPara(node) {
+  sobODedo = node || null;
+}
+
 /** Quanto o app acha que o teclado tomou, em px. */
 export function kbAtual() {
   return globalThis.document.documentElement.style.getPropertyValue('--kb');
@@ -269,6 +283,9 @@ if (simulated) {
     n.textContent = text;
     return n;
   };
+
+  // Ver apontarPara(): o teste diz quem esta sob o dedo.
+  doc.elementFromPoint = () => sobODedo;
 
   globalThis.document = doc;
 

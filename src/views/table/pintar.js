@@ -13,6 +13,87 @@ import {
 import * as store from '../../store.js';
 import { grausNaMesa, apontadorPreciso } from '../../orientation.js';
 import { t, ordinal } from '../../i18n.js';
+import { CONTAGEM_MS, CONTAGEM_PASSO_MIN } from './constantes.js';
+
+/**
+ * O usuario pediu menos movimento? Entao o numero troca de uma vez.
+ *
+ * A regra de CSS global de `prefers-reduced-motion` zera transicao e animacao,
+ * mas nao alcanca uma contagem feita em JavaScript - esta tem de se recusar
+ * sozinha.
+ */
+function movimentoReduzido() {
+  try {
+    return Boolean(matchMedia('(prefers-reduced-motion: reduce)').matches);
+  } catch {
+    return false;
+  }
+}
+
+/** Para a contagem em curso, se houver, e limpa a marca de direcao. */
+function pararContagem(alvo) {
+  clearTimeout(alvo.contagem);
+  alvo.contagem = null;
+  alvo.classList.remove('is-caindo', 'is-subindo');
+}
+
+/**
+ * Conta o numero de vida ate o novo valor.
+ *
+ * Passo a passo pelos inteiros, porque vida E inteira: nao ha meia vida para
+ * interpolar entre quadros. Por isso tambem a contagem anda em setTimeout e nao
+ * em requestAnimationFrame - nao ha o que suavizar, e assim o relogio
+ * controlado dos testes alcanca a animacao. Retorno visual sem teste e
+ * exatamente o que quebra sem ninguem ver.
+ */
+function contarAte(alvo, de, para) {
+  pararContagem(alvo);
+
+  const distancia = Math.abs(para - de);
+  if (!distancia) {
+    alvo.textContent = String(para);
+    return;
+  }
+
+  const direcao = para > de ? 1 : -1;
+  const passo = Math.max(
+    CONTAGEM_PASSO_MIN,
+    Math.round(CONTAGEM_MS / distancia),
+  );
+  let atual = de;
+
+  // A direcao fica escrita na classe: de longe, no meio da mesa, a cor diz se
+  // aquilo subiu ou caiu antes de o numero parar.
+  alvo.classList.add(direcao < 0 ? 'is-caindo' : 'is-subindo');
+
+  const andar = () => {
+    atual += direcao;
+    alvo.textContent = String(atual);
+    if (atual === para) {
+      pararContagem(alvo);
+      return;
+    }
+    alvo.contagem = setTimeout(andar, passo);
+  };
+  alvo.contagem = setTimeout(andar, passo);
+}
+
+/**
+ * Poe o numero na tela: de uma vez, ou contando.
+ *
+ * Contar e excecao e nao regra. Toque na borda e botao -/+ ja mostram o numero
+ * andando a cada toque, e contar por cima brigaria com o "segurar repete" - por
+ * isso quem pede a contagem e o painel, uma vez, e nao o redesenho sempre.
+ */
+function mostrarVida(alvo, para, contando) {
+  const de = Number(alvo.textContent);
+  if (!contando || !Number.isFinite(de) || de === para || movimentoReduzido()) {
+    pararContagem(alvo);
+    alvo.textContent = String(para);
+    return;
+  }
+  contarAte(alvo, de, para);
+}
 
 export function criarPintura(mesa) {
   // ---------- render ----------
@@ -28,7 +109,7 @@ export function criarPintura(mesa) {
       const extra = mesa.pending.get(seat.id);
       const shown = p.life + (extra ? extra.delta : 0);
 
-      tile.life.textContent = String(shown);
+      mostrarVida(tile.life, shown, mesa.contarNoProximoSync);
       tile.life.classList.toggle('is-low', shown <= 5 && !p.dead);
 
       if (extra && extra.delta) {
@@ -81,6 +162,10 @@ export function criarPintura(mesa) {
       active ? accentOf(active.commanders[0] ? active.commanders[0].colors : []) : 'var(--text-dim)',
     );
     mesa.hub.undoBtn.disabled = !canUndo(mesa.match) && !mesa.pending.size;
+
+    // O pedido de contagem vale para UM redesenho. Deixa-lo ligado faria o
+    // proximo toque na borda contar tambem, e ali o numero ja anda sozinho.
+    mesa.contarNoProximoSync = false;
 
     // O cartaz de vitoria aparece uma vez por desfecho. Se um "desfazer" trouxer
     // alguem de volta a vida, ele fica armado outra vez.

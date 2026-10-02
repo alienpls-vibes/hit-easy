@@ -9,9 +9,11 @@
 // Primeiro de todos: instala o DOM simulado antes que ui.js seja avaliado.
 import {
   simulated, flushFrames, findAll, fire, textOf, simularTeclado, kbAtual,
+  apontarPara,
 } from './dom-stub.js';
 import {
   createMatch, replay, push, undo, standings, elapsedOf, pessoaRepetida, partidaValida,
+  sairDaMesa, voltarAMesa, ausenteEntre,
   cmdKeyOf, CMD_LETHAL, POISON_LETHAL,
 } from '../src/engine.js';
 import {
@@ -52,8 +54,8 @@ import { renderTable } from '../src/views/table.js';
 // interno da mesa, e exporta-la no barril a anunciaria como API publica.
 import { repetirSegurando } from '../src/views/table/pecas.js';
 import {
-  COMMIT_MS, DOUBLE_TAP_MS, HOLD_DELAY, REPEAT_ACCEL_AFTER, REPEAT_FAST_MS,
-  REPEAT_MS,
+  COMMIT_MS, CONTAGEM_MS, CONTAGEM_PASSO_MIN, DOUBLE_TAP_MS, HOLD_DELAY,
+  REPEAT_ACCEL_AFTER, REPEAT_FAST_MS, REPEAT_MS,
 } from '../src/views/table/constantes.js';
 import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
 import { renderStats, renderPaywall } from '../src/views/stats.js';
@@ -84,6 +86,20 @@ function ok(cond, what) {
  * verdade mesmo se o caso falhar no meio - senao o proximo caso rodaria com o
  * relogio parado e acusaria um erro que nao e dele.
  */
+/**
+ * Ids de temporizador NUNCA se repetem, nem entre chamadas.
+ *
+ * Reiniciar em 1 a cada relógio novo produziu um defeito difícil: módulos do
+ * app guardam id em variável de módulo (`toastTimer` em ui.js, por exemplo) e
+ * chamam `clearTimeout` nela. Esse id sobrevive ao fim do caso; no caso
+ * seguinte, o relógio novo entregava o MESMO número a outro temporizador, e o
+ * `clearTimeout` do toast cancelava uma animação que nada tinha a ver com ele.
+ *
+ * O sintoma era perfeito para enganar: um dos quatro números parava de contar,
+ * sempre o mesmo, e só dentro da suíte - rodando isolado funcionava.
+ */
+let proximoIdFalso = 1000000;
+
 function comRelogioFalso(fn) {
   const reais = {
     setTimeout: globalThis.setTimeout,
@@ -93,16 +109,15 @@ function comRelogioFalso(fn) {
   };
 
   let agora = 0;
-  let proximoId = 1;
   const agendados = new Map();
 
   globalThis.setTimeout = (f, ms = 0) => {
-    const id = proximoId; proximoId += 1;
+    const id = proximoIdFalso; proximoIdFalso += 1;
     agendados.set(id, { quando: agora + ms, cada: null, fn: f });
     return id;
   };
   globalThis.setInterval = (f, ms = 0) => {
-    const id = proximoId; proximoId += 1;
+    const id = proximoIdFalso; proximoIdFalso += 1;
     agendados.set(id, { quando: agora + ms, cada: ms, fn: f });
     return id;
   };
@@ -850,6 +865,105 @@ export const cases = [
     eq(p0.damageDealt, 12, 'dano causado (4 × 3)');
     eq(p0.healed, 12, 'vida ganha no dreno');
     eq(players.find((p) => p.label === 'P1').damageTaken, 4, 'dano levado por alvo');
+  }],
+
+  ['esconder o app para o relógio da partida em andamento', () => {
+    if (!simulated) return 'skip';
+    // A fiação, e não a conta: prova que o ouvinte de visibilidade está
+    // pendurado e chega ao motor. app.js sobe junto com a suíte (ver o import
+    // no topo), então o ouvinte já está registrado aqui.
+    store.wipe();
+    try {
+      const m = mesa();
+      store.setCurrent(m);
+
+      const antes = document.visibilityState;
+      document.visibilityState = 'hidden';
+      fire(document, 'visibilitychange');
+      document.visibilityState = antes;
+
+      ok(store.getCurrent().ausenteDesde,
+        'esconder o app não parou o relógio');
+    } finally {
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['o tempo fora da mesa não conta na duração nem no turno', () => {
+    // O defeito que isto conserta: a duração era tempo de PAREDE. Sair para as
+    // estatísticas, bloquear o celular ou fechar o app somava tudo aquilo à
+    // partida - e, ao passar a vez, ao turno de quem estava jogando. Meia hora
+    // no banheiro virava "o turno mais longo da noite".
+    const m = mesa();
+    const t0 = m.startedAt;
+
+    // Turno 1 de 0 a 100s, com 60s de ausência no meio dele.
+    m.ausencias = [[t0 + 20000, t0 + 80000]];
+    m.events.push({ id: 'a', ts: t0 + 100000, turn: 1, type: 'turn' });
+
+    const s1 = replay(m);
+    eq(elapsedOf(m, s1, t0 + 100000), 40000, 'a duração não descontou a ausência');
+    eq(s1.players.s0.timeOnTurn, 40000, 'o turno não descontou a ausência');
+  }],
+
+  ['a ausência é descontada por sobreposição, e não no total', () => {
+    // Por sobreposição porque o tempo de turno precisa descontar só o que caiu
+    // DENTRO daquele turno - um total somado descontaria do turno errado.
+    const m = mesa();
+    const t0 = m.startedAt;
+    m.ausencias = [[t0 + 100, t0 + 200], [t0 + 500, t0 + 900]];
+
+    eq(ausenteEntre(m, t0, t0 + 1000), 500, 'as duas faixas somam');
+    eq(ausenteEntre(m, t0, t0 + 150), 50, 'a faixa é recortada no fim');
+    eq(ausenteEntre(m, t0 + 150, t0 + 1000), 450, 'e no começo');
+    eq(ausenteEntre(m, t0 + 250, t0 + 450), 0, 'janela entre as faixas não desconta');
+
+    // O período ainda ABERTO conta até o instante da pergunta: é o caso do app
+    // fechado, em que ninguém escreveu o fim.
+    m.ausenteDesde = t0 + 2000;
+    eq(ausenteEntre(m, t0, t0 + 3000), 1500, 'o período aberto conta até agora');
+  }],
+
+  ['o relógio não para duas vezes, nem depois do fim', () => {
+    // Com pausa manual em curso o tempo já não conta. Abrir uma ausência por
+    // cima descontaria o mesmo período duas vezes, e a partida sairia mais
+    // curta do que foi.
+    const pausada = mesa();
+    pausada.events.push({
+      id: 'p', ts: pausada.startedAt + 1000, turn: 1, type: 'pause',
+    });
+    eq(sairDaMesa(pausada, pausada.startedAt + 2000), false,
+      'abriu ausência com a mesa já pausada');
+    eq(pausada.ausenteDesde, undefined, 'e sujou a partida');
+
+    // Partida encerrada: o relógio parou de andar, não há o que descontar.
+    const fim = mesa(2);
+    push(fim, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
+    ok(replay(fim).finished, 'a partida devia estar encerrada');
+    eq(sairDaMesa(fim, Date.now()), false, 'abriu ausência com a partida encerrada');
+  }],
+
+  ['uma ausência que ficou aberta fecha ao voltar à mesa', () => {
+    // É o caso do app fechado com a mesa aberta: `ausenteDesde` ficou gravado,
+    // e todo o tempo em que o app esteve fora tem de sair da partida.
+    const m = mesa();
+    const t0 = m.startedAt;
+
+    ok(sairDaMesa(m, t0 + 10000), 'não abriu a ausência');
+    eq(m.ausenteDesde, t0 + 10000, 'não marcou desde quando');
+
+    // Duas horas fora, e o app volta.
+    ok(voltarAMesa(m, t0 + 7210000), 'não fechou a ausência');
+    eq(m.ausenteDesde, null, 'deixou o período aberto');
+    eq(m.ausencias, [[t0 + 10000, t0 + 7210000]], 'não guardou o período');
+
+    m.events.push({ id: 'a', ts: t0 + 7215000, turn: 1, type: 'turn' });
+    eq(elapsedOf(m, replay(m), t0 + 7215000), 15000,
+      'as duas horas fora entraram na duração');
+
+    // Voltar sem ter saído não faz nada.
+    eq(voltarAMesa(m, t0 + 7220000), false, 'fechou um período que não existia');
   }],
 
   ['o tempo pausado não conta na duração da partida', () => {
@@ -3078,6 +3192,251 @@ export const cases = [
       'e passa a aparecer na seleção de jogador');
 
     store.wipe();
+  }],
+
+  ['o dano por arraste conta a vida do alvo', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      // O caminho principal: arrastar de um painel ao outro, dizer quanto foi,
+      // e a vida do alvo andar quando a tela fecha.
+      const m = mesa(4);
+      const { root, tiles, view } = mesaNaTela(m);
+      const vidaDe = (i) => textOf(findAll(tiles[i], 'tile-life')[0]);
+
+      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+
+      // Mover além do limiar arma o ataque na hora, sem esperar o tempo de
+      // toque. Quem está sob o dedo é o painel do oponente.
+      apontarPara(tiles[1]);
+      fire(centro, 'pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
+      fire(centro, 'pointermove', { pointerId: 1, clientX: 90, clientY: 90 });
+      fire(centro, 'pointerup', { pointerId: 1, clientX: 90, clientY: 90 });
+      apontarPara(null);
+
+      ok(findAll(root, 'pad-scrim').length === 1,
+        'o arraste não abriu o teclado de dano');
+
+      const sete = findAll(root, 'pad-chip').find((c) => textOf(c) === '7');
+      ok(sete, 'o teclado de dano não tem o atalho de 7');
+      fire(sete, 'click');
+
+      // O número não salta: ainda é o antigo quando a tela fecha.
+      eq(vidaDe(1), '40', 'a vida do alvo saltou em vez de contar');
+
+      avancar(Math.round(CONTAGEM_MS / 2));
+      const meio = Number(vidaDe(1));
+      ok(meio < 40 && meio > 33, 'a contagem não durou: estava em ' + meio);
+
+      avancar(CONTAGEM_MS * 2);
+      eq(vidaDe(1), '33', 'o alvo não terminou em 33');
+      eq(vidaDe(0), '40', 'quem atacou perdeu vida sem motivo');
+
+      // E o dano tem autor: veio do arraste, não da borda.
+      const dano = m.events.filter((e) => e.type === 'life');
+      eq(dano.length, 1, 'o arraste não gravou um evento de vida');
+      eq(dano[0].sourceId, 's0', 'o dano do arraste ficou sem autor');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['o dreno conta a vida de quem apanhou e de quem curou', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      const m = mesa(4);
+      const { root, tiles, view } = mesaNaTela(m);
+      const vidaDe = (i) => textOf(findAll(tiles[i], 'tile-life')[0]);
+
+      // Duplo toque no centro abre a ação em área.
+      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+      const tocar = (id) => {
+        fire(centro, 'pointerdown', { pointerId: id, clientX: 50, clientY: 50 });
+        fire(centro, 'pointerup', { pointerId: id, clientX: 50, clientY: 50 });
+      };
+      tocar(1);
+      tocar(2);
+
+      // O painel de área monta a própria cobertura dentro da mesa, e não um
+      // painel deslizante no corpo do documento.
+      ok(findAll(root, 'pad-scrim').length === 1, 'a ação em área não abriu');
+
+      const dreno = findAll(root, 'pad-mode')
+        .find((b) => textOf(b).includes('Dreno'));
+      ok(dreno, 'a ação em área não oferece dreno');
+      fire(dreno, 'click');
+
+      // Tira 7 de cada oponente. O chip confirma no mesmo toque.
+      const sete = findAll(root, 'pad-chip').find((c) => textOf(c) === '7');
+      ok(sete, 'não há atalho de 7');
+      fire(sete, 'click');
+
+      // Aqui está o ponto: o número NÃO salta. No instante do envio ele ainda
+      // é o antigo, e só então começa a andar.
+      eq(vidaDe(1), '40', 'a vida do oponente saltou em vez de contar');
+      eq(vidaDe(0), '40', 'a vida de quem drenou saltou em vez de contar');
+
+      // No meio do caminho o número tem de estar ENTRE os dois valores. É o
+      // que separa uma contagem de 420ms de um passo de 1ms, que termina em
+      // sete milissegundos e ninguém vê - e ver é o ponto da melhoria.
+      avancar(Math.round(CONTAGEM_MS / 2));
+      const meio = Number(vidaDe(1));
+      ok(meio < 40 && meio > 33,
+        'a contagem não durou: no meio do caminho já estava em ' + meio);
+
+      // E termina no valor certo. `gain` padrão é o total tirado (3 x 7).
+      avancar(CONTAGEM_MS * 3);
+      eq(vidaDe(1), '33', 'o oponente não terminou em 33');
+      eq(vidaDe(2), '33', 'o segundo oponente ficou de fora');
+      eq(vidaDe(3), '33', 'o terceiro oponente ficou de fora');
+      eq(vidaDe(0), '61', 'quem drenou não terminou com o total curado');
+
+      // A direção fica marcada enquanto conta, e sai ao terminar.
+      const numero = findAll(tiles[1], 'tile-life')[0];
+      ok(!numero.classList.contains('is-caindo'), 'a marca de direção ficou presa');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['dano em todos conta, e a borda do painel não', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      const m = mesa(4);
+      const { root, tiles, view } = mesaNaTela(m);
+      const vidaDe = (i) => textOf(findAll(tiles[i], 'tile-life')[0]);
+
+      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+      const tocar = (id) => {
+        fire(centro, 'pointerdown', { pointerId: id, clientX: 50, clientY: 50 });
+        fire(centro, 'pointerup', { pointerId: id, clientX: 50, clientY: 50 });
+      };
+      tocar(1);
+      tocar(2);
+
+      // "Dano em todos" é o modo que já vem escolhido.
+      const cinco = findAll(root, 'pad-chip').find((c) => textOf(c) === '5');
+      ok(cinco, 'não há atalho de 5');
+      fire(cinco, 'click');
+
+      eq(vidaDe(1), '40', 'a vida saltou em vez de contar');
+      avancar(CONTAGEM_MS * 3);
+      eq(vidaDe(1), '35', 'o dano em todos não chegou');
+      eq(vidaDe(0), '40', 'quem causou perdeu vida sem dreno');
+
+      // A borda NÃO conta: ali o número já anda a cada toque, e contar por
+      // cima brigaria com o "segurar repete".
+      const menos = findAll(tiles[2], 'tap-minus')[0];
+      fire(menos, 'pointerdown', { pointerId: 9, clientX: 5, clientY: 5 });
+      fire(menos, 'pointerup', { pointerId: 9, clientX: 5, clientY: 5 });
+      eq(vidaDe(2), '34', 'a borda passou a contar, e devia responder na hora');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['quem pede menos movimento recebe o número de uma vez', () => {
+    if (!simulated) return 'skip';
+    // A regra de CSS global de prefers-reduced-motion zera transição e
+    // animação, mas não alcança uma contagem feita em JavaScript - ela tem de
+    // se recusar sozinha.
+    const real = globalThis.matchMedia;
+    globalThis.matchMedia = (q) => ({
+      matches: String(q).includes('reduced-motion'),
+      addEventListener() {}, removeEventListener() {},
+    });
+    try {
+      return comRelogioFalso((avancar) => {
+        const m = mesa(4);
+        const { root, tiles, view } = mesaNaTela(m);
+        const vidaDe = (i) => textOf(findAll(tiles[i], 'tile-life')[0]);
+
+        const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+        const tocar = (id) => {
+          fire(centro, 'pointerdown', { pointerId: id, clientX: 50, clientY: 50 });
+          fire(centro, 'pointerup', { pointerId: id, clientX: 50, clientY: 50 });
+        };
+        tocar(1);
+        tocar(2);
+
+        const cinco = findAll(root, 'pad-chip').find((c) => textOf(c) === '5');
+        ok(cinco, 'não há atalho de 5');
+        fire(cinco, 'click');
+
+        // Sem esperar nada: o número já está no valor final.
+        eq(vidaDe(1), '35', 'contou mesmo com movimento reduzido pedido');
+        avancar(CONTAGEM_MS * 2);
+        eq(vidaDe(1), '35', 'o número andou depois de já estar certo');
+
+        view.destroy();
+        return undefined;
+      });
+    } finally {
+      globalThis.matchMedia = real;
+    }
+  }],
+
+  ['sobrando um vivo, o cartaz de vitória aparece', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      // Dois jogadores, um morre: a partida terminou e a mesa tem de dizer
+      // isso. Era o sintoma relatado - a partida não encerrava sozinha.
+      const m = mesa(2);
+      push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
+      ok(replay(m).finished, 'o motor não considerou a partida encerrada');
+
+      const { root, view } = mesaNaTela(m);
+
+      // O cartaz entra com um atraso curto, para a mesa não sumir no mesmo
+      // quadro em que o último ponto de vida saiu. Vai em `root`, e não no
+      // corpo: ele cobre a mesa, não a página.
+      eq(findAll(root, 'victory').length, 0, 'o cartaz veio sem espera');
+      avancar(500);
+
+      const cartaz = findAll(root, 'victory');
+      eq(cartaz.length, 1, 'a partida terminou e o cartaz não apareceu');
+      ok(textOf(cartaz[0]).includes('P0'), 'o cartaz não diz quem ganhou');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['declarar vencedor pelo menu abre a escolha', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      // O outro sintoma: o botão não fazia nada. Fazia-se nada porque
+      // `mesa.pickWinner` era undefined - o menu chamava um buraco.
+      const m = mesa(4);
+      const { root, view } = mesaNaTela(m);
+
+      const menu = findAll(root, 'hub-btn')
+        .find((b) => b.attributes['aria-label'] === 'Menu');
+      ok(menu, 'a mesa não tem o botão de menu');
+      fire(menu, 'click');
+
+      const telaAtiva = () => {
+        const p = findAll(document.body, 'flow-pane');
+        return p[p.length - 1];
+      };
+      const declarar = findAll(telaAtiva(), 'menu-item')
+        .find((x) => textOf(x).includes('vencedor'));
+      ok(declarar, 'o menu não oferece declarar vencedor');
+
+      // Aqui é onde o defeito aparecia: o item existia, estava habilitado, e
+      // tocar nele não fazia absolutamente nada.
+      fire(declarar, 'click');
+      avancar(400);
+
+      const escolhas = findAll(telaAtiva(), 'menu-label').map(textOf);
+      ok(escolhas.includes('P0') && escolhas.includes('P3'),
+        'a escolha de vencedor não abriu com os jogadores da mesa');
+
+      view.destroy();
+      return undefined;
+    });
   }],
 
   ['segurar -1 no painel do jogador repete, e vira um evento só', () => {

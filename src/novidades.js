@@ -21,6 +21,84 @@
 
 export const NOVIDADES = [
   {
+    versao: '1.4.0',
+    data: '2026-10-02',
+    titulo: 'O relógio para quando você sai da mesa',
+    itens: [
+      {
+        tipo: 'corrigido',
+        texto: 'A duração da partida contava tempo de parede: sair para as '
+          + 'estatísticas, bloquear o celular ou fechar o app somava tudo '
+          + 'aquilo à partida — e, ao passar a vez, ao turno de quem estava '
+          + 'jogando. Fechar o app à noite e voltar no dia seguinte produzia '
+          + 'uma partida de catorze horas.',
+      },
+      {
+        tipo: 'novo',
+        texto: 'Agora o relógio para sozinho quando ninguém está na mesa, e '
+          + 'volta a andar quando você volta. Sem pedir nada e sem a cobertura '
+          + 'da pausa manual: pausa que você não pediu não deve exigir que '
+          + 'você a desfaça.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'Fechar o app é melhor esforço. Um encerramento forçado pelo '
+          + 'sistema pode não avisar o app, e aí aquele tempo conta — não há '
+          + 'aviso que o navegador garanta. Pausar antes continua sendo o '
+          + 'jeito certo para uma parada longa.',
+      },
+    ],
+  },
+  {
+    versao: '1.3.0',
+    data: '2026-10-02',
+    titulo: 'A vida conta na sua frente',
+    itens: [
+      {
+        tipo: 'novo',
+        texto: 'Quando o dano vem de um painel, a vida do alvo conta até o '
+          + 'novo valor em vez de pular. Vale para dano por arraste, dano em '
+          + 'todos, dreno (os oponentes descem e quem drenou sobe) e cura. '
+          + 'Antes o número trocava de uma vez e nada dizia que algo tinha '
+          + 'acontecido — e é justamente quando o dano foi grande que isso '
+          + 'importa.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'A cor marca a direção enquanto o número anda: de longe, no '
+          + 'meio da mesa, ele sozinho não diz se subiu ou caiu antes de '
+          + 'parar.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'A borda do painel e os botões −/+ continuam respondendo na '
+          + 'hora, sem contar: ali o número já anda a cada toque. E quem pede '
+          + 'menos movimento no sistema recebe o número de uma vez.',
+      },
+    ],
+  },
+  {
+    versao: '1.2.3',
+    data: '2026-10-02',
+    titulo: 'A partida volta a encerrar',
+    itens: [
+      {
+        tipo: 'corrigido',
+        texto: 'A partida não encerrava sozinha quando sobrava um jogador '
+          + 'vivo: o cartaz de vitória simplesmente não aparecia. E declarar '
+          + 'o vencedor pelo menu não fazia nada — o item existia, estava '
+          + 'habilitado, e tocar nele não produzia efeito.',
+      },
+      {
+        tipo: 'corrigido',
+        texto: 'Eram o mesmo defeito, vindo da reorganização interna da '
+          + 'versão 1.2.0: um trecho de código ficou no lugar errado e deixou '
+          + 'inalcançável a parte que liga o cartaz de vitória e a escolha de '
+          + 'vencedor à mesa.',
+      },
+    ],
+  },
+  {
     versao: '1.2.2',
     data: '2026-10-01',
     titulo: 'A rolagem das estatísticas de volta',

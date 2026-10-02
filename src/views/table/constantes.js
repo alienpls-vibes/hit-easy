@@ -31,6 +31,14 @@ export const DRAG_THRESHOLD = 14; // px antes de um toque virar arraste
 // janela do duplo toque, que abre a acao em area
 export const DOUBLE_TAP_MS = 280;
 
+// A vida contando ate o novo valor, quando o dano vem de um painel.
+//
+// Duracao total fixa: tirar 28 conta rapido e tirar 2 conta devagar, que e o
+// que faz a animacao durar sempre o mesmo tanto. O passo minimo existe para a
+// mudanca pequena ser VISTA - sem ele, tirar 2 seria um pisca.
+export const CONTAGEM_MS = 420;
+export const CONTAGEM_PASSO_MIN = 26;
+
 export const SVG_NS = 'http://www.w3.org/2000/svg';
 
 // Ordem WUBRG, e incolor por ultimo - a mesma que toda carta usa.
