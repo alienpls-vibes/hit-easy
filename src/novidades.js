@@ -27,7 +27,8 @@ export const NOVIDADES = [
     itens: [
       {
         tipo: 'mudou',
-        texto: 'O ícone do app mudou: gradiente de cor com a mesa ao centro. '
+        texto: 'O ícone do app mudou: gradiente de cor com a mesa ao centro, '
+          + 'e a marca no alto da tela inicial passou a ser a mesma mesa. '
           + 'Se o atalho no seu celular continuar com o desenho antigo por '
           + 'alguns dias, é o sistema demorando para reler — reinstalar '
           + 'resolve na hora.',

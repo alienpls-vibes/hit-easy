@@ -523,6 +523,28 @@ pernas finas. Se isso incomodar, a saída é uma variante simplificada só para
 Os nomes mudaram junto com a arte, de propósito: URL nova força o navegador e o
 sistema a buscar de novo, em vez de servir o desenho antigo do cache.
 
+### A marca dentro do app
+
+O logo do cabeçalho não é nenhum desses arquivos: é `brandMark()`, em
+[src/ui.js](src/ui.js), um SVG desenhado em código. São duas coisas separadas, e
+trocar os PNG não mexia nele — o app passou a mostrar a mesa na tela inicial do
+celular e os cinco pips WUBRG no próprio cabeçalho, duas identidades ao mesmo
+tempo.
+
+Agora é a mesma mesa, traçada do PNG de 512: 30 pontos, 97,6% de sobreposição
+com o desenho original. Vetorial e não o PNG encolhido porque a marca vive a
+26px, que em tela de alta densidade são 78 pixels reais, e a mesa é só contorno.
+
+**Em cor sólida, herdada do texto, e não com o gradiente.** Isto foi medido, não
+escolhido: rasterizei a marca a 14, 26 e 52 pixels nos dois temas, e com o
+gradiente ela vira uma mancha escura que some no fundo abaixo de 26px. O projeto
+já tinha passado por isso — a marca foi um quadradinho com degradê, borrava no
+pequeno, e virou cinco pips por causa disso. A cor mora no ícone do lançador,
+onde há espaço; aqui quem carrega o reconhecimento é a forma.
+
+`currentColor` em vez de cor fixa: a marca acompanha o tema junto com o texto ao
+lado, sem uma segunda regra para manter em dia.
+
 ## Instalar
 
 Configurações → *Instalar*. Quando o navegador oferece instalação, um botão de

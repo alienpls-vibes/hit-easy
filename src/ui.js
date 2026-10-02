@@ -1,7 +1,6 @@
 /** Utilitarios de DOM. Pequenos de proposito - a app nao precisa de framework. */
 
 import { t } from './i18n.js';
-import { colorHex } from './colors.js';
 
 export function el(tag, props = {}, children = []) {
   const node = document.createElement(tag);
@@ -51,6 +50,30 @@ function aplicarEstilo(node, estilos) {
  *
  * Desenhado com as cores vivas do tema atual, entao acompanha claro e escuro.
  */
+/**
+ * A silhueta da mesa, tracada do icone do app.
+ *
+ * 30 pontos, 97.6% de sobreposicao com o desenho original - o bastante para
+ * ser a mesma forma, e pouco o bastante para caber numa linha. Vetorial e nao
+ * o PNG encolhido porque a marca vive a 26px, que em tela de alta densidade
+ * sao 78 pixels reais, e a mesa e so contorno.
+ */
+const MESA = 'M10.82 4.91 L11.33 4.91 L21.15 8.01 L23.16 8.68 L23.5 9.02 L23.5 9.61 L22.41 10.2 L22.32 14.98 L22.16 15.15 L21.65 15.15 L21.4 14.81 L20.73 10.87 L14.85 13.39 L14.52 13.64 L14.27 18.84 L13.93 19.09 L13.43 19.01 L13.18 18.25 L12.76 13.97 L12.5 13.72 L3.44 10.61 L2.77 14.73 L2.51 14.98 L2.01 14.98 L1.76 14.64 L1.76 9.94 L0.84 9.61 L0.5 9.27 L0.5 8.68 L0.84 8.35 Z';
+
+/**
+ * A marca do cabecalho: a mesma mesa do icone do sistema.
+ *
+ * Em cor solida, herdada do texto, e NAO com o gradiente do icone. O gradiente
+ * e o que da identidade ao icone grande, mas a 14px ele vira uma mancha escura
+ * que some no fundo - medido, rasterizando a marca nos tres tamanhos em que
+ * ela aparece. Este projeto ja passou por isso uma vez: a marca era um
+ * quadradinho com degrade, virava borrao no pequeno, e por isso tinha virado
+ * cinco circulos. A cor mora no icone do lancador, onde ha espaco; aqui quem
+ * carrega o reconhecimento e a forma.
+ *
+ * Os cinco pips WUBRG sairam porque eram o eco do icone ANTIGO: trocado o
+ * icone, o app mostrava uma marca e a tela inicial do celular, outra.
+ */
 export function brandMark() {
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg');
@@ -58,15 +81,12 @@ export function brandMark() {
   svg.setAttribute('class', 'brand-mark');
   svg.setAttribute('aria-hidden', 'true');
 
-  ['W', 'U', 'B', 'R', 'G'].forEach((cor, i) => {
-    const ang = -Math.PI / 2 + i * ((2 * Math.PI) / 5);
-    const c = document.createElementNS(NS, 'circle');
-    c.setAttribute('cx', (12 + 7.4 * Math.cos(ang)).toFixed(2));
-    c.setAttribute('cy', (12 + 7.4 * Math.sin(ang)).toFixed(2));
-    c.setAttribute('r', '3.5');
-    c.setAttribute('fill', colorHex(cor));
-    svg.append(c);
-  });
+  const p = document.createElementNS(NS, 'path');
+  p.setAttribute('d', MESA);
+  // currentColor: a marca acompanha o tema junto com o texto ao lado dela,
+  // sem uma segunda regra de cor para manter em dia.
+  p.setAttribute('fill', 'currentColor');
+  svg.append(p);
   return svg;
 }
 
