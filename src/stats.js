@@ -11,13 +11,15 @@
  *   partida.js       uma partida so: resumo, linha do tempo, dano total
  *   rivalidades.js   o mesmo log lido por par de jogadores
  *   votacoes.js      escolhas em votacao, agrupadas por pergunta
- *   cores.js         a cor de cada pessoa
+ *   ordenar.js       por qual numero a lista se ordena
+  cores.js         a cor de cada pessoa
  *   formatar.js      numero e data como cada idioma escreve
  */
 
 export {
   aggregate, identityOf, labelOf, nomeRegistrado,
 } from './stats/agregar.js';
+export { ORDENACOES, ordenacaoPorId, ordenarLinhas } from './stats/ordenar.js';
 export {
   summarize, timeline, totalDamage,
 } from './stats/partida.js';

@@ -9,7 +9,7 @@
 import { el, clear, icon } from '../../ui.js';
 import {
   aggregate, rivalries, summarize, formatDuration, playerColorOrder,
-  playerColor,
+  playerColor, ORDENACOES, ordenarLinhas,
 } from '../../stats.js';
 import * as store from '../../store.js';
 import { t } from '../../i18n.js';
@@ -36,6 +36,16 @@ let activeTab = 'decks';
  * filtro que a pessoa acabou de escolher.
  */
 let filtroDeDeck = 'todos';
+
+/**
+ * Por qual numero as listas de Decks e de Jogadores estao ordenadas.
+ *
+ * Uma variavel para as duas abas, e nao uma por aba: as linhas das duas saem da
+ * mesma agregacao e tem os mesmos campos, entao "ordenado por partidas" quer
+ * dizer a mesma coisa nas duas. Com uma por aba, trocar de aba mudaria a ordem
+ * sem ninguem ter pedido.
+ */
+let ordem = ORDENACOES[0].id;
 
 /**
  * O seletor de jogador da aba de Decks.
@@ -66,12 +76,52 @@ function filtroDeJogador(jogadores, repintar) {
   ]);
 
   campo.value = filtroDeDeck;
-  return el('div', { class: 'deck-filter' }, [
-    el('div', { class: 'select-row' }, [
+  return controle(t('stats.filterByPlayer'), campo);
+}
+
+/**
+ * Por qual numero ordenar.
+ *
+ * Mesmo argumento do filtro para o `<select>` nativo. So aparece com mais de
+ * uma linha: ordenar uma lista de um nao ordena nada.
+ *
+ * A opcao de taxa de vitoria tem a armadilha de sempre - um deck de uma partida
+ * ganha vem antes de um de dez com oito vitorias. O desempate por partidas
+ * ameniza entre iguais, mas 100% de uma partida continua sendo 100%; e o que a
+ * pessoa pediu ao escolher taxa, e a coluna de partidas esta no cartao ao lado
+ * do numero para quem for ler com cuidado.
+ */
+function seletorDeOrdem(repintar) {
+  const campo = el('select', {
+    class: 'select-input',
+    'aria-label': t('stats.sortBy'),
+    onChange: (e) => { ordem = e.target.value; repintar(); },
+  }, ORDENACOES.map((o) => el('option', {
+    value: o.id,
+    text: t(o.rotulo),
+    selected: ordem === o.id ? 'selected' : null,
+  })));
+
+  campo.value = ordem;
+  return controle(t('stats.sortBy'), campo);
+}
+
+/** Um `<select>` com rotulo visivel, do tamanho da coluna que couber. */
+function controle(rotulo, campo) {
+  return el('label', { class: 'stats-control' }, [
+    el('span', { class: 'control-label', text: rotulo }),
+    el('span', { class: 'select-row' }, [
       campo,
       el('span', { class: 'select-caret' }, [icon('arrow')]),
     ]),
   ]);
+}
+
+/** A faixa de controles acima da lista. Vazia nao e desenhada. */
+function barraDeControles(partes) {
+  const uteis = partes.filter(Boolean);
+  if (!uteis.length) return null;
+  return el('div', { class: 'stats-controls' }, uteis);
 }
 
 /** A pessoa filtrada nao levou deck nenhum que ainda esteja na lista. */
@@ -136,11 +186,23 @@ export function renderStats(root, { onBack }) {
         ? agg.decks
         : agg.decks.filter((d) => (d.jogadores || []).includes(filtroDeDeck));
 
-      if (agg.players.length > 1) panel.append(filtroDeJogador(agg.players, paint));
+      // Ordenar DEPOIS de filtrar: ordenar antes gastaria a comparacao em
+      // linhas que a tela nao vai mostrar, e o topo da lista seria o topo do
+      // grupo inteiro em vez do topo do que esta na tela.
+      const barra = barraDeControles([
+        agg.players.length > 1 ? filtroDeJogador(agg.players, paint) : null,
+        escolhidos.length > 1 ? seletorDeOrdem(paint) : null,
+      ]);
+      if (barra) panel.append(barra);
+
       if (!escolhidos.length) panel.append(semDecksDoJogador());
-      else escolhidos.forEach((row) => panel.append(deckCard(row, recarregar)));
+      else ordenarLinhas(escolhidos, ordem).forEach((row) => panel.append(deckCard(row, recarregar)));
     } else if (activeTab === 'players') {
-      agg.players.forEach((row) => panel.append(playerCard(row, recarregar, corDe)));
+      if (agg.players.length > 1) {
+        panel.append(barraDeControles([seletorDeOrdem(paint)]));
+      }
+      ordenarLinhas(agg.players, ordem)
+        .forEach((row) => panel.append(playerCard(row, recarregar, corDe)));
     } else if (activeTab === 'rivals') {
       if (!rivais.length) panel.append(emptyRivals());
       else panel.append(rivalsTab(rivais, corDe, paint));

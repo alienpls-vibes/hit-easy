@@ -21,6 +21,31 @@
 
 export const NOVIDADES = [
   {
+    versao: '1.7.0',
+    data: '2026-10-02',
+    titulo: 'Ordenar as listas, e notas mais curtas',
+    itens: [
+      {
+        tipo: 'novo',
+        texto: 'As abas de Decks e de Jogadores ganharam um seletor de ordem: '
+          + 'partidas, vitórias, taxa de vitória, dano causado, '
+          + 'eliminações e melhor colocação.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'Esta tela passa a mostrar só o que entrou desde a versão '
+          + 'em que o app estava. O histórico inteiro continua a um toque, '
+          + 'no fim da lista.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'O botão de atualizar o app mostra um girador enquanto busca '
+          + 'a versão nova. Antes ele só escurecia, e a espera de até dez '
+          + 'segundos parecia um botão que não funcionou.',
+      },
+    ],
+  },
+  {
     versao: '1.6.0',
     data: '2026-10-02',
     titulo: 'Seus decks seguem a sua conta',
@@ -338,7 +363,7 @@ export const NOVIDADES = [
       {
         tipo: 'corrigido',
         texto: 'O título de uma votação grudava ao trocar de modelo. Quem '
-          + 'tocasse em "Prisoner\\u2019s Dilemma" e depois escolhesse outro tipo '
+          + 'tocasse em "Prisoner\’s Dilemma" e depois escolhesse outro tipo '
           + 'registrava um dilema que nunca aconteceu.',
       },
       {

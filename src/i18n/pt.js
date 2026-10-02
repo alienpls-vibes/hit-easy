@@ -269,6 +269,14 @@ export const PT = {
   'stats.hiddenPlayer': 'jogador · tocar para trazer de volta',
   'stats.recordedAs': 'registrado como {name}',
   'stats.filterByPlayer': 'Filtrar por jogador',
+  'stats.sortBy': 'Ordenar por',
+  'stats.sortRelevance': 'Mais relevantes',
+  'stats.sortMatches': 'Partidas',
+  'stats.sortWins': 'Vitórias',
+  'stats.sortWinrate': 'Taxa de vitória',
+  'stats.sortDamage': 'Dano causado',
+  'stats.sortKills': 'Eliminações',
+  'stats.sortPlace': 'Melhor colocação',
   'stats.allPlayers': 'Todos',
   'stats.noDecksForPlayer': 'Nenhum deck desse jogador na lista',
   'stats.linkAccount': 'Ligar a uma conta',
@@ -407,6 +415,8 @@ export const PT = {
 
   'settings.update': 'Atualizar o app',
   'settings.updateSub': 'Busca a versão mais nova e reabre',
+  'settings.updating': 'Atualizando…',
+  'settings.updatingSub': 'Buscando a versão nova e reabrindo',
   'settings.updateNone': 'Já está na versão mais nova',
 
   'settings.staleCache': 'cache {n}',
@@ -446,6 +456,7 @@ export const PT = {
   'news.novo': 'novo',
   'news.corrigido': 'corrigido',
   'news.mudou': 'mudou',
+  'news.seeAll': 'Ver todas as {n} versões',
 
   'settings.title': 'Configurações',
   'settings.sub': 'Valem para todas as partidas',

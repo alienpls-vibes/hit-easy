@@ -33,18 +33,57 @@ export function installBlock(onRefresh) {
       // aberta continua rodando o codigo antigo mesmo depois de o service
       // worker se trocar. Sem este botao, quem relata um defeito ja corrigido
       // nao tem como ser atendido com "atualize".
-      const atualizar = el('button', { class: 'menu-item' }, [
-        el('span', { class: 'menu-label' }, [icon('download'), t('settings.update')]),
-        el('span', { class: 'menu-sub', text: t('settings.updateSub') }),
+      // O rotulo troca durante a espera porque ela e longa e silenciosa:
+      // `atualizarApp` consulta a rede e depois aguarda o worker novo assumir,
+      // ate dez segundos. Com o botao so desabilitado, nada se move - e um
+      // botao que escurece e fica parado parece um botao que nao funcionou.
+      // Foi exatamente a duvida que surgiu em uso: "o botao fez algo?".
+      const rotulo = el('span', { class: 'menu-label' }, [
+        icon('download'), t('settings.update'),
       ]);
+      const sub = el('span', { class: 'menu-sub', text: t('settings.updateSub') });
+      const atualizar = el('button', { class: 'menu-item' }, [rotulo, sub]);
+
+      /**
+       * Troca o conteudo do rotulo, no lugar.
+       *
+       * Passa pelo mesmo caminho que `el` usa para filhos de texto. Appendar a
+       * string direto funciona no navegador e NAO no DOM simulado, que nao
+       * converte string em no - entao o teste do girador acusaria falha onde o
+       * app funciona, e eu "consertaria" o app para calar o teste.
+       */
+      const pintarRotulo = (...filhos) => {
+        clear(rotulo);
+        for (const f of filhos) {
+          rotulo.append(f && f.nodeType ? f : document.createTextNode(String(f)));
+        }
+      };
+
       atualizar.addEventListener('click', async () => {
+        if (atualizar.disabled) return;
         atualizar.disabled = true;
-        const r = await atualizarApp();
+        atualizar.classList.add('is-updating');
+        pintarRotulo(el('span', { class: 'spinner' }), t('settings.updating'));
+        sub.textContent = t('settings.updatingSub');
+
+        let r;
+        try {
+          r = await atualizarApp();
+        } catch {
+          // Nao e so higiene: sem isto uma falha deixa o botao girando para
+          // sempre, e a pessoa fica olhando uma espera que ja acabou.
+          r = 'atual';
+        }
+
         if (r === 'atual') {
           atualizar.disabled = false;
+          atualizar.classList.remove('is-updating');
+          pintarRotulo(icon('download'), t('settings.update'));
+          sub.textContent = t('settings.updateSub');
           toast(t('settings.updateNone'));
         }
-        // 'atualizando' recarrega a pagina sozinho: nao ha o que fazer aqui.
+        // 'atualizando' recarrega a pagina sozinho: deixar girando ate la e o
+        // certo, porque a espera continua de verdade.
       });
       box.append(atualizar);
       return;

@@ -400,6 +400,74 @@ dizer a mesma coisa.
 > segue funcionando com os decks do histórico local — como era antes. Nada
 > quebra, mas o recurso fica dormente.
 
+## Ordenar as listas
+
+Decks e Jogadores saíam sempre na mesma ordem: taxa de vitória, partidas no
+empate. É uma ordem boa, e não responde "quem joga mais" nem "quem bate mais".
+
+Agora as duas abas têm um seletor. As opções saem de `src/stats/ordenar.js`,
+onde cada regra carrega o campo, a direção e a chave de tradução juntos — os
+três no mesmo lugar é o que impede a tela dizer "melhor colocação" e ordenar do
+pior para o melhor, porque colocação é a única que sobe: primeiro lugar é 1,
+então o melhor é o **menor**.
+
+O desempate é sempre a relevância, e não a ordem em que a agregação devolveu.
+Com `partidas`, metade do grupo empata em duas; sem desempate explícito a lista
+saía na ordem de inserção do `Map`, que muda quando se apaga uma partida antiga
+— e a pessoa veria a lista se reorganizar sozinha sem aquele número ter mudado.
+
+**Taxa de vitória tem a armadilha de sempre.** Um deck de uma partida ganha
+aparece na frente de um de dez com oito vitórias. Não há mínimo de partidas: é
+o que a pessoa pediu ao escolher taxa, e a contagem de partidas está no cartão
+ao lado do número. O teste registra essa ordem como proposital, para ninguém a
+"corrigir" depois achando que é defeito.
+
+Ordena **depois** de filtrar. Ordenar antes gastaria a comparação em linhas que
+a tela não vai mostrar, e o topo da lista seria o topo do grupo inteiro em vez
+do topo do que está na tela.
+
+## As notas mostram o que entrou
+
+A tela de novidades abria o histórico inteiro. As três linhas novas ficavam
+embaixo de nove versões já lidas, e o que se aprende com isso é a fechar a tela
+sem ler.
+
+Agora o recorte padrão é a diferença desde a versão em que o app estava. Isso
+exigiu guardar de onde a pessoa veio: `versaoVista` é sobrescrita no arranque,
+antes de qualquer tela abrir, então a única referência já tinha sido apagada
+quando o menu precisava dela. `versaoAnterior` só é gravada quando a versão
+mudou — reabrir o app na mesma versão não pode zerar o recorte.
+
+Três situações, nessa ordem: veio de uma versão anterior, mostra a diferença;
+instalou agora, mostra só as notas desta versão; esta versão não tem notas, cai
+no histórico (é rede de segurança, porque `npm test` não deixa publicar sem).
+
+O histórico continua a um toque, no fim da lista. Esconder não é o mesmo que
+apagar, e quem foi procurar a mudança de três versões atrás precisa achá-la.
+
+`anunciarVersao()` tem nome e é exportada porque era um IIFE que rodava no
+import: acontecia uma vez, antes de qualquer teste, e apagar a linha da versão
+anterior passava pela suite inteira sem uma falha. O teste de mutação foi quem
+contou.
+
+## O botão de atualizar mostra que está atualizando
+
+`atualizarApp()` consulta a rede e depois espera o worker novo assumir de
+verdade — até dez segundos. O botão só ficava desabilitado, e um botão que
+escurece e fica parado é indistinguível de um botão que não funcionou. Foi
+exatamente a dúvida que surgiu em uso: "o botão fez algo?".
+
+Agora o rótulo troca por um girador e "Atualizando…", e volta se não houver
+versão nova. O girador entra **antes** da espera, não depois: o retorno tem de
+ser imediato, senão não responde a pergunta que ele existe para responder.
+
+Quem pede menos movimento recebe um pulso em vez de um giro. Zerar a animação
+deixaria um anel parado, que é indistinguível de um botão travado — o oposto do
+que isto existe para dizer.
+
+Uma falha na atualização devolve o botão ao estado normal. Sem isso o girador
+giraria para sempre, e a pessoa ficaria olhando uma espera que já acabou.
+
 ## Rivalidades
 
 Aba própria nas estatísticas. Cada linha é um **par de jogadores**, com o dano
@@ -593,12 +661,13 @@ package.json          só para o Node rodar os testes — zero dependências
 src/
   app.js              rota e gravação
   engine.js           eventos, replay, eliminação, colocação   ← núcleo
-  stats.js            porta — 21 nomes
+  stats.js            porta — 25 nomes
   stats/
     agregar.js        o histórico virando número por deck e por jogador
     partida.js        uma partida só: resumo, linha do tempo, dano total
     rivalidades.js    o mesmo log lido por par de jogadores
     votacoes.js       escolhas em votação, agrupadas por pergunta
+    ordenar.js        por qual número a lista se ordena, e em que direção
     cores.js          a cor de cada pessoa (ângulo áureo, por 1ª aparição)
     formatar.js       número e data como cada idioma escreve
   store.js            localStorage, histórico, backup

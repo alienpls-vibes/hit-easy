@@ -13,7 +13,7 @@
 
 // Mesma string de APP_VERSION em src/version.js - worker nao importa modulo.
 // Se mudar la, mude aqui; check-syntax.js confere os dois.
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 
 /**
  * Producao e beta dividem a mesma origem, e Cache Storage e por origem. O canal
@@ -165,6 +165,7 @@ const ASSETS = [
   './src/stats/agregar.js',
   './src/stats/cores.js',
   './src/stats/formatar.js',
+  './src/stats/ordenar.js',
   './src/stats/partida.js',
   './src/stats/rivalidades.js',
   './src/stats/votacoes.js',
