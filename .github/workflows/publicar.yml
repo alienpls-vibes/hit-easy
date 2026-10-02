@@ -84,6 +84,21 @@ jobs:
           ref: beta
           path: site/beta
 
+      # Qual commit do beta esta no ar.
+      #
+      # A versao do app nao anda a cada ida ao beta - ela so muda quando ha
+      # publicacao em producao -, entao sem este carimbo nao haveria como saber
+      # se o aparelho ja pegou o codigo novo. Tem de rodar ANTES de apagar o
+      # .git, que e de onde o SHA sai.
+      - name: Carimbar o build do beta
+        if: steps.tembeta.outputs.sim == 'true'
+        run: |
+          SHA=$(git -C site/beta rev-parse --short HEAD)
+          QUANDO=$(git -C site/beta log -1 --format=%cI)
+          printf '{"build":"%s","quando":"%s"}\n' "$SHA" "$QUANDO" \
+            > site/beta/build.json
+          cat site/beta/build.json
+
       - name: Limpar metadados do git
         run: rm -rf site/.git site/beta/.git
 

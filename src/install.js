@@ -98,6 +98,27 @@ export async function promptInstall() {
 }
 
 /**
+ * Qual build do beta esta rodando.
+ *
+ * O arquivo e escrito pelo CI na publicacao, e so existe em /beta/. Em
+ * producao devolve null: la o numero da versao ja responde a pergunta, porque
+ * so muda quando ha publicacao.
+ *
+ * `no-store` e o service worker deixando passar: servir isto do cache
+ * responderia com o build anterior, que e a unica resposta inutil.
+ */
+export async function buildDoBeta() {
+  try {
+    const res = await fetch('./build.json', { cache: 'no-store' });
+    if (!res.ok) return null;
+    const dado = await res.json();
+    return dado && dado.build ? dado : null;
+  } catch {
+    return null; // sem rede, ou producao, que nao tem o arquivo
+  }
+}
+
+/**
  * Buscar uma versao nova do aplicativo instalado.
  *
  * O service worker ja se troca sozinho (skipWaiting no install), mas a PAGINA

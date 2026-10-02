@@ -265,6 +265,14 @@ export const DE = {
   'stats.hiddenPlayer': 'Spieler · antippen zum Zurückholen',
   'stats.recordedAs': 'erfasst als {name}',
   'stats.filterByPlayer': 'Nach Spieler filtern',
+  'stats.sortBy': 'Sortieren nach',
+  'stats.sortRelevance': 'Relevanteste',
+  'stats.sortMatches': 'Partien',
+  'stats.sortWins': 'Siege',
+  'stats.sortWinrate': 'Siegquote',
+  'stats.sortDamage': 'Verursachter Schaden',
+  'stats.sortKills': 'Ausschaltungen',
+  'stats.sortPlace': 'Beste Platzierung',
   'stats.allPlayers': 'Alle',
   'stats.noDecksForPlayer': 'Keine Decks dieses Spielers in der Liste',
   'stats.linkAccount': 'Mit einem Konto verknüpfen',
@@ -403,6 +411,8 @@ export const DE = {
 
   'settings.update': 'App aktualisieren',
   'settings.updateSub': 'Holt die neueste Version und startet neu',
+  'settings.updating': 'Wird aktualisiert…',
+  'settings.updatingSub': 'Neue Version wird geholt, dann Neustart',
   'settings.updateNone': 'Bereits auf der neuesten Version',
 
   'settings.staleCache': 'Cache {n}',
@@ -442,6 +452,7 @@ export const DE = {
   'news.novo': 'neu',
   'news.corrigido': 'behoben',
   'news.mudou': 'geändert',
+  'news.seeAll': 'Alle {n} Versionen ansehen',
 
   'settings.title': 'Einstellungen',
   'settings.sub': 'Gelten für alle Partien',

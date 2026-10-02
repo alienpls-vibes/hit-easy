@@ -155,9 +155,29 @@
   cursor: pointer;
 }
 
-/* O filtro da aba de Decks. Fica acima da lista e não some ao rolar: é estado
-   da aba, e esconder o que está filtrando faria a lista parecer incompleta. */
-.deck-filter { margin-bottom: 12px; }
+/* Os controles de filtro e de ordem. Ficam acima da lista e não somem ao
+   rolar: são estado da aba, e esconder o que está filtrando ou ordenando faria
+   a lista parecer incompleta ou errada.
+
+   Duas colunas quando os dois aparecem, uma quando é só um — `auto-fit` com
+   mínimo de 150px cuida disso sem media query, e empilha no celular estreito
+   em vez de espremer dois selects a 75px cada. */
+.stats-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+/* `min-width: 0` porque um filho de grid não encolhe abaixo do conteúdo por
+   padrão, e um nome longo de jogador faria o select estourar a coluna. */
+.stats-control { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.control-label {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  padding-left: 2px;
+}
 
 .placing-text { display: flex; flex-direction: column; flex: none; min-width: 0; }
 .placing-name { font-weight: 500; }

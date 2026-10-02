@@ -278,12 +278,19 @@ export function aggregate(matches, apelidos = null) {
   }
 
   return {
-    decks: [...decks.values()].map(finalize).sort(byRelevance),
-    players: [...players.values()].map(finalize).sort(byRelevance),
+    decks: [...decks.values()].map(finalize).sort(porRelevancia),
+    players: [...players.values()].map(finalize).sort(porRelevancia),
   };
 }
 
-function byRelevance(a, b) {
+/**
+ * A ordem padrao: taxa de vitoria, partidas no empate.
+ *
+ * Exportada porque ordenar.js desempata por ela. Com uma copia la, mudar o
+ * desempate num lugar deixaria as duas listas em ordens diferentes dizendo as
+ * duas que estao "por relevancia".
+ */
+export function porRelevancia(a, b) {
   if (b.winrate !== a.winrate) return b.winrate - a.winrate;
   return b.games - a.games;
 }

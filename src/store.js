@@ -47,6 +47,11 @@ const EMPTY = {
     autoRotate: true,     // tenta tela cheia + travar deitado na partida
     dragHintSeen: false,
     versaoVista: null,
+    // De qual versao a pessoa veio na ultima atualizacao.
+    //
+    // Separada de `versaoVista` porque esta e sobrescrita no arranque: sem a
+    // anterior, abrir as notas pelo menu nao teria como dizer o que entrou.
+    versaoAnterior: null,
   },
 };
 

@@ -5,6 +5,7 @@
  * que voce ja conhece, nunca para descobrir quem tem conta no app.
  */
 
+import { canal } from '../canal.js';
 import { avisar, conta, currentUser } from './estado.js';
 import { cabecalhos, pedir, url } from './http.js';
 import { handleValido, normalizarHandle } from './regras.js';
@@ -62,10 +63,19 @@ export async function salvarHandle(handle, nome) {
  * quem chama trata como "fica para a proxima" - o app segue funcionando com os
  * decks do historico local, que e como era antes.
  */
+export function colunaDeDecks(qualCanal) {
+  return qualCanal === 'beta' ? 'decks_beta' : 'decks';
+}
+
 export async function salvarMeusDecks(decks) {
   const dono = currentUser();
   if (!dono) throw new Error('sem sessao');
   if (!Array.isArray(decks)) return null;
+
+  // Coluna por canal. Sem isto, uma mesa de teste com comandantes inventados
+  // entraria no seletor de deck do app de verdade - e o recurso existe
+  // justamente para o seletor conhecer os decks da pessoa.
+  const coluna = colunaDeDecks(canal());
 
   const enxuto = decks.slice(0, 200).map((d) => ({
     commanders: (d.commanders || []).map((c) => ({
@@ -77,9 +87,9 @@ export async function salvarMeusDecks(decks) {
   await pedir('/rest/v1/profiles?id=eq.' + encodeURIComponent(dono.id), {
     method: 'PATCH',
     headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({ decks: enxuto }),
+    body: JSON.stringify({ [coluna]: enxuto }),
   });
-  if (conta.perfil) conta.perfil.decks = enxuto;
+  if (conta.perfil) conta.perfil[coluna] = enxuto;
   return enxuto;
 }
 

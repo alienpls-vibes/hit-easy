@@ -306,4 +306,52 @@
 .news-tag.is-corrigido { background: color-mix(in srgb, #b4472b 18%, transparent); color: #d9613f; }
 .news-tag.is-mudou { background: color-mix(in srgb, var(--muted) 20%, transparent); color: var(--muted); }
 
+/* A saída para o histórico inteiro. Discreta de propósito: o que a pessoa abriu
+   para ver é o que entrou, e isto é para quem foi procurar o resto. */
+.news-all {
+  margin-top: 18px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+.news-all:hover { color: var(--text); border-color: var(--text-dim); }
+
+/* O girador do botão de atualizar.
+
+   Ocupa o lugar do ícone de download, com a mesma caixa, para a linha não
+   saltar ao trocar: um rótulo que pula de posição lê como erro, não como
+   espera.
+
+   `currentColor` na borda e no topo transparente é o truque de sempre — um
+   anel com um quarto faltando, girando. Sem SVG e sem imagem, então nada a
+   acrescentar na lista do service worker. */
+.spinner {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spinner-gira 0.7s linear infinite;
+}
+@keyframes spinner-gira { to { transform: rotate(360deg); } }
+
+/* Quem pediu menos movimento ainda precisa saber que algo está acontecendo:
+   em vez de girar, pulsa. Zerar a animação deixaria um anel parado, que é
+   indistinguível de um botão travado — o oposto do que isto existe para
+   dizer. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: spinner-pulsa 1.2s ease-in-out infinite; }
+}
+@keyframes spinner-pulsa { 50% { opacity: 0.3; } }
+
+/* O botão fica apagado durante a espera, mas não a ponto de o girador
+   desaparecer junto. */
+.menu-item.is-updating { opacity: 0.7; cursor: default; }
+
 button.settings-version { border: 0; background: transparent; cursor: pointer; width: 100%; }

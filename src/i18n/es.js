@@ -265,6 +265,14 @@ export const ES = {
   'stats.hiddenPlayer': 'jugador · toca para traerlo de vuelta',
   'stats.recordedAs': 'registrado como {name}',
   'stats.filterByPlayer': 'Filtrar por jugador',
+  'stats.sortBy': 'Ordenar por',
+  'stats.sortRelevance': 'Más relevantes',
+  'stats.sortMatches': 'Partidas',
+  'stats.sortWins': 'Victorias',
+  'stats.sortWinrate': 'Tasa de victoria',
+  'stats.sortDamage': 'Daño causado',
+  'stats.sortKills': 'Eliminaciones',
+  'stats.sortPlace': 'Mejor posición',
   'stats.allPlayers': 'Todos',
   'stats.noDecksForPlayer': 'Ningún mazo de ese jugador en la lista',
   'stats.linkAccount': 'Vincular a una cuenta',
@@ -403,6 +411,8 @@ export const ES = {
 
   'settings.update': 'Actualizar la app',
   'settings.updateSub': 'Busca la versión más nueva y reabre',
+  'settings.updating': 'Actualizando…',
+  'settings.updatingSub': 'Buscando la versión nueva y reabriendo',
   'settings.updateNone': 'Ya está en la versión más nueva',
 
   'settings.staleCache': 'caché {n}',
@@ -442,6 +452,7 @@ export const ES = {
   'news.novo': 'nuevo',
   'news.corrigido': 'corregido',
   'news.mudou': 'cambió',
+  'news.seeAll': 'Ver todas las {n} versiones',
 
   'settings.title': 'Ajustes',
   'settings.sub': 'Valen para todas las partidas',

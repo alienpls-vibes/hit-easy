@@ -38,6 +38,43 @@ service worker em `https://` ou `localhost`. Para instalar de verdade no
 celular, publique a pasta em qualquer host estático (GitHub Pages, Netlify,
 Vercel) — não há passo de build, é subir os arquivos.
 
+## O número da versão
+
+**Ele só anda quando sai publicação em produção.** Uma ida ao beta não gasta um
+número: `main` e `beta` ficam no mesmo número até a promoção, e o que se acumula
+no beta entra numa entrada só de `src/novidades.js`.
+
+Isto não é cosmético. Um número por ida ao beta produz um histórico de versões
+que ninguém usou, e as notas ficam picadas em entradas de um item — quem abre a
+tela de novidades depois de atualizar lê cinco cabeçalhos para entender uma
+mudança.
+
+**O que o bump fazia tecnicamente**, e por que não é necessário: `VERSION`
+compõe o nome do cache do service worker (`hiteasy-beta-shell-<versão>`), então
+trocá-lo força um cache novo e vazio. Mas o `fetch` é *stale-while-revalidate* —
+responde do cache e revalida por trás, gravando o que vier. O beta chega aos
+testadores na segunda abertura sem bump nenhum; o bump só antecipava isso em uma
+abertura.
+
+**O que se perderia sem compensar:** saber qual código está no aparelho. Com a
+versão parada, a tela de configurações diria a mesma coisa antes e depois da
+publicação. Por isso o CI escreve `build.json` em `/beta/` com o SHA curto do
+commit, e a linha de versão mostra `1.7.0 · beta · 3a6915f`. O service worker
+deixa esse arquivo passar direto para a rede: servi-lo do cache responderia com
+o build anterior, que é a única resposta inútil.
+
+Em produção não há carimbo, e é de propósito: lá o número já responde, porque é
+exatamente onde ele muda.
+
+### Na hora de promover
+
+1. O número sobe uma vez, em `src/version.js` **e** em `sw.js` — `npm test`
+   recusa se divergirem.
+2. A entrada correspondente existe em `src/novidades.js` — `npm test` também
+   recusa sem ela.
+3. Qual dígito: `novo` ou `mudou` nas notas sobe o do meio; só `corrigido` sobe
+   o último.
+
 ## Publicar
 
 O app é estático — sem build, sem servidor, sem banco. Publicar é copiar a pasta
@@ -400,6 +437,74 @@ dizer a mesma coisa.
 > segue funcionando com os decks do histórico local — como era antes. Nada
 > quebra, mas o recurso fica dormente.
 
+## Ordenar as listas
+
+Decks e Jogadores saíam sempre na mesma ordem: taxa de vitória, partidas no
+empate. É uma ordem boa, e não responde "quem joga mais" nem "quem bate mais".
+
+Agora as duas abas têm um seletor. As opções saem de `src/stats/ordenar.js`,
+onde cada regra carrega o campo, a direção e a chave de tradução juntos — os
+três no mesmo lugar é o que impede a tela dizer "melhor colocação" e ordenar do
+pior para o melhor, porque colocação é a única que sobe: primeiro lugar é 1,
+então o melhor é o **menor**.
+
+O desempate é sempre a relevância, e não a ordem em que a agregação devolveu.
+Com `partidas`, metade do grupo empata em duas; sem desempate explícito a lista
+saía na ordem de inserção do `Map`, que muda quando se apaga uma partida antiga
+— e a pessoa veria a lista se reorganizar sozinha sem aquele número ter mudado.
+
+**Taxa de vitória tem a armadilha de sempre.** Um deck de uma partida ganha
+aparece na frente de um de dez com oito vitórias. Não há mínimo de partidas: é
+o que a pessoa pediu ao escolher taxa, e a contagem de partidas está no cartão
+ao lado do número. O teste registra essa ordem como proposital, para ninguém a
+"corrigir" depois achando que é defeito.
+
+Ordena **depois** de filtrar. Ordenar antes gastaria a comparação em linhas que
+a tela não vai mostrar, e o topo da lista seria o topo do grupo inteiro em vez
+do topo do que está na tela.
+
+## As notas mostram o que entrou
+
+A tela de novidades abria o histórico inteiro. As três linhas novas ficavam
+embaixo de nove versões já lidas, e o que se aprende com isso é a fechar a tela
+sem ler.
+
+Agora o recorte padrão é a diferença desde a versão em que o app estava. Isso
+exigiu guardar de onde a pessoa veio: `versaoVista` é sobrescrita no arranque,
+antes de qualquer tela abrir, então a única referência já tinha sido apagada
+quando o menu precisava dela. `versaoAnterior` só é gravada quando a versão
+mudou — reabrir o app na mesma versão não pode zerar o recorte.
+
+Três situações, nessa ordem: veio de uma versão anterior, mostra a diferença;
+instalou agora, mostra só as notas desta versão; esta versão não tem notas, cai
+no histórico (é rede de segurança, porque `npm test` não deixa publicar sem).
+
+O histórico continua a um toque, no fim da lista. Esconder não é o mesmo que
+apagar, e quem foi procurar a mudança de três versões atrás precisa achá-la.
+
+`anunciarVersao()` tem nome e é exportada porque era um IIFE que rodava no
+import: acontecia uma vez, antes de qualquer teste, e apagar a linha da versão
+anterior passava pela suite inteira sem uma falha. O teste de mutação foi quem
+contou.
+
+## O botão de atualizar mostra que está atualizando
+
+`atualizarApp()` consulta a rede e depois espera o worker novo assumir de
+verdade — até dez segundos. O botão só ficava desabilitado, e um botão que
+escurece e fica parado é indistinguível de um botão que não funcionou. Foi
+exatamente a dúvida que surgiu em uso: "o botão fez algo?".
+
+Agora o rótulo troca por um girador e "Atualizando…", e volta se não houver
+versão nova. O girador entra **antes** da espera, não depois: o retorno tem de
+ser imediato, senão não responde a pergunta que ele existe para responder.
+
+Quem pede menos movimento recebe um pulso em vez de um giro. Zerar a animação
+deixaria um anel parado, que é indistinguível de um botão travado — o oposto do
+que isto existe para dizer.
+
+Uma falha na atualização devolve o botão ao estado normal. Sem isso o girador
+giraria para sempre, e a pessoa ficaria olhando uma espera que já acabou.
+
 ## Rivalidades
 
 Aba própria nas estatísticas. Cada linha é um **par de jogadores**, com o dano
@@ -420,6 +525,103 @@ Dá para trazer de volta em *Estatísticas → menu → Ocultos*.
 
 É por isso que ocultar e apagar são coisas separadas: apagar uma partida
 (também disponível, no detalhe dela) muda o histórico de verdade.
+
+## O beta não escreve na base de verdade
+
+Produção e beta moram na mesma origem, e isso já era resolvido para o DISCO:
+`chave()`, em [src/canal.js](src/canal.js), põe sufixo `.beta` em tudo que vai
+para o localStorage.
+
+A nuvem não sabia o que era canal. Uma partida jogada no beta subia para a mesma
+tabela `matches`, e o app de produção a baixava como real: partida de teste no
+histórico, nas estatísticas, na média de dano, na taxa de vitória de um deck.
+
+Pior que ruído. `aprenderQuemEQuem` aprende apelidos do que baixa, e uma cadeira
+de teste marcada com o `@` de um amigo virava convite para a pessoa real — o
+canal de teste escrevendo na vida de terceiros.
+
+Agora toda escrita leva a coluna `canal` e toda leitura filtra por ela. São as
+duas pontas da mesma regra, e falhar numa anula a outra: carimbar sem filtrar
+deixa produção baixando o que o beta subiu; filtrar sem carimbar faz o beta
+subir com o padrão `'producao'` e envenenar a base.
+
+O mesmo vale para `profiles.decks`, que a 1.6.0 criou: beta escreve em
+`decks_beta`. Sem isso, uma mesa de teste com comandantes inventados entraria no
+seletor de deck do app de verdade, desfazendo o recurso que existe justamente
+para o seletor conhecer os decks da pessoa.
+
+**O canal não é fronteira de segurança, é separação de dados.** As policies
+decidem por dono, e o canal não muda quem é dono de quê. Quem quiser ver as
+próprias partidas de beta consultando o banco na mão consegue — são dela. O que
+a coluna garante é que o app nunca mistura os dois sozinho.
+
+Por uma coluna, e não por um projeto Supabase separado: a conta, a assinatura e
+os `@` precisam ser os mesmos nos dois canais. Com dois projetos, testar o login
+seria testar outro login, e a pessoa teria de criar conta de novo para
+experimentar o beta. Ninguém testa assim.
+
+> **Precisa de migração.** Rode `sql/005-canal.sql` no Supabase. Até lá o app
+> novo pede `canal=eq.producao` a uma tabela sem essa coluna, e o PostgREST
+> recusa com 400 — a sincronização falha inteira e o app fica só local. Nada se
+> perde, mas nada sobe nem desce.
+
+### O que as subidas carimbam
+
+A cobertura dessa separação quase ficou pela metade: os testes verificavam
+`toRow` e `colunaDeDecks`, que são puras e recebem o canal pronto, e nada
+passava pelo ponto onde `canal()` é de fato chamado. Trocar essa chamada por
+`'producao'` dentro de `enviarPartida` passava pela suíte inteira — a mutação
+que significa, em uma linha, "o beta envenena a base de verdade". O teste de
+mutação foi quem contou; o caso de ponta a ponta captura o `fetch` e lê o corpo
+que sai.
+
+## O ícone
+
+Três arquivos em `icons/`, e a mesma arte nos três: os cinco pips WUBRG sobre
+fundo quase preto. É a mesma marca que o cabeçalho da home desenha em
+`brandMark()`, e as duas precisam continuar sendo a mesma coisa — são separadas
+no código e uma só para quem olha.
+
+O `icon-maskable.png` é um círculo com o conteúdo puxado para dentro. O Android
+não mostra o PNG: recorta na forma que o lançador usa, círculo, squircle ou
+quadrado arredondado, e o que estiver fora do círculo central de 80% pode ser
+cortado.
+
+**Ele tem um defeito conhecido:** é um círculo sobre transparência, com 94% dos
+pixels de borda translúcidos. Em lançador de máscara circular ninguém vê; em
+máscara quadrada os cantos ficam vazados mostrando o papel de parede. Consertar
+isso é tornar a imagem opaca de borda a borda, sem mexer no desenho.
+
+### A guarda
+
+`conferirIcones()`, em [tools/check-syntax.js](tools/check-syntax.js), exige que
+todo ícone referenciado exista e que todo PNG em `icons/` seja referenciado.
+
+Três arquivos apontam para os ícones — `manifest.webmanifest`, `index.html` e a
+lista `ASSETS` de `sw.js` — e errar um não quebrava teste nenhum. Cada um falha
+de um jeito diferente: o manifest com caminho morto só aparece na hora de
+instalar, no aparelho de outra pessoa; `cache.addAll()` rejeita **tudo** se um
+único pedido falhar, então um caminho morto na lista derruba o app inteiro
+offline; e no `index.html` a aba fica sem favicon.
+
+### O que já foi testado e desfeito
+
+Uma identidade de gradiente com a silhueta de uma mesa chegou a ir para o beta e
+voltou. Vale registrar o que a medição disse, para a tentativa não se repetir às
+cegas:
+
+- **Pesava 444 KB contra 19 KB.** Gradiente suave é o pior caso do PNG. Paleta
+  de 256 cores cortaria 79% e bandeia visivelmente; recomprimir não ganha nada.
+- **A silhueta não lia a 16 e 32px** — vira um borrão escuro no meio do
+  colorido, e é aí que vive o favicon da aba.
+- **Na marca do cabeçalho, o gradiente some.** Rasterizando a 14, 26 e 52px nos
+  dois temas, abaixo de 26px ele vira mancha escura que desaparece no fundo.
+  Este projeto já tinha passado por isso: a marca foi um quadradinho com
+  degradê, borrava no pequeno, e virou cinco pips por causa disso.
+
+Fica também o método, que serve para qualquer arte nova: medir a zona segura do
+maskable, a opacidade das bordas, o peso e a legibilidade nos tamanhos reais —
+e não só olhar o arquivo grande.
 
 ## Instalar
 
@@ -593,12 +795,13 @@ package.json          só para o Node rodar os testes — zero dependências
 src/
   app.js              rota e gravação
   engine.js           eventos, replay, eliminação, colocação   ← núcleo
-  stats.js            porta — 21 nomes
+  stats.js            porta — 25 nomes
   stats/
     agregar.js        o histórico virando número por deck e por jogador
     partida.js        uma partida só: resumo, linha do tempo, dano total
     rivalidades.js    o mesmo log lido por par de jogadores
     votacoes.js       escolhas em votação, agrupadas por pergunta
+    ordenar.js        por qual número a lista se ordena, e em que direção
     cores.js          a cor de cada pessoa (ângulo áureo, por 1ª aparição)
     formatar.js       número e data como cada idioma escreve
   store.js            localStorage, histórico, backup

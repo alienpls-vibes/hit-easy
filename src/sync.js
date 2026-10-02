@@ -23,6 +23,7 @@
 import * as store from './store.js';
 import * as cloud from './cloud.js';
 import { cloudEnabled } from './config.js';
+import { canal } from './canal.js';
 import { deckKeyOf } from './engine.js';
 
 /* ------------------------------------------------------------------ */
@@ -313,13 +314,19 @@ async function sincronizarMeusDecks() {
   const perfil = cloud.meuPerfil();
   if (!perfil || !perfil.handle) return;
 
-  if (Array.isArray(perfil.decks)) {
-    store.guardarDecksDaConta(perfil.handle, perfil.decks);
+  // A coluna do canal deste app: `decks` em producao, `decks_beta` no teste.
+  // Ler a coluna errada misturaria as duas listas no seletor de deck, que e
+  // exatamente o que separar os canais existe para impedir.
+  const coluna = cloud.colunaDeDecks(canal());
+  const noPerfil = perfil[coluna];
+
+  if (Array.isArray(noPerfil)) {
+    store.guardarDecksDaConta(perfil.handle, noPerfil);
   }
 
   const meus = store.decksOfPlayer(null, perfil.handle);
   if (!meus.length) return;
-  if (!decksMudaram(meus, perfil.decks)) return;
+  if (!decksMudaram(meus, noPerfil)) return;
 
   try {
     await cloud.salvarMeusDecks(meus);

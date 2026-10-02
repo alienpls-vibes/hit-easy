@@ -265,6 +265,14 @@ export const EN = {
   'stats.hiddenPlayer': 'player · tap to bring back',
   'stats.recordedAs': 'recorded as {name}',
   'stats.filterByPlayer': 'Filter by player',
+  'stats.sortBy': 'Sort by',
+  'stats.sortRelevance': 'Most relevant',
+  'stats.sortMatches': 'Matches',
+  'stats.sortWins': 'Wins',
+  'stats.sortWinrate': 'Win rate',
+  'stats.sortDamage': 'Damage dealt',
+  'stats.sortKills': 'Kills',
+  'stats.sortPlace': 'Best placement',
   'stats.allPlayers': 'All',
   'stats.noDecksForPlayer': 'No decks from that player in the list',
   'stats.linkAccount': 'Link to an account',
@@ -403,6 +411,8 @@ export const EN = {
 
   'settings.update': 'Update the app',
   'settings.updateSub': 'Fetches the newest version and reopens',
+  'settings.updating': 'Updating…',
+  'settings.updatingSub': 'Fetching the new version and reopening',
   'settings.updateNone': 'Already on the newest version',
 
   'settings.staleCache': 'cache {n}',
@@ -442,6 +452,7 @@ export const EN = {
   'news.novo': 'new',
   'news.corrigido': 'fixed',
   'news.mudou': 'changed',
+  'news.seeAll': 'See all {n} versions',
 
   'settings.title': 'Settings',
   'settings.sub': 'Apply to every match',

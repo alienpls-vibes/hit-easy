@@ -346,20 +346,36 @@ if (ehTeste()) {
 
 render();
 
-/*
+/**
  * Novidades depois de atualizar, uma vez so.
  *
  * Quem instala agora nao ve nada: mostrar o historico inteiro de mudancas para
  * quem nunca usou o app e ruido antes mesmo do primeiro uso. So quem ja estava
  * aqui e ganhou versao nova tem o que ser avisado.
+ *
+ * Tem nome e e exportada porque era um IIFE que rodava no import: acontecia
+ * uma vez, antes de qualquer teste, e nao havia como exercita-la. Apagar a
+ * linha da versao anterior passava por toda a suite sem uma falha.
+ *
+ * Devolve o que a pessoa ainda nao viu - o arranque decide se abre a tela.
  */
-(() => {
+export function anunciarVersao(agora = APP_VERSION) {
   const vista = settings().versaoVista || null;
-  store.setSetting('versaoVista', APP_VERSION);
-  if (!vista || vista === APP_VERSION) return;
-  const novas = novidadesDesde(vista);
-  if (novas.length) setTimeout(() => abrirNovidades(novas), 700);
-})();
+  store.setSetting('versaoVista', agora);
+  if (!vista || vista === agora) return [];
+
+  // De onde a pessoa veio, para o menu poder mostrar o mesmo recorte depois.
+  // Gravado so quando a versao MUDOU: reabrir o app na mesma versao nao pode
+  // zerar o recorte e fazer as notas virarem o historico inteiro.
+  store.setSetting('versaoAnterior', vista);
+
+  return novidadesDesde(vista);
+}
+
+const novasDesteArranque = anunciarVersao();
+if (novasDesteArranque.length) {
+  setTimeout(() => abrirNovidades(novasDesteArranque), 700);
+}
 
 // A conta sobe depois da primeira tela: ninguem deve esperar rede para ver o
 // app. Quando o estado chegar, quem depende dele se redesenha.

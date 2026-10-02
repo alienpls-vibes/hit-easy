@@ -8,6 +8,7 @@
 import { enviarParticipantes } from './convites.js';
 import { currentUser } from './estado.js';
 import { pedir } from './http.js';
+import { canal } from '../canal.js';
 import { fromRow, toRow } from './regras.js';
 
 /**
@@ -21,7 +22,7 @@ export async function enviarPartida(match) {
   await pedir('/rest/v1/matches', {
     method: 'POST',
     headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
-    body: JSON.stringify(toRow(match, dono.id)),
+    body: JSON.stringify(toRow(match, dono.id, canal())),
   });
   // Partida sem seus participantes e convite perdido: quem jogou no aparelho
   // de outra pessoa nunca ficaria sabendo. Falhar aqui nao desfaz o envio
@@ -39,7 +40,10 @@ export async function enviarPartida(match) {
  * para quem nao assina.
  */
 export async function baixarPartidas() {
-  const linhas = await pedir('/rest/v1/matches?select=*&order=started_at.desc');
+  // So o canal deste app. Sem o filtro, producao baixava as partidas de
+  // teste e as somava nas estatisticas de verdade.
+  const linhas = await pedir('/rest/v1/matches?select=*&canal=eq.'
+    + canal() + '&order=started_at.desc');
   return (linhas || []).map(fromRow);
 }
 
@@ -60,7 +64,12 @@ const LIMITE_IDS = 5000;
  * inteira - meia lista aqui vira exclusao indevida ali.
  */
 export async function idsRemotos() {
-  const linhas = await pedir('/rest/v1/matches?select=id&limit=' + LIMITE_IDS);
+  // Filtra pelo canal tambem aqui. A lista local de enviadas e por canal
+  // (localStorage com sufixo), entao comparar com os ids dos DOIS canais
+  // gastaria o limite de 5000 com linhas que nunca serao comparadas - e o
+  // limite e o detector de resposta incompleta, que decide o que APAGAR.
+  const linhas = await pedir('/rest/v1/matches?select=id&canal=eq.'
+    + canal() + '&limit=' + LIMITE_IDS);
   const ids = (linhas || []).map((l) => l && l.id).filter(Boolean);
   return { ids, completo: ids.length < LIMITE_IDS };
 }

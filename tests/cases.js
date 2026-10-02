@@ -17,6 +17,7 @@ import {
   cmdKeyOf, CMD_LETHAL, POISON_LETHAL,
 } from '../src/engine.js';
 import {
+  ORDENACOES, ordenacaoPorId, ordenarLinhas,
   aggregate, rivalries, tituloDaVotacao, totalDamage, summarize,
   playerColorOrder, playerColor,
   identityOf, labelOf, nomeRegistrado,
@@ -39,10 +40,16 @@ import {
   jaTinhaConta,
   sessaoGuardada,
   normalizarHandle, handleValido, exibirHandle, participantesDe, montarConvites,
+  colunaDeDecks, baixarPartidas, idsRemotos,
+  enviarPartida, enviarParticipantes, salvarMeusDecks, conta,
 } from '../src/cloud.js';
 import { cloudEnabled } from '../src/config.js';
 import { canalDe, canalDoCache } from '../src/canal.js';
 import { NOVIDADES, novidadesDesde, novidadesDe } from '../src/novidades.js';
+import { abrirNovidades } from '../src/views/setup.js';
+// Direto da peca: o bloco de instalacao e detalhe das configuracoes, e
+// exporta-lo na porta o anunciaria como API publica da tela.
+import { installBlock } from '../src/views/setup/instalar.js';
 import { APP_VERSION } from '../src/version.js';
 import {
   aSubir, aBaixar, aApagar, podeSincronizar,
@@ -62,7 +69,7 @@ import { renderStats, renderPaywall } from '../src/views/stats.js';
 import { brandMark } from '../src/ui.js';
 import * as store from '../src/store.js';
 // Importar app.js JA e o teste: ele sobe sozinho ao ser avaliado.
-import '../src/app.js';
+import { anunciarVersao } from '../src/app.js';
 
 function eq(actual, expected, what) {
   const a = JSON.stringify(actual);
@@ -880,6 +887,449 @@ export const cases = [
     eq(players.find((p) => p.label === 'P1').damageTaken, 4, 'dano levado por alvo');
   }],
 
+  ['o arranque guarda de qual versão a pessoa veio', () => {
+    // O recorte das notas depende disto, e era um IIFE rodando no import -
+    // apagar a linha passava pela suite inteira sem uma falha.
+    const vista = store.getDB().settings.versaoVista;
+    const anterior = store.getDB().settings.versaoAnterior;
+    try {
+      ok(NOVIDADES.length > 1, 'o teste precisa de ao menos duas versões');
+      const velha = NOVIDADES[1].versao;
+
+      store.setSetting('versaoVista', velha);
+      store.setSetting('versaoAnterior', null);
+      const novas = anunciarVersao(APP_VERSION);
+
+      eq(store.getDB().settings.versaoAnterior, velha,
+        'não guardou de onde a pessoa veio');
+      eq(store.getDB().settings.versaoVista, APP_VERSION,
+        'não marcou a versão de agora como vista');
+      eq(novas.map((n) => n.versao), [NOVIDADES[0].versao],
+        'anunciou mais que a diferença');
+
+      // Reabrir na mesma versão não pode zerar o recorte: zerado, as notas do
+      // menu voltariam a ser o histórico inteiro.
+      eq(anunciarVersao(APP_VERSION), [], 'anunciou sem ter mudado de versão');
+      eq(store.getDB().settings.versaoAnterior, velha,
+        'reabrir na mesma versão apagou de onde a pessoa veio');
+
+      // Instalação nova: nada a anunciar, e nada a lembrar.
+      store.setSetting('versaoVista', null);
+      store.setSetting('versaoAnterior', null);
+      eq(anunciarVersao(APP_VERSION), [], 'anunciou para quem instalou agora');
+      eq(store.getDB().settings.versaoAnterior, null,
+        'inventou uma versão anterior numa instalação nova');
+    } finally {
+      store.setSetting('versaoVista', vista || null);
+      store.setSetting('versaoAnterior', anterior || null);
+    }
+    return undefined;
+  }],
+
+  ['as notas abrem no que entrou desde a versão anterior', () => {
+    if (!simulated) return 'skip';
+    // O recorte é o que torna a tela legível: com o histórico inteiro, as três
+    // linhas novas ficam embaixo de nove versões já lidas e o que a pessoa
+    // aprende é a fechar a tela sem ler.
+    const antes = store.getDB().settings.versaoAnterior;
+    try {
+      ok(NOVIDADES.length > 2, 'o teste precisa de ao menos três versões');
+      const penultima = NOVIDADES[1].versao;
+
+      store.setSetting('versaoAnterior', penultima);
+      abrirNovidades();
+      // Na folha ABERTA, e nao em `document.body`: closeSheet remove o no
+      // depois de 200ms, e num teste sincrono a folha anterior ainda esta no
+      // documento - as duas somavam e a contagem dava 12 onde ha 11.
+      const folha = () => findAll(document.body, 'sheet').slice(-1)[0];
+      const versoes = () => findAll(folha(), 'news-version').map((n) => textOf(n));
+
+      eq(versoes(), [NOVIDADES[0].versao],
+        'veio mais que a diferença desde a versão anterior');
+
+      // A saída para o histórico existe: esconder não pode virar apagar.
+      const tudo = findAll(folha(), 'news-all')[0];
+      ok(tudo, 'sem o caminho para ver todas as versões');
+      fire(tudo, 'click');
+      eq(versoes().length, NOVIDADES.length,
+        '"ver todas" não mostrou o histórico inteiro');
+
+      // E no histórico inteiro o botão não se repete: não há mais o que abrir.
+      eq(findAll(folha(), 'news-all').length, 0,
+        'o botão de ver todas apareceu na tela que já mostra todas');
+      closeSheet();
+
+      // Instalação nova: sem versão anterior, só as notas desta versão. O
+      // histórico de mudanças de um app que a pessoa nunca usou é ruído antes
+      // do primeiro uso.
+      store.setSetting('versaoAnterior', null);
+      abrirNovidades();
+      eq(versoes(), [APP_VERSION],
+        'instalação nova devia ver só as notas da versão instalada');
+      closeSheet();
+
+      // Uma lista explicita ainda manda: e o caminho do arranque, que ja sabe
+      // exatamente o que a pessoa nao viu.
+      abrirNovidades([NOVIDADES[1]]);
+      eq(versoes(), [NOVIDADES[1].versao], 'a lista passada foi ignorada');
+    } finally {
+      closeSheet();
+      store.setSetting('versaoAnterior', antes || null);
+    }
+    return undefined;
+  }],
+
+  ['o botão de atualizar mostra que está atualizando', () => {
+    if (!simulated) return 'skip';
+    // O botão espera até dez segundos em silêncio: consulta a rede e depois
+    // aguarda o worker novo assumir. Apenas desabilitado, ele escurece e fica
+    // parado - indistinguível de um botão que não funcionou.
+    //
+    // `navigator.standalone` é o que faz `state()` dizer 'instalado', que é a
+    // única situação em que este botão existe.
+    const tinha = Object.prototype.hasOwnProperty.call(navigator, 'standalone');
+    Object.defineProperty(navigator, 'standalone', {
+      value: true, configurable: true, writable: true,
+    });
+    try {
+      const box = installBlock();
+      const botao = findAll(box, 'menu-item')[0];
+      ok(botao, 'instalado, deveria haver o botão de atualizar');
+      eq(findAll(botao, 'spinner').length, 0, 'girador antes de tocar');
+
+      // O girador entra ANTES do await, então já está lá no instante do toque -
+      // é o que o teste síncrono consegue provar, e é o que importa: o retorno
+      // tem de ser imediato, não depois da rede.
+      fire(botao, 'click');
+      eq(findAll(botao, 'spinner').length, 1, 'tocou e não apareceu girador');
+      ok(botao.disabled, 'o botão continuou clicável durante a espera');
+      ok(botao.className.includes('is-updating'), 'sem a classe de espera');
+      ok(textOf(botao).includes(t('settings.updating')),
+        'o rótulo não disse que está atualizando');
+    } finally {
+      if (!tinha) delete navigator.standalone;
+      else navigator.standalone = false;
+    }
+    return undefined;
+  }],
+
+  ['o que sobe leva o carimbo do canal', () => {
+    // Produção e beta moram na mesma origem e na mesma base. O disco já era
+    // separado por `chave()`; a nuvem não sabia o que era canal, e uma mesa de
+    // teste subia para a mesma tabela que o app de verdade lê.
+    const m = createMatch([
+      { id: 's0', name: 'Alex', handle: 'alienpls', commanders: [commander(1)] },
+      { id: 's1', name: 'Bruno', handle: 'bruno', commanders: [commander(2)] },
+    ], 40);
+    m.id = 'p-canal';
+
+    eq(toRow(m, 'dono-1', 'beta').canal, 'beta', 'a partida subiu sem o canal');
+    eq(toRow(m, 'dono-1', 'producao').canal, 'producao');
+
+    // Sem canal, 'producao'. O banco também põe esse padrão, e é o certo para
+    // as linhas antigas - mas aqui o valor explícito é o que impede o caso
+    // perigoso: o beta subindo carimbado como real por omissão.
+    eq(toRow(m, 'dono-1').canal, 'producao', 'sem canal devia virar produção');
+
+    // As cadeiras também. Uma cadeira marcada numa mesa de teste viraria
+    // convite visível no app de verdade - o canal de teste escrevendo na vida
+    // de outra pessoa.
+    const cadeiras = participantesDe(m, 'beta');
+    eq(cadeiras.length, 2, 'as duas cadeiras marcadas deviam virar linha');
+    cadeiras.forEach((c, i) => {
+      eq(c.canal, 'beta', 'cadeira ' + i + ' subiu sem o canal');
+      eq(c.match_id, 'p-canal');
+    });
+    eq(participantesDe(m)[0].canal, 'producao', 'sem canal devia virar produção');
+  }],
+
+  ['os decks do perfil têm uma coluna por canal', () => {
+    // `decks` guarda os decks que seguem a conta. Sem separar, uma mesa de
+    // teste com comandantes inventados entraria no seletor de deck do app de
+    // verdade - e o recurso existe justamente para o seletor conhecer os
+    // decks da pessoa.
+    eq(colunaDeDecks('beta'), 'decks_beta');
+    eq(colunaDeDecks('producao'), 'decks');
+    eq(colunaDeDecks(undefined), 'decks', 'sem canal devia ser a coluna real');
+    eq(colunaDeDecks('qualquer-outra-coisa'), 'decks',
+      'canal desconhecido não pode virar a coluna de teste');
+  }],
+
+  ['o beta sobe carimbado como beta, de ponta a ponta', () => {
+    if (!simulated) return 'skip';
+    // Cobrir só `toRow` não bastava: ela é pura e recebe o canal pronto. O
+    // ponto que importa é onde `canal()` é CHAMADO, e trocar essa chamada por
+    // 'producao' passava pela suite inteira - a mutação que significa, em
+    // uma linha, "o beta envenena a base de verdade".
+    const fetchReal = globalThis.fetch;
+    const caminhoReal = location.pathname;
+    const sessaoReal = conta.sessao;
+    const perfilReal = conta.perfil;
+    const corpos = [];
+
+    globalThis.fetch = (u, o) => {
+      corpos.push({ url: String(u), corpo: JSON.parse((o && o.body) || 'null') });
+      return Promise.resolve({
+        ok: true, status: 200, json: () => Promise.resolve([]),
+      });
+    };
+    conta.sessao = { user: { id: 'dono-de-teste' }, access_token: 'x' };
+    conta.perfil = { id: 'dono-de-teste', handle: 'alienpls' };
+
+    try {
+      const m = createMatch([
+        { id: 's0', name: 'Alex', handle: 'alienpls', commanders: [commander(1)] },
+        { id: 's1', name: 'Bruno', handle: 'bruno', commanders: [commander(2)] },
+      ], 40);
+      m.id = 'p-subida';
+
+      const deMesa = () => corpos.find((c) => c.url.includes('/matches'));
+      const deCadeira = () => corpos.find((c) => c.url.includes('/match_players'));
+      const dePerfil = () => corpos.find((c) => c.url.includes('/profiles'));
+
+      location.pathname = '/hit-easy/beta/';
+      // As duas chamadas separadas de propósito: dentro de `enviarPartida` as
+      // cadeiras só saem DEPOIS do `await` da partida, e este runner é
+      // síncrono - esperar por elas aqui seria esperar para sempre.
+      enviarPartida(m);
+      enviarParticipantes(m);
+      salvarMeusDecks([{ commanders: [commander(1)], lastUsed: 10 }]);
+
+      ok(deMesa(), 'a partida não chegou a ser enviada');
+      eq(deMesa().corpo.canal, 'beta',
+        'o beta subiu a partida carimbada como produção');
+
+      ok(deCadeira(), 'as cadeiras marcadas não foram enviadas');
+      deCadeira().corpo.forEach((linha, i) => {
+        eq(linha.canal, 'beta', 'cadeira ' + i + ' subiu com o canal errado');
+      });
+
+      ok(dePerfil(), 'os decks não chegaram a ser enviados');
+      ok('decks_beta' in dePerfil().corpo,
+        'o beta escreveu os decks na coluna de verdade: '
+        + Object.keys(dePerfil().corpo).join(', '));
+      ok(!('decks' in dePerfil().corpo), 'o beta tocou a coluna de produção');
+
+      // E produção continua escrevendo onde sempre escreveu.
+      corpos.length = 0;
+      location.pathname = '/hit-easy/';
+      const m2 = createMatch([
+        { id: 's0', name: 'Alex', handle: 'alienpls', commanders: [commander(1)] },
+      ], 40);
+      m2.id = 'p-subida-2';
+      enviarPartida(m2);
+      salvarMeusDecks([{ commanders: [commander(1)], lastUsed: 10 }]);
+
+      eq(deMesa().corpo.canal, 'producao', 'produção subiu fora do seu canal');
+      ok('decks' in dePerfil().corpo, 'produção deixou de escrever em decks');
+      ok(!('decks_beta' in dePerfil().corpo),
+        'produção escreveu na coluna de teste');
+    } finally {
+      globalThis.fetch = fetchReal;
+      location.pathname = caminhoReal;
+      conta.sessao = sessaoReal;
+      conta.perfil = perfilReal;
+    }
+    return undefined;
+  }],
+
+  ['o que desce filtra pelo canal deste app', () => {
+    if (!simulated) return 'skip';
+    // Carimbar na subida e não filtrar na descida deixaria tudo como estava:
+    // produção continuaria baixando as partidas de teste. As duas pontas
+    // precisam valer, e aqui a prova é a URL que sai de verdade.
+    const fetchReal = globalThis.fetch;
+    const caminhoReal = location.pathname;
+    const pedidos = [];
+    globalThis.fetch = (u, o) => {
+      pedidos.push(String(u));
+      return Promise.resolve({
+        ok: true, status: 200, json: () => Promise.resolve([]),
+      });
+    };
+
+    try {
+      const ultima = () => pedidos[pedidos.length - 1];
+
+      location.pathname = '/hit-easy/beta/';
+      baixarPartidas();
+      ok(ultima().includes('canal=eq.beta'),
+        'o beta baixou sem filtrar o canal: ' + ultima());
+      idsRemotos();
+      ok(ultima().includes('canal=eq.beta'),
+        'a lista de ids do beta não filtrou: ' + ultima());
+
+      location.pathname = '/hit-easy/';
+      baixarPartidas();
+      ok(ultima().includes('canal=eq.producao'),
+        'produção baixou sem filtrar o canal: ' + ultima());
+      ok(!ultima().includes('beta'), 'produção pediu partidas de teste');
+      idsRemotos();
+      ok(ultima().includes('canal=eq.producao'),
+        'a lista de ids de produção não filtrou: ' + ultima());
+    } finally {
+      globalThis.fetch = fetchReal;
+      location.pathname = caminhoReal;
+    }
+    return undefined;
+  }],
+
+  ['ordenar sobe pela colocação e desce por todo o resto', () => {
+    // A colocação é a única que inverte: primeiro lugar é 1, então o melhor é o
+    // MENOR. Errar a direção aqui daria uma lista encabeçada pelo pior jogador
+    // sob o rótulo "melhor colocação" - e ninguém olha duas vezes para uma
+    // lista ordenada, que é justamente o que a torna perigosa.
+    const linha = (key, extra) => ({
+      key, label: key, games: 0, wins: 0, winrate: 0,
+      avgDamageDealt: 0, avgKills: 0, avgPlace: 0, ...extra,
+    });
+
+    const linhas = [
+      linha('pouco', { games: 1, wins: 1, winrate: 1, avgPlace: 3, avgDamageDealt: 10 }),
+      linha('muito', { games: 10, wins: 8, winrate: 0.8, avgPlace: 1.2, avgDamageDealt: 90 }),
+      linha('meio', { games: 5, wins: 2, winrate: 0.4, avgPlace: 2.1, avgDamageDealt: 50 }),
+    ];
+
+    const chaves = (id) => ordenarLinhas(linhas, id).map((l) => l.key);
+
+    eq(chaves('partidas'), ['muito', 'meio', 'pouco'], 'partidas não desceu');
+    eq(chaves('vitorias'), ['muito', 'meio', 'pouco'], 'vitórias não desceu');
+    eq(chaves('dano'), ['muito', 'meio', 'pouco'], 'dano não desceu');
+    eq(chaves('colocacao'), ['muito', 'meio', 'pouco'],
+      'colocação não subiu: o melhor colocado tem de vir primeiro');
+
+    // Taxa tem a armadilha conhecida: uma partida ganha é 100%. É o que a
+    // pessoa pediu ao escolher taxa, e o teste registra que é de propósito.
+    eq(chaves('taxa'), ['pouco', 'muito', 'meio'], 'taxa não desceu');
+
+    // O padrão continua o de sempre, e um id que não existe mais cai nele em
+    // vez de devolver a lista na ordem do Map.
+    eq(chaves('relevancia'), chaves('id-que-nao-existe'),
+      'id desconhecido não caiu no padrão');
+    eq(ordenacaoPorId('nada').id, ORDENACOES[0].id);
+
+    // Não mexe na lista de quem chamou: a tela ordena a cada repintura, e
+    // ordenar no lugar embaralharia o agg que as outras abas estão lendo.
+    //
+    // Depois de uma ordem que REORDENA. A assertiva vinha depois de ordenar
+    // por relevância, que nesta fixture devolve a ordem original - passava
+    // igual com a lista mutada, e o teste de mutação foi quem contou.
+    ordenarLinhas(linhas, 'partidas');
+    eq(linhas.map((l) => l.key), ['pouco', 'muito', 'meio'], 'a lista original mudou');
+  }],
+
+  ['empate em partidas desempata por relevância, sempre igual', () => {
+    // Metade de um grupo empata em duas partidas. Sem desempate explícito a
+    // ordem vinha da inserção do Map, que muda quando se apaga uma partida
+    // antiga: a lista se reorganizava sozinha sem aquele número ter mudado.
+    const linha = (key, winrate) => ({ key, label: key, games: 2, wins: 1, winrate });
+    const a = [linha('x', 0.1), linha('y', 0.9), linha('z', 0.5)];
+    const b = [linha('z', 0.5), linha('x', 0.1), linha('y', 0.9)];
+
+    eq(ordenarLinhas(a, 'partidas').map((l) => l.key), ['y', 'z', 'x']);
+    eq(ordenarLinhas(b, 'partidas').map((l) => l.key), ['y', 'z', 'x'],
+      'a mesma lista em outra ordem de entrada saiu diferente');
+  }],
+
+  ['todas as ordenações têm rótulo nas quatro línguas', () => {
+    // Uma opção sem tradução aparece como a própria chave no seletor - e só
+    // em alemão, que é exatamente o tipo de defeito que ninguém vê.
+    const antes = currentLang();
+    try {
+      for (const lang of LANGS) {
+        setLang(lang);
+        for (const o of ORDENACOES) {
+          const texto = t(o.rotulo);
+          ok(texto && texto !== o.rotulo,
+            'sem tradução de ' + o.rotulo + ' em ' + lang);
+        }
+      }
+    } finally {
+      setLang(antes);
+    }
+    return undefined;
+  }],
+
+  ['o seletor de ordem reordena as duas abas', () => {
+    if (!simulated) return 'skip';
+    store.wipe();
+    let raiz = null;
+    try {
+      // Três partidas entre os mesmos dois: Ana ganha uma, Bruno duas. Assim
+      // "melhor colocação" e "mais vitórias" apontam para o Bruno, e a lista
+      // tem um primeiro lugar que se pode afirmar.
+      // Bruno vence mais, Ana causa mais dano. As duas ordens apontam para
+      // pessoas diferentes, e e isso que prova que o seletor manda: com uma
+      // ordem que coincide com o padrao da agregacao, nao ordenar daria o
+      // mesmo resultado e o teste passaria sem nada estar ligado.
+      const partida = (id, vencedor) => {
+        const m = createMatch([
+          { id: 's0', name: 'Ana', commanders: [commander(1)] },
+          { id: 's1', name: 'Bruno', commanders: [commander(2)] },
+        ], 40);
+        m.id = 'p-' + id;
+        m.events.push({
+          type: 'life', ts: m.startedAt + 1, targetId: 's1', sourceId: 's0', delta: -9,
+        });
+        m.events.push({ type: 'win', ts: m.startedAt + 2, targetId: vencedor });
+        return m;
+      };
+      store.mesclarPartidas([partida('a', 's0'), partida('b', 's1'), partida('c', 's1')]);
+
+      const root = document.createElement('div');
+      raiz = root;
+      renderStats(root, { onBack() {} });
+      const painel = () => findAll(root, 'stats-panel')[0];
+      const nomes = () => findAll(painel(), 'card-name').map((n) => textOf(n));
+      const seletor = () => findAll(root, 'select-input')
+        .find((c) => c.getAttribute('aria-label') === t('stats.sortBy'));
+
+      ok(seletor(), 'a aba de Decks não tem o seletor de ordem');
+      eq(nomes().length, 2, 'os dois decks deviam estar na lista');
+
+      // Colocação é a direção invertida, a que erra calada: o deck do Bruno
+      // tem de encabeçar, porque ele venceu mais.
+      fire(seletor(), 'change', { target: { value: 'colocacao' } });
+      eq(nomes()[0], 'Cmd 2',
+        'por melhor colocação o primeiro devia ser o deck de quem venceu mais');
+
+      fire(seletor(), 'change', { target: { value: 'partidas' } });
+      eq(nomes().length, 2, 'ordenar por partidas perdeu uma linha');
+
+      // A aba de Jogadores também tem o seletor, e reordena de verdade.
+      fire(findAll(root, 'tab')[1], 'click');
+      ok(seletor(), 'a aba de Jogadores não tem o seletor de ordem');
+      eq(nomes().length, 2, 'a aba de Jogadores não listou os dois');
+
+      // Por relevância (o padrão) o Bruno encabeça, porque venceu mais.
+      eq(nomes()[0], 'Bruno', 'o padrão devia começar por quem venceu mais');
+
+      // Por dano a lista INVERTE: Ana causou todo o dano. É a única forma de
+      // provar que a aba ordena, em vez de só repetir a ordem da agregação.
+      fire(seletor(), 'change', { target: { value: 'dano' } });
+      eq(nomes()[0], 'Ana', 'por dano causado o primeiro devia ser quem bateu');
+
+      fire(seletor(), 'change', { target: { value: 'colocacao' } });
+      eq(nomes()[0], 'Bruno',
+        'por melhor colocação o primeiro devia ser quem venceu mais');
+    } finally {
+      // Aba ativa e ordem são estado de MÓDULO da tela e sobrevivem ao caso.
+      // Deixar a aba de Jogadores ligada fez o teste do filtro contar cartões
+      // de jogador achando que contava decks - e a mensagem de falha acusava o
+      // filtro, que não tinha nada a ver. Desfazer na raiz que este caso
+      // criou, porque ela nunca foi anexada ao document.
+      if (raiz) {
+        const campo = findAll(raiz, 'select-input')
+          .find((c) => c.getAttribute('aria-label') === t('stats.sortBy'));
+        if (campo) fire(campo, 'change', { target: { value: 'relevancia' } });
+        const primeira = findAll(raiz, 'tab')[0];
+        if (primeira) fire(primeira, 'click');
+      }
+      store.wipe();
+    }
+    return undefined;
+  }],
+
   ['juntar decks não repete, e fica com a data mais nova', () => {
     const deck = (n, quando) => ({ commanders: [commander(n)], lastUsed: quando });
 
@@ -977,6 +1427,7 @@ export const cases = [
   ['o filtro da aba de Decks mostra só os decks daquele jogador', () => {
     if (!simulated) return 'skip';
     store.wipe();
+    let raiz = null;
     try {
       // Ana joga dois decks, Bruno joga um. "Todos" mostra os três.
       const partida = (deckDaAna, id) => {
@@ -990,28 +1441,39 @@ export const cases = [
       store.mesclarPartidas([partida(1, 'a'), partida(2, 'b')]);
 
       const root = document.createElement('div');
+      raiz = root;
       renderStats(root, { onBack() {} });
 
       const painel = () => findAll(root, 'stats-panel')[0];
       const quantosDecks = () => findAll(painel(), 'card').length;
       eq(quantosDecks(), 3, '"Todos" não mostrou os três decks');
 
-      const campo = findAll(root, 'select-input')[0];
-      ok(campo, 'a aba de Decks não tem o filtro de jogador');
+      // Pelo aria-label, e não pela posição: a aba passou a ter dois
+      // `<select>`, e `[0]` pegaria o de ordem no dia em que a ordem viesse
+      // primeiro - um teste que muda de assunto sozinho.
+      const filtro = () => findAll(root, 'select-input')
+        .find((c) => c.getAttribute('aria-label') === t('stats.filterByPlayer'));
+      ok(filtro(), 'a aba de Decks não tem o filtro de jogador');
 
       // Filtrar pelo Bruno: só o deck dele.
-      fire(campo, 'change', { target: { value: 'bruno' } });
+      fire(filtro(), 'change', { target: { value: 'bruno' } });
       eq(quantosDecks(), 1, 'o filtro não reduziu a lista ao deck do Bruno');
 
       // E voltar para Todos devolve os três.
-      const deVolta = findAll(root, 'select-input')[0];
-      fire(deVolta, 'change', { target: { value: 'todos' } });
+      fire(filtro(), 'change', { target: { value: 'todos' } });
       eq(quantosDecks(), 3, '"Todos" não devolveu a lista inteira');
     } finally {
-      // O filtro é estado da aba e sobrevive ao caso: deixá-lo preso faria o
-      // teste seguinte ver uma lista filtrada sem motivo.
-      const campo = findAll(document.body, 'select-input')[0];
-      if (campo) fire(campo, 'change', { target: { value: 'todos' } });
+      // O filtro é estado de MÓDULO da tela e sobrevive ao caso: deixá-lo
+      // preso faria o teste seguinte ver uma lista filtrada sem motivo.
+      //
+      // Na raiz deste caso, e não em `document.body`: a raiz nunca foi
+      // anexada ao documento, então a busca antiga não achava nada e a
+      // limpeza era um no-op que passava por limpeza.
+      if (raiz) {
+        const campo = findAll(raiz, 'select-input')
+          .find((c) => c.getAttribute('aria-label') === t('stats.filterByPlayer'));
+        if (campo) fire(campo, 'change', { target: { value: 'todos' } });
+      }
       store.wipe();
     }
     return undefined;
@@ -2402,6 +2864,10 @@ export const cases = [
     // Era um quadradinho com degradê que virava mancha em 14px. Agora são
     // círculos separados — e todos precisam caber no viewBox 24×24, senão o
     // de cima aparece cortado.
+    //
+    // Já foi a silhueta da mesa do ícone, enquanto o ícone era a mesa. O ícone
+    // voltou, e a marca voltou junto: são duas coisas separadas no código e uma
+    // só para quem olha, e deixá-las diferentes foi defeito uma vez.
     setLang('pt');
     const m = brandMark();
     eq(m.childNodes.length, 5, 'cinco pips');

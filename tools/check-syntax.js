@@ -206,6 +206,32 @@ if (installRuim) {
  * `return` com N espacos, a proxima linha com EXATAMENTE N espacos tem de
  * fechar o bloco. Qualquer outra coisa ali e inalcancavel.
  */
+/**
+ * A linha sem o comentario de fim, e sem o que esta dentro de texto.
+ *
+ * `return null; // porque` nao terminava em ponto e virgula para o teste
+ * abaixo, entao a busca pelo fim da instrucao seguia adiante e ia parar dentro
+ * da funcao SEGUINTE - acusando codigo que roda. Guarda que mente e pior que
+ * guarda nenhuma: ensina a ignorar o alarme.
+ *
+ * Pular o conteudo das aspas serve ao mesmo fim por outro caminho: uma chave
+ * ou um `//` dentro de um texto nao sao codigo, e contavam como se fossem.
+ */
+function semComentario(linha) {
+  let aspas = null;
+  for (let i = 0; i < linha.length; i += 1) {
+    const c = linha[i];
+    if (aspas) {
+      if (c === '\\') i += 1;
+      else if (c === aspas) aspas = null;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') { aspas = c; continue; }
+    if (c === '/' && linha[i + 1] === '/') return linha.slice(0, i).trimEnd();
+  }
+  return linha;
+}
+
 function conferirInalcancavel() {
   const problemas = [];
 
@@ -227,11 +253,12 @@ function conferirInalcancavel() {
       let j = i;
       let fundo = 0;
       for (; j < linhas.length; j += 1) {
-        for (const ch of linhas[j]) {
+        const codigo = semComentario(linhas[j]);
+        for (const ch of codigo) {
           if (ch === '{' || ch === '(' || ch === '[') fundo += 1;
           else if (ch === '}' || ch === ')' || ch === ']') fundo -= 1;
         }
-        if (fundo <= 0 && /;\s*$/.test(linhas[j])) break;
+        if (fundo <= 0 && /;\s*$/.test(codigo)) break;
       }
 
       // A proxima linha que importa: ignora vazia e comentario.
@@ -309,6 +336,64 @@ function conferirCache() {
     }
   }
   return problemas;
+}
+
+/**
+ * Todo icone referenciado existe no disco?
+ *
+ * Tres arquivos apontam para os icones - manifest.webmanifest, index.html e a
+ * lista ASSETS de sw.js -, entao trocar a arte significa acertar os tres.
+ * Errar um nao quebra teste nenhum, e cada um falha de um jeito diferente:
+ *
+ *   - manifest com caminho morto: so aparece na hora de instalar, no aparelho
+ *     de outra pessoa, e o sistema cai para um icone generico sem avisar;
+ *   - sw.js com caminho morto: `cache.addAll()` rejeita TUDO se um unico
+ *     pedido falhar, entao o app inteiro deixa de funcionar offline;
+ *   - index.html com caminho morto: a aba fica sem favicon.
+ *
+ * Confere tambem o contrario: PNG em icons/ que ninguem referencia. Arte
+ * antiga esquecida ali continua sendo baixada por quem clonar o repositorio e
+ * vira duvida sobre qual e a atual.
+ */
+function conferirIcones() {
+  const problemas = [];
+  const citados = new Set();
+
+  const fontes = [
+    ['manifest.webmanifest', /"src"\s*:\s*"\.\/(icons\/[^"]+)"/g],
+    ['index.html', /href="\.\/(icons\/[^"]+)"/g],
+    ['sw.js', /'\.\/(icons\/[^']+)'/g],
+  ];
+
+  for (const [arquivo, re] of fontes) {
+    const texto = readFileSync(join(ROOT, arquivo), 'utf8');
+    for (const m of texto.matchAll(re)) {
+      citados.add(m[1]);
+      if (!existsSync(join(ROOT, m[1]))) {
+        problemas.push(arquivo + ' aponta para ' + m[1] + ', que nao existe.');
+      }
+    }
+  }
+
+  if (!citados.size) problemas.push('nenhum icone referenciado em lugar nenhum');
+
+  for (const f of readdirSync(join(ROOT, 'icons'))) {
+    if (!f.endsWith('.png')) continue;
+    if (!citados.has('icons/' + f)) {
+      problemas.push('icons/' + f + ' nao e referenciado por ninguem: '
+        + 'arte antiga esquecida vira duvida sobre qual e a atual.');
+    }
+  }
+
+  return problemas;
+}
+
+const iconesRuins = conferirIcones();
+if (iconesRuins.length) {
+  console.error('\n\x1b[31m Icones:\x1b[0m');
+  for (const x of iconesRuins) console.error('  ' + x);
+  console.error('');
+  process.exit(1);
 }
 
 const cacheRuim = conferirCache();
