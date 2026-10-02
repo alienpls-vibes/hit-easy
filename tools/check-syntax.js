@@ -206,6 +206,32 @@ if (installRuim) {
  * `return` com N espacos, a proxima linha com EXATAMENTE N espacos tem de
  * fechar o bloco. Qualquer outra coisa ali e inalcancavel.
  */
+/**
+ * A linha sem o comentario de fim, e sem o que esta dentro de texto.
+ *
+ * `return null; // porque` nao terminava em ponto e virgula para o teste
+ * abaixo, entao a busca pelo fim da instrucao seguia adiante e ia parar dentro
+ * da funcao SEGUINTE - acusando codigo que roda. Guarda que mente e pior que
+ * guarda nenhuma: ensina a ignorar o alarme.
+ *
+ * Pular o conteudo das aspas serve ao mesmo fim por outro caminho: uma chave
+ * ou um `//` dentro de um texto nao sao codigo, e contavam como se fossem.
+ */
+function semComentario(linha) {
+  let aspas = null;
+  for (let i = 0; i < linha.length; i += 1) {
+    const c = linha[i];
+    if (aspas) {
+      if (c === '\\') i += 1;
+      else if (c === aspas) aspas = null;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') { aspas = c; continue; }
+    if (c === '/' && linha[i + 1] === '/') return linha.slice(0, i).trimEnd();
+  }
+  return linha;
+}
+
 function conferirInalcancavel() {
   const problemas = [];
 
@@ -227,11 +253,12 @@ function conferirInalcancavel() {
       let j = i;
       let fundo = 0;
       for (; j < linhas.length; j += 1) {
-        for (const ch of linhas[j]) {
+        const codigo = semComentario(linhas[j]);
+        for (const ch of codigo) {
           if (ch === '{' || ch === '(' || ch === '[') fundo += 1;
           else if (ch === '}' || ch === ')' || ch === ']') fundo -= 1;
         }
-        if (fundo <= 0 && /;\s*$/.test(linhas[j])) break;
+        if (fundo <= 0 && /;\s*$/.test(codigo)) break;
       }
 
       // A proxima linha que importa: ignora vazia e comentario.

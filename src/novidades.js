@@ -21,24 +21,16 @@
 
 export const NOVIDADES = [
   {
-    versao: '1.9.0',
+    versao: '1.7.0',
     data: '2026-10-02',
-    titulo: 'O ícone volta ao de antes',
+    titulo: 'Ordenar as listas, e o teste fora do histórico real',
     itens: [
       {
-        tipo: 'mudou',
-        texto: 'O ícone do app e a marca no alto da tela inicial voltaram ao '
-          + 'desenho anterior, os cinco pontos coloridos. Se o atalho no seu '
-          + 'celular ainda mostrar a mesa, é o sistema demorando para reler — '
-          + 'reinstalar resolve na hora.',
+        tipo: 'novo',
+        texto: 'As abas de Decks e de Jogadores ganharam um seletor de ordem: '
+          + 'partidas, vitórias, taxa de vitória, dano causado, '
+          + 'eliminações e melhor colocação.',
       },
-    ],
-  },
-  {
-    versao: '1.8.0',
-    data: '2026-10-02',
-    titulo: 'O canal de teste não mexe mais no histórico real',
-    itens: [
       {
         tipo: 'corrigido',
         texto: 'As partidas jogadas na versão de teste subiam para a mesma '
@@ -49,33 +41,6 @@ export const NOVIDADES = [
         tipo: 'corrigido',
         texto: 'Uma cadeira marcada com o @ de alguém numa mesa de teste '
           + 'virava convite de verdade para aquela pessoa. Não vira mais.',
-      },
-      {
-        tipo: 'mudou',
-        texto: 'A marca no alto da tela inicial passou a usar o degradê do '
-          + 'ícone, para ser olhada no aparelho e comparada com a versão em '
-          + 'cor sólida.',
-      },
-    ],
-  },
-  {
-    versao: '1.7.0',
-    data: '2026-10-02',
-    titulo: 'Cara nova, e listas que se ordenam',
-    itens: [
-      {
-        tipo: 'mudou',
-        texto: 'O ícone do app mudou: gradiente de cor com a mesa ao centro, '
-          + 'e a marca no alto da tela inicial passou a ser a mesma mesa. '
-          + 'Se o atalho no seu celular continuar com o desenho antigo por '
-          + 'alguns dias, é o sistema demorando para reler — reinstalar '
-          + 'resolve na hora.',
-      },
-      {
-        tipo: 'novo',
-        texto: 'As abas de Decks e de Jogadores ganharam um seletor de ordem: '
-          + 'partidas, vitórias, taxa de vitória, dano causado, '
-          + 'eliminações e melhor colocação.',
       },
       {
         tipo: 'mudou',

@@ -38,6 +38,43 @@ service worker em `https://` ou `localhost`. Para instalar de verdade no
 celular, publique a pasta em qualquer host estático (GitHub Pages, Netlify,
 Vercel) — não há passo de build, é subir os arquivos.
 
+## O número da versão
+
+**Ele só anda quando sai publicação em produção.** Uma ida ao beta não gasta um
+número: `main` e `beta` ficam no mesmo número até a promoção, e o que se acumula
+no beta entra numa entrada só de `src/novidades.js`.
+
+Isto não é cosmético. Um número por ida ao beta produz um histórico de versões
+que ninguém usou, e as notas ficam picadas em entradas de um item — quem abre a
+tela de novidades depois de atualizar lê cinco cabeçalhos para entender uma
+mudança.
+
+**O que o bump fazia tecnicamente**, e por que não é necessário: `VERSION`
+compõe o nome do cache do service worker (`hiteasy-beta-shell-<versão>`), então
+trocá-lo força um cache novo e vazio. Mas o `fetch` é *stale-while-revalidate* —
+responde do cache e revalida por trás, gravando o que vier. O beta chega aos
+testadores na segunda abertura sem bump nenhum; o bump só antecipava isso em uma
+abertura.
+
+**O que se perderia sem compensar:** saber qual código está no aparelho. Com a
+versão parada, a tela de configurações diria a mesma coisa antes e depois da
+publicação. Por isso o CI escreve `build.json` em `/beta/` com o SHA curto do
+commit, e a linha de versão mostra `1.7.0 · beta · 3a6915f`. O service worker
+deixa esse arquivo passar direto para a rede: servi-lo do cache responderia com
+o build anterior, que é a única resposta inútil.
+
+Em produção não há carimbo, e é de propósito: lá o número já responde, porque é
+exatamente onde ele muda.
+
+### Na hora de promover
+
+1. O número sobe uma vez, em `src/version.js` **e** em `sw.js` — `npm test`
+   recusa se divergirem.
+2. A entrada correspondente existe em `src/novidades.js` — `npm test` também
+   recusa sem ela.
+3. Qual dígito: `novo` ou `mudou` nas notas sobe o do meio; só `corrigido` sobe
+   o último.
+
 ## Publicar
 
 O app é estático — sem build, sem servidor, sem banco. Publicar é copiar a pasta

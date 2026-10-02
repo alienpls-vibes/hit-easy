@@ -11,7 +11,7 @@ import {
 import * as store from '../../store.js';
 import { MODES, currentMode, applyTheme } from '../../theme.js';
 import { t, LANGS, currentLang, setLang } from '../../i18n.js';
-import { versaoDoWorker } from '../../install.js';
+import { buildDoBeta, versaoDoWorker } from '../../install.js';
 import { APP_VERSION } from '../../version.js';
 import { canal } from '../../canal.js';
 import { cloudEnabled } from '../../config.js';
@@ -149,6 +149,14 @@ export function openSettings(onRefresh) {
           + (canal() === 'beta' ? ' \u00b7 beta' : ''),
       });
       pane.append(linhaVersao);
+
+      // No beta, qual commit esta no ar. A versao sozinha nao distingue duas
+      // idas ao beta, porque ela so anda quando ha publicacao em producao.
+      if (canal() === 'beta') {
+        buildDoBeta().then((b) => {
+          if (b) linhaVersao.textContent += ' \u00b7 ' + b.build;
+        });
+      }
 
       // Se o worker disser outra versao, e cache velho servindo codigo antigo.
       // Sem isto o defeito e invisivel: a tela mostra a versao do modulo, o
