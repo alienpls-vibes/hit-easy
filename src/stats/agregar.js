@@ -143,7 +143,13 @@ export function aggregate(matches, apelidos = null) {
     for (const seat of match.seats) {
       const dKey = deckKeyOf(seat.commanders);
       if (!decks.has(dKey)) {
-        decks.set(dKey, blank(dKey, deckNameOf(seat.commanders), { commanders: seat.commanders }));
+        decks.set(dKey, blank(dKey, deckNameOf(seat.commanders), {
+          commanders: seat.commanders,
+          // Quem levou este deck. A linha agrega todo mundo, que e o certo -
+          // em Commander o mesmo deck passa de mao em mao -, mas sem esta
+          // lista nao da para responder "quais decks o Bruno joga".
+          jogadores: [],
+        }));
       }
       // A primeira partida encontrada define o rotulo, e o historico vem do
       // mais recente para o mais antigo - entao a linha mostra o nome que a
@@ -158,7 +164,10 @@ export function aggregate(matches, apelidos = null) {
       const pRow = players.get(pKey);
       const nomeDito = String(seat.name || '').trim();
       if (nomeDito && !pRow.nomes.includes(nomeDito)) pRow.nomes.push(nomeDito);
-      targets[seat.id] = [decks.get(dKey), pRow];
+
+      const dRow = decks.get(dKey);
+      if (!dRow.jogadores.includes(pKey)) dRow.jogadores.push(pKey);
+      targets[seat.id] = [dRow, pRow];
     }
 
     const bump = (seatId, field, amount) => {

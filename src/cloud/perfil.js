@@ -50,6 +50,39 @@ export async function salvarHandle(handle, nome) {
 }
 
 /** Procura um @. Igualdade exata: confirma quem voce ja conhece, nao explora. */
+/**
+ * Grava no meu perfil os decks que sigo jogando.
+ *
+ * So a propria conta: a policy "cuidar do proprio perfil" e
+ * `using (auth.uid() = id)`, entao nao ha como escrever no perfil de outro -
+ * e nem deveria. O anfitriao registra os decks dos amigos no aparelho dele,
+ * mas quem decide o que vai no perfil de alguem e aquela pessoa.
+ *
+ * Exige a coluna de sql/004-decks-da-conta.sql. Sem ela o servidor recusa, e
+ * quem chama trata como "fica para a proxima" - o app segue funcionando com os
+ * decks do historico local, que e como era antes.
+ */
+export async function salvarMeusDecks(decks) {
+  const dono = currentUser();
+  if (!dono) throw new Error('sem sessao');
+  if (!Array.isArray(decks)) return null;
+
+  const enxuto = decks.slice(0, 200).map((d) => ({
+    commanders: (d.commanders || []).map((c) => ({
+      oracleId: c.oracleId, name: c.name, colors: c.colors, art: c.art || '',
+    })),
+    lastUsed: d.lastUsed || 0,
+  }));
+
+  await pedir('/rest/v1/profiles?id=eq.' + encodeURIComponent(dono.id), {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ decks: enxuto }),
+  });
+  if (conta.perfil) conta.perfil.decks = enxuto;
+  return enxuto;
+}
+
 export async function buscarHandle(handle) {
   const h = normalizarHandle(handle);
   if (!handleValido(h)) return null;

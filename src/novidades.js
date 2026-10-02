@@ -21,6 +21,63 @@
 
 export const NOVIDADES = [
   {
+    versao: '1.6.0',
+    data: '2026-10-02',
+    titulo: 'Seus decks seguem a sua conta',
+    itens: [
+      {
+        tipo: 'novo',
+        texto: 'Os decks de quem está logado passam a acompanhar a conta. '
+          + 'Num aparelho novo eles já aparecem na escolha do deck, em vez de '
+          + 'obrigar a buscar na Scryfall o comandante que o app já conhece.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'São só os seus, e são privados: o app deixa cada pessoa '
+          + 'escrever apenas no próprio perfil, e a busca por @ não revela o '
+          + 'que alguém joga.',
+      },
+    ],
+  },
+  {
+    versao: '1.5.0',
+    data: '2026-10-02',
+    titulo: 'Filtrar os decks por jogador',
+    itens: [
+      {
+        tipo: 'novo',
+        texto: 'A aba de Decks ganhou um filtro por jogador. "Todos" é o '
+          + 'padrão e mostra o que sempre mostrou: todos os decks jogados '
+          + 'neste aparelho. Escolhendo alguém, a lista fica só com os decks '
+          + 'que aquela pessoa levou.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'O filtro só aparece quando há mais de uma pessoa no '
+          + 'histórico: filtrar entre um não filtra nada.',
+      },
+    ],
+  },
+  {
+    versao: '1.4.1',
+    data: '2026-10-02',
+    titulo: 'O voltar do aparelho não fecha mais o app',
+    itens: [
+      {
+        tipo: 'corrigido',
+        texto: 'Nas estatísticas, o botão de voltar do aparelho fechava o '
+          + 'app em vez de voltar uma tela. Agora leva para onde a flecha da '
+          + 'tela leva — a tela inicial, no caminho normal.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'Com um painel aberto, o voltar fecha o painel em vez de '
+          + 'navegar. Antes de existir esse voltar, o gesto saía do app com a '
+          + 'folha de pé.',
+      },
+    ],
+  },
+  {
     versao: '1.4.0',
     data: '2026-10-02',
     titulo: 'O relógio para quando você sai da mesa',

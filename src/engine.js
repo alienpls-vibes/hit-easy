@@ -47,6 +47,32 @@ export function cmdKeyOf(seatId, commander) {
 }
 
 /** Chave do deck: combinacao de comandantes, independente da ordem. */
+/**
+ * Junta listas de decks sem repetir, do mais recente para o mais antigo.
+ *
+ * Mesmo deck em duas listas fica com a data mais nova: a lista local sabe
+ * quando a pessoa levou aquele deck NESTE aparelho, e a da conta sabe quando
+ * levou em qualquer um. A mais recente e a que responde "qual deck ele anda
+ * jogando".
+ */
+export function juntarDecks(...listas) {
+  const porChave = new Map();
+
+  for (const lista of listas) {
+    for (const deck of lista || []) {
+      const chave = deckKeyOf(deck && deck.commanders);
+      if (!chave) continue;
+      const atual = porChave.get(chave);
+      if (!atual || (deck.lastUsed || 0) > (atual.lastUsed || 0)) {
+        porChave.set(chave, deck);
+      }
+    }
+  }
+
+  return [...porChave.values()]
+    .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+}
+
 export function deckKeyOf(commanders) {
   return (commanders || []).map((c) => c.oracleId).sort().join('+');
 }

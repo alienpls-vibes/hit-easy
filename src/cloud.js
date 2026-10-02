@@ -95,6 +95,7 @@ export {
   carregarPerfil,
   handleDisponivel,
   meuPerfil,
+  salvarMeusDecks,
   salvarHandle,
 } from './cloud/perfil.js';
 

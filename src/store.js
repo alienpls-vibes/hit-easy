@@ -8,7 +8,7 @@
 
 import { chave } from './canal.js';
 import { identityOf } from './stats.js';
-import { partidaValida } from './engine.js';
+import { partidaValida, juntarDecks } from './engine.js';
 
 const KEY = chave('mtglc.db.v1');
 
@@ -28,6 +28,12 @@ const EMPTY = {
   // semana com a mesma gente: digitar o @ de novo a cada mesa seria o
   // tipo de atrito que faz o recurso nao ser usado.
   playerHandles: {},
+  // @ -> decks que seguem aquela conta, vindos do perfil no servidor.
+  //
+  // So a propria conta escreve a propria lista (ver sql/004-decks-da-conta),
+  // entao isto e cache de uma coisa so: os decks de quem esta logado. Serve ao
+  // aparelho novo, onde o historico local esta vazio.
+  decksDeConta: {},
   // Escondidos das estatisticas, e so delas: as partidas continuam
   // inteiras, com todos os eventos e a linha do tempo completa.
   hiddenDecks: [],
@@ -267,6 +273,28 @@ export function forgetPlayer(name) {
  * escrito nas partidas salvas, e duplicar isso so criaria uma segunda verdade
  * para sair de sincronia depois.
  */
+/**
+ * Guarda os decks que vieram do perfil daquela conta.
+ *
+ * Por handle, e nao numa lista so: entrar com outra conta no mesmo aparelho
+ * nao pode misturar os decks de duas pessoas.
+ */
+export function guardarDecksDaConta(handle, decks) {
+  const h = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
+  if (!h || !Array.isArray(decks)) return;
+  if (!db.decksDeConta) db.decksDeConta = {};
+  db.decksDeConta[h] = decks
+    .filter((d) => d && Array.isArray(d.commanders) && d.commanders.length)
+    .slice(0, 200);
+  save();
+}
+
+/** Os decks que seguem aquela conta, do que este aparelho ja baixou. */
+export function decksDaConta(handle) {
+  const h = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
+  return (db.decksDeConta && db.decksDeConta[h]) || [];
+}
+
 /** Nome (minusculo) -> handle, do que este aparelho ja viu. */
 export function knownHandles() {
   return { ...(db.playerHandles || {}) };
@@ -371,16 +399,20 @@ export function decksOfPlayer(name, handle) {
   const key = identityOf({ name, handle }, apelidos);
   if (!key || key === '?') return [];
 
-  const seen = new Map();
+  const locais = [];
   for (const match of db.history) { // historico ja vem do mais recente
     for (const seat of match.seats || []) {
       if (identityOf(seat, apelidos) !== key) continue;
-      const deckKey = (seat.commanders || []).map((c) => c.oracleId).sort().join('+');
-      if (!deckKey || seen.has(deckKey)) continue;
-      seen.set(deckKey, { commanders: seat.commanders, lastUsed: match.startedAt });
+      if (!(seat.commanders || []).length) continue;
+      locais.push({ commanders: seat.commanders, lastUsed: match.startedAt });
     }
   }
-  return [...seen.values()];
+
+  // Com conta, os decks que seguem a conta entram junto. Num aparelho novo o
+  // historico local esta vazio, e sem isto a pessoa nao acha o proprio deck -
+  // tendo de buscar na Scryfall o comandante que o app ja conhece.
+  const daConta = key.startsWith('@') ? decksDaConta(key.slice(1)) : [];
+  return juntarDecks(locais, daConta);
 }
 
 /**

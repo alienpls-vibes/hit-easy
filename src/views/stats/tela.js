@@ -29,6 +29,56 @@ const TABS = [
 
 let activeTab = 'decks';
 
+/**
+ * Por quem a aba de Decks esta filtrada. 'todos' e o padrao.
+ *
+ * Fora da funcao, como a aba ativa: trocar de aba e voltar nao deve desfazer o
+ * filtro que a pessoa acabou de escolher.
+ */
+let filtroDeDeck = 'todos';
+
+/**
+ * O seletor de jogador da aba de Decks.
+ *
+ * `<select>` nativo, e nao chips lado a lado: a lista cresce com o grupo, e
+ * dez nomes nao cabem numa linha de celular. De quebra entrega o seletor que o
+ * aparelho ja usa em todo lugar - mesmo argumento do campo de idioma.
+ *
+ * So aparece com mais de uma pessoa no historico: filtrar entre um nao filtra
+ * nada, e o controle seria enfeite.
+ */
+function filtroDeJogador(jogadores, repintar) {
+  const campo = el('select', {
+    class: 'select-input',
+    'aria-label': t('stats.filterByPlayer'),
+    onChange: (e) => { filtroDeDeck = e.target.value; repintar(); },
+  }, [
+    el('option', {
+      value: 'todos',
+      text: t('stats.allPlayers'),
+      selected: filtroDeDeck === 'todos' ? 'selected' : null,
+    }),
+    ...jogadores.map((p) => el('option', {
+      value: p.key,
+      text: p.label,
+      selected: filtroDeDeck === p.key ? 'selected' : null,
+    })),
+  ]);
+
+  campo.value = filtroDeDeck;
+  return el('div', { class: 'deck-filter' }, [
+    el('div', { class: 'select-row' }, [
+      campo,
+      el('span', { class: 'select-caret' }, [icon('arrow')]),
+    ]),
+  ]);
+}
+
+/** A pessoa filtrada nao levou deck nenhum que ainda esteja na lista. */
+function semDecksDoJogador() {
+  return el('p', { class: 'search-status', text: t('stats.noDecksForPlayer') });
+}
+
 export function renderStats(root, { onBack }) {
   clear(root);
   const matches = store.partidas();
@@ -75,7 +125,20 @@ export function renderStats(root, { onBack }) {
       return;
     }
     if (activeTab === 'decks') {
-      agg.decks.forEach((row) => panel.append(deckCard(row, recarregar)));
+      // Um jogador que saiu do filtro (oculto, ou apagado com a partida) nao
+      // pode deixar a aba vazia e sem explicacao: o filtro volta para Todos.
+      if (filtroDeDeck !== 'todos'
+        && !agg.players.some((p) => p.key === filtroDeDeck)) {
+        filtroDeDeck = 'todos';
+      }
+
+      const escolhidos = filtroDeDeck === 'todos'
+        ? agg.decks
+        : agg.decks.filter((d) => (d.jogadores || []).includes(filtroDeDeck));
+
+      if (agg.players.length > 1) panel.append(filtroDeJogador(agg.players, paint));
+      if (!escolhidos.length) panel.append(semDecksDoJogador());
+      else escolhidos.forEach((row) => panel.append(deckCard(row, recarregar)));
     } else if (activeTab === 'players') {
       agg.players.forEach((row) => panel.append(playerCard(row, recarregar, corDe)));
     } else if (activeTab === 'rivals') {
