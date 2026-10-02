@@ -309,6 +309,24 @@ if (simulated) {
   globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
 
   /**
+   * Navegador em INGLES, de proposito.
+   *
+   * O app detecta o idioma no arranque, e as telas desenhadas ali ficam na
+   * lingua do sistema - o runAll so troca para portugues DEPOIS. O Node tem
+   * `navigator.language` proprio, que reflete o locale da MAQUINA: portugues
+   * no Windows de quem escreve, ingles no Ubuntu do CI. Um teste que comparasse
+   * texto fixo passava aqui e quebrava la. Fixar ingles torna o arranque
+   * deterministico, e igual ao do CI.
+   */
+  // Nao da para reatribuir `globalThis.navigator` no Node - e so leitura -,
+  // entao a propriedade e redefinida no objeto que ja existe.
+  try {
+    Object.defineProperty(globalThis.navigator, 'languages', {
+      value: ['en-US', 'en'], configurable: true,
+    });
+  } catch { /* navigator travado: o idioma do arranque volta a variar */ }
+
+  /**
    * visualViewport: o bastante para conferir a conta do teclado.
    *
    * Existe porque "o painel fica atras do teclado" foi defeito real, e a causa

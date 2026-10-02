@@ -155,6 +155,10 @@
   cursor: pointer;
 }
 
+/* O filtro da aba de Decks. Fica acima da lista e não some ao rolar: é estado
+   da aba, e esconder o que está filtrando faria a lista parecer incompleta. */
+.deck-filter { margin-bottom: 12px; }
+
 .placing-text { display: flex; flex-direction: column; flex: none; min-width: 0; }
 .placing-name { font-weight: 500; }
 .placing-alias {

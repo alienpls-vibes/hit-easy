@@ -21,6 +21,25 @@
 
 export const NOVIDADES = [
   {
+    versao: '1.5.0',
+    data: '2026-10-02',
+    titulo: 'Filtrar os decks por jogador',
+    itens: [
+      {
+        tipo: 'novo',
+        texto: 'A aba de Decks ganhou um filtro por jogador. "Todos" é o '
+          + 'padrão e mostra o que sempre mostrou: todos os decks jogados '
+          + 'neste aparelho. Escolhendo alguém, a lista fica só com os decks '
+          + 'que aquela pessoa levou.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'O filtro só aparece quando há mais de uma pessoa no '
+          + 'histórico: filtrar entre um não filtra nada.',
+      },
+    ],
+  },
+  {
     versao: '1.4.1',
     data: '2026-10-02',
     titulo: 'O voltar do aparelho não fecha mais o app',

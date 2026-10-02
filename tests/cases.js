@@ -164,6 +164,19 @@ function mesaNaTela(m) {
 
 const eventosDeVida = (m) => m.events.filter((e) => e.type === 'life');
 
+/**
+ * O botão de estatísticas da home, em qualquer idioma.
+ *
+ * A home é desenhada no ARRANQUE do app.js, com o idioma que o sistema
+ * informa - antes de o runAll trocar para português. Comparar com um texto
+ * fixo passava no Windows em português e quebrava no Ubuntu do CI, em inglês.
+ */
+function botaoDeEstatisticas() {
+  const rotulos = LANGS.map(([codigo]) => DICTS[codigo]['common.stats']);
+  return findAll(document.getElementById('app'), 'icon-btn')
+    .find((b) => rotulos.includes(b.attributes['aria-label']));
+}
+
 /** Abaixo de HOLD_DELAY: um toque que nao chega a virar repeticao. */
 const TOQUE_CURTO = HOLD_DELAY - 100;
 
@@ -867,6 +880,68 @@ export const cases = [
     eq(players.find((p) => p.label === 'P1').damageTaken, 4, 'dano levado por alvo');
   }],
 
+  ['a linha de deck sabe quem o levou', () => {
+    // A linha agrega todo mundo que jogou aquele deck, e e assim que tem de
+    // ser - em Commander o mesmo deck passa de mao em mao. Mas sem saber QUEM,
+    // nao da para responder "quais decks o Bruno joga".
+    const comDeck = (nome, qualDeck) => createMatch([
+      { id: 's0', name: nome, commanders: [commander(qualDeck)] },
+      { id: 's1', name: 'Bruno', commanders: [commander(9)] },
+    ], 40);
+
+    const { decks } = aggregate([comDeck('Ana', 1), comDeck('Caio', 1)]);
+    const compartilhado = decks.find((d) => d.jogadores.length === 2);
+    ok(compartilhado, 'nenhum deck registrou os dois jogadores');
+    eq(compartilhado.jogadores.slice().sort(), ['ana', 'caio'],
+      'o deck não guardou quem o levou');
+
+    const doBruno = decks.find((d) => d.jogadores.includes('bruno'));
+    eq(doBruno.jogadores, ['bruno'], 'o deck do Bruno ficou com gente a mais');
+  }],
+
+  ['o filtro da aba de Decks mostra só os decks daquele jogador', () => {
+    if (!simulated) return 'skip';
+    store.wipe();
+    try {
+      // Ana joga dois decks, Bruno joga um. "Todos" mostra os três.
+      const partida = (deckDaAna, id) => {
+        const m = createMatch([
+          { id: 's0', name: 'Ana', commanders: [commander(deckDaAna)] },
+          { id: 's1', name: 'Bruno', commanders: [commander(9)] },
+        ], 40);
+        m.id = 'p-' + id;
+        return m;
+      };
+      store.mesclarPartidas([partida(1, 'a'), partida(2, 'b')]);
+
+      const root = document.createElement('div');
+      renderStats(root, { onBack() {} });
+
+      const painel = () => findAll(root, 'stats-panel')[0];
+      const quantosDecks = () => findAll(painel(), 'card').length;
+      eq(quantosDecks(), 3, '"Todos" não mostrou os três decks');
+
+      const campo = findAll(root, 'select-input')[0];
+      ok(campo, 'a aba de Decks não tem o filtro de jogador');
+
+      // Filtrar pelo Bruno: só o deck dele.
+      fire(campo, 'change', { target: { value: 'bruno' } });
+      eq(quantosDecks(), 1, 'o filtro não reduziu a lista ao deck do Bruno');
+
+      // E voltar para Todos devolve os três.
+      const deVolta = findAll(root, 'select-input')[0];
+      fire(deVolta, 'change', { target: { value: 'todos' } });
+      eq(quantosDecks(), 3, '"Todos" não devolveu a lista inteira');
+    } finally {
+      // O filtro é estado da aba e sobrevive ao caso: deixá-lo preso faria o
+      // teste seguinte ver uma lista filtrada sem motivo.
+      const campo = findAll(document.body, 'select-input')[0];
+      if (campo) fire(campo, 'change', { target: { value: 'todos' } });
+      store.wipe();
+    }
+    return undefined;
+  }],
+
   ['nas estatísticas, o voltar do aparelho volta dentro do app', () => {
     if (!simulated) return 'skip';
     // Sem isto o voltar do Android FECHAVA o app: não havia entrada de
@@ -875,8 +950,7 @@ export const cases = [
     const naRota = () => document.body.dataset.route;
     const eraRota = naRota();
     try {
-      const estatisticas = findAll(document.getElementById('app'), 'icon-btn')
-        .find((b) => b.attributes['aria-label'] === 'Estatísticas');
+      const estatisticas = botaoDeEstatisticas();
       ok(estatisticas, 'a home não tem o botão de estatísticas');
 
       const antes = historico.empilhadas;
@@ -901,8 +975,8 @@ export const cases = [
     const naRota = () => document.body.dataset.route;
     const eraRota = naRota();
     try {
-      const estatisticas = findAll(document.getElementById('app'), 'icon-btn')
-        .find((b) => b.attributes['aria-label'] === 'Estatísticas');
+      const estatisticas = botaoDeEstatisticas();
+      ok(estatisticas, 'a home não tem o botão de estatísticas');
       fire(estatisticas, 'click');
       eq(naRota(), 'stats', 'não chegou nas estatísticas');
 
