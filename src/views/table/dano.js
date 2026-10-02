@@ -78,6 +78,9 @@ export function criarDano(mesa) {
 
     const send = () => {
       close();
+      // A vida do alvo conta em vez de saltar: a tela fecha e o numero anda,
+      // que e o unico retorno visual de que o dano saiu.
+      mesa.contarNoProximoSync = true;
       if (mode === 'cmd') {
         const c = source.commanders[slot] || source.commanders[0];
         mesa.apply({ type: 'cmd', targetId, sourceId, cmdKey: cmdKeyOf(sourceId, c), delta: amount });

@@ -452,6 +452,26 @@ Ao soltar, abre o teclado do dano: quanto foi. Os atalhos (1, 2, 3, 5, 7)
 confirmam no mesmo toque, então o caso comum fecha em dois gestos. O teclado
 gira junto com o assento de quem atacou, porque é ele que está mexendo.
 
+**A vida do alvo conta até o novo valor** quando a tela fecha, em vez de pular.
+Vale para os quatro casos que vêm de um painel: dano por arraste, dano em
+todos, dreno (que faz os oponentes descerem e quem drenou subir) e cura. Sem
+isso o número trocava de uma vez e nada dizia que algo tinha acontecido — e é
+justamente quando o dano foi grande que isso importa.
+
+Passo a passo pelos inteiros, porque vida *é* inteira: não há meia vida para
+interpolar. A duração total é fixa, então tirar 28 conta rápido e tirar 2 conta
+devagar; o passo tem um mínimo para que a mudança pequena ainda seja vista, em
+vez de piscar. A cor marca a direção enquanto anda, porque de longe, no meio da
+mesa, o número sozinho não diz se subiu ou caiu antes de parar.
+
+**A borda do painel e os botões −/+ não contam**, de propósito: ali o número já
+anda a cada toque, e contar por cima brigaria com o "segurar repete". Quem pede
+a contagem é o painel, uma vez — não o redesenho, sempre.
+
+Quem pediu `prefers-reduced-motion` recebe o número de uma vez. A regra de CSS
+global zera transição e animação, mas não alcança uma contagem feita em
+JavaScript: ela se recusa sozinha, e há teste para isso.
+
 Três modos, todos direcionais pelo mesmo gesto:
 
 - **Dano** — tira vida, creditado ao atacante;

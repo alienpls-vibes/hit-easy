@@ -9,6 +9,7 @@
 // Primeiro de todos: instala o DOM simulado antes que ui.js seja avaliado.
 import {
   simulated, flushFrames, findAll, fire, textOf, simularTeclado, kbAtual,
+  apontarPara,
 } from './dom-stub.js';
 import {
   createMatch, replay, push, undo, standings, elapsedOf, pessoaRepetida, partidaValida,
@@ -52,8 +53,8 @@ import { renderTable } from '../src/views/table.js';
 // interno da mesa, e exporta-la no barril a anunciaria como API publica.
 import { repetirSegurando } from '../src/views/table/pecas.js';
 import {
-  COMMIT_MS, DOUBLE_TAP_MS, HOLD_DELAY, REPEAT_ACCEL_AFTER, REPEAT_FAST_MS,
-  REPEAT_MS,
+  COMMIT_MS, CONTAGEM_MS, CONTAGEM_PASSO_MIN, DOUBLE_TAP_MS, HOLD_DELAY,
+  REPEAT_ACCEL_AFTER, REPEAT_FAST_MS, REPEAT_MS,
 } from '../src/views/table/constantes.js';
 import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
 import { renderStats, renderPaywall } from '../src/views/stats.js';
@@ -84,6 +85,20 @@ function ok(cond, what) {
  * verdade mesmo se o caso falhar no meio - senao o proximo caso rodaria com o
  * relogio parado e acusaria um erro que nao e dele.
  */
+/**
+ * Ids de temporizador NUNCA se repetem, nem entre chamadas.
+ *
+ * Reiniciar em 1 a cada relógio novo produziu um defeito difícil: módulos do
+ * app guardam id em variável de módulo (`toastTimer` em ui.js, por exemplo) e
+ * chamam `clearTimeout` nela. Esse id sobrevive ao fim do caso; no caso
+ * seguinte, o relógio novo entregava o MESMO número a outro temporizador, e o
+ * `clearTimeout` do toast cancelava uma animação que nada tinha a ver com ele.
+ *
+ * O sintoma era perfeito para enganar: um dos quatro números parava de contar,
+ * sempre o mesmo, e só dentro da suíte - rodando isolado funcionava.
+ */
+let proximoIdFalso = 1000000;
+
 function comRelogioFalso(fn) {
   const reais = {
     setTimeout: globalThis.setTimeout,
@@ -93,16 +108,15 @@ function comRelogioFalso(fn) {
   };
 
   let agora = 0;
-  let proximoId = 1;
   const agendados = new Map();
 
   globalThis.setTimeout = (f, ms = 0) => {
-    const id = proximoId; proximoId += 1;
+    const id = proximoIdFalso; proximoIdFalso += 1;
     agendados.set(id, { quando: agora + ms, cada: null, fn: f });
     return id;
   };
   globalThis.setInterval = (f, ms = 0) => {
-    const id = proximoId; proximoId += 1;
+    const id = proximoIdFalso; proximoIdFalso += 1;
     agendados.set(id, { quando: agora + ms, cada: ms, fn: f });
     return id;
   };
@@ -3078,6 +3092,190 @@ export const cases = [
       'e passa a aparecer na seleção de jogador');
 
     store.wipe();
+  }],
+
+  ['o dano por arraste conta a vida do alvo', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      // O caminho principal: arrastar de um painel ao outro, dizer quanto foi,
+      // e a vida do alvo andar quando a tela fecha.
+      const m = mesa(4);
+      const { root, tiles, view } = mesaNaTela(m);
+      const vidaDe = (i) => textOf(findAll(tiles[i], 'tile-life')[0]);
+
+      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+
+      // Mover além do limiar arma o ataque na hora, sem esperar o tempo de
+      // toque. Quem está sob o dedo é o painel do oponente.
+      apontarPara(tiles[1]);
+      fire(centro, 'pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
+      fire(centro, 'pointermove', { pointerId: 1, clientX: 90, clientY: 90 });
+      fire(centro, 'pointerup', { pointerId: 1, clientX: 90, clientY: 90 });
+      apontarPara(null);
+
+      ok(findAll(root, 'pad-scrim').length === 1,
+        'o arraste não abriu o teclado de dano');
+
+      const sete = findAll(root, 'pad-chip').find((c) => textOf(c) === '7');
+      ok(sete, 'o teclado de dano não tem o atalho de 7');
+      fire(sete, 'click');
+
+      // O número não salta: ainda é o antigo quando a tela fecha.
+      eq(vidaDe(1), '40', 'a vida do alvo saltou em vez de contar');
+
+      avancar(Math.round(CONTAGEM_MS / 2));
+      const meio = Number(vidaDe(1));
+      ok(meio < 40 && meio > 33, 'a contagem não durou: estava em ' + meio);
+
+      avancar(CONTAGEM_MS * 2);
+      eq(vidaDe(1), '33', 'o alvo não terminou em 33');
+      eq(vidaDe(0), '40', 'quem atacou perdeu vida sem motivo');
+
+      // E o dano tem autor: veio do arraste, não da borda.
+      const dano = m.events.filter((e) => e.type === 'life');
+      eq(dano.length, 1, 'o arraste não gravou um evento de vida');
+      eq(dano[0].sourceId, 's0', 'o dano do arraste ficou sem autor');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['o dreno conta a vida de quem apanhou e de quem curou', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      const m = mesa(4);
+      const { root, tiles, view } = mesaNaTela(m);
+      const vidaDe = (i) => textOf(findAll(tiles[i], 'tile-life')[0]);
+
+      // Duplo toque no centro abre a ação em área.
+      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+      const tocar = (id) => {
+        fire(centro, 'pointerdown', { pointerId: id, clientX: 50, clientY: 50 });
+        fire(centro, 'pointerup', { pointerId: id, clientX: 50, clientY: 50 });
+      };
+      tocar(1);
+      tocar(2);
+
+      // O painel de área monta a própria cobertura dentro da mesa, e não um
+      // painel deslizante no corpo do documento.
+      ok(findAll(root, 'pad-scrim').length === 1, 'a ação em área não abriu');
+
+      const dreno = findAll(root, 'pad-mode')
+        .find((b) => textOf(b).includes('Dreno'));
+      ok(dreno, 'a ação em área não oferece dreno');
+      fire(dreno, 'click');
+
+      // Tira 7 de cada oponente. O chip confirma no mesmo toque.
+      const sete = findAll(root, 'pad-chip').find((c) => textOf(c) === '7');
+      ok(sete, 'não há atalho de 7');
+      fire(sete, 'click');
+
+      // Aqui está o ponto: o número NÃO salta. No instante do envio ele ainda
+      // é o antigo, e só então começa a andar.
+      eq(vidaDe(1), '40', 'a vida do oponente saltou em vez de contar');
+      eq(vidaDe(0), '40', 'a vida de quem drenou saltou em vez de contar');
+
+      // No meio do caminho o número tem de estar ENTRE os dois valores. É o
+      // que separa uma contagem de 420ms de um passo de 1ms, que termina em
+      // sete milissegundos e ninguém vê - e ver é o ponto da melhoria.
+      avancar(Math.round(CONTAGEM_MS / 2));
+      const meio = Number(vidaDe(1));
+      ok(meio < 40 && meio > 33,
+        'a contagem não durou: no meio do caminho já estava em ' + meio);
+
+      // E termina no valor certo. `gain` padrão é o total tirado (3 x 7).
+      avancar(CONTAGEM_MS * 3);
+      eq(vidaDe(1), '33', 'o oponente não terminou em 33');
+      eq(vidaDe(2), '33', 'o segundo oponente ficou de fora');
+      eq(vidaDe(3), '33', 'o terceiro oponente ficou de fora');
+      eq(vidaDe(0), '61', 'quem drenou não terminou com o total curado');
+
+      // A direção fica marcada enquanto conta, e sai ao terminar.
+      const numero = findAll(tiles[1], 'tile-life')[0];
+      ok(!numero.classList.contains('is-caindo'), 'a marca de direção ficou presa');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['dano em todos conta, e a borda do painel não', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      const m = mesa(4);
+      const { root, tiles, view } = mesaNaTela(m);
+      const vidaDe = (i) => textOf(findAll(tiles[i], 'tile-life')[0]);
+
+      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+      const tocar = (id) => {
+        fire(centro, 'pointerdown', { pointerId: id, clientX: 50, clientY: 50 });
+        fire(centro, 'pointerup', { pointerId: id, clientX: 50, clientY: 50 });
+      };
+      tocar(1);
+      tocar(2);
+
+      // "Dano em todos" é o modo que já vem escolhido.
+      const cinco = findAll(root, 'pad-chip').find((c) => textOf(c) === '5');
+      ok(cinco, 'não há atalho de 5');
+      fire(cinco, 'click');
+
+      eq(vidaDe(1), '40', 'a vida saltou em vez de contar');
+      avancar(CONTAGEM_MS * 3);
+      eq(vidaDe(1), '35', 'o dano em todos não chegou');
+      eq(vidaDe(0), '40', 'quem causou perdeu vida sem dreno');
+
+      // A borda NÃO conta: ali o número já anda a cada toque, e contar por
+      // cima brigaria com o "segurar repete".
+      const menos = findAll(tiles[2], 'tap-minus')[0];
+      fire(menos, 'pointerdown', { pointerId: 9, clientX: 5, clientY: 5 });
+      fire(menos, 'pointerup', { pointerId: 9, clientX: 5, clientY: 5 });
+      eq(vidaDe(2), '34', 'a borda passou a contar, e devia responder na hora');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['quem pede menos movimento recebe o número de uma vez', () => {
+    if (!simulated) return 'skip';
+    // A regra de CSS global de prefers-reduced-motion zera transição e
+    // animação, mas não alcança uma contagem feita em JavaScript - ela tem de
+    // se recusar sozinha.
+    const real = globalThis.matchMedia;
+    globalThis.matchMedia = (q) => ({
+      matches: String(q).includes('reduced-motion'),
+      addEventListener() {}, removeEventListener() {},
+    });
+    try {
+      return comRelogioFalso((avancar) => {
+        const m = mesa(4);
+        const { root, tiles, view } = mesaNaTela(m);
+        const vidaDe = (i) => textOf(findAll(tiles[i], 'tile-life')[0]);
+
+        const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+        const tocar = (id) => {
+          fire(centro, 'pointerdown', { pointerId: id, clientX: 50, clientY: 50 });
+          fire(centro, 'pointerup', { pointerId: id, clientX: 50, clientY: 50 });
+        };
+        tocar(1);
+        tocar(2);
+
+        const cinco = findAll(root, 'pad-chip').find((c) => textOf(c) === '5');
+        ok(cinco, 'não há atalho de 5');
+        fire(cinco, 'click');
+
+        // Sem esperar nada: o número já está no valor final.
+        eq(vidaDe(1), '35', 'contou mesmo com movimento reduzido pedido');
+        avancar(CONTAGEM_MS * 2);
+        eq(vidaDe(1), '35', 'o número andou depois de já estar certo');
+
+        view.destroy();
+        return undefined;
+      });
+    } finally {
+      globalThis.matchMedia = real;
+    }
   }],
 
   ['sobrando um vivo, o cartaz de vitória aparece', () => {

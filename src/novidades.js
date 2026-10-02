@@ -21,6 +21,34 @@
 
 export const NOVIDADES = [
   {
+    versao: '1.3.0',
+    data: '2026-10-02',
+    titulo: 'A vida conta na sua frente',
+    itens: [
+      {
+        tipo: 'novo',
+        texto: 'Quando o dano vem de um painel, a vida do alvo conta até o '
+          + 'novo valor em vez de pular. Vale para dano por arraste, dano em '
+          + 'todos, dreno (os oponentes descem e quem drenou sobe) e cura. '
+          + 'Antes o número trocava de uma vez e nada dizia que algo tinha '
+          + 'acontecido — e é justamente quando o dano foi grande que isso '
+          + 'importa.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'A cor marca a direção enquanto o número anda: de longe, no '
+          + 'meio da mesa, ele sozinho não diz se subiu ou caiu antes de '
+          + 'parar.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'A borda do painel e os botões −/+ continuam respondendo na '
+          + 'hora, sem contar: ali o número já anda a cada toque. E quem pede '
+          + 'menos movimento no sistema recebe o número de uma vez.',
+      },
+    ],
+  },
+  {
     versao: '1.2.3',
     data: '2026-10-02',
     titulo: 'A partida volta a encerrar',

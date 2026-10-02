@@ -50,6 +50,9 @@ export function criarArea(mesa) {
 
     const send = () => {
       close();
+      // A vida do alvo conta em vez de saltar: a tela fecha e o numero anda,
+      // que e o unico retorno visual de que o dano saiu.
+      mesa.contarNoProximoSync = true;
       const gain = gainOf();
       mesa.apply({ type: 'sweep', sourceId, amount, gain, targets: alvos });
       toast(

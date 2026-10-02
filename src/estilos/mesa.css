@@ -147,6 +147,13 @@
 }
 .tile-life.is-low { color: var(--danger); }
 
+/* Contando: a vida está andando até o novo valor, depois de um painel de dano.
+   A direção fica na cor porque, de longe no meio da mesa, o número sozinho não
+   diz se subiu ou caiu antes de parar. Sem transição: a cor tem de chegar com
+   o primeiro passo, senão o fim da contagem acontece antes de ela aparecer. */
+.tile-life.is-caindo { color: var(--danger); transition: none; }
+.tile-life.is-subindo { color: var(--contrast); transition: none; }
+
 .tile-badges { display: flex; gap: 6px; }
 .badge {
   font-size: 0.62rem;

@@ -54,6 +54,16 @@ export function criarContexto(root, ctx) {
     /** O gesto em curso, ou null. */
     gesture: null,
 
+    /**
+     * O proximo redesenho CONTA a vida em vez de trocar de uma vez.
+     *
+     * Marcado pelos paineis de dano e de acao em area, logo antes de aplicar.
+     * Um booleano, e nao a lista de cadeiras afetadas: no redesenho seguinte as
+     * unicas vidas que mudaram sao as que o painel mexeu, entao a lista seria
+     * trabalho repetido - e cobriria mal o dreno, que fere varios e cura um.
+     */
+    contarNoProximoSync: false,
+
     layout: layoutFor(match.seats.length, match.layoutId),
 
     // Preenchidos por mesa.js ao montar a tela.
