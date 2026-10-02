@@ -13,7 +13,7 @@
 
 // Mesma string de APP_VERSION em src/version.js - worker nao importa modulo.
 // Se mudar la, mude aqui; check-syntax.js confere os dois.
-const VERSION = '1.8.0';
+const VERSION = '1.9.0';
 
 /**
  * Producao e beta dividem a mesma origem, e Cache Storage e por origem. O canal
@@ -218,8 +218,8 @@ const ASSETS = [
   './src/views/table/vitoria.js',
   './src/views/table/votacao.js',
   './src/vote.js',
-  './icons/icon-gradient-192.png',
-  './icons/icon-gradient-512.png',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
 ];
 
 /**

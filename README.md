@@ -540,59 +540,51 @@ que sai.
 
 ## O ícone
 
-Três arquivos em `icons/`, e os três saem da mesma arte: gradiente de cor com a
-silhueta de uma mesa ao centro.
+Três arquivos em `icons/`, e a mesma arte nos três: os cinco pips WUBRG sobre
+fundo quase preto. É a mesma marca que o cabeçalho da home desenha em
+`brandMark()`, e as duas precisam continuar sendo a mesma coisa — são separadas
+no código e uma só para quem olha.
 
-O **maskable** não é cópia do 512, e a diferença importa. O Android não mostra o
-PNG: ele o recorta na forma que o lançador usa — círculo, squircle, quadrado
-arredondado. Duas regras saem disso. A imagem tem de ser opaca de borda a borda,
-senão os cantos ficam vazados mostrando o papel de parede; e o símbolo tem de
-caber no círculo central de 80%, porque fora dali pode ser cortado.
+O `icon-maskable.png` é um círculo com o conteúdo puxado para dentro. O Android
+não mostra o PNG: recorta na forma que o lançador usa, círculo, squircle ou
+quadrado arredondado, e o que estiver fora do círculo central de 80% pode ser
+cortado.
 
-A arte entregue tem o quadrado arredondado assado no PNG, com cantos pretos.
-Serve para `purpose: "any"`, onde ninguém recorta nada. Como maskable ela daria
-uma borda escura dupla em qualquer máscara que não fosse circular, então o
-maskable é a mesma arte ampliada 16%, o bastante para o gradiente alcançar os
-cantos. A mesa fica a 0,368 do lado; o limite é 0,400.
+**Ele tem um defeito conhecido:** é um círculo sobre transparência, com 94% dos
+pixels de borda translúcidos. Em lançador de máscara circular ninguém vê; em
+máscara quadrada os cantos ficam vazados mostrando o papel de parede. Consertar
+isso é tornar a imagem opaca de borda a borda, sem mexer no desenho.
 
-Os três são opacos por inteiro, então foram gravados sem canal alfa — era um
-quarto dos bytes guardando o número 255 repetido.
+### A guarda
 
-**Pesam muito mais que os antigos: 444 KB contra 19 KB.** Gradiente suave é o
-pior caso do PNG. Testei paleta de 256 cores, que cortaria 79%, e ela bandeia
-visivelmente justamente onde está o apelo do ícone. Recomprimir não ganha nada;
-já estão no limite do formato.
+`conferirIcones()`, em [tools/check-syntax.js](tools/check-syntax.js), exige que
+todo ícone referenciado exista e que todo PNG em `icons/` seja referenciado.
 
-**A 16 e 32 pixels a mesa não lê.** Vira um borrão escuro no meio do colorido, e
-é nesses tamanhos que vive o favicon da aba. O ícone anterior se saía melhor ali,
-porque pontos separados sobrevivem ao reescalonamento melhor que uma silhueta de
-pernas finas. Se isso incomodar, a saída é uma variante simplificada só para
-32px, não mexer na arte grande.
+Três arquivos apontam para os ícones — `manifest.webmanifest`, `index.html` e a
+lista `ASSETS` de `sw.js` — e errar um não quebrava teste nenhum. Cada um falha
+de um jeito diferente: o manifest com caminho morto só aparece na hora de
+instalar, no aparelho de outra pessoa; `cache.addAll()` rejeita **tudo** se um
+único pedido falhar, então um caminho morto na lista derruba o app inteiro
+offline; e no `index.html` a aba fica sem favicon.
 
-Os nomes mudaram junto com a arte, de propósito: URL nova força o navegador e o
-sistema a buscar de novo, em vez de servir o desenho antigo do cache.
+### O que já foi testado e desfeito
 
-### A marca dentro do app
+Uma identidade de gradiente com a silhueta de uma mesa chegou a ir para o beta e
+voltou. Vale registrar o que a medição disse, para a tentativa não se repetir às
+cegas:
 
-O logo do cabeçalho não é nenhum desses arquivos: é `brandMark()`, em
-[src/ui.js](src/ui.js), um SVG desenhado em código. São duas coisas separadas, e
-trocar os PNG não mexia nele — o app passou a mostrar a mesa na tela inicial do
-celular e os cinco pips WUBRG no próprio cabeçalho, duas identidades ao mesmo
-tempo.
+- **Pesava 444 KB contra 19 KB.** Gradiente suave é o pior caso do PNG. Paleta
+  de 256 cores cortaria 79% e bandeia visivelmente; recomprimir não ganha nada.
+- **A silhueta não lia a 16 e 32px** — vira um borrão escuro no meio do
+  colorido, e é aí que vive o favicon da aba.
+- **Na marca do cabeçalho, o gradiente some.** Rasterizando a 14, 26 e 52px nos
+  dois temas, abaixo de 26px ele vira mancha escura que desaparece no fundo.
+  Este projeto já tinha passado por isso: a marca foi um quadradinho com
+  degradê, borrava no pequeno, e virou cinco pips por causa disso.
 
-Agora é a mesma mesa, traçada do PNG de 512: 30 pontos, 97,6% de sobreposição
-com o desenho original. Vetorial e não o PNG encolhido porque a marca vive a
-26px, que em tela de alta densidade são 78 pixels reais, e a mesa é só contorno.
-
-**Em cor sólida, herdada do texto, e não com o gradiente.** Isto foi medido, não
-escolhido: rasterizei a marca a 14, 26 e 52 pixels nos dois temas, e com o
-gradiente ela vira uma mancha escura que some no fundo abaixo de 26px. O projeto
-já tinha passado por isso — a marca foi um quadradinho com degradê, borrava no
-pequeno, e virou cinco pips por causa disso. A cor mora no ícone do lançador,
-onde há espaço; aqui quem carrega o reconhecimento é a forma.
-
-`currentColor` em vez de cor fixa: a marca acompanha o tema junto com o texto ao
-lado, sem uma segunda regra para manter em dia.
+Fica também o método, que serve para qualquer arte nova: medir a zona segura do
+maskable, a opacidade das bordas, o peso e a legibilidade nos tamanhos reais —
+e não só olhar o arquivo grande.
 
 ## Instalar
 

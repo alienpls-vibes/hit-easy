@@ -1,6 +1,7 @@
 /** Utilitarios de DOM. Pequenos de proposito - a app nao precisa de framework. */
 
 import { t } from './i18n.js';
+import { colorHex } from './colors.js';
 
 export function el(tag, props = {}, children = []) {
   const node = document.createElement(tag);
@@ -50,45 +51,6 @@ function aplicarEstilo(node, estilos) {
  *
  * Desenhado com as cores vivas do tema atual, entao acompanha claro e escuro.
  */
-/**
- * A silhueta da mesa, tracada do icone do app.
- *
- * 30 pontos, 97.6% de sobreposicao com o desenho original - o bastante para
- * ser a mesma forma, e pouco o bastante para caber numa linha. Vetorial e nao
- * o PNG encolhido porque a marca vive a 26px, que em tela de alta densidade
- * sao 78 pixels reais, e a mesa e so contorno.
- */
-const MESA = 'M10.82 4.91 L11.33 4.91 L21.15 8.01 L23.16 8.68 L23.5 9.02 L23.5 9.61 L22.41 10.2 L22.32 14.98 L22.16 15.15 L21.65 15.15 L21.4 14.81 L20.73 10.87 L14.85 13.39 L14.52 13.64 L14.27 18.84 L13.93 19.09 L13.43 19.01 L13.18 18.25 L12.76 13.97 L12.5 13.72 L3.44 10.61 L2.77 14.73 L2.51 14.98 L2.01 14.98 L1.76 14.64 L1.76 9.94 L0.84 9.61 L0.5 9.27 L0.5 8.68 L0.84 8.35 Z';
-
-/**
- * As quatro cores do icone, amostradas dos seus proprios cantos.
- *
- * Nao sao escolhidas: saem de icons/icon-gradient-512.png nas posicoes 18% e
- * 82% de cada eixo. Se a arte mudar, estes quatro valores mudam junto - e e
- * por isso que estao anotados aqui, e nao espalhados pelo CSS.
- */
-const MESA_CORES = ['#40B380', '#60A9ED', '#EF4F3F', '#7454DF'];
-
-/**
- * A marca do cabecalho: a mesma mesa do icone do sistema.
- *
- * Os cinco pips WUBRG sairam porque eram o eco do icone ANTIGO: trocado o
- * icone, o app mostrava uma marca e a tela inicial do celular, outra.
- *
- * SOBRE O GRADIENTE. A medicao diz que ele piora: rasterizando a marca a 14,
- * 26 e 52px nos dois temas, abaixo de 26px o degrade vira mancha escura que
- * some no fundo, enquanto a cor solida continua nitida. O projeto ja passou
- * por isso - a marca foi um quadradinho com degrade, borrava no pequeno, e
- * virou cinco circulos por causa disso.
- *
- * Esta versao existe para a decisao ser tomada no aparelho e nao na simulacao.
- * `MARCA_COM_GRADIENTE` liga uma ou outra; voltar para a solida e trocar um
- * booleano, sem desfazer nada.
- */
-const MARCA_COM_GRADIENTE = true;
-
-let marcaSeq = 0;
-
 export function brandMark() {
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg');
@@ -96,45 +58,15 @@ export function brandMark() {
   svg.setAttribute('class', 'brand-mark');
   svg.setAttribute('aria-hidden', 'true');
 
-  const p = document.createElementNS(NS, 'path');
-  p.setAttribute('d', MESA);
-
-  if (!MARCA_COM_GRADIENTE) {
-    // currentColor: a marca acompanha o tema junto com o texto ao lado dela,
-    // sem uma segunda regra de cor para manter em dia.
-    p.setAttribute('fill', 'currentColor');
-    svg.append(p);
-    return svg;
-  }
-
-  // Id unico por marca desenhada. Dois SVG com o mesmo id de gradiente no
-  // documento fazem o segundo apontar para a definicao do primeiro, e quando o
-  // primeiro sai da tela o segundo fica sem pintura - fica preto, e so em
-  // algumas telas, que e o tipo de defeito que ninguem reproduz.
-  marcaSeq += 1;
-  const id = 'marca-grad-' + marcaSeq;
-
-  const defs = document.createElementNS(NS, 'defs');
-  const grad = document.createElementNS(NS, 'linearGradient');
-  grad.setAttribute('id', id);
-  // Na diagonal, como no icone: o verde no alto a esquerda, o roxo embaixo a
-  // direita. `objectBoundingBox` e o padrao, entao o gradiente acompanha a
-  // caixa da mesa em vez da caixa do SVG - a mesa e larga e baixa, e ancorar
-  // no SVG deixaria metade do degrade fora da forma.
-  grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0');
-  grad.setAttribute('x2', '1'); grad.setAttribute('y2', '1');
-
-  MESA_CORES.forEach((cor, i) => {
-    const parada = document.createElementNS(NS, 'stop');
-    parada.setAttribute('offset', (i / (MESA_CORES.length - 1)).toFixed(3));
-    parada.setAttribute('stop-color', cor);
-    grad.append(parada);
+  ['W', 'U', 'B', 'R', 'G'].forEach((cor, i) => {
+    const ang = -Math.PI / 2 + i * ((2 * Math.PI) / 5);
+    const c = document.createElementNS(NS, 'circle');
+    c.setAttribute('cx', (12 + 7.4 * Math.cos(ang)).toFixed(2));
+    c.setAttribute('cy', (12 + 7.4 * Math.sin(ang)).toFixed(2));
+    c.setAttribute('r', '3.5');
+    c.setAttribute('fill', colorHex(cor));
+    svg.append(c);
   });
-
-  defs.append(grad);
-  svg.append(defs);
-  p.setAttribute('fill', 'url(#' + id + ')');
-  svg.append(p);
   return svg;
 }
 

@@ -2859,78 +2859,29 @@ export const cases = [
     });
   }],
 
-  ['a marca é a mesa do ícone, inteira dentro da caixa', () => {
+  ['a marca desenha os cinco pips, cada um na sua cor e dentro da caixa', () => {
     if (!simulated) return 'skip';
-    // A marca já foi um quadradinho com degradê (virava mancha a 14px) e
-    // depois cinco pips WUBRG, que eram o eco do ícone ANTIGO. Agora é a mesma
-    // mesa do ícone do sistema: trocar um e esquecer o outro foi exatamente o
-    // que aconteceu, e o app ficou com duas identidades ao mesmo tempo.
+    // Era um quadradinho com degradê que virava mancha em 14px. Agora são
+    // círculos separados — e todos precisam caber no viewBox 24×24, senão o
+    // de cima aparece cortado.
+    //
+    // Já foi a silhueta da mesa do ícone, enquanto o ícone era a mesa. O ícone
+    // voltou, e a marca voltou junto: são duas coisas separadas no código e uma
+    // só para quem olha, e deixá-las diferentes foi defeito uma vez.
     setLang('pt');
     const m = brandMark();
-    const forma = m.childNodes.find((n) => n.tagName === 'PATH');
-    ok(forma, 'a marca deixou de ter um path');
-    eq(m.attributes.viewBox, '0 0 24 24');
+    eq(m.childNodes.length, 5, 'cinco pips');
 
-    // A pintura pode ser sólida ou gradiente - as duas são legítimas, e o
-    // teste não escolhe por ninguém. O que ele exige é que a escolhida esteja
-    // inteira: `url(#algo)` apontando para nada pinta de preto, e no tema
-    // escuro isso é uma marca invisível que ninguém vê quebrar.
-    const pintura = forma.attributes.fill;
-    ok(pintura, 'o path ficou sem fill');
+    const cores = m.childNodes.map((c) => c.attributes.fill);
+    eq(new Set(cores).size, 5, 'cinco cores distintas');
 
-    if (pintura === 'currentColor') {
-      eq(m.childNodes.length, 1, 'pintura sólida não precisa de defs');
-    } else {
-      const alvo = (pintura.match(/^url\(#(.+)\)$/) || [])[1];
-      ok(alvo, 'fill não é currentColor nem url(#id): ' + pintura);
-
-      const defs = m.childNodes.find((n) => n.tagName === 'DEFS');
-      ok(defs, 'o gradiente foi referenciado mas não definido');
-      const grad = defs.childNodes[0];
-      eq(grad.attributes.id, alvo, 'o fill aponta para um id que não existe');
-      ok(grad.childNodes.length >= 2, 'gradiente com menos de duas paradas');
-      grad.childNodes.forEach((parada, i) => {
-        ok(/^#[0-9a-fA-F]{6}$/.test(parada.attributes['stop-color'] || ''),
-          'parada ' + i + ' sem cor válida');
-      });
-    }
-
-    // Todo ponto dentro do viewBox. Um path que vaza é cortado na borda, e o
-    // corte só aparece no aparelho - aqui custa três linhas pegar.
-    const nums = (forma.attributes.d.match(/-?\d+(\.\d+)?/g) || []).map(Number);
-    ok(nums.length >= 20, 'o path encolheu: a mesa perdeu forma');
-    eq(nums.length % 2, 0, 'o path tem coordenada ímpar');
-    nums.forEach((n, i) => {
-      ok(n >= 0 && n <= 24,
-        'a coordenada ' + i + ' (' + n + ') sai da caixa 24×24');
+    m.childNodes.forEach((c, i) => {
+      const cx = Number(c.attributes.cx);
+      const cy = Number(c.attributes.cy);
+      const r = Number(c.attributes.r);
+      ok(cx - r >= 0 && cx + r <= 24, 'pip ' + i + ' sai da caixa na horizontal');
+      ok(cy - r >= 0 && cy + r <= 24, 'pip ' + i + ' sai da caixa na vertical');
     });
-
-    // E ocupa a caixa de verdade: um path minusculo passaria nos limites
-    // acima e apareceria como um ponto.
-    const xs = nums.filter((_, i) => i % 2 === 0);
-    const ys = nums.filter((_, i) => i % 2 === 1);
-    ok(Math.max(...xs) - Math.min(...xs) > 18, 'a mesa não ocupa a largura');
-    ok(Math.max(...ys) - Math.min(...ys) > 10, 'a mesa não ocupa a altura');
-  }],
-
-  ['duas marcas na tela não dividem o id do gradiente', () => {
-    if (!simulated) return 'skip';
-    // Dois SVG com o mesmo id de gradiente no documento fazem o segundo
-    // apontar para a definição do primeiro. Enquanto os dois existem nada
-    // parece errado; quando o primeiro sai da tela, o segundo fica sem
-    // pintura e vira uma silhueta preta - em algumas telas só, que é o tipo
-    // de defeito que ninguém consegue reproduzir.
-    const a = brandMark();
-    const b = brandMark();
-
-    const idDe = (m) => {
-      const forma = m.childNodes.find((n) => n.tagName === 'PATH');
-      return (String(forma.attributes.fill).match(/^url\(#(.+)\)$/) || [])[1];
-    };
-
-    const ia = idDe(a);
-    if (!ia) return 'skip'; // pintura sólida: não há id para colidir
-    ok(ia !== idDe(b), 'as duas marcas usam o mesmo id de gradiente');
   }],
 
   ['trocar o idioma pela tela de configurações funciona de verdade', () => {
