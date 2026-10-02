@@ -350,6 +350,26 @@ A ordem é por primeira aparição, e não alfabética, porque cadastrar uma "An
 mudaria a cor de todo mundo depois dela, e o ponto da cor é justamente
 reconhecer a mesma pessoa entre partidas.
 
+## O voltar do aparelho
+
+Nas estatísticas, o voltar do sistema volta **dentro** do app. Antes fechava:
+o app não tinha histórico de navegação nenhum — nenhum `pushState`, nenhum
+`popstate` —, então o gesto não encontrava entrada para consumir, e PWA em tela
+cheia sai. Justamente na tela onde o gesto é o mais natural.
+
+Uma entrada é empilhada ao entrar nas estatísticas e consumida ao sair, **pela
+flecha ou pelo gesto**. Os dois levam ao mesmo lugar, de propósito: duas coisas
+na mesma tela que se chamam "voltar" não podem discordar. Na prática isso é a
+home, que é de onde se abre as estatísticas; vindo da mesa, volta para a mesa.
+
+**Painel aberto tem prioridade:** o voltar fecha o painel e devolve a entrada,
+em vez de navegar por trás dele. Era o pior efeito possível do recurso — sair da
+tela deixando a folha de pé sobre a tela nova.
+
+A home continua sendo a base: dali o voltar sai do app, que é o que se espera.
+E a mesa segue como era — não há entrada empilhada nela, e trocar isso mereceria
+decisão própria, porque "voltar" numa partida em andamento não tem destino óbvio.
+
 ## Rivalidades
 
 Aba própria nas estatísticas. Cada linha é um **par de jogadores**, com o dano

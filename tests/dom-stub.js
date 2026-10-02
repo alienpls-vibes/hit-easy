@@ -172,6 +172,15 @@ class Node {
  * porque o DOM de verdade aceita as duas formas.
  */
 const ouvintesViewport = {};
+const ouvintesWindow = {};
+
+/** Quantas entradas de historico foram empilhadas e devolvidas. */
+export const historico = { empilhadas: 0, voltas: 0 };
+
+/** Dispara um evento de `window` - popstate, pagehide, resize. */
+export function fireWindow(tipo, evento = {}) {
+  for (const fn of ouvintesWindow[tipo] || []) fn({ type: tipo, ...evento });
+}
 
 /**
  * Simula o teclado do celular subindo.
@@ -315,13 +324,30 @@ if (simulated) {
   };
   globalThis.window = globalThis;
   globalThis.isSecureContext = true;
-  globalThis.addEventListener = () => {};
+
+  // Ouvintes de `window` valem de verdade.
+  //
+  // Eram um no-op, e com isso nada pendurado em window existia nos testes -
+  // `popstate` e `pagehide` ficavam fora de alcance. Sao justamente eventos de
+  // ciclo de vida, o tipo que ninguem percebe quebrado.
+  globalThis.addEventListener = (tipo, fn) => {
+    (ouvintesWindow[tipo] = ouvintesWindow[tipo] || []).push(fn);
+  };
+  globalThis.removeEventListener = (tipo, fn) => {
+    ouvintesWindow[tipo] = (ouvintesWindow[tipo] || []).filter((x) => x !== fn);
+  };
 
   globalThis.location = {
     href: 'http://localhost/', pathname: '/', search: '', hash: '',
     assign() {}, replace() {}, reload() {},
   };
-  globalThis.history = { replaceState() {}, pushState() {} };
+  // `back()` conta as chamadas: e assim que se prova que sair pela flecha
+  // DEVOLVE a entrada empilhada, em vez de acumular historico atras do app.
+  globalThis.history = {
+    replaceState() {},
+    pushState() { historico.empilhadas += 1; },
+    back() { historico.voltas += 1; },
+  };
 
   // Rede sempre recusada nos testes. O modulo de nuvem trata falha em todo
   // caminho, entao isto exercita o comportamento offline - e garante que

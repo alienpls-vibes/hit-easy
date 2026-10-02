@@ -21,6 +21,25 @@
 
 export const NOVIDADES = [
   {
+    versao: '1.4.1',
+    data: '2026-10-02',
+    titulo: 'O voltar do aparelho não fecha mais o app',
+    itens: [
+      {
+        tipo: 'corrigido',
+        texto: 'Nas estatísticas, o botão de voltar do aparelho fechava o '
+          + 'app em vez de voltar uma tela. Agora leva para onde a flecha da '
+          + 'tela leva — a tela inicial, no caminho normal.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'Com um painel aberto, o voltar fecha o painel em vez de '
+          + 'navegar. Antes de existir esse voltar, o gesto saía do app com a '
+          + 'folha de pé.',
+      },
+    ],
+  },
+  {
     versao: '1.4.0',
     data: '2026-10-02',
     titulo: 'O relógio para quando você sai da mesa',

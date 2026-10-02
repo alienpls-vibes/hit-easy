@@ -9,7 +9,7 @@
 // Primeiro de todos: instala o DOM simulado antes que ui.js seja avaliado.
 import {
   simulated, flushFrames, findAll, fire, textOf, simularTeclado, kbAtual,
-  apontarPara,
+  apontarPara, fireWindow, historico,
 } from './dom-stub.js';
 import {
   createMatch, replay, push, undo, standings, elapsedOf, pessoaRepetida, partidaValida,
@@ -865,6 +865,64 @@ export const cases = [
     eq(p0.damageDealt, 12, 'dano causado (4 × 3)');
     eq(p0.healed, 12, 'vida ganha no dreno');
     eq(players.find((p) => p.label === 'P1').damageTaken, 4, 'dano levado por alvo');
+  }],
+
+  ['nas estatísticas, o voltar do aparelho volta dentro do app', () => {
+    if (!simulated) return 'skip';
+    // Sem isto o voltar do Android FECHAVA o app: não havia entrada de
+    // histórico para consumir, e PWA em tela cheia sai. Justamente na tela
+    // onde o gesto é o mais natural.
+    const naRota = () => document.body.dataset.route;
+    const eraRota = naRota();
+    try {
+      const estatisticas = findAll(document.getElementById('app'), 'icon-btn')
+        .find((b) => b.attributes['aria-label'] === 'Estatísticas');
+      ok(estatisticas, 'a home não tem o botão de estatísticas');
+
+      const antes = historico.empilhadas;
+      fire(estatisticas, 'click');
+      eq(naRota(), 'stats', 'não chegou nas estatísticas');
+      eq(historico.empilhadas, antes + 1,
+        'entrar nas estatísticas não empilhou entrada de histórico');
+
+      // O gesto do sistema: volta dentro do app, não fecha.
+      fireWindow('popstate');
+      eq(naRota(), 'setup', 'o voltar não trouxe para a tela inicial');
+    } finally {
+      if (naRota() !== eraRota) document.body.dataset.route = eraRota;
+    }
+    return undefined;
+  }],
+
+  ['com painel aberto, o voltar fecha o painel e não navega', () => {
+    if (!simulated) return 'skip';
+    // O pior efeito possível do voltar que acabou de entrar: sair da tela
+    // deixando a folha de pé sobre a tela nova.
+    const naRota = () => document.body.dataset.route;
+    const eraRota = naRota();
+    try {
+      const estatisticas = findAll(document.getElementById('app'), 'icon-btn')
+        .find((b) => b.attributes['aria-label'] === 'Estatísticas');
+      fire(estatisticas, 'click');
+      eq(naRota(), 'stats', 'não chegou nas estatísticas');
+
+      openFlow({ title: 'teste', build: (pane) => pane.append(el('p', { text: 'x' })) });
+      ok(isSheetOpen(), 'o painel não abriu');
+
+      const antes = historico.empilhadas;
+      fireWindow('popstate');
+      ok(!isSheetOpen(), 'o voltar não fechou o painel');
+      eq(naRota(), 'stats', 'o voltar navegou com painel aberto');
+      eq(historico.empilhadas, antes + 1,
+        'fechar o painel não devolveu a entrada de histórico');
+
+      fireWindow('popstate');
+      eq(naRota(), 'setup', 'o voltar seguinte não saiu das estatísticas');
+    } finally {
+      closeSheet();
+      if (naRota() !== eraRota) document.body.dataset.route = eraRota;
+    }
+    return undefined;
   }],
 
   ['esconder o app para o relógio da partida em andamento', () => {

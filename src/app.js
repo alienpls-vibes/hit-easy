@@ -6,7 +6,9 @@
  * partida esta exatamente onde parou - inclusive de quem era a vez.
  */
 
-import { toast, setHaptics, isSheetOpen, onSheetChange } from './ui.js';
+import {
+  toast, setHaptics, isSheetOpen, onSheetChange, closeSheet,
+} from './ui.js';
 import { renderSetup, seedDraftFrom, abrirNovidades } from './views/setup.js';
 import { renderTable } from './views/table.js';
 import { renderStats, renderPaywall } from './views/stats.js';
@@ -33,9 +35,66 @@ function settings() {
   return store.getDB().settings;
 }
 
+/**
+ * O voltar do aparelho, dentro do app.
+ *
+ * O app nao tinha historico de navegacao nenhum, entao o voltar do Android nao
+ * encontrava entrada para consumir e fechava o app - justamente na tela de
+ * estatisticas, onde o gesto e o mais natural.
+ *
+ * Uma entrada por entrada nas estatisticas, consumida na saida. `consumindo`
+ * existe porque sair pela flecha tambem devolve a entrada (`history.back()`),
+ * e isso dispara `popstate`: sem a marca, o handler trataria a devolucao como
+ * um gesto novo e voltaria duas telas.
+ */
+let consumindoVolta = false;
+
+function empilharVolta() {
+  try {
+    history.pushState({ rota: 'stats' }, '');
+  } catch { /* sem history: o voltar segue como era */ }
+}
+
+/** Para onde o voltar das estatisticas leva - flecha e gesto, o mesmo lugar. */
+function destinoDoVoltar() {
+  return previous === 'stats' ? 'setup' : previous;
+}
+
+/** Sai das estatisticas devolvendo a entrada de historico. */
+function sairDasEstatisticas() {
+  const destino = destinoDoVoltar();
+  consumindoVolta = true;
+  try {
+    history.back();
+  } catch {
+    consumindoVolta = false;
+  }
+  go(destino);
+}
+
+window.addEventListener('popstate', () => {
+  // Devolucao feita pela flecha: a entrada ja foi contabilizada.
+  if (consumindoVolta) { consumindoVolta = false; return; }
+
+  // Painel aberto tem prioridade: fechar o painel e o que a pessoa quer, e
+  // navegar por tras dele deixaria a folha de pe sobre a tela nova.
+  if (isSheetOpen()) {
+    closeSheet();
+    empilharVolta();
+    return;
+  }
+
+  // Fora das estatisticas nao ha entrada nossa para consumir, e a home e a
+  // base: dali o voltar sai do app, que e o que se espera.
+  if (route !== 'stats') return;
+  go(destinoDoVoltar());
+});
+
 function go(next) {
+  const antes = route;
   if (next !== route) previous = route;
   route = next;
+  if (next === 'stats' && antes !== 'stats') empilharVolta();
   render();
 }
 
@@ -117,7 +176,7 @@ function desenhar() {
     // Isto e a tela. O portao de verdade e o RLS do Postgres: sem assinatura
     // ele devolve lista vazia, entao burlar este `if` nao entrega partida
     // nenhuma da nuvem.
-    const voltar = () => go(previous === 'stats' ? 'setup' : previous);
+    const voltar = sairDasEstatisticas;
     if (podeVerEstatisticas(cloudEnabled(), cloud.state())) {
       renderStats(root, { onBack: voltar });
     } else {
