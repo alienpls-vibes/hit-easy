@@ -105,6 +105,33 @@ alter table public.profiles
 -- acrescente `decks` nem `decks_beta` ali.
 -- ---------------------------------------------------------------------
 
+-- ---------------------------------------------------------------------
+-- O resíduo: o que o beta subiu ANTES desta migração
+--
+-- Toda linha que já existia ganhou `canal = 'producao'`, porque era o único
+-- padrão possível — e isso inclui as mesas de teste que o beta subiu antes
+-- de a coluna existir. Elas continuam aparecendo no app de verdade.
+--
+-- Não há como o banco distinguir sozinho: nada nelas diz de onde vieram. Mas
+-- você reconhece pela data e pelos nomes. Para olhar:
+--
+--   select id, started_at, payload->'seats' as cadeiras
+--     from public.matches
+--    where canal = 'producao'
+--    order by started_at desc
+--    limit 30;
+--
+-- E para reclassificar as que forem de teste:
+--
+--   update public.matches       set canal = 'beta' where id in ('...','...');
+--   update public.match_players set canal = 'beta' where match_id in ('...');
+--
+-- Reclassificar NÃO apaga nada: a partida sai do histórico de produção na
+-- próxima sincronização e passa a aparecer no beta. Apagar de vez é
+-- `delete from public.matches where id in (...)`, e o cascade leva as
+-- cadeiras junto.
+-- ---------------------------------------------------------------------
+
 -- Conferência rápida, para rodar depois e ver que ficou de pé:
 --
 --   select canal, count(*) from public.matches group by canal;
