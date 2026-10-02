@@ -13,7 +13,7 @@ import {
 } from './dom-stub.js';
 import {
   createMatch, replay, push, undo, standings, elapsedOf, pessoaRepetida, partidaValida,
-  sairDaMesa, voltarAMesa, ausenteEntre,
+  sairDaMesa, voltarAMesa, ausenteEntre, juntarDecks, deckKeyOf,
   cmdKeyOf, CMD_LETHAL, POISON_LETHAL,
 } from '../src/engine.js';
 import {
@@ -46,7 +46,7 @@ import { NOVIDADES, novidadesDesde, novidadesDe } from '../src/novidades.js';
 import { APP_VERSION } from '../src/version.js';
 import {
   aSubir, aBaixar, aApagar, podeSincronizar,
-  cadeirasParaAssociar, apelidosAprendidos, associarConta,
+  cadeirasParaAssociar, apelidosAprendidos, associarConta, decksMudaram,
 } from '../src/sync.js';
 import { giraComOAssento, grausNaMesa, rotatesToSeat } from '../src/orientation.js';
 import { renderTable } from '../src/views/table.js';
@@ -878,6 +878,81 @@ export const cases = [
     eq(p0.damageDealt, 12, 'dano causado (4 × 3)');
     eq(p0.healed, 12, 'vida ganha no dreno');
     eq(players.find((p) => p.label === 'P1').damageTaken, 4, 'dano levado por alvo');
+  }],
+
+  ['juntar decks não repete, e fica com a data mais nova', () => {
+    const deck = (n, quando) => ({ commanders: [commander(n)], lastUsed: quando });
+
+    // Mesmo deck nas duas listas: fica a data mais recente, porque é ela que
+    // responde "qual deck ele anda jogando".
+    const juntos = juntarDecks([deck(1, 100), deck(2, 300)], [deck(1, 500)]);
+    eq(juntos.length, 2, 'o mesmo deck entrou duas vezes');
+    eq(juntos[0].lastUsed, 500, 'a lista não veio do mais recente para o mais antigo');
+    eq(juntos[1].lastUsed, 300);
+
+    // Lixo não entra: deck sem comandante não tem chave, e viraria uma linha
+    // vazia no seletor.
+    eq(juntarDecks([{ commanders: [] }, null], [undefined]).length, 0,
+      'deck sem comandante entrou na lista');
+  }],
+
+  ['os decks só sobem para o perfil quando o conjunto muda', () => {
+    // `lastUsed` muda a cada partida. Sem comparar por conjunto, toda
+    // sincronização escreveria no perfil para dizer a mesma coisa.
+    const deck = (n, quando) => ({ commanders: [commander(n)], lastUsed: quando });
+
+    eq(decksMudaram([deck(1, 100)], [deck(1, 999)]), false,
+      'a mesma lista com data diferente foi tratada como mudança');
+    eq(decksMudaram([deck(1, 100), deck(2, 100)], [deck(1, 100)]), true,
+      'um deck novo não foi notado');
+    eq(decksMudaram([], []), false, 'duas listas vazias diferem');
+    eq(decksMudaram([deck(1, 100)], undefined), true,
+      'perfil sem decks devia receber a primeira lista');
+
+    // A ordem não conta: é conjunto, não sequência.
+    eq(decksMudaram([deck(1, 1), deck(2, 2)], [deck(2, 9), deck(1, 9)]), false,
+      'a ordem das listas virou diferença');
+  }],
+
+  ['num aparelho novo, os decks da conta aparecem sem histórico', () => {
+    // É o caso inteiro: entrar na conta num aparelho onde nunca se jogou. O
+    // histórico local está vazio, e sem os decks da conta a pessoa tem de
+    // buscar na Scryfall o comandante que o app já conhece.
+    store.wipe();
+    try {
+      eq(store.decksOfPlayer(null, 'alienpls').length, 0,
+        'apareceu deck sem histórico e sem perfil');
+
+      store.guardarDecksDaConta('alienpls', [
+        { commanders: [commander(1)], lastUsed: 200 },
+        { commanders: [commander(2)], lastUsed: 100 },
+      ]);
+
+      const semHistorico = store.decksOfPlayer(null, 'alienpls');
+      eq(semHistorico.length, 2, 'os decks da conta não apareceram');
+      eq(deckKeyOf(semHistorico[0].commanders), deckKeyOf([commander(1)]),
+        'a lista não veio do mais recente para o mais antigo');
+
+      // E com histórico local, as duas fontes se juntam sem repetir.
+      const m = createMatch([
+        { id: 's0', name: 'Alex', handle: 'alienpls', commanders: [commander(2)] },
+        { id: 's1', name: 'Bruno', commanders: [commander(9)] },
+      ], 40);
+      m.startedAt = 900;
+      store.mesclarPartidas([m]);
+
+      const juntos = store.decksOfPlayer(null, 'alienpls');
+      eq(juntos.length, 2, 'o deck repetido entrou duas vezes');
+      eq(deckKeyOf(juntos[0].commanders), deckKeyOf([commander(2)]),
+        'o deck jogado agora não foi para o topo');
+
+      // Outra conta no mesmo aparelho não vê os decks da primeira.
+      eq(store.decksOfPlayer(null, 'outra').length, 0,
+        'os decks de uma conta vazaram para outra');
+    } finally {
+      store.wipe();
+    }
+    return undefined;
   }],
 
   ['a linha de deck sabe quem o levou', () => {

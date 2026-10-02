@@ -21,6 +21,25 @@
 
 export const NOVIDADES = [
   {
+    versao: '1.6.0',
+    data: '2026-10-02',
+    titulo: 'Seus decks seguem a sua conta',
+    itens: [
+      {
+        tipo: 'novo',
+        texto: 'Os decks de quem está logado passam a acompanhar a conta. '
+          + 'Num aparelho novo eles já aparecem na escolha do deck, em vez de '
+          + 'obrigar a buscar na Scryfall o comandante que o app já conhece.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'São só os seus, e são privados: o app deixa cada pessoa '
+          + 'escrever apenas no próprio perfil, e a busca por @ não revela o '
+          + 'que alguém joga.',
+      },
+    ],
+  },
+  {
     versao: '1.5.0',
     data: '2026-10-02',
     titulo: 'Filtrar os decks por jogador',

@@ -370,6 +370,36 @@ A home continua sendo a base: dali o voltar sai do app, que é o que se espera.
 E a mesa segue como era — não há entrada empilhada nela, e trocar isso mereceria
 decisão própria, porque "voltar" numa partida em andamento não tem destino óbvio.
 
+## Os decks seguem a conta
+
+A lista de decks de alguém é **derivada** do histórico local — nada é guardado
+à parte, e é o que evita uma segunda verdade sobre o que a pessoa joga. Mas num
+aparelho novo esse histórico está vazio: quem acabou de entrar na conta não
+achava o próprio deck e tinha de buscar na Scryfall o comandante que o app já
+conhece.
+
+Agora os decks de **quem está logado** vão para o perfil dele no servidor, e
+voltam no próximo aparelho. No seletor eles se juntam aos do histórico local,
+sem repetir, do mais recente para o mais antigo.
+
+**Só os seus.** A policy do banco deixa cada um escrever apenas a própria linha
+de perfil, então o anfitrião registra os decks dos amigos no aparelho dele mas
+não pode gravá-los no perfil deles. É a mesma regra que impede alguém de ser
+autor do registro alheio — ver `sql/002-participantes.sql`.
+
+**E são privados.** A busca por `@` seleciona explicitamente id, handle e
+display_name: acrescentar `decks` ali transformaria a confirmação de um `@` numa
+devassa do que a pessoa joga.
+
+Sobe só quando o **conjunto** muda. `lastUsed` muda a cada partida, então
+comparar as listas inteiras faria toda sincronização escrever no perfil para
+dizer a mesma coisa.
+
+> **Precisa de migração.** Rode `sql/004-decks-da-conta.sql` no Supabase. Sem
+> ela o servidor recusa a escrita, o app trata como "fica para a próxima" e
+> segue funcionando com os decks do histórico local — como era antes. Nada
+> quebra, mas o recurso fica dormente.
+
 ## Rivalidades
 
 Aba própria nas estatísticas. Cada linha é um **par de jogadores**, com o dano

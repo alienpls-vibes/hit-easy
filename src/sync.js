@@ -23,6 +23,7 @@
 import * as store from './store.js';
 import * as cloud from './cloud.js';
 import { cloudEnabled } from './config.js';
+import { deckKeyOf } from './engine.js';
 
 /* ------------------------------------------------------------------ */
 /* Decisoes puras                                                      */
@@ -161,6 +162,22 @@ export function apelidosAprendidos(partidas, meuId, confiaveis) {
   return achados;
 }
 
+/**
+ * Vale a pena escrever os decks no perfil?
+ *
+ * So quando o CONJUNTO mudou. `lastUsed` muda a cada partida, entao comparar
+ * as listas inteiras faria toda sincronizacao escrever no perfil para dizer a
+ * mesma coisa.
+ */
+export function decksMudaram(meus, noPerfil) {
+  const chaves = (lista) => (lista || [])
+    .map((d) => deckKeyOf(d && d.commanders))
+    .filter(Boolean)
+    .sort()
+    .join('|');
+  return chaves(meus) !== chaves(noPerfil);
+}
+
 export function podeSincronizar(ligado, estado) {
   return Boolean(ligado) && estado !== 'desligado' && estado !== 'deslogado';
 }
@@ -222,6 +239,9 @@ export async function sincronizar({ aoProgresso } = {}) {
       // O que veio de la ja esta la: marcar evita devolver na proxima passada.
       for (const m of remotas) store.marcarEnviada(m.id);
 
+      // Os decks da propria conta, nos dois sentidos.
+      await sincronizarMeusDecks();
+
       // Aprender quem e quem com o que veio.
       //
       // Roda sobre TODAS as remotas, e nao so as novas: uma partida que este
@@ -278,6 +298,34 @@ export async function sincronizar({ aoProgresso } = {}) {
  * ela, ainda da para aprender das partidas proprias - que e o caso de quem usa
  * dois aparelhos com a mesma conta, o cenario mais comum de todos.
  */
+/**
+ * Meus decks seguem a minha conta.
+ *
+ * Desce primeiro: num aparelho novo e a unica fonte, porque o historico local
+ * esta vazio. Depois sobe o que este aparelho viu, ja junto com o que desceu -
+ * a uniao e o que fica no perfil.
+ *
+ * Falhar aqui nao derruba a sincronizacao. O caso mais provavel de falha e a
+ * coluna nao existir (sql/004-decks-da-conta.sql nao rodado), e nesse caso o
+ * app segue como antes: decks do historico local.
+ */
+async function sincronizarMeusDecks() {
+  const perfil = cloud.meuPerfil();
+  if (!perfil || !perfil.handle) return;
+
+  if (Array.isArray(perfil.decks)) {
+    store.guardarDecksDaConta(perfil.handle, perfil.decks);
+  }
+
+  const meus = store.decksOfPlayer(null, perfil.handle);
+  if (!meus.length) return;
+  if (!decksMudaram(meus, perfil.decks)) return;
+
+  try {
+    await cloud.salvarMeusDecks(meus);
+  } catch { /* coluna ausente ou rede: fica para a proxima passada */ }
+}
+
 async function aprenderQuemEQuem(remotas) {
   const eu = cloud.currentUser();
   let confiaveis = [];
