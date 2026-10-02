@@ -13,6 +13,7 @@ import {
 } from './dom-stub.js';
 import {
   createMatch, replay, push, undo, standings, elapsedOf, pessoaRepetida, partidaValida,
+  sairDaMesa, voltarAMesa, ausenteEntre,
   cmdKeyOf, CMD_LETHAL, POISON_LETHAL,
 } from '../src/engine.js';
 import {
@@ -864,6 +865,105 @@ export const cases = [
     eq(p0.damageDealt, 12, 'dano causado (4 × 3)');
     eq(p0.healed, 12, 'vida ganha no dreno');
     eq(players.find((p) => p.label === 'P1').damageTaken, 4, 'dano levado por alvo');
+  }],
+
+  ['esconder o app para o relógio da partida em andamento', () => {
+    if (!simulated) return 'skip';
+    // A fiação, e não a conta: prova que o ouvinte de visibilidade está
+    // pendurado e chega ao motor. app.js sobe junto com a suíte (ver o import
+    // no topo), então o ouvinte já está registrado aqui.
+    store.wipe();
+    try {
+      const m = mesa();
+      store.setCurrent(m);
+
+      const antes = document.visibilityState;
+      document.visibilityState = 'hidden';
+      fire(document, 'visibilitychange');
+      document.visibilityState = antes;
+
+      ok(store.getCurrent().ausenteDesde,
+        'esconder o app não parou o relógio');
+    } finally {
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['o tempo fora da mesa não conta na duração nem no turno', () => {
+    // O defeito que isto conserta: a duração era tempo de PAREDE. Sair para as
+    // estatísticas, bloquear o celular ou fechar o app somava tudo aquilo à
+    // partida - e, ao passar a vez, ao turno de quem estava jogando. Meia hora
+    // no banheiro virava "o turno mais longo da noite".
+    const m = mesa();
+    const t0 = m.startedAt;
+
+    // Turno 1 de 0 a 100s, com 60s de ausência no meio dele.
+    m.ausencias = [[t0 + 20000, t0 + 80000]];
+    m.events.push({ id: 'a', ts: t0 + 100000, turn: 1, type: 'turn' });
+
+    const s1 = replay(m);
+    eq(elapsedOf(m, s1, t0 + 100000), 40000, 'a duração não descontou a ausência');
+    eq(s1.players.s0.timeOnTurn, 40000, 'o turno não descontou a ausência');
+  }],
+
+  ['a ausência é descontada por sobreposição, e não no total', () => {
+    // Por sobreposição porque o tempo de turno precisa descontar só o que caiu
+    // DENTRO daquele turno - um total somado descontaria do turno errado.
+    const m = mesa();
+    const t0 = m.startedAt;
+    m.ausencias = [[t0 + 100, t0 + 200], [t0 + 500, t0 + 900]];
+
+    eq(ausenteEntre(m, t0, t0 + 1000), 500, 'as duas faixas somam');
+    eq(ausenteEntre(m, t0, t0 + 150), 50, 'a faixa é recortada no fim');
+    eq(ausenteEntre(m, t0 + 150, t0 + 1000), 450, 'e no começo');
+    eq(ausenteEntre(m, t0 + 250, t0 + 450), 0, 'janela entre as faixas não desconta');
+
+    // O período ainda ABERTO conta até o instante da pergunta: é o caso do app
+    // fechado, em que ninguém escreveu o fim.
+    m.ausenteDesde = t0 + 2000;
+    eq(ausenteEntre(m, t0, t0 + 3000), 1500, 'o período aberto conta até agora');
+  }],
+
+  ['o relógio não para duas vezes, nem depois do fim', () => {
+    // Com pausa manual em curso o tempo já não conta. Abrir uma ausência por
+    // cima descontaria o mesmo período duas vezes, e a partida sairia mais
+    // curta do que foi.
+    const pausada = mesa();
+    pausada.events.push({
+      id: 'p', ts: pausada.startedAt + 1000, turn: 1, type: 'pause',
+    });
+    eq(sairDaMesa(pausada, pausada.startedAt + 2000), false,
+      'abriu ausência com a mesa já pausada');
+    eq(pausada.ausenteDesde, undefined, 'e sujou a partida');
+
+    // Partida encerrada: o relógio parou de andar, não há o que descontar.
+    const fim = mesa(2);
+    push(fim, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
+    ok(replay(fim).finished, 'a partida devia estar encerrada');
+    eq(sairDaMesa(fim, Date.now()), false, 'abriu ausência com a partida encerrada');
+  }],
+
+  ['uma ausência que ficou aberta fecha ao voltar à mesa', () => {
+    // É o caso do app fechado com a mesa aberta: `ausenteDesde` ficou gravado,
+    // e todo o tempo em que o app esteve fora tem de sair da partida.
+    const m = mesa();
+    const t0 = m.startedAt;
+
+    ok(sairDaMesa(m, t0 + 10000), 'não abriu a ausência');
+    eq(m.ausenteDesde, t0 + 10000, 'não marcou desde quando');
+
+    // Duas horas fora, e o app volta.
+    ok(voltarAMesa(m, t0 + 7210000), 'não fechou a ausência');
+    eq(m.ausenteDesde, null, 'deixou o período aberto');
+    eq(m.ausencias, [[t0 + 10000, t0 + 7210000]], 'não guardou o período');
+
+    m.events.push({ id: 'a', ts: t0 + 7215000, turn: 1, type: 'turn' });
+    eq(elapsedOf(m, replay(m), t0 + 7215000), 15000,
+      'as duas horas fora entraram na duração');
+
+    // Voltar sem ter saído não faz nada.
+    eq(voltarAMesa(m, t0 + 7220000), false, 'fechou um período que não existia');
   }],
 
   ['o tempo pausado não conta na duração da partida', () => {

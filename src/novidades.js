@@ -21,6 +21,35 @@
 
 export const NOVIDADES = [
   {
+    versao: '1.4.0',
+    data: '2026-10-02',
+    titulo: 'O relógio para quando você sai da mesa',
+    itens: [
+      {
+        tipo: 'corrigido',
+        texto: 'A duração da partida contava tempo de parede: sair para as '
+          + 'estatísticas, bloquear o celular ou fechar o app somava tudo '
+          + 'aquilo à partida — e, ao passar a vez, ao turno de quem estava '
+          + 'jogando. Fechar o app à noite e voltar no dia seguinte produzia '
+          + 'uma partida de catorze horas.',
+      },
+      {
+        tipo: 'novo',
+        texto: 'Agora o relógio para sozinho quando ninguém está na mesa, e '
+          + 'volta a andar quando você volta. Sem pedir nada e sem a cobertura '
+          + 'da pausa manual: pausa que você não pediu não deve exigir que '
+          + 'você a desfaça.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'Fechar o app é melhor esforço. Um encerramento forçado pelo '
+          + 'sistema pode não avisar o app, e aí aquele tempo conta — não há '
+          + 'aviso que o navegador garanta. Pausar antes continua sendo o '
+          + 'jeito certo para uma parada longa.',
+      },
+    ],
+  },
+  {
     versao: '1.3.0',
     data: '2026-10-02',
     titulo: 'A vida conta na sua frente',

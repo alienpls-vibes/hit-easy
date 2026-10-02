@@ -162,6 +162,31 @@ pausa. O tempo parado **não entra em lugar nenhum**: sai da duração da partid
 do tempo de turno de quem estava jogando. Ida ao banheiro não vira "o turno mais
 longo da noite" na estatística.
 
+**E o relógio para sozinho quando ninguém está na mesa.** Sair para as
+estatísticas ou para a home, trocar de app, bloquear o celular, fechar o app —
+tudo isso para a contagem, e voltar retoma. Sem pedir, e sem a cobertura da
+pausa manual: pausa que ninguém pediu não deve exigir que alguém a desfaça.
+
+Antes a duração era tempo de **parede** (`agora − startedAt − pausas`), então
+fechar o app por oito horas somava oito horas à partida — e, ao passar a vez,
+ao turno de quem estava jogando.
+
+O período fora da mesa é guardado **ao lado** do log, não dentro dele, como o
+mana já faz. Dois motivos, e os dois são sobre não estragar o que funciona:
+`undo` tira o último evento qualquer que seja, então uma pausa automática
+viraria o alvo do "desfazer" ao voltar; e `timeline()` desenha `pause` e
+`resume`, então cada olhada nas estatísticas acrescentaria duas linhas ao
+histórico daquela partida.
+
+A concessão é que `replay` passa a ler um campo que não é evento — o log
+sozinho deixa de determinar o tempo de turno. O **placar** continua saindo só
+do log: nenhuma vida, contador ou colocação depende disso.
+
+Fechar o app é melhor esforço: usa `pagehide`, e um encerramento forçado pelo
+sistema pode não disparar nada. Nesse caso aquele tempo conta — não há evento
+que o navegador garanta. Mas o período fica gravado **aberto**, então se o
+`pagehide` rodar, o arranque seguinte fecha a conta e desconta tudo.
+
 ## Marcador de mana
 
 No menu da partida. Uma peça por cor (WUBRG + incolor), e cada uma é um painel

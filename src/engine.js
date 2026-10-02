@@ -169,8 +169,14 @@ export function replay(match) {
   const advanceTurn = (ev) => {
     const current = players[order[activeIdx]];
     if (current) {
-      // Tempo do turno desconta o que a mesa passou pausada dentro dele.
-      current.timeOnTurn += Math.max(0, ev.ts - turnStart - pausedInTurn);
+      // Tempo do turno desconta o que a mesa passou pausada dentro dele, e
+      // tambem o que ninguem estava na mesa - senao bloquear o celular no meio
+      // de um turno faria dele o mais longo da noite.
+      const foraNoTurno = ausenteEntre(match, turnStart, ev.ts);
+      current.timeOnTurn += Math.max(
+        0,
+        ev.ts - turnStart - pausedInTurn - foraNoTurno,
+      );
       current.turnsTaken += 1;
     }
     pausedInTurn = 0;
@@ -279,11 +285,62 @@ export function replay(match) {
 }
 
 /** Tempo de partida ja descontado o que ficou pausado, inclusive agora. */
+/**
+ * Abre um periodo de ausencia: ninguem esta na mesa a partir de agora.
+ *
+ * Nao abre se o relogio JA esta parado - com pausa manual em curso o tempo
+ * nao conta de qualquer jeito, e abrir aqui descontaria o mesmo periodo duas
+ * vezes. Nem se a partida terminou, que e quando o relogio deixa de andar.
+ *
+ * Devolve se abriu, para quem chama saber se precisa gravar.
+ */
+export function sairDaMesa(match, agora = Date.now()) {
+  if (!match || match.ausenteDesde) return false;
+  const st = replay(match);
+  if (st.paused || st.finished) return false;
+  match.ausenteDesde = agora;
+  return true;
+}
+
+/** Fecha o periodo aberto, se houver. Devolve se fechou. */
+export function voltarAMesa(match, agora = Date.now()) {
+  if (!match || !match.ausenteDesde) return false;
+  const de = match.ausenteDesde;
+  match.ausenteDesde = null;
+  if (agora > de) match.ausencias = [...(match.ausencias || []), [de, agora]];
+  return true;
+}
+
+/**
+ * Quanto tempo de ausencia cai dentro de [de, ate].
+ *
+ * Por sobreposicao, e nao por total, porque o tempo de turno precisa descontar
+ * so o que aconteceu DENTRO daquele turno. O periodo ainda aberto conta ate
+ * `ate`, que e o agora de quem perguntou.
+ */
+export function ausenteEntre(match, de, ate) {
+  const faixas = [...((match && match.ausencias) || [])];
+  if (match && match.ausenteDesde) faixas.push([match.ausenteDesde, ate]);
+
+  let total = 0;
+  for (const [a, b] of faixas) {
+    total += Math.max(0, Math.min(b, ate) - Math.max(a, de));
+  }
+  return total;
+}
+
 export function elapsedOf(match, state, now = Date.now()) {
   const st = state || replay(match);
   const fim = st.endedAt || now;
   const pausaCorrendo = st.paused && !st.endedAt ? Math.max(0, now - st.pausedSince) : 0;
-  return Math.max(0, fim - match.startedAt - st.pausedTotal - pausaCorrendo);
+  // A ausencia e recortada em [startedAt, fim]: depois do fim o relogio nao
+  // anda mais, entao sair da mesa com a partida encerrada nao pode encurtar o
+  // que ela durou.
+  const fora = ausenteEntre(match, match.startedAt, fim);
+  return Math.max(
+    0,
+    fim - match.startedAt - st.pausedTotal - pausaCorrendo - fora,
+  );
 }
 
 /** Anexa um evento, carimbando turno/assento ativo do momento. */
