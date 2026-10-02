@@ -23,8 +23,15 @@ export const NOVIDADES = [
   {
     versao: '1.7.0',
     data: '2026-10-02',
-    titulo: 'Ordenar as listas, e notas mais curtas',
+    titulo: 'Cara nova, e listas que se ordenam',
     itens: [
+      {
+        tipo: 'mudou',
+        texto: 'O ícone do app mudou: gradiente de cor com a mesa ao centro. '
+          + 'Se o atalho no seu celular continuar com o desenho antigo por '
+          + 'alguns dias, é o sistema demorando para reler — reinstalar '
+          + 'resolve na hora.',
+      },
       {
         tipo: 'novo',
         texto: 'As abas de Decks e de Jogadores ganharam um seletor de ordem: '

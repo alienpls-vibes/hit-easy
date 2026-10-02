@@ -218,8 +218,8 @@ const ASSETS = [
   './src/views/table/vitoria.js',
   './src/views/table/votacao.js',
   './src/vote.js',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
+  './icons/icon-gradient-192.png',
+  './icons/icon-gradient-512.png',
 ];
 
 /**

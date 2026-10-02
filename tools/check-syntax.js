@@ -311,6 +311,64 @@ function conferirCache() {
   return problemas;
 }
 
+/**
+ * Todo icone referenciado existe no disco?
+ *
+ * Tres arquivos apontam para os icones - manifest.webmanifest, index.html e a
+ * lista ASSETS de sw.js -, entao trocar a arte significa acertar os tres.
+ * Errar um nao quebra teste nenhum, e cada um falha de um jeito diferente:
+ *
+ *   - manifest com caminho morto: so aparece na hora de instalar, no aparelho
+ *     de outra pessoa, e o sistema cai para um icone generico sem avisar;
+ *   - sw.js com caminho morto: `cache.addAll()` rejeita TUDO se um unico
+ *     pedido falhar, entao o app inteiro deixa de funcionar offline;
+ *   - index.html com caminho morto: a aba fica sem favicon.
+ *
+ * Confere tambem o contrario: PNG em icons/ que ninguem referencia. Arte
+ * antiga esquecida ali continua sendo baixada por quem clonar o repositorio e
+ * vira duvida sobre qual e a atual.
+ */
+function conferirIcones() {
+  const problemas = [];
+  const citados = new Set();
+
+  const fontes = [
+    ['manifest.webmanifest', /"src"\s*:\s*"\.\/(icons\/[^"]+)"/g],
+    ['index.html', /href="\.\/(icons\/[^"]+)"/g],
+    ['sw.js', /'\.\/(icons\/[^']+)'/g],
+  ];
+
+  for (const [arquivo, re] of fontes) {
+    const texto = readFileSync(join(ROOT, arquivo), 'utf8');
+    for (const m of texto.matchAll(re)) {
+      citados.add(m[1]);
+      if (!existsSync(join(ROOT, m[1]))) {
+        problemas.push(arquivo + ' aponta para ' + m[1] + ', que nao existe.');
+      }
+    }
+  }
+
+  if (!citados.size) problemas.push('nenhum icone referenciado em lugar nenhum');
+
+  for (const f of readdirSync(join(ROOT, 'icons'))) {
+    if (!f.endsWith('.png')) continue;
+    if (!citados.has('icons/' + f)) {
+      problemas.push('icons/' + f + ' nao e referenciado por ninguem: '
+        + 'arte antiga esquecida vira duvida sobre qual e a atual.');
+    }
+  }
+
+  return problemas;
+}
+
+const iconesRuins = conferirIcones();
+if (iconesRuins.length) {
+  console.error('\n\x1b[31m Icones:\x1b[0m');
+  for (const x of iconesRuins) console.error('  ' + x);
+  console.error('');
+  process.exit(1);
+}
+
 const cacheRuim = conferirCache();
 if (cacheRuim.length) {
   console.error('\n\x1b[31m Cache do service worker:\x1b[0m');

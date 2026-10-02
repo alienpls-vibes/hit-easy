@@ -489,6 +489,40 @@ Dá para trazer de volta em *Estatísticas → menu → Ocultos*.
 É por isso que ocultar e apagar são coisas separadas: apagar uma partida
 (também disponível, no detalhe dela) muda o histórico de verdade.
 
+## O ícone
+
+Três arquivos em `icons/`, e os três saem da mesma arte: gradiente de cor com a
+silhueta de uma mesa ao centro.
+
+O **maskable** não é cópia do 512, e a diferença importa. O Android não mostra o
+PNG: ele o recorta na forma que o lançador usa — círculo, squircle, quadrado
+arredondado. Duas regras saem disso. A imagem tem de ser opaca de borda a borda,
+senão os cantos ficam vazados mostrando o papel de parede; e o símbolo tem de
+caber no círculo central de 80%, porque fora dali pode ser cortado.
+
+A arte entregue tem o quadrado arredondado assado no PNG, com cantos pretos.
+Serve para `purpose: "any"`, onde ninguém recorta nada. Como maskable ela daria
+uma borda escura dupla em qualquer máscara que não fosse circular, então o
+maskable é a mesma arte ampliada 16%, o bastante para o gradiente alcançar os
+cantos. A mesa fica a 0,368 do lado; o limite é 0,400.
+
+Os três são opacos por inteiro, então foram gravados sem canal alfa — era um
+quarto dos bytes guardando o número 255 repetido.
+
+**Pesam muito mais que os antigos: 444 KB contra 19 KB.** Gradiente suave é o
+pior caso do PNG. Testei paleta de 256 cores, que cortaria 79%, e ela bandeia
+visivelmente justamente onde está o apelo do ícone. Recomprimir não ganha nada;
+já estão no limite do formato.
+
+**A 16 e 32 pixels a mesa não lê.** Vira um borrão escuro no meio do colorido, e
+é nesses tamanhos que vive o favicon da aba. O ícone anterior se saía melhor ali,
+porque pontos separados sobrevivem ao reescalonamento melhor que uma silhueta de
+pernas finas. Se isso incomodar, a saída é uma variante simplificada só para
+32px, não mexer na arte grande.
+
+Os nomes mudaram junto com a arte, de propósito: URL nova força o navegador e o
+sistema a buscar de novo, em vez de servir o desenho antigo do cache.
+
 ## Instalar
 
 Configurações → *Instalar*. Quando o navegador oferece instalação, um botão de
