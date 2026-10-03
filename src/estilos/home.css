@@ -210,3 +210,39 @@
   color: var(--text-dim);
   opacity: 0.75;
 }
+
+/* ---------- passar a mesa ---------- */
+
+/* O aviso de que a mesa saiu daqui. Mesmo peso do banner de convites: é
+   informação que explica uma ausência, e quem volta à home sem entender por
+   que o jogo sumiu precisa achá-la sem procurar. */
+.passada {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-soft);
+  background: var(--surface);
+}
+.passada-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.passada-acts { display: flex; gap: 8px; }
+.passada-acts .btn { flex: 1 1 0; }
+
+/* Receber fica no pé, discreto: é raro, e quem precisa já sabe que precisa. */
+.receber-mesa {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+.receber-mesa:hover { color: var(--text); border-color: var(--text-dim); }

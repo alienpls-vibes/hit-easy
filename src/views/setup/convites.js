@@ -60,6 +60,8 @@ function inviteRow(convite, recarregar) {
       + (anfitriao.display_name ? ' - ' + anfitriao.display_name : '');
     confiar.hidden = false;
     confiar.dataset.host = anfitriao.id;
+    bloquear.hidden = false;
+    bloquear.dataset.host = anfitriao.id;
   }).catch(() => {});
 
   const responder = async (aceitar) => {
@@ -83,6 +85,24 @@ function inviteRow(convite, recarregar) {
     }
   });
 
+  // O contrario, e ele precisa existir.
+  //
+  // Convite de quem ja jogou com voce passou a entrar sozinho, derivado do
+  // historico. Sem este botao, uma mesa com um estranho num torneio valeria
+  // para sempre e nao haveria como desfazer - apagar a confianca nao adianta,
+  // porque a regra se refaz a partir das partidas jogadas.
+  const bloquear = el('button', { class: 'invite-never' }, [t('invites.never')]);
+  bloquear.hidden = true;
+  bloquear.addEventListener('click', async () => {
+    try {
+      await cloud.deixarDeConfiar(bloquear.dataset.host);
+      await responder(false);
+      toast(t('invites.neverDone'));
+    } catch {
+      toast(t('account.failed'));
+    }
+  });
+
   linha.append(el('div', { class: 'invite-who' }, [
     el('span', {
       class: 'menu-label',
@@ -97,6 +117,7 @@ function inviteRow(convite, recarregar) {
       [t('invites.decline')]),
   ]));
   linha.append(confiar);
+  linha.append(bloquear);
   return linha;
 }
 

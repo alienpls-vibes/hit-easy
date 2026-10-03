@@ -88,28 +88,59 @@ export async function anfitrioesConfiaveis() {
   const dono = currentUser();
   if (!dono) return [];
   const linhas = await pedir(
-    '/rest/v1/trusted_hosts?select=host_id&user_id=eq.'
+    '/rest/v1/trusted_hosts?select=host_id&confia=is.true&user_id=eq.'
     + encodeURIComponent(dono.id),
   );
   return (linhas || []).map((l) => l.host_id).filter(Boolean);
 }
 
-export async function confiarEm(hostId) {
+/**
+ * Quem esta pessoa recusou explicitamente.
+ *
+ * Existe porque o aceite automatico agora nasce do historico: jogar junto uma
+ * vez basta. Sem uma forma de dizer nao, uma mesa com um estranho num torneio
+ * valeria para sempre - e a lista de recusados e o que a tela precisa para
+ * mostrar essa decisao e permitir desfaze-la.
+ */
+export async function anfitrioesRecusados() {
+  const dono = currentUser();
+  if (!dono) return [];
+  const linhas = await pedir(
+    '/rest/v1/trusted_hosts?select=host_id&confia=is.false&user_id=eq.'
+    + encodeURIComponent(dono.id),
+  );
+  return (linhas || []).map((l) => l.host_id).filter(Boolean);
+}
+
+/**
+ * Decide sobre um anfitriao: aceitar sozinho, ou nunca mais.
+ *
+ * `merge-duplicates` e nao `ignore-duplicates`: a linha pode ja existir com a
+ * decisao contraria, e ignorar o conflito deixaria a pessoa tocando um botao
+ * que nao faz nada. Trocar de ideia tem de valer.
+ */
+async function decidirSobre(hostId, confia) {
   const dono = currentUser();
   if (!dono || !hostId) throw new Error('sem sessao');
   await pedir('/rest/v1/trusted_hosts', {
     method: 'POST',
-    headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
-    body: JSON.stringify({ user_id: dono.id, host_id: hostId }),
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ user_id: dono.id, host_id: hostId, confia }),
   });
 }
 
-export async function deixarDeConfiar(hostId) {
-  const dono = currentUser();
-  if (!dono || !hostId) return;
-  await pedir(
-    '/rest/v1/trusted_hosts?user_id=eq.' + encodeURIComponent(dono.id)
-    + '&host_id=eq.' + encodeURIComponent(hostId),
-    { method: 'DELETE' },
-  );
+export function confiarEm(hostId) {
+  return decidirSobre(hostId, true);
+}
+
+/**
+ * Nunca mais aceitar sozinho o que vier desta pessoa.
+ *
+ * Grava `confia = false` em vez de apagar a linha. Apagar nao desfaz nada: o
+ * gatilho refaz o aceite a partir das partidas que as duas ja jogaram juntas,
+ * e a pessoa tocaria o botao de novo todo mes sem entender por que ele nao
+ * tem efeito.
+ */
+export function deixarDeConfiar(hostId) {
+  return decidirSobre(hostId, false);
 }

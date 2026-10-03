@@ -16,6 +16,7 @@ import { openPreGame } from './antes-de-comecar.js';
 import { bindReorder, seatCard } from './cartao-jogador.js';
 import { openSettings } from './configuracoes.js';
 import { convitesBanner } from './convites.js';
+import { mesaPassadaBanner, receberMesaBotao } from './passar-mesa.js';
 import {
   LIFE_PRESETS, MAX_SEATS, ensureDraft, freshSeat,
 } from './rascunho.js';
@@ -80,6 +81,11 @@ export function renderSetup(root, { onStart, onStats, onRefresh }) {
       // que é onde um aviso é visto sem precisar rolar nada.
       convitesBanner(onRefresh),
 
+      // A mesa que saiu deste aparelho. Mesmo lugar e mesmo motivo: quem
+      // passou a mesa e voltou aqui precisa entender por que o jogo sumiu,
+      // sem procurar.
+      mesaPassadaBanner(onRefresh),
+
       el('div', { class: 'field-row setup-life' }, [
         el('span', { class: 'label' }, [t('setup.startingLife')]),
         el('div', { class: 'chips' }, LIFE_PRESETS.map((v) =>
@@ -105,6 +111,11 @@ export function renderSetup(root, { onStart, onStats, onRefresh }) {
         // Dentro do rodapé de propósito: ele já tem área no grid da versão
         // deitada, então a assinatura acompanha sem mexer no layout.
         // Não entra no dicionário de idiomas — apelido não se traduz.
+        // Receber uma mesa fica no pé, e não no cabeçalho: é raro, e quem
+        // precisa dele sabe que precisa - alguém acabou de dizer "te mandei a
+        // partida". Pôr no alto custaria espaço permanente por um uso
+        // ocasional.
+        receberMesaBotao(onRefresh),
         el('p', { class: 'signature', text: 'designed by @AlienPls' }),
       ]),
     ]),

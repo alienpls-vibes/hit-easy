@@ -103,6 +103,7 @@ export {
 export {
   anfitriaoDoConvite,
   anfitrioesConfiaveis,
+  anfitrioesRecusados,
   confiarEm,
   convitesAbertos,
   convitesPendentes,

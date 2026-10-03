@@ -24,3 +24,6 @@
 export { renderSetup } from './setup/home.js';
 export { seedDraftFrom } from './setup/rascunho.js';
 export { abrirNovidades } from './setup/notas-de-versao.js';
+export {
+  passarMesa, receberMesa, mesaPassadaBanner, receberMesaBotao,
+} from './setup/passar-mesa.js';

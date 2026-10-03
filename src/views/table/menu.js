@@ -33,6 +33,9 @@ export function criarMenu(mesa) {
           item(t('vote.title'), t('vote.menuSub'), mesa.openVote),
           item(t('table.declareWinner'), t('table.declareWinnerSub'), mesa.pickWinner),
           item(t('common.stats'), '', mesa.ctx.onStats),
+          // Acima de descartar, e longe dele: as duas tiram a mesa daqui, mas
+          // uma guarda o jogo e a outra o joga fora.
+          item(t('pass.menu'), t('pass.menuSub'), mesa.ctx.onPassar),
           item(t('table.discard'), t('table.discardSub'), async () => {
             const ok = await confirmAction({
               title: t('table.discardTitle'),
