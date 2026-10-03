@@ -9,7 +9,9 @@
 import {
   toast, setHaptics, isSheetOpen, onSheetChange, closeSheet,
 } from './ui.js';
-import { renderSetup, seedDraftFrom, abrirNovidades } from './views/setup.js';
+import {
+  renderSetup, seedDraftFrom, abrirNovidades, passarMesa,
+} from './views/setup.js';
 import { renderTable } from './views/table.js';
 import { renderStats, renderPaywall } from './views/stats.js';
 import { createMatch, sairDaMesa, voltarAMesa } from './engine.js';
@@ -144,6 +146,7 @@ function desenhar() {
   if (route === 'table') {
     const match = store.getCurrent();
     if (!match) { go('setup'); return; }
+
     live = renderTable(root, {
       match,
       onChange: () => store.setCurrent(match),
@@ -162,6 +165,12 @@ function desenhar() {
         store.clearCurrent();
         go('setup');
         toast(t('victory.discarded'));
+      },
+      onPassar: async () => {
+        // A mesa sai daqui no ato de empacotar, entao voltar para a home e
+        // consequencia e nao decisao: a rota acima ja recusaria entrar nela.
+        const foi = await passarMesa();
+        if (foi) { go('setup'); toast(t('pass.done')); }
       },
     });
     hintRotate();
@@ -194,6 +203,10 @@ function desenhar() {
 
   renderSetup(root, {
     onStats: () => go('stats'),
+    // Receber uma mesa e retomar uma passada mudam qual e a partida de agora,
+    // entao a tela tem de ir junto. Sem isto a mesa era instalada e a pessoa
+    // continuava na home - so recarregar a pagina a encontrava.
+    onAbrirMesa: () => go('table'),
     // Trocar o tema muda a paleta WUBRG, que ja foi escrita no style dos
     // elementos: so um redesenho completo poe todo mundo na cor nova.
     onRefresh: () => render(),

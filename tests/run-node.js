@@ -2,7 +2,7 @@
 
 import { runAll } from './cases.js';
 
-const results = runAll();
+const results = await runAll();
 const failed = results.filter((r) => !r.ok);
 const skipped = results.filter((r) => r.skipped);
 

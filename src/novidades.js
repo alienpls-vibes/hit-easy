@@ -21,6 +21,27 @@
 
 export const NOVIDADES = [
   {
+    versao: '1.8.0',
+    data: '2026-10-02',
+    titulo: 'Passar a mesa, e convite uma vez só',
+    itens: [
+      {
+        tipo: 'novo',
+        texto: 'Acabando a bateria no meio do jogo? Dá para passar a mesa '
+          + 'para o celular de alguém da partida: ela vira um arquivo, você '
+          + 'envia, e o jogo continua de onde parou. Ninguém precisa de conta '
+          + 'e não precisa de internet.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'Quem já jogou uma partida com você passa a entrar sozinho nas '
+          + 'próximas: o convite não precisa mais ser aceito toda vez. Dá '
+          + 'para desfazer em qualquer convite, com "nunca aceitar desta '
+          + 'pessoa".',
+      },
+    ],
+  },
+  {
     versao: '1.7.0',
     data: '2026-10-02',
     titulo: 'Ordenar as listas, e o teste fora do histórico real',

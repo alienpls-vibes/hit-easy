@@ -13,7 +13,7 @@
 
 // Mesma string de APP_VERSION em src/version.js - worker nao importa modulo.
 // Se mudar la, mude aqui; check-syntax.js confere os dois.
-const VERSION = '1.7.0';
+const VERSION = '1.8.0';
 
 /**
  * Producao e beta dividem a mesma origem, e Cache Storage e por origem. O canal
@@ -187,6 +187,7 @@ const ASSETS = [
   './src/views/setup/home.js',
   './src/views/setup/instalar.js',
   './src/views/setup/notas-de-versao.js',
+  './src/views/setup/passar-mesa.js',
   './src/views/setup/rascunho.js',
   './src/views/setup/sincronizacao.js',
   './src/views/stats.js',

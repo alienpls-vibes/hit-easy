@@ -14,6 +14,7 @@ import {
 import {
   createMatch, replay, push, undo, standings, elapsedOf, pessoaRepetida, partidaValida,
   sairDaMesa, voltarAMesa, ausenteEntre, juntarDecks, deckKeyOf,
+  passarAMesa, retomarAMesa, mesaPassada, receberAMesa, agoraDaMesa,
   cmdKeyOf, CMD_LETHAL, POISON_LETHAL,
 } from '../src/engine.js';
 import {
@@ -42,6 +43,7 @@ import {
   normalizarHandle, handleValido, exibirHandle, participantesDe, montarConvites,
   colunaDeDecks, baixarPartidas, idsRemotos,
   enviarPartida, enviarParticipantes, salvarMeusDecks, conta,
+  confiarEm, deixarDeConfiar,
 } from '../src/cloud.js';
 import { cloudEnabled } from '../src/config.js';
 import { canalDe, canalDoCache } from '../src/canal.js';
@@ -64,7 +66,10 @@ import {
   COMMIT_MS, CONTAGEM_MS, CONTAGEM_PASSO_MIN, DOUBLE_TAP_MS, HOLD_DELAY,
   REPEAT_ACCEL_AFTER, REPEAT_FAST_MS, REPEAT_MS,
 } from '../src/views/table/constantes.js';
-import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
+import {
+  renderSetup, seedDraftFrom, continuarMesaBanner, nomeDoArquivo,
+  mesaPassadaBanner,
+} from '../src/views/setup.js';
 import { renderStats, renderPaywall } from '../src/views/stats.js';
 import { brandMark } from '../src/ui.js';
 import * as store from '../src/store.js';
@@ -1009,6 +1014,392 @@ export const cases = [
     } finally {
       if (!tinha) delete navigator.standalone;
       else navigator.standalone = false;
+    }
+    return undefined;
+  }],
+
+  ['mesa passada não abre a tela de jogo', () => {
+    if (!simulated) return 'skip';
+    // O bastão cobrado onde é barato cobrar. Dentro da mesa seriam vinte
+    // controles para desabilitar, e esquecer um basta para existirem duas
+    // cópias vivas da mesma partida.
+    store.wipe();
+    try {
+      const m = mesa(4);
+      m.id = 'p-bastao';
+      store.setCurrent(m);
+
+      ok(store.getCurrent(), 'a mesa viva devia estar disponível');
+
+      passarAMesa(m, 1234);
+      store.setCurrent(m);
+
+      // A invariante, e não um `if` no roteador: para o resto do app a mesa
+      // passada simplesmente não existe. Assim todo caminho que já tratava
+      // "não há mesa aberta" trata este caso de graça - e não há uma linha
+      // de guarda que alguém possa apagar sem nada quebrar.
+      eq(store.getCurrent(), null, 'a mesa passada ainda conta como a de agora');
+      ok(store.mesaGuardada(), 'a mesa passada sumiu do aparelho');
+      eq(store.mesaGuardada().id, 'p-bastao');
+
+      // Redesenhar a home com a mesa passada: o aviso aparece, e é ele que
+      // explica por que o jogo sumiu.
+      const raiz = document.createElement('div');
+      renderSetup(raiz, { onStart() {}, onStats() {}, onRefresh() {} });
+      ok(findAll(raiz, 'passada').length === 1,
+        'a home não avisou que a mesa foi passada');
+
+      // E o botão de receber está lá para quem vai continuar.
+      ok(findAll(raiz, 'receber-mesa').length === 1,
+        'a home não oferece receber uma mesa');
+    } finally {
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['deixar de confiar grava a recusa, em vez de apagar a linha', () => {
+    if (!simulated) return 'skip';
+    // Com o aceite automatico vindo do historico, apagar a linha nao desfaz
+    // nada: o gatilho a refaz a partir das partidas ja jogadas, e a pessoa
+    // tocaria o botao todo mes sem entender por que ele nao tem efeito.
+    const fetchReal = globalThis.fetch;
+    const sessaoReal = conta.sessao;
+    const pedidos = [];
+    globalThis.fetch = (u, o) => {
+      pedidos.push({ url: String(u), metodo: (o && o.method) || 'GET',
+        corpo: JSON.parse((o && o.body) || 'null') });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) });
+    };
+    conta.sessao = { user: { id: 'eu' }, access_token: 'x' };
+
+    try {
+      deixarDeConfiar('aquele-anfitriao');
+      const p1 = pedidos[pedidos.length - 1];
+      eq(p1.metodo, 'POST', 'recusar ainda apaga a linha em vez de gravar');
+      eq(p1.corpo.confia, false, 'a recusa não foi gravada como recusa');
+      eq(p1.corpo.host_id, 'aquele-anfitriao');
+
+      confiarEm('aquele-anfitriao');
+      const p2 = pedidos[pedidos.length - 1];
+      eq(p2.corpo.confia, true, 'confiar não gravou confiança');
+
+      // Trocar de ideia precisa valer: com ignore-duplicates o segundo toque
+      // seria engolido e o botão pareceria quebrado.
+      ok(String(p2.url).includes('trusted_hosts'));
+      ok(!/ignore-duplicates/.test(JSON.stringify(p2)), 'conflito ignorado');
+    } finally {
+      globalThis.fetch = fetchReal;
+      conta.sessao = sessaoReal;
+    }
+    return undefined;
+  }],
+
+  ['retomar leva de volta para a mesa, e não para a home', async () => {
+    if (!simulated) return 'skip';
+    // O defeito relatado, agora alcançável: o caminho passa por
+    // `await confirmAction`, e o runner síncrono não conseguia observar nada
+    // depois do await. Onze mutações não o pegaram - não por falta de teste,
+    // por impossibilidade de teste.
+    store.wipe();
+    try {
+      const m = mesa(4);
+      m.id = 'p-retomada';
+      passarAMesa(m, 1000);
+      store.setCurrent(m);
+
+      let redesenhos = 0;
+      let aberturas = 0;
+      const banner = mesaPassadaBanner(() => { redesenhos += 1; },
+        () => { aberturas += 1; });
+      ok(banner, 'sem mesa passada não há o que testar');
+
+      const retomar = findAll(banner, 'btn')[0];
+      ok(retomar, 'o aviso não oferece retomar');
+      fire(retomar, 'click');
+
+      // A confirmação abre numa folha; confirmar é o que dispara o resto.
+      await Promise.resolve();
+      const acoes = findAll(document.body, 'sheet-actions').slice(-1)[0];
+      ok(acoes, 'retomar não pediu confirmação');
+      fire(acoes.childNodes[1], 'click');
+      await Promise.resolve();
+      await Promise.resolve();
+
+      ok(store.getCurrent(), 'retomou e a mesa não voltou a valer');
+      eq(mesaPassada(store.mesaGuardada()), false, 'o carimbo ficou');
+      eq(aberturas, 1, 'retomar não levou de volta para a mesa');
+      eq(redesenhos, 0, 'retomar só redesenhou a home, que é onde a pessoa '
+        + 'ficava presa sem caminho para a partida');
+    } finally {
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['receber um arquivo instala a mesa e abre ela', async () => {
+    if (!simulated) return 'skip';
+    // O defeito relatado: a mesa era instalada e a tela continuava na home -
+    // só recarregar a página a encontrava, porque a rota inicial é a única
+    // que olha para `getCurrent()` sozinha. A causa era o callback errado
+    // chegando ao botão, e provar isso exige percorrer o caminho inteiro: sem
+    // arquivo escolhido, nenhum callback é chamado e os dois parecem iguais.
+    store.wipe();
+    try {
+      // Uma mesa empacotada por "outro aparelho".
+      const original = mesa(4);
+      original.id = 'p-chegando';
+      push(original, { type: 'life', targetId: 's1', sourceId: 's0', delta: -11 });
+      store.setCurrent(original);
+      const arquivo = store.empacotarMesa(1000);
+      store.wipe();
+
+      let redesenhos = 0;
+      let aberturas = 0;
+      const raiz = document.createElement('div');
+      renderSetup(raiz, {
+        onStart() {}, onStats() {},
+        onRefresh: () => { redesenhos += 1; },
+        onAbrirMesa: () => { aberturas += 1; },
+      });
+
+      const receber = findAll(raiz, 'receber-mesa')[0];
+      ok(receber, 'a home não oferece receber uma mesa');
+      fire(receber, 'click');
+
+      const campo = document.body.childNodes[document.body.childNodes.length - 1];
+      eq(campo.attributes.type, 'file', 'tocar em receber não abriu o seletor');
+
+      // O arquivo que a pessoa escolheu.
+      campo.files = [{ name: 'mesa.json', text: () => Promise.resolve(arquivo) }];
+      fire(campo, 'change');
+      for (let i = 0; i < 4; i += 1) await Promise.resolve();
+
+      const acoes = findAll(document.body, 'sheet-actions').slice(-1)[0];
+      ok(acoes, 'receber não pediu confirmação');
+      fire(acoes.childNodes[1], 'click');
+      for (let i = 0; i < 4; i += 1) await Promise.resolve();
+
+      const chegou = store.getCurrent();
+      ok(chegou, 'a mesa não foi instalada');
+      eq(chegou.id, 'p-chegando');
+      eq(replay(chegou).players.s1.life, 40 - 11, 'a partida não chegou inteira');
+
+      eq(aberturas, 1, 'instalou a mesa e não abriu ela: era preciso '
+        + 'recarregar a página para a partida aparecer');
+      eq(redesenhos, 0, 'receber só redesenhou a home');
+    } finally {
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['o arquivo da mesa carrega o id da partida', () => {
+    // Nome fixo fazia duas mesas na pasta de downloads virarem
+    // `mesa-hit-easy (1).json`, e aí ninguém sabe qual é qual - nem quem
+    // envia, nem quem recebe.
+    const a1 = mesa(4);
+    const b1 = mesa(4);
+    ok(a1.id !== b1.id, 'o teste precisa de duas partidas diferentes');
+
+    const n1 = nomeDoArquivo(a1);
+    const n2 = nomeDoArquivo(b1);
+    ok(n1.includes(a1.id), 'o nome não leva o id: ' + n1);
+    ok(n1 !== n2, 'duas mesas geraram o mesmo nome de arquivo');
+    ok(n1.endsWith('.json'), 'o arquivo perdeu a extensão: ' + n1);
+
+    // Caracteres que não se salvam em arquivo não podem passar. O id de hoje
+    // só tem letras, números e `_`, mas descobrir o contrário no celular de
+    // outra pessoa seria tarde.
+    const sujo = nomeDoArquivo({ id: 'a/b\\c:d*e?f"g<h>i|j' });
+    ok(!/[\/\\:*?"<>|]/.test(sujo), 'o nome saiu com caractere proibido: ' + sujo);
+
+    // Sem id ainda produz um nome válido, em vez de 'mesa-hit-easy-.json'.
+    eq(nomeDoArquivo(null), 'mesa-hit-easy.json');
+    eq(nomeDoArquivo({ id: '' }), 'mesa-hit-easy.json');
+  }],
+
+  ['com partida aberta, a home oferece entrar nela', () => {
+    if (!simulated) return 'skip';
+    // O defeito relatado: retomar devolvia a mesa e deixava a pessoa parada na
+    // home, sem caminho de volta para a partida - e o menu da mesa, onde mora
+    // passar, ficava inalcancável. Era isso o "botão de mover a partida
+    // sumiu".
+    //
+    // Normalmente este estado nem existe: o app abre direto na mesa quando há
+    // partida. Retomar criou um estado novo, e a saída tem de existir venha
+    // ele de onde vier.
+    store.wipe();
+    try {
+      eq(continuarMesaBanner(() => {}), null, 'ofereceu entrar sem partida');
+
+      const m = mesa(4);
+      m.id = 'p-aberta';
+      store.setCurrent(m);
+
+      let abriu = 0;
+      const banner = continuarMesaBanner(() => { abriu += 1; });
+      ok(banner, 'com partida aberta, a home não ofereceu entrar nela');
+      fire(banner, 'click');
+      eq(abriu, 1, 'tocar em continuar não abriu a mesa');
+
+      // Mesa passada NÃO conta: para o resto do app ela não existe, e
+      // oferecer "continuar" levaria a uma tela que o roteador recusa.
+      passarAMesa(m, 1000);
+      store.setCurrent(m);
+      eq(continuarMesaBanner(() => {}), null,
+        'ofereceu continuar uma mesa que foi passada adiante');
+    } finally {
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['passar a mesa tira o bastão deste aparelho', () => {
+    // O ponto inteiro: depois da passagem existem duas cópias com o mesmo id,
+    // e o envio usa ignore-duplicates - a primeira que subir vence e a outra
+    // some calada. Se o aparelho antigo continuasse jogando, seria ele que
+    // perderia ou faria perder a metade de alguém.
+    const m = mesa(4);
+    eq(mesaPassada(m), false, 'mesa nova já nasceu passada');
+
+    eq(passarAMesa(m, 5000), true, 'não passou');
+    eq(mesaPassada(m), true, 'passou e não ficou marcada');
+    eq(m.passadaEm, 5000);
+
+    // Passar duas vezes não remarca: a data do bastão é a da primeira vez,
+    // e reescrevê-la apagaria quando a mesa saiu daqui.
+    eq(passarAMesa(m, 9000), false, 'passou de novo');
+    eq(m.passadaEm, 5000, 'a data da passagem foi reescrita');
+
+    // Retomar é a única porta de volta, e é explícita.
+    eq(retomarAMesa(m), true);
+    eq(mesaPassada(m), false, 'retomou e continuou marcada');
+    eq(retomarAMesa(m), false, 'retomou uma mesa que não estava passada');
+
+    eq(passarAMesa(null), false, 'passou uma mesa que não existe');
+  }],
+
+  ['a mesa recebida acerta o relógio para frente', () => {
+    // Os eventos carregam o `ts` do aparelho que os gravou. Se o relógio de
+    // quem recebe estiver atrasado, o próximo evento nasce ANTES do anterior -
+    // e `elapsedOf` e `advanceTurn` subtraem instantes, então tempo andando
+    // para trás vira duração negativa em cima da mesa.
+    const m = mesa(4);
+    m.startedAt = 1000000;
+    m.events.push({ id: 'e1', ts: 1000000 + 600000, type: 'life', targetId: 's0', delta: -3 });
+    passarAMesa(m, 1000000 + 600000);
+
+    // Aparelho atrasado dez minutos: precisa de desvio.
+    const atrasado = receberAMesa(m, 1000000);
+    ok(atrasado.desvioDeRelogio > 600000,
+      'relógio atrasado recebeu desvio pequeno demais: ' + atrasado.desvioDeRelogio);
+    ok(agoraDaMesa(atrasado, 1000000) > 1000000 + 600000,
+      'o próximo evento nasceria antes do último que já aconteceu');
+
+    // Aparelho adiantado: nada a corrigir. Empurrar o relógio para frente sem
+    // precisão infl aria a duração da partida.
+    const adiantado = receberAMesa(m, 1000000 + 9999999);
+    eq(adiantado.desvioDeRelogio, 0, 'relógio adiantado não devia ganhar desvio');
+
+    // E a mesa chega jogavel: sem o carimbo e sem refazer.
+    eq(mesaPassada(adiantado), false, 'a mesa chegou ainda marcada como passada');
+    eq(adiantado.redo, []);
+    eq(adiantado.id, m.id, 'o id mudou: a partida deixaria de ser a mesma');
+
+    eq(receberAMesa({ id: 'x' }), null, 'aceitou uma mesa quebrada');
+  }],
+
+  ['o arquivo da mesa leva uma mesa, e não o seu histórico', () => {
+    // O exportador de backup manda o banco inteiro. Usá-lo aqui entregaria ao
+    // amigo todas as partidas de quem passou, os @ que o aparelho conhece e as
+    // preferências. É o erro mais fácil de cometer e o mais caro.
+    store.wipe();
+    try {
+      const antiga = mesa(4);
+      antiga.id = 'p-antiga';
+      antiga.events.push({ id: 'w', ts: antiga.startedAt + 1, type: 'win', targetId: 's0' });
+      store.mesclarPartidas([antiga]);
+      store.rememberPlayer('Bruno');
+
+      const atual = mesa(4);
+      atual.id = 'p-atual';
+      store.setCurrent(atual);
+
+      const texto = store.empacotarMesa(7777);
+      ok(texto, 'não empacotou');
+      ok(!texto.includes('p-antiga'), 'o arquivo levou o histórico junto');
+      ok(!texto.includes('Bruno'), 'o arquivo levou os nomes que o aparelho conhece');
+
+      const dado = store.lerMesa(texto);
+      eq(dado.partida.id, 'p-atual');
+      eq(dado.versao, store.VERSAO_MESA);
+
+      // Empacotar JÁ solta a mesa: empacotar sem soltar deixaria duas cópias
+      // vivas, que é o único jeito de perder dados aqui.
+      eq(store.getCurrent(), null,
+        'empacotou e a mesa continuou valendo como a de agora');
+      eq(mesaPassada(store.mesaGuardada()), true, 'empacotou e não soltou');
+      eq(store.empacotarMesa(8888), null, 'empacotou uma mesa já passada');
+
+      // E o arquivo é recusado com motivo, em vez de abrir pela metade.
+      const recusa = (texto2, esperado) => {
+        try { store.lerMesa(texto2); } catch (e) { eq(e.message, esperado); return; }
+        throw new Error('aceitou o que devia recusar: ' + esperado);
+      };
+      recusa('{{{', 'ilegivel');
+      recusa(JSON.stringify({ history: [] }), 'nao-e-mesa');
+      recusa(JSON.stringify({ formato: store.FORMATO_MESA, versao: 99, partida: atual }), 'versao-nova');
+      recusa(JSON.stringify({ formato: store.FORMATO_MESA, versao: 1, partida: { id: 'x' } }), 'mesa-invalida');
+    } finally {
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['receber instala a mesa e o jogo continua de onde parou', () => {
+    store.wipe();
+    try {
+      const m = mesa(4);
+      m.id = 'p-viajante';
+      push(m, { type: 'life', targetId: 's1', sourceId: 's0', delta: -7 });
+      const vidaAntes = replay(m).players.s1.life;
+
+      store.setCurrent(m);
+      const texto = store.empacotarMesa(1000);
+
+      // Outro aparelho, do zero.
+      store.wipe();
+      eq(store.getCurrent(), null);
+
+      store.instalarMesa(store.lerMesa(texto), 2000);
+      const chegou = store.getCurrent();
+      ok(chegou, 'a mesa não foi instalada');
+      eq(chegou.id, 'p-viajante');
+      eq(replay(chegou).players.s1.life, vidaAntes,
+        'a vida não sobreviveu à viagem');
+      eq(mesaPassada(chegou), false, 'chegou marcada como passada: não dá para jogar');
+
+      // E continua rendendo eventos novos, depois dos antigos.
+      const ultimoAntes = chegou.events[chegou.events.length - 1].ts;
+      push(chegou, { type: 'life', targetId: 's2', sourceId: 's0', delta: -2 });
+      const novo = chegou.events[chegou.events.length - 1];
+      ok(novo.ts > ultimoAntes,
+        'o evento novo nasceu antes do último antigo: ' + novo.ts + ' <= ' + ultimoAntes);
+      eq(replay(chegou).players.s2.life, 40 - 2);
+
+      // Retomar desfaz, para o caso de a passagem não ter dado certo.
+      passarAMesa(chegou, 3000);
+      store.setCurrent(chegou);
+      eq(store.getCurrent(), null, 'passada e ainda jogável');
+      eq(store.retomarMesa(), true);
+      ok(store.getCurrent(), 'retomou e a mesa não voltou a valer');
+      eq(mesaPassada(store.getCurrent()), false);
+      eq(store.retomarMesa(), false, 'retomou o que não estava passado');
+    } finally {
+      store.wipe();
     }
     return undefined;
   }],
@@ -4229,8 +4620,27 @@ export const cases = [
 ];
 
 /** Roda tudo e devolve o resultado. Quem chama decide como mostrar. */
-export function runAll() {
-  return cases.map(([name, fn]) => {
+/**
+ * Roda todos os casos. Devolve uma PROMESSA.
+ *
+ * Um caso pode devolver promessa, e entao ele e esperado antes do proximo -
+ * nunca em paralelo, porque os casos compartilham `document`, `store` e a
+ * folha aberta, e dois correndo juntos se pisariam.
+ *
+ * Isto existe porque dois defeitos chegaram ao usuario por caminhos que
+ * passam por `await confirmAction`: o runner sincrono nao conseguia observar
+ * nada depois do await, entao aquelas linhas eram inalcancaveis por teste.
+ */
+export async function runAll() {
+  const resultados = [];
+  for (const [name, fn] of cases) {
+    resultados.push(await rodarUm(name, fn));
+  }
+  return resultados;
+}
+
+async function rodarUm(name, fn) {
+  {
     try {
       // Cada caso comeca do zero.
       //
@@ -4246,11 +4656,11 @@ export function runAll() {
       if (typeof closeSheet === 'function') closeSheet();
       esquecerSessao();
 
-      const r = fn();
+      const r = await fn();
       if (r === 'skip') return { name, ok: true, skipped: true };
       return { name, ok: true };
     } catch (err) {
       return { name, ok: false, why: err.message };
     }
-  });
+  }
 }

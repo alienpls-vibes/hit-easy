@@ -370,11 +370,26 @@ export function elapsedOf(match, state, now = Date.now()) {
 }
 
 /** Anexa um evento, carimbando turno/assento ativo do momento. */
+/**
+ * Que horas sao, para esta mesa.
+ *
+ * O relogio do aparelho mais o desvio que a mesa carrega. Vale zero no caso
+ * normal; so e diferente de zero numa mesa que veio de outro aparelho cujo
+ * relogio estava adiantado.
+ *
+ * Existe porque evento com `ts` anterior ao do evento anterior quebra a conta
+ * de duracao: `elapsedOf` e `advanceTurn` subtraem instantes, e tempo andando
+ * para tras vira numero negativo em cima da mesa.
+ */
+export function agoraDaMesa(match, agora = Date.now()) {
+  return agora + ((match && match.desvioDeRelogio) || 0);
+}
+
 export function push(match, partial) {
   const state = replay(match);
   const ev = {
     id: uid('ev'),
-    ts: Date.now(),
+    ts: agoraDaMesa(match),
     turn: state.turn,
     activeSeatId: state.activeSeatId,
     sourceId: null,
@@ -501,6 +516,69 @@ export function pessoaRepetida(seats, cadeira, { name, handle } = {}) {
  * fazem sentido: replay() e determinístico e aguenta log estranho. O que ele
  * nao aguenta e a ausencia das listas.
  */
+/**
+ * Passa a mesa adiante: este aparelho deixa de mandar nela.
+ *
+ * Carimba e so. O carimbo e o bastao: enquanto ele existir, a mesa e um
+ * registro para consultar, nao um jogo para continuar. Nao apaga a partida de
+ * proposito - se a passagem falhar (o arquivo nao chegou, o amigo desistiu),
+ * o jogo precisa estar aqui para ser retomado.
+ *
+ * Devolve false quando nao ha o que passar: mesa ausente ou ja passada.
+ */
+export function passarAMesa(match, agora = Date.now()) {
+  if (!match || match.passadaEm) return false;
+  match.passadaEm = agora;
+  return true;
+}
+
+/**
+ * Desfaz a passagem, quando ela nao deu certo.
+ *
+ * E a unica porta de volta, e e deliberadamente uma ACAO - duas copias vivas
+ * da mesma partida e exatamente o que a passagem evita, entao retomar tem de
+ * ser alguem decidindo, nunca o app achando que deve.
+ */
+export function retomarAMesa(match) {
+  if (!match || !match.passadaEm) return false;
+  delete match.passadaEm;
+  return true;
+}
+
+/** A mesa esta nas maos de outro aparelho? */
+export function mesaPassada(match) {
+  return Boolean(match && match.passadaEm);
+}
+
+/**
+ * Prepara a mesa que chegou de outro aparelho.
+ *
+ * Tira o carimbo de passada - ela chegou para ser jogada - e acerta o relogio.
+ *
+ * O acerto so olha para frente: se o relogio daqui ja esta depois do ultimo
+ * evento, nao ha nada a fazer. O desvio existe para o caso contrario, em que
+ * continuar a jogar produziria eventos anteriores aos que ja aconteceram.
+ *
+ * O minuto de folga nao e superstiicao: sem ele, dois aparelhos com relogios
+ * praticamente iguais ficariam empatados no mesmo milissegundo, e o primeiro
+ * evento novo nasceria com o mesmo `ts` do ultimo antigo.
+ */
+export function receberAMesa(match, agora = Date.now()) {
+  if (!partidaValida(match)) return null;
+
+  const recebida = { ...match, redo: [] };
+  delete recebida.passadaEm;
+
+  const ultimo = recebida.events.length
+    ? recebida.events[recebida.events.length - 1].ts
+    : recebida.startedAt;
+
+  const atraso = (ultimo || 0) - agora;
+  recebida.desvioDeRelogio = atraso > 0 ? atraso + 60000 : 0;
+
+  return recebida;
+}
+
 export function partidaValida(m) {
   return Boolean(m)
     && typeof m.id === 'string' && m.id.length > 0

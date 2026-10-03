@@ -505,6 +505,130 @@ que isto existe para dizer.
 Uma falha na atualização devolve o botão ao estado normal. Sem isso o girador
 giraria para sempre, e a pessoa ficaria olhando uma espera que já acabou.
 
+## Passar a mesa para outro aparelho
+
+O caso é concreto: a bateria do celular que conta a vida está acabando no meio
+da partida, e alguém da mesa tem um aparelho com carga. A partida troca de mãos
+sem acabar.
+
+**Por arquivo, e não pela nuvem.** Não exige conta de ninguém, não exige
+assinatura e funciona sem rede — que importa, porque mesa na casa de amigo tem
+wi-fi ruim e o celular que está morrendo não é hora de depender de upload. A
+partida vira um arquivo, vai por WhatsApp ou AirDrop, e o outro aparelho recebe.
+
+O event sourcing faz a transferência ser quase nada: a partida **é** a lista de
+eventos dela, então mandar a lista é mandar o jogo. Não há estado parcial.
+
+### O bastão
+
+O trabalho de verdade não é transportar. É que depois da passagem existem duas
+cópias com o mesmo id, e o envio usa `ignore-duplicates`: a primeira que subir
+vence e a outra some calada. Se o aparelho antigo voltasse a jogar e subisse a
+metade abandonada, seria ela que ficaria.
+
+Por isso a mesa não é copiada, é passada. `empacotarMesa()` carimba e empacota
+no mesmo ato — empacotar sem soltar deixaria as duas vivas.
+
+**E o carimbo não é cobrado por um `if`.** A primeira versão tinha a guarda no
+roteador, e o teste de mutação apagou aquela linha com a suíte inteira passando
+— a mesma classe de defeito que já mordeu este projeto, a função certa
+existindo e ninguém consultando. Agora a invariante está no acesso:
+`getCurrent()` devolve `null` para mesa passada. Todo caminho que já tratava
+"não há mesa aberta" trata este caso de graça, sem nenhum deles conhecer o
+conceito. Quem precisa da mesa passada — a home, para avisar — pede
+`mesaGuardada()`.
+
+Retomar existe para quando a passagem não deu certo, e é uma ação com
+confirmação: duas cópias vivas é justamente o que a passagem evita.
+
+### O relógio
+
+Os eventos carregam o `ts` do aparelho que os gravou. Se o relógio de quem
+recebe estiver atrasado, o próximo evento nasce **antes** do anterior — e
+`elapsedOf` e `advanceTurn` subtraem instantes, então tempo andando para trás
+vira duração negativa em cima da mesa.
+
+`receberAMesa()` mede o atraso e guarda o desvio na própria partida; `push()`
+passa a usar `agoraDaMesa()`. O acerto só olha para frente: relógio adiantado
+não ganha correção, porque empurrá-lo inflaria a duração. O minuto de folga
+impede que dois relógios quase iguais empatem no mesmo milissegundo.
+
+### Três defeitos que só o uso encontrou
+
+**Receber só valia depois de recarregar a página.** A mesa era instalada e a
+tela continuava na home: `onRefresh` redesenha a rota atual, e a rota inicial é
+a única que olha para `getCurrent()` sozinha. Ação que muda qual é a partida de
+agora tem de levar a tela junto.
+
+**Retomar deixava a pessoa presa.** A mesa voltava a valer e não havia como
+entrar nela — o menu da mesa, onde mora passar, ficava inalcançável. A home
+ganhou `continuarMesaBanner`: se existe partida aberta, dá para entrar. Ele
+normalmente não aparece, porque o app abre direto na mesa quando há partida;
+existe para que qualquer caminho futuro que crie esse estado não prenda ninguém.
+
+**O arquivo tinha nome fixo**, então duas mesas na pasta de downloads viravam
+`mesa-hit-easy (1).json` e ninguém sabia qual era qual. Agora leva o id da
+partida, filtrado para o que todo sistema de arquivos aceita.
+
+### Por que a suíte não pegou
+
+Os dois primeiros escaparam a onze mutações, e não por falta de teste: por
+**impossibilidade** de teste. Os dois caminhos passam por `await confirmAction`,
+e o runner era síncrono — nada depois de um `await` podia ser observado, então
+aquelas linhas eram inalcançáveis.
+
+`runAll()` agora devolve promessa e espera cada caso, um por vez (os casos
+compartilham `document` e `store`; dois em paralelo se pisariam). Casos
+síncronos seguem síncronos. O stub ganhou `click()`, que faltava e fazia
+`campo.click()` — código que roda em produção — explodir no teste.
+
+Com isso as duas mutações passaram a ser pegas, e o caminho de receber tem teste
+de ponta a ponta: toque, arquivo, confirmação, mesa instalada e aberta.
+
+### O arquivo leva uma mesa
+
+O exportador de backup manda o banco inteiro. Usá-lo aqui entregaria ao amigo
+todo o histórico de partidas de quem passou, os `@` que o aparelho conhece e as
+preferências. É o erro mais fácil de cometer e o mais caro, e há um teste que
+falha se o histórico vazar para dentro do arquivo.
+
+O arquivo é recusado com motivo — ilegível, não é uma mesa, veio de versão mais
+nova, mesa incompleta — porque são quatro erros diferentes e merecem quatro
+respostas diferentes.
+
+## Quem já jogou com você não pede de novo
+
+Confiar deixou de ser um passo. Se duas contas já jogaram uma partida juntas e
+aquela foi aceita, as próximas entram sozinhas — em qualquer direção, porque
+jogar junto é simétrico e quem registra a mesa muda de semana para semana.
+
+A decisão é do servidor, no gatilho `preparar_participante`, e não do app: o
+cliente de quem recebe pode estar fechado por dias. Decidir no servidor faz o
+convite nascer aceito; decidir no cliente faria a pessoa ver "1 convite
+esperando" que some sozinho quando ela abrir o app.
+
+**Aceita só conta como prova.** Uma cadeira marcada com o meu `@` que eu nunca
+aceitei não diz que jogamos: diz que alguém digitou o meu `@`. Aceitar é o
+único ato que veio de mim.
+
+Preso ao canal: uma mesa de teste não cria confiança que vale na vida real.
+
+### Poder dizer não
+
+Esta é a parte que não dá para esquecer. Com o aceite derivado do histórico,
+jogar uma única vez com um estranho num torneio passaria a valer para sempre, e
+apagar a linha de confiança não desfaria nada — a regra se refaz a partir das
+partidas.
+
+Por isso `trusted_hosts.confia` em vez de só presença: a linha com `false` é o
+"não aceite mais nada desta pessoa", e vence qualquer histórico. `deixarDeConfiar`
+grava essa recusa em vez de apagar a linha, e o convite ganhou "nunca aceitar
+desta pessoa" como ação discreta ao lado de recusar.
+
+> **Precisa de migração.** Rode `sql/006-ja-jogamos-juntos.sql` no Supabase. Sem
+> ela nada quebra — o aceite automático continua só para quem foi confiado na
+> mão, como antes —, mas o recurso fica dormente.
+
 ## Rivalidades
 
 Aba própria nas estatísticas. Cada linha é um **par de jogadores**, com o dano

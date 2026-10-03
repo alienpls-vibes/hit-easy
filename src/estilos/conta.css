@@ -287,6 +287,21 @@
 }
 .match-tag:hover { color: var(--accent); }
 
+/* "Nunca aceitar desta pessoa": discreto de propósito. É uma decisão que vale
+   para sempre, e um botão chamativo ao lado de "recusar" seria tocado por
+   engano justamente por quem só queria recusar aquela mesa. */
+.invite-never {
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.76rem;
+  padding: 8px 2px 2px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.invite-never:hover { color: var(--text-mid); }
+
 /* Novidades. */
 .news-head { display: flex; align-items: baseline; gap: 8px; padding-top: 6px; }
 .news-version { font: 700 15px/1.3 var(--font, system-ui, sans-serif); }

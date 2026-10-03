@@ -8,7 +8,9 @@
 
 import { chave } from './canal.js';
 import { identityOf } from './stats.js';
-import { partidaValida, juntarDecks } from './engine.js';
+import {
+  partidaValida, juntarDecks, passarAMesa, receberAMesa, retomarAMesa,
+} from './engine.js';
 
 const KEY = chave('mtglc.db.v1');
 
@@ -126,7 +128,31 @@ export function getDB() {
   return db;
 }
 
+/**
+ * A mesa que da para jogar agora.
+ *
+ * Mesa passada para outro aparelho NAO conta, e e por isso que este null
+ * existe: o bastao precisava ser cobrado, e cobra-lo com um `if` no roteador
+ * punha a regra numa linha que alguem pode apagar sem nada quebrar - o teste
+ * de mutacao apagou e a suite inteira passou.
+ *
+ * Assim todo caminho que ja tratava "nao ha mesa aberta" trata este caso de
+ * graca, sem nenhum deles precisar conhecer o conceito. Quem quer a mesa
+ * passada - a home, para avisar - pede por `mesaGuardada()`.
+ */
 export function getCurrent() {
+  return db.current && db.current.passadaEm ? null : db.current;
+}
+
+/**
+ * A mesa que esta aqui, passada ou nao.
+ *
+ * So a home usa, para o aviso e para o retomar. Separada de `getCurrent()`
+ * porque pedir "a mesa de agora" e pedir "a mesa que esta guardada aqui" sao
+ * perguntas diferentes, e misturar as duas foi o que exigiu a guarda no
+ * roteador.
+ */
+export function mesaGuardada() {
   return db.current;
 }
 
@@ -475,6 +501,87 @@ export function hiddenCount() {
 export function setSetting(key, value) {
   db.settings[key] = value;
   save();
+}
+
+/**
+ * O que identifica um arquivo de mesa passada.
+ *
+ * A versao e para o dia em que o formato mudar: um aparelho velho recebendo
+ * arquivo novo precisa dizer "atualize o app", e nao abrir pela metade.
+ */
+export const FORMATO_MESA = 'hit-easy/mesa';
+export const VERSAO_MESA = 1;
+
+/**
+ * Empacota a mesa de agora para outro aparelho.
+ *
+ * SO a mesa. O exportador de backup manda o banco inteiro, e usa-lo aqui
+ * entregaria ao amigo todo o historico de partidas, os @ que este aparelho
+ * conhece e as preferencias de quem passou. Passar a mesa e passar uma mesa.
+ *
+ * Carimba a partida como passada no mesmo ato: empacotar sem soltar deixaria
+ * duas copias vivas da mesma partida, que e o unico jeito de perder dados
+ * aqui - o envio usa ignore-duplicates, entao a primeira que subir vence e a
+ * outra some sem avisar.
+ */
+export function empacotarMesa(agora = Date.now()) {
+  const mesa = db.current;  // guardada: passar a mesa ja passada e recusado abaixo
+  if (!partidaValida(mesa)) return null;
+  if (!passarAMesa(mesa, agora)) return null;
+  save();
+
+  return JSON.stringify({
+    formato: FORMATO_MESA,
+    versao: VERSAO_MESA,
+    em: agora,
+    partida: mesa,
+  }, null, 2);
+}
+
+/**
+ * Le um arquivo de mesa, sem instalar nada.
+ *
+ * Separado de `instalarMesa` de proposito: a tela precisa saber de quem e a
+ * mesa e quantos turnos tem ANTES de perguntar se pode substituir a partida
+ * que estiver aberta aqui.
+ *
+ * Lanca com motivo legivel - um arquivo que nao e deste app, um backup
+ * inteiro escolhido por engano, ou uma versao de formato que este app nao
+ * entende sao tres erros diferentes e merecem tres respostas diferentes.
+ */
+export function lerMesa(texto) {
+  let dado;
+  try {
+    dado = JSON.parse(texto);
+  } catch {
+    throw new Error('ilegivel');
+  }
+  if (!dado || dado.formato !== FORMATO_MESA) throw new Error('nao-e-mesa');
+  if (Number(dado.versao) > VERSAO_MESA) throw new Error('versao-nova');
+  if (!partidaValida(dado.partida)) throw new Error('mesa-invalida');
+  return dado;
+}
+
+/**
+ * Instala a mesa recebida como a partida deste aparelho.
+ *
+ * A que estiver aberta aqui e perdida, e quem chama ja confirmou isso - por
+ * isso a confirmacao mora na tela e nao aqui: uma funcao que pergunta nao da
+ * para testar, e uma que decide sozinha engole a mesa de alguem.
+ */
+export function instalarMesa(dado, agora = Date.now()) {
+  const recebida = receberAMesa(dado.partida, agora);
+  if (!recebida) return null;
+  db.current = recebida;
+  save();
+  return recebida;
+}
+
+/** Desfaz a passagem: a mesa volta a valer neste aparelho. */
+export function retomarMesa() {
+  if (!retomarAMesa(db.current)) return false;
+  save();
+  return true;
 }
 
 export function exportJSON() {

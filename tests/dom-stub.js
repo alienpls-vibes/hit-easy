@@ -130,6 +130,22 @@ class Node {
   getAttribute(k) { return k in this.attributes ? this.attributes[k] : null; }
   addEventListener(type, fn) { (this.events[type] = this.events[type] || []).push(fn); }
   removeEventListener() {}
+
+  /**
+   * `click()` de verdade, e nao so o evento disparado de fora.
+   *
+   * O app usa `campo.click()` para abrir o seletor de arquivo e para baixar
+   * um blob - ambos sao codigo que roda em producao e que aqui explodia com
+   * "click is not a function", entao o caminho inteiro ficava fora de
+   * alcance. Nao borbulha: nenhum caso precisa disso, e borbulhar sem
+   * `stopPropagation` seria inventar comportamento.
+   */
+  click() {
+    for (const fn of (this.events.click || []).slice()) {
+      fn({ type: 'click', target: this, currentTarget: this,
+        preventDefault() {}, stopPropagation() {} });
+    }
+  }
   querySelector() { return null; }
   querySelectorAll() { return []; }
 
