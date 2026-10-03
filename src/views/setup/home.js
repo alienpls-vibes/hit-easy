@@ -16,12 +16,14 @@ import { openPreGame } from './antes-de-comecar.js';
 import { bindReorder, seatCard } from './cartao-jogador.js';
 import { openSettings } from './configuracoes.js';
 import { convitesBanner } from './convites.js';
-import { mesaPassadaBanner, receberMesaBotao } from './passar-mesa.js';
+import {
+  continuarMesaBanner, mesaPassadaBanner, receberMesaBotao,
+} from './passar-mesa.js';
 import {
   LIFE_PRESETS, MAX_SEATS, ensureDraft, freshSeat,
 } from './rascunho.js';
 
-export function renderSetup(root, { onStart, onStats, onRefresh }) {
+export function renderSetup(root, { onStart, onStats, onRefresh, onAbrirMesa }) {
   const d = ensureDraft();
   clear(root);
 
@@ -84,7 +86,11 @@ export function renderSetup(root, { onStart, onStats, onRefresh }) {
       // A mesa que saiu deste aparelho. Mesmo lugar e mesmo motivo: quem
       // passou a mesa e voltou aqui precisa entender por que o jogo sumiu,
       // sem procurar.
-      mesaPassadaBanner(onRefresh),
+      mesaPassadaBanner(onRefresh, onAbrirMesa),
+
+      // Partida aberta que a home encontrou: oferece entrar. So aparece
+      // quando o estado existe, e normalmente ele nao existe.
+      continuarMesaBanner(onAbrirMesa),
 
       el('div', { class: 'field-row setup-life' }, [
         el('span', { class: 'label' }, [t('setup.startingLife')]),
@@ -115,7 +121,7 @@ export function renderSetup(root, { onStart, onStats, onRefresh }) {
         // precisa dele sabe que precisa - alguém acabou de dizer "te mandei a
         // partida". Pôr no alto custaria espaço permanente por um uso
         // ocasional.
-        receberMesaBotao(onRefresh),
+        receberMesaBotao(onAbrirMesa),
         el('p', { class: 'signature', text: 'designed by @AlienPls' }),
       ]),
     ]),

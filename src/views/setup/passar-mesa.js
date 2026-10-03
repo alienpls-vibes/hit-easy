@@ -19,7 +19,23 @@ import { t } from '../../i18n.js';
 import * as store from '../../store.js';
 import { mesaPassada } from '../../engine.js';
 
-const NOME = 'mesa-hit-easy.json';
+/**
+ * O nome do arquivo, com o id da partida.
+ *
+ * Nome fixo fazia duas mesas na pasta de downloads virarem
+ * `mesa-hit-easy (1).json`, e aí ninguém sabe qual é qual - nem quem envia,
+ * nem quem recebe. O id é o que identifica a partida em todo o resto do app.
+ *
+ * Filtrado para o que todo sistema de arquivos aceita: o id é gerado pelo app
+ * e hoje só tem letras, números e `_`, mas um arquivo com barra no nome não se
+ * salva, e descobrir isso no celular de outra pessoa seria tarde.
+ */
+export function nomeDoArquivo(partida) {
+  const id = String((partida && partida.id) || '')
+    .replace(/[^a-zA-Z0-9_-]/g, '')
+    .slice(0, 40);
+  return 'mesa-hit-easy' + (id ? '-' + id : '') + '.json';
+}
 
 /**
  * Entrega o arquivo ao sistema.
@@ -33,11 +49,11 @@ const NOME = 'mesa-hit-easy.json';
  * O download e a saida de sempre: baixa, e a pessoa manda como mandaria
  * qualquer arquivo.
  */
-async function entregar(texto) {
+async function entregar(texto, nome) {
   const blob = new Blob([texto], { type: 'application/json' });
 
   try {
-    const arquivo = new File([blob], NOME, { type: 'application/json' });
+    const arquivo = new File([blob], nome, { type: 'application/json' });
     if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
       await navigator.share({ files: [arquivo], title: t('pass.shareTitle') });
       return 'compartilhado';
@@ -48,7 +64,7 @@ async function entregar(texto) {
     if (e && e.name === 'AbortError') return 'cancelado';
   }
 
-  const a = el('a', { href: URL.createObjectURL(blob), download: NOME });
+  const a = el('a', { href: URL.createObjectURL(blob), download: nome });
   document.body.append(a);
   a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
@@ -70,10 +86,14 @@ export async function passarMesa(aoPassar) {
   });
   if (!ok) return false;
 
+  // O nome sai da mesa ANTES de empacotar: empacotar carimba e, depois disso,
+  // `getCurrent()` ja devolve null - a mesa passada deixa de ser a de agora.
+  const nome = nomeDoArquivo(store.getCurrent());
+
   const texto = store.empacotarMesa();
   if (!texto) { toast(t('pass.nothing')); return false; }
 
-  await entregar(texto);
+  await entregar(texto, nome);
   if (aoPassar) aoPassar();
   return true;
 }
@@ -129,6 +149,9 @@ export function receberMesa(aoReceber) {
     if (!ok) return;
 
     store.instalarMesa(dado);
+    // Quem chama leva para a mesa. Sem isto a partida era instalada e a tela
+    // continuava na home - so recarregar a pagina a encontrava, porque a rota
+    // inicial e a unica que olha para `getCurrent()` sozinha.
     if (aoReceber) aoReceber();
   });
 
@@ -146,7 +169,7 @@ export function receberMesa(aoReceber) {
  * amigo desistiu. E deliberadamente uma acao com confirmacao, porque duas
  * copias vivas da mesma partida e exatamente o que a passagem evita.
  */
-export function mesaPassadaBanner(onRefresh) {
+export function mesaPassadaBanner(onRefresh, aoRetomar) {
   // `mesaGuardada` e nao `getCurrent`: para o resto do app a mesa passada nao
   // existe, e e esta tela que precisa enxerga-la para avisar e oferecer o
   // retomar.
@@ -172,7 +195,11 @@ export function mesaPassadaBanner(onRefresh) {
           });
           if (!ok) return;
           store.retomarMesa();
-          if (onRefresh) onRefresh();
+          // Para a mesa, e nao de volta para a home: retomar e dizer "o jogo
+          // continua aqui", e quem retoma quer continuar jogando. Parado na
+          // home a pessoa ficava sem caminho de volta para a partida.
+          if (aoRetomar) aoRetomar();
+          else if (onRefresh) onRefresh();
         },
       }, [t('pass.takeBack')]),
       el('button', {
@@ -196,11 +223,36 @@ export function mesaPassadaBanner(onRefresh) {
 }
 
 /** A entrada para receber, no pe da home. */
-export function receberMesaBotao(onRefresh) {
+export function receberMesaBotao(aoReceber) {
   return el('button', {
     class: 'receber-mesa',
-    onClick: () => receberMesa(onRefresh),
+    onClick: () => receberMesa(aoReceber),
   }, [icon('download'), t('pass.receiveCta')]);
+}
+
+/**
+ * A saida para uma partida aberta, quando a home a encontra.
+ *
+ * Normalmente ninguem ve isto: o app abre direto na mesa quando ha partida, e
+ * so volta para a home ao encerrar ou descartar. Mas retomar criou um estado
+ * que nao existia antes - home com partida viva -, e ficar preso ali foi o
+ * defeito relatado. Em vez de so consertar aquele caminho, a home passa a
+ * saber oferecer a saida sempre que o estado aparecer, venha de onde vier.
+ */
+export function continuarMesaBanner(aoContinuar) {
+  const mesa = store.getCurrent();
+  if (!mesa) return null;
+
+  return el('button', {
+    class: 'invite-banner',
+    onClick: aoContinuar,
+  }, [
+    el('span', { class: 'invite-banner-n' }, [icon('arrow')]),
+    el('span', { class: 'invite-banner-txt' }, [
+      el('span', { class: 'menu-label', text: t('pass.resumeTitle') }),
+      el('span', { class: 'menu-sub', text: t('pass.resumeSub') }),
+    ]),
+  ]);
 }
 
 /** Explica o recurso, para quem tocar sem saber o que e. */

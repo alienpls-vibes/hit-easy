@@ -66,7 +66,10 @@ import {
   COMMIT_MS, CONTAGEM_MS, CONTAGEM_PASSO_MIN, DOUBLE_TAP_MS, HOLD_DELAY,
   REPEAT_ACCEL_AFTER, REPEAT_FAST_MS, REPEAT_MS,
 } from '../src/views/table/constantes.js';
-import { renderSetup, seedDraftFrom } from '../src/views/setup.js';
+import {
+  renderSetup, seedDraftFrom, continuarMesaBanner, nomeDoArquivo,
+  mesaPassadaBanner,
+} from '../src/views/setup.js';
 import { renderStats, renderPaywall } from '../src/views/stats.js';
 import { brandMark } from '../src/ui.js';
 import * as store from '../src/store.js';
@@ -1088,6 +1091,168 @@ export const cases = [
     } finally {
       globalThis.fetch = fetchReal;
       conta.sessao = sessaoReal;
+    }
+    return undefined;
+  }],
+
+  ['retomar leva de volta para a mesa, e não para a home', async () => {
+    if (!simulated) return 'skip';
+    // O defeito relatado, agora alcançável: o caminho passa por
+    // `await confirmAction`, e o runner síncrono não conseguia observar nada
+    // depois do await. Onze mutações não o pegaram - não por falta de teste,
+    // por impossibilidade de teste.
+    store.wipe();
+    try {
+      const m = mesa(4);
+      m.id = 'p-retomada';
+      passarAMesa(m, 1000);
+      store.setCurrent(m);
+
+      let redesenhos = 0;
+      let aberturas = 0;
+      const banner = mesaPassadaBanner(() => { redesenhos += 1; },
+        () => { aberturas += 1; });
+      ok(banner, 'sem mesa passada não há o que testar');
+
+      const retomar = findAll(banner, 'btn')[0];
+      ok(retomar, 'o aviso não oferece retomar');
+      fire(retomar, 'click');
+
+      // A confirmação abre numa folha; confirmar é o que dispara o resto.
+      await Promise.resolve();
+      const acoes = findAll(document.body, 'sheet-actions').slice(-1)[0];
+      ok(acoes, 'retomar não pediu confirmação');
+      fire(acoes.childNodes[1], 'click');
+      await Promise.resolve();
+      await Promise.resolve();
+
+      ok(store.getCurrent(), 'retomou e a mesa não voltou a valer');
+      eq(mesaPassada(store.mesaGuardada()), false, 'o carimbo ficou');
+      eq(aberturas, 1, 'retomar não levou de volta para a mesa');
+      eq(redesenhos, 0, 'retomar só redesenhou a home, que é onde a pessoa '
+        + 'ficava presa sem caminho para a partida');
+    } finally {
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['receber um arquivo instala a mesa e abre ela', async () => {
+    if (!simulated) return 'skip';
+    // O defeito relatado: a mesa era instalada e a tela continuava na home -
+    // só recarregar a página a encontrava, porque a rota inicial é a única
+    // que olha para `getCurrent()` sozinha. A causa era o callback errado
+    // chegando ao botão, e provar isso exige percorrer o caminho inteiro: sem
+    // arquivo escolhido, nenhum callback é chamado e os dois parecem iguais.
+    store.wipe();
+    try {
+      // Uma mesa empacotada por "outro aparelho".
+      const original = mesa(4);
+      original.id = 'p-chegando';
+      push(original, { type: 'life', targetId: 's1', sourceId: 's0', delta: -11 });
+      store.setCurrent(original);
+      const arquivo = store.empacotarMesa(1000);
+      store.wipe();
+
+      let redesenhos = 0;
+      let aberturas = 0;
+      const raiz = document.createElement('div');
+      renderSetup(raiz, {
+        onStart() {}, onStats() {},
+        onRefresh: () => { redesenhos += 1; },
+        onAbrirMesa: () => { aberturas += 1; },
+      });
+
+      const receber = findAll(raiz, 'receber-mesa')[0];
+      ok(receber, 'a home não oferece receber uma mesa');
+      fire(receber, 'click');
+
+      const campo = document.body.childNodes[document.body.childNodes.length - 1];
+      eq(campo.attributes.type, 'file', 'tocar em receber não abriu o seletor');
+
+      // O arquivo que a pessoa escolheu.
+      campo.files = [{ name: 'mesa.json', text: () => Promise.resolve(arquivo) }];
+      fire(campo, 'change');
+      for (let i = 0; i < 4; i += 1) await Promise.resolve();
+
+      const acoes = findAll(document.body, 'sheet-actions').slice(-1)[0];
+      ok(acoes, 'receber não pediu confirmação');
+      fire(acoes.childNodes[1], 'click');
+      for (let i = 0; i < 4; i += 1) await Promise.resolve();
+
+      const chegou = store.getCurrent();
+      ok(chegou, 'a mesa não foi instalada');
+      eq(chegou.id, 'p-chegando');
+      eq(replay(chegou).players.s1.life, 40 - 11, 'a partida não chegou inteira');
+
+      eq(aberturas, 1, 'instalou a mesa e não abriu ela: era preciso '
+        + 'recarregar a página para a partida aparecer');
+      eq(redesenhos, 0, 'receber só redesenhou a home');
+    } finally {
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['o arquivo da mesa carrega o id da partida', () => {
+    // Nome fixo fazia duas mesas na pasta de downloads virarem
+    // `mesa-hit-easy (1).json`, e aí ninguém sabe qual é qual - nem quem
+    // envia, nem quem recebe.
+    const a1 = mesa(4);
+    const b1 = mesa(4);
+    ok(a1.id !== b1.id, 'o teste precisa de duas partidas diferentes');
+
+    const n1 = nomeDoArquivo(a1);
+    const n2 = nomeDoArquivo(b1);
+    ok(n1.includes(a1.id), 'o nome não leva o id: ' + n1);
+    ok(n1 !== n2, 'duas mesas geraram o mesmo nome de arquivo');
+    ok(n1.endsWith('.json'), 'o arquivo perdeu a extensão: ' + n1);
+
+    // Caracteres que não se salvam em arquivo não podem passar. O id de hoje
+    // só tem letras, números e `_`, mas descobrir o contrário no celular de
+    // outra pessoa seria tarde.
+    const sujo = nomeDoArquivo({ id: 'a/b\\c:d*e?f"g<h>i|j' });
+    ok(!/[\/\\:*?"<>|]/.test(sujo), 'o nome saiu com caractere proibido: ' + sujo);
+
+    // Sem id ainda produz um nome válido, em vez de 'mesa-hit-easy-.json'.
+    eq(nomeDoArquivo(null), 'mesa-hit-easy.json');
+    eq(nomeDoArquivo({ id: '' }), 'mesa-hit-easy.json');
+  }],
+
+  ['com partida aberta, a home oferece entrar nela', () => {
+    if (!simulated) return 'skip';
+    // O defeito relatado: retomar devolvia a mesa e deixava a pessoa parada na
+    // home, sem caminho de volta para a partida - e o menu da mesa, onde mora
+    // passar, ficava inalcancável. Era isso o "botão de mover a partida
+    // sumiu".
+    //
+    // Normalmente este estado nem existe: o app abre direto na mesa quando há
+    // partida. Retomar criou um estado novo, e a saída tem de existir venha
+    // ele de onde vier.
+    store.wipe();
+    try {
+      eq(continuarMesaBanner(() => {}), null, 'ofereceu entrar sem partida');
+
+      const m = mesa(4);
+      m.id = 'p-aberta';
+      store.setCurrent(m);
+
+      let abriu = 0;
+      const banner = continuarMesaBanner(() => { abriu += 1; });
+      ok(banner, 'com partida aberta, a home não ofereceu entrar nela');
+      fire(banner, 'click');
+      eq(abriu, 1, 'tocar em continuar não abriu a mesa');
+
+      // Mesa passada NÃO conta: para o resto do app ela não existe, e
+      // oferecer "continuar" levaria a uma tela que o roteador recusa.
+      passarAMesa(m, 1000);
+      store.setCurrent(m);
+      eq(continuarMesaBanner(() => {}), null,
+        'ofereceu continuar uma mesa que foi passada adiante');
+    } finally {
+      store.wipe();
     }
     return undefined;
   }],
@@ -4455,8 +4620,27 @@ export const cases = [
 ];
 
 /** Roda tudo e devolve o resultado. Quem chama decide como mostrar. */
-export function runAll() {
-  return cases.map(([name, fn]) => {
+/**
+ * Roda todos os casos. Devolve uma PROMESSA.
+ *
+ * Um caso pode devolver promessa, e entao ele e esperado antes do proximo -
+ * nunca em paralelo, porque os casos compartilham `document`, `store` e a
+ * folha aberta, e dois correndo juntos se pisariam.
+ *
+ * Isto existe porque dois defeitos chegaram ao usuario por caminhos que
+ * passam por `await confirmAction`: o runner sincrono nao conseguia observar
+ * nada depois do await, entao aquelas linhas eram inalcancaveis por teste.
+ */
+export async function runAll() {
+  const resultados = [];
+  for (const [name, fn] of cases) {
+    resultados.push(await rodarUm(name, fn));
+  }
+  return resultados;
+}
+
+async function rodarUm(name, fn) {
+  {
     try {
       // Cada caso comeca do zero.
       //
@@ -4472,11 +4656,11 @@ export function runAll() {
       if (typeof closeSheet === 'function') closeSheet();
       esquecerSessao();
 
-      const r = fn();
+      const r = await fn();
       if (r === 'skip') return { name, ok: true, skipped: true };
       return { name, ok: true };
     } catch (err) {
       return { name, ok: false, why: err.message };
     }
-  });
+  }
 }

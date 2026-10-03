@@ -349,6 +349,8 @@ export const EN = {
   'invites.many': '{n} matches waiting for you',
   'invites.accept': 'Accept',
   'invites.decline': 'Decline',
+  'pass.resumeTitle': 'Resume the match',
+  'pass.resumeSub': 'It is open on this device',
   'pass.menu': 'Hand the table to another device',
   'pass.menuSub': 'The game continues there; here it stops',
   'pass.confirmTitle': 'Hand this table over?',

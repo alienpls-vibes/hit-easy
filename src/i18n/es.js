@@ -349,6 +349,8 @@ export const ES = {
   'invites.many': '{n} partidas esperándote',
   'invites.accept': 'Aceptar',
   'invites.decline': 'Rechazar',
+  'pass.resumeTitle': 'Continuar la partida',
+  'pass.resumeSub': 'Está abierta en este aparato',
   'pass.menu': 'Pasar la mesa a otro aparato',
   'pass.menuSub': 'El juego sigue allá; aquí se detiene',
   'pass.confirmTitle': '¿Pasar esta mesa?',

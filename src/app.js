@@ -203,6 +203,10 @@ function desenhar() {
 
   renderSetup(root, {
     onStats: () => go('stats'),
+    // Receber uma mesa e retomar uma passada mudam qual e a partida de agora,
+    // entao a tela tem de ir junto. Sem isto a mesa era instalada e a pessoa
+    // continuava na home - so recarregar a pagina a encontrava.
+    onAbrirMesa: () => go('table'),
     // Trocar o tema muda a paleta WUBRG, que ja foi escrita no style dos
     // elementos: so um redesenho completo poe todo mundo na cor nova.
     onRefresh: () => render(),

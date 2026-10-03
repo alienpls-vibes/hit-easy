@@ -349,6 +349,8 @@ export const DE = {
   'invites.many': '{n} Partien warten auf dich',
   'invites.accept': 'Annehmen',
   'invites.decline': 'Ablehnen',
+  'pass.resumeTitle': 'Partie fortsetzen',
+  'pass.resumeSub': 'Sie ist auf diesem Gerät offen',
   'pass.menu': 'Tisch an ein anderes Gerät übergeben',
   'pass.menuSub': 'Das Spiel läuft dort weiter; hier hört es auf',
   'pass.confirmTitle': 'Diesen Tisch übergeben?',

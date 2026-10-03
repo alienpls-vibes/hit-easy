@@ -26,4 +26,5 @@ export { seedDraftFrom } from './setup/rascunho.js';
 export { abrirNovidades } from './setup/notas-de-versao.js';
 export {
   passarMesa, receberMesa, mesaPassadaBanner, receberMesaBotao,
+  continuarMesaBanner, nomeDoArquivo,
 } from './setup/passar-mesa.js';

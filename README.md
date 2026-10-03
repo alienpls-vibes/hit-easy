@@ -553,6 +553,38 @@ passa a usar `agoraDaMesa()`. O acerto só olha para frente: relógio adiantado
 não ganha correção, porque empurrá-lo inflaria a duração. O minuto de folga
 impede que dois relógios quase iguais empatem no mesmo milissegundo.
 
+### Três defeitos que só o uso encontrou
+
+**Receber só valia depois de recarregar a página.** A mesa era instalada e a
+tela continuava na home: `onRefresh` redesenha a rota atual, e a rota inicial é
+a única que olha para `getCurrent()` sozinha. Ação que muda qual é a partida de
+agora tem de levar a tela junto.
+
+**Retomar deixava a pessoa presa.** A mesa voltava a valer e não havia como
+entrar nela — o menu da mesa, onde mora passar, ficava inalcançável. A home
+ganhou `continuarMesaBanner`: se existe partida aberta, dá para entrar. Ele
+normalmente não aparece, porque o app abre direto na mesa quando há partida;
+existe para que qualquer caminho futuro que crie esse estado não prenda ninguém.
+
+**O arquivo tinha nome fixo**, então duas mesas na pasta de downloads viravam
+`mesa-hit-easy (1).json` e ninguém sabia qual era qual. Agora leva o id da
+partida, filtrado para o que todo sistema de arquivos aceita.
+
+### Por que a suíte não pegou
+
+Os dois primeiros escaparam a onze mutações, e não por falta de teste: por
+**impossibilidade** de teste. Os dois caminhos passam por `await confirmAction`,
+e o runner era síncrono — nada depois de um `await` podia ser observado, então
+aquelas linhas eram inalcançáveis.
+
+`runAll()` agora devolve promessa e espera cada caso, um por vez (os casos
+compartilham `document` e `store`; dois em paralelo se pisariam). Casos
+síncronos seguem síncronos. O stub ganhou `click()`, que faltava e fazia
+`campo.click()` — código que roda em produção — explodir no teste.
+
+Com isso as duas mutações passaram a ser pegas, e o caminho de receber tem teste
+de ponta a ponta: toque, arquivo, confirmação, mesa instalada e aberta.
+
 ### O arquivo leva uma mesa
 
 O exportador de backup manda o banco inteiro. Usá-lo aqui entregaria ao amigo
