@@ -160,6 +160,9 @@
   color: var(--text-mid);
   flex: none;
   transition: all var(--fast);
+  /* Segurar repete. Com `manipulation` o Safari do iPhone le um tremor do dedo
+     como inicio de rolagem, cancela o ponteiro e a repeticao para sozinha. */
+  touch-action: none;
 }
 .pad-step:hover { background: var(--surface); color: var(--text); }
 .pad-step:active, .pad-step.is-held { background: var(--surface-strong); transform: scale(0.94); }
@@ -191,3 +194,35 @@
 
 .pad-actions { display: flex; gap: 8px; margin-top: 2px; }
 .pad-actions .btn { flex: 1; height: 46px; padding: 0 14px; }
+
+/* Lifelink: uma marca no mesmo dano, ligada ou desligada. A bolinha acende
+   para dizer o estado sem depender só da cor da borda. */
+.pad-tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px dashed var(--line-soft);
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  transition: all var(--fast);
+}
+.pad-tag-mark {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  flex: none;
+  transition: all var(--fast);
+}
+.pad-tag-text { flex: none; }
+.pad-tag-gain {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-mid);
+}
+.pad-tag.is-on { border-style: solid; border-color: var(--accent); color: var(--text); background: var(--surface); }
+.pad-tag.is-on .pad-tag-mark { background: var(--accent); border-color: var(--accent); }

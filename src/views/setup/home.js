@@ -15,6 +15,7 @@ import { state as installState, promptInstall } from '../../install.js';
 import { openPreGame } from './antes-de-comecar.js';
 import { bindReorder, seatCard } from './cartao-jogador.js';
 import { openSettings } from './configuracoes.js';
+import { abrirInstalarNoIOS } from './instalar.js';
 import { convitesBanner } from './convites.js';
 import {
   continuarMesaBanner, mesaPassadaBanner, receberMesaBotao,
@@ -62,8 +63,16 @@ export function renderSetup(root, { onStart, onStats, onRefresh, onAbrirMesa }) 
           ]),
         ]),
         el('div', { class: 'head-actions' }, [
-          // Só aparece quando o navegador diz que dá para instalar agora.
-          installState().mode === 'pronto'
+          // Aparece quando o navegador diz que dá para instalar agora - e no
+          // iPhone, onde ele nunca diz: lá o botão abre o passo a passo, porque
+          // esconder a opção era o que fazia parecer que não dava para instalar.
+          installState().mode === 'ios'
+            ? el('button', {
+                class: 'icon-btn is-install',
+                'aria-label': t('setup.installApp'),
+                onClick: abrirInstalarNoIOS,
+              }, [icon('download')])
+            : installState().mode === 'pronto'
             ? el('button', {
                 class: 'icon-btn is-install',
                 'aria-label': t('setup.installApp'),

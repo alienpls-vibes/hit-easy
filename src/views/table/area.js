@@ -1,5 +1,5 @@
 /**
- * Acoes em area: dano em todos, e dreno.
+ * Acoes em area: dano em todos os jogadores, dano so nos oponentes, e dreno.
  *
  * Vira UM evento `sweep`, nao um por alvo. Assim desfazer volta o dreno inteiro
  * num toque, e a linha do tempo conta a jogada como ela aconteceu - uma coisa
@@ -13,7 +13,12 @@ import { bindHold } from './pecas.js';
 
 export function criarArea(mesa) {
   /**
-   * Acao em area, a partir de um jogador: dano em todos ou dreno.
+   * Acao em area, a partir de um jogador.
+   *
+   * Tres modos, porque as cartas falam de tres jeitos: "cada jogador" (um
+   * Terremoto pega quem lancou tambem), "cada oponente", e o dreno - que tira
+   * dos oponentes e cura quem lancou. O padrao e so oponentes, que era o que
+   * "dano em todos" fazia antes de existir a opcao de incluir a si mesmo.
    *
    * Vira UM evento `sweep`, nao um por alvo. Assim desfazer volta o dreno
    * inteiro num toque, e a linha do tempo conta a jogada como ela aconteceu -
@@ -21,45 +26,66 @@ export function criarArea(mesa) {
    *
    * O dreno oferece as duas leituras que as cartas usam: ganhar o TOTAL tirado
    * (o caso Gray Merchant) ou ganhar o mesmo tanto que cada um perdeu.
+   *
+   * Comeca em 0, pelo mesmo motivo do teclado de dano direto (ver dano.js).
    */
   function openSweepPad(sourceId) {
     if (mesa.state.finished || mesa.state.paused) return;
     const source = mesa.match.seats.find((s) => s.id === sourceId);
-    const alvos = mesa.state.order.filter((id) => id !== sourceId && !mesa.state.players[id].dead);
-    if (!alvos.length) { toast(t('damage.noOpponents')); return; }
+    const oponentes = mesa.state.order.filter((id) => id !== sourceId && !mesa.state.players[id].dead);
+    if (!oponentes.length) { toast(t('damage.noOpponents')); return; }
 
     const accent = accentOf(source.commanders[0] ? source.commanders[0].colors : []);
-    let amount = 1;
-    let mode = 'dano';
+    let amount = 0;
+    let mode = 'oponentes';
     let ganho = 'total';
+
+    // Quem toma o dano depende do modo. Na ordem da mesa, com quem lancou no
+    // proprio lugar dela.
+    const alvosDoModo = () => (mode === 'todos'
+      ? mesa.state.order.filter((id) => id === sourceId || oponentes.includes(id))
+      : oponentes);
+
+    /** "3 oponentes" ou "4 jogadores": o cabecalho diz quem vai apanhar. */
+    const quemApanha = () => {
+      const n = alvosDoModo().length;
+      return mode === 'todos'
+        ? tn(n, 'damage.player', 'damage.players')
+        : tn(n, 'damage.opponent', 'damage.opponents');
+    };
 
     const gainOf = () => {
       if (mode !== 'dreno') return 0;
-      return ganho === 'total' ? amount * alvos.length : amount;
+      return ganho === 'total' ? amount * oponentes.length : amount;
     };
 
-    const big = el('span', { class: 'pad-amount', text: '1' });
+    const big = el('span', { class: 'pad-amount', text: '0' });
     const modeRow = el('div', { class: 'pad-modes' });
     const gainRow = el('div', { class: 'pad-gain' });
+    const destino = el('span', { class: 'pad-to', text: quemApanha() });
 
     const setAmount = (n) => {
-      amount = Math.max(1, Math.min(999, n));
+      amount = Math.max(0, Math.min(999, n));
       big.textContent = String(amount);
       paintGain();
     };
 
     const send = () => {
       close();
+      // Zero nao e dano: nao vira evento, nem linha no historico.
+      if (!amount) return;
       // A vida do alvo conta em vez de saltar: a tela fecha e o numero anda,
       // que e o unico retorno visual de que o dano saiu.
       mesa.contarNoProximoSync = true;
       const gain = gainOf();
-      mesa.apply({ type: 'sweep', sourceId, amount, gain, targets: alvos });
+      mesa.apply({
+        type: 'sweep', sourceId, amount, gain, targets: alvosDoModo(),
+      });
       toast(
         t('damage.sweepToast', {
           name: source.name,
           n: amount,
-          count: tn(alvos.length, 'damage.opponent', 'damage.opponents'),
+          count: quemApanha(),
         }) + (gain ? ' · +' + gain : ''),
         { label: t('common.undo'), onClick: mesa.doUndo },
       );
@@ -67,10 +93,20 @@ export function criarArea(mesa) {
 
     const paintModes = () => {
       clear(modeRow);
-      [['dano', t('damage.damageAll')], ['dreno', t('damage.drain')]].forEach(([id, text]) => {
+      [
+        ['todos', t('damage.sweepAll')],
+        ['oponentes', t('damage.sweepOpponents')],
+        ['dreno', t('damage.drain')],
+      ].forEach(([id, text]) => {
         modeRow.append(el('button', {
           class: 'pad-mode' + (mode === id ? ' is-on' : ''),
-          onClick: () => { mode = id; paintModes(); paintGain(); buzz(); },
+          onClick: () => {
+            mode = id;
+            destino.textContent = quemApanha();
+            paintModes();
+            paintGain();
+            buzz();
+          },
         }, [text]));
       });
     };
@@ -79,7 +115,7 @@ export function criarArea(mesa) {
       clear(gainRow);
       if (mode !== 'dreno') return;
       gainRow.append(el('span', { class: 'pad-gain-label', text: t('damage.youGain') }));
-      [['total', amount * alvos.length], ['unit', amount]].forEach(([id, valor]) => {
+      [['total', amount * oponentes.length], ['unit', amount]].forEach(([id, valor]) => {
         gainRow.append(el('button', {
           class: 'pad-gain-opt' + (ganho === id ? ' is-on' : ''),
           onClick: () => { ganho = id; paintGain(); buzz(); },
@@ -102,10 +138,7 @@ export function criarArea(mesa) {
       el('div', { class: 'pad-head' }, [
         el('span', { class: 'pad-from', text: source.name }),
         icon('arrow'),
-        el('span', {
-          class: 'pad-to',
-          text: tn(alvos.length, 'damage.opponent', 'damage.opponents'),
-        }),
+        destino,
       ]),
       modeRow,
       gainRow,
@@ -114,8 +147,8 @@ export function criarArea(mesa) {
         el('button', { class: 'pad-chip', onClick: () => { setAmount(n); send(); } }, [String(n)]),
       )),
       el('div', { class: 'pad-actions' }, [
-        el('button', { class: 'btn ghost', onClick: () => close() }, ['Cancelar']),
-        el('button', { class: 'btn primary', onClick: send }, ['Confirmar']),
+        el('button', { class: 'btn ghost', onClick: () => close() }, [t('common.cancel')]),
+        el('button', { class: 'btn primary', onClick: send }, [t('common.confirm')]),
       ]),
     ]);
 

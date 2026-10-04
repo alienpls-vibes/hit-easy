@@ -166,7 +166,7 @@ que ele é:
 | toque rápido na borda direita | põe 1 de vida |
 | **segurar na borda** | tira ou põe repetidamente, acelerando |
 | toque rápido no centro | abre o painel do jogador |
-| **duplo toque no centro** | ação em área: dano em todos, ou dreno |
+| **duplo toque no centro** | ação em área: dano em todos os jogadores, só nos oponentes, ou dreno |
 | **segurar no centro, ou arrastar** | arma o ataque — a única saída é causar dano |
 
 Nas bordas, segurar repete — mesma gramática do marcador de mana, onde segurar
@@ -176,7 +176,10 @@ oito toques. Abaixo desses 380 ms nada mudou — um toque lento continua valendo
 exatamente 1.
 
 Por isso **segurar parado na borda não arma mais o ataque**. Arrastar da borda
-arma (a direção do gesto é a declaração de autoria, e ela continua ali), e
+arma, desde que o dedo saia andando antes de a repetição começar — aí nenhum
+ponto de vida se mexe no caminho; depois que a repetição aplicou um passo, o
+gesto já é ajuste de vida e não vira mais ataque. (A direção do gesto é a
+declaração de autoria, e ela continua ali.) E
 segurar no centro arma — nenhum ataque ficou inalcançável, só mudou de onde se
 começa segurando parado.
 
@@ -248,10 +251,14 @@ mas `replay` a ignora por completo, e o placar continua saindo só do log.
 
 ## Ações em área
 
-Duplo toque no centro do painel de quem vai agir (ou o botão *Dano em todos ·
-Dreno*, dentro do painel dele). Dois modos:
+Duplo toque no centro do painel de quem vai agir (ou o botão *Dano em área ·
+Dreno*, dentro do painel dele). Três modos, porque as cartas falam de três
+jeitos:
 
-- **Dano em todos** — cada oponente vivo perde N.
+- **Todos** — cada jogador vivo perde N, **inclusive quem lançou** (Terremoto,
+  Pestilência). Morrer do próprio dano não credita a eliminação a ninguém, e o
+  dano que a pessoa leva de si mesma conta como dano levado, não causado.
+- **Oponentes** — cada oponente vivo perde N. É o padrão.
 - **Dreno** — cada oponente perde N e quem drenou ganha vida. As cartas usam
   duas leituras diferentes, então as duas estão ali: ganhar **o total** tirado
   (o caso Gray Merchant) ou ganhar **o mesmo tanto** que cada um perdeu.
@@ -275,6 +282,13 @@ naquele instante, e o histórico continua legível anos depois.
 para o vizinho da esquerda, já que todo mundo olha para o centro. Isso é dado
 puro em `src/seating.js` e tem teste: o ângulo de cada assento em relação ao
 centro precisa sempre crescer, e a volta fechar em exatamente 360°.
+
+**O jogador 1 senta no alto à esquerda**, com o aparelho deitado — é onde se
+começa a ler, e é onde quem montou a mesa procura o primeiro da lista. Com 2, 3
+e 5 jogadores a mesa deitada é o padrão. Até a 1.8 a volta começava embaixo à
+esquerda; partida aberta antes da troca não tem a marca `assentos: 'topo'` e
+continua desenhada na ordem antiga (`ASSENTOS_ANTIGOS` em `seating.js`), senão
+atualizar o app no meio de um jogo trocaria todo mundo de lugar.
 
 Eliminação é automática — vida ≤ 0, 21 de dano de um mesmo comandante ou 10 de
 veneno. Sobrando um vivo, aparece o cartaz de vitória.
@@ -752,6 +766,16 @@ e não só olhar o arquivo grande.
 Configurações → *Instalar*. Quando o navegador oferece instalação, um botão de
 download também aparece no topo da home.
 
+No iPhone e no iPad o botão aparece **sempre** (enquanto o app não está
+instalado) e abre um passo a passo: Safari → Compartilhar (no iOS mais novo,
+dentro do botão •••) → *Adicionar à Tela de Início* → *Adicionar*. A Apple não
+deixa página nenhuma pedir instalação, então isso é o máximo que o app pode
+fazer — e antes a explicação ficava só dentro das configurações, onde ninguém
+achava. A tela reconhece o navegador: no Chrome e no Edge do iPhone também dá,
+pelo compartilhar da barra de endereço; dentro do Instagram, do Facebook e de
+outros apps não dá de jeito nenhum, e a tela manda abrir no Safari, com um botão
+de copiar o endereço.
+
 A instalação só é oferecida em `https://` ou `localhost`, com manifest e service
 worker — **pelo IP da rede não aparece**, e é por isso que a tela explica o
 motivo em vez de esconder a opção. No iPhone e iPad o Safari não deixa o app
@@ -836,6 +860,14 @@ travar a orientação em tela cheia, e o Safari do iPhone **nem isso**. Por isso
 opção "tela cheia e girar" tenta, falha em silêncio onde não dá, e uma dica
 discreta sugere virar o aparelho.
 
+**Sair do app derruba a trava.** O Android tira o app da tela cheia quando ele
+vai para segundo plano, e a trava de paisagem cai junto: na volta, a mesa
+aparecia em pé. O app guarda o último pedido de orientação e o refaz ao voltar
+— e, como entrar em tela cheia exige um toque da pessoa, refaz de novo no
+primeiro `pointerup` depois da volta. Onde a trava nunca funciona (iPhone, iPad,
+computador) isso não faz nada: no computador o mouse desliga a tentativa, e no
+iPad uma recusa com a tela cheia já ativa marca o aparelho como sem suporte.
+
 O tema tem três modos: sistema (padrão), claro e escuro. Toda cor da interface
 sai de tokens em `:root` — nenhum componente sabe em que tema está. A paleta
 WUBRG também troca: no claro os tons **escurecem**, porque um branco cremoso
@@ -851,7 +883,15 @@ uma seta na cor do deck do atacante liga os dois painéis e o alvo acende.
 
 Ao soltar, abre o teclado do dano: quanto foi. Os atalhos (1, 2, 3, 5, 7)
 confirmam no mesmo toque, então o caso comum fecha em dois gestos. O teclado
-gira junto com o assento de quem atacou, porque é ele que está mexendo.
+gira junto com o assento de quem atacou, porque é ele que está mexendo. O dial
+começa em **0** — quem usa o + conta a partir do zero de qualquer jeito —, e
+confirmar no 0 só fecha, sem gravar nada.
+
+**Lifelink** é uma marca no teclado: ligada, quem causou o dano ganha a mesma
+vida. Vale para dano, dano de comandante e veneno (infect com lifelink também
+cura). Entra como `gain` no **mesmo** evento de dano, e não como um `life` à
+parte: desfazer volta as duas coisas juntas, e a cura aparece na estatística
+como cura de quem atacou.
 
 **A vida do alvo conta até o novo valor** quando a tela fecha, em vez de pular.
 Vale para os quatro casos que vêm de um painel: dano por arraste, dano em

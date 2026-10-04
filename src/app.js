@@ -17,7 +17,9 @@ import { renderStats, renderPaywall } from './views/stats.js';
 import { createMatch, sairDaMesa, voltarAMesa } from './engine.js';
 import { applyTheme, watchTheme } from './theme.js';
 import { t, setLang, detectLang } from './i18n.js';
-import { preferOrientation, isWide } from './orientation.js';
+import {
+  preferOrientation, isWide, retomarOrientacao, travaPerdida,
+} from './orientation.js';
 import { orientOf } from './seating.js';
 import { APP_VERSION } from './version.js';
 import { novidadesDesde } from './novidades.js';
@@ -309,7 +311,21 @@ document.addEventListener('visibilitychange', () => {
   // Bloquear o celular ou trocar de app tambem e sair da mesa.
   relogioDaMesa();
   if (document.visibilityState === 'visible' && route === 'table') keepAwake(true);
+  // A volta tenta na hora. Costuma nao dar - tela cheia pede um toque -, e ai
+  // o primeiro toque na mesa refaz o pedido.
+  if (document.visibilityState === 'visible') retomarOrientacao();
 });
+
+/**
+ * Sair do app derruba a tela cheia, e com ela a trava de paisagem: o aparelho
+ * voltava em pe, no meio da partida. O navegador so deixa entrar em tela cheia
+ * a partir de um toque, entao o pedido e refeito no primeiro toque depois da
+ * volta - o `pointerup`, porque e ele que conta como gesto da pessoa no toque
+ * (o `pointerdown` so conta com mouse). Sem trava perdida, nao faz nada.
+ */
+document.addEventListener('pointerup', () => {
+  if (travaPerdida()) retomarOrientacao();
+}, true);
 
 // Fechar o app para o relogio. Melhor esforco: um encerramento forcado pelo
 // sistema pode nao disparar nada, e ai aquele tempo conta - nao ha evento que

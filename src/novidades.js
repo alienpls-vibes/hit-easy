@@ -21,6 +21,55 @@
 
 export const NOVIDADES = [
   {
+    versao: '1.9.0',
+    data: '2026-10-04',
+    titulo: 'Lifelink, jogador 1 no alto, e instalar no iPhone',
+    itens: [
+      {
+        tipo: 'novo',
+        texto: 'O teclado de dano ganhou a marca Lifelink: ligada, quem causou '
+          + 'o dano ganha a mesma vida. Desfazer volta as duas coisas juntas.',
+      },
+      {
+        tipo: 'novo',
+        texto: 'O duplo toque agora oferece três ações: dano em todos os '
+          + 'jogadores (inclusive você), dano só nos oponentes, e dreno.',
+      },
+      {
+        tipo: 'novo',
+        texto: 'No iPhone e no iPad, o botão de instalar aparece na tela '
+          + 'inicial e mostra onde tocar no Safari. Antes a explicação ficava '
+          + 'escondida nas configurações.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'O jogador 1 senta no alto à esquerda, e a vez segue no '
+          + 'sentido horário. Com 2, 3 e 5 jogadores a mesa deitada passou a '
+          + 'ser o padrão. Partidas que já estavam abertas continuam como '
+          + 'começaram.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'Os teclados de dano começam no 0.',
+      },
+      {
+        tipo: 'corrigido',
+        texto: 'Sair do app e voltar no meio da partida deixava a tela em pé. '
+          + 'Agora o primeiro toque devolve a mesa deitada.',
+      },
+      {
+        tipo: 'corrigido',
+        texto: 'Encostar no + ou no − e sair arrastando agora arma o ataque, '
+          + 'sem tirar nem pôr vida no caminho.',
+      },
+      {
+        tipo: 'corrigido',
+        texto: 'No iPhone, segurar um botão para subir rápido selecionava o '
+          + 'botão em vez de repetir.',
+      },
+    ],
+  },
+  {
     versao: '1.8.0',
     data: '2026-10-02',
     titulo: 'Passar a mesa, e convite uma vez só',

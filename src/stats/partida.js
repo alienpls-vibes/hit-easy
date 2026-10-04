@@ -90,12 +90,15 @@ export function timeline(match) {
         break;
       case 'sweep': {
         const quantos = (ev.targets || []).length;
+        // Com quem lancou entre os alvos, foram "jogadores", nao "oponentes".
+        const todos = (ev.targets || []).includes(ev.sourceId);
+        const [um, muitos] = todos
+          ? ['damage.player', 'damage.players']
+          : ['damage.opponent', 'damage.opponents'];
         const base = t('tl.sweep', {
           name: nameOf(ev.sourceId),
           n: ev.amount,
-          count: quantos === 1
-            ? t('damage.opponent', { n: quantos })
-            : t('damage.opponents', { n: quantos }),
+          count: t(quantos === 1 ? um : muitos, { n: quantos }),
         });
         text = ev.gain ? t('tl.sweepGain', { base, gain: ev.gain }) : base;
         break;
@@ -121,6 +124,10 @@ export function timeline(match) {
         break;
       default:
         text = ev.type;
+    }
+    // Lifelink: a cura de quem causou, gravada no proprio evento de dano.
+    if (ev.gain && ev.type !== 'sweep') {
+      text = t('tl.lifelink', { base: text, name: nameOf(ev.sourceId), gain: ev.gain });
     }
     return { ...ev, text };
   });

@@ -219,6 +219,10 @@ export function aggregate(matches, apelidos = null) {
     }
 
     for (const ev of match.events) {
+      // Lifelink: a cura de quem causou o dano, gravada no mesmo evento. O
+      // sweep trata a dele mais abaixo, junto com o resto do dreno.
+      if (ev.gain && ev.sourceId && ev.type !== 'sweep') bump(ev.sourceId, 'healed', ev.gain);
+
       switch (ev.type) {
         case 'life':
           // Com autor e dano levado; sem autor e vida que a pessoa pagou por
@@ -267,7 +271,10 @@ export function aggregate(matches, apelidos = null) {
           // reconstruir quem estava vivo naquele instante.
           for (const id of ev.targets || []) {
             bump(id, 'damageTaken', ev.amount);
-            if (ev.sourceId) bump(ev.sourceId, 'damageDealt', ev.amount);
+            // "Dano em todos os jogadores" atinge quem disparou tambem. Isso
+            // e dano levado por ele, mas nao dano causado - ninguem se gaba de
+            // ter batido em si mesmo.
+            if (ev.sourceId && ev.sourceId !== id) bump(ev.sourceId, 'damageDealt', ev.amount);
           }
           if (ev.gain && ev.sourceId) bump(ev.sourceId, 'healed', ev.gain);
           break;

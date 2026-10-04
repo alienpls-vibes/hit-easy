@@ -15,7 +15,7 @@
  * fora, e `mesa.state = ...` precisa funcionar de sete arquivos diferentes.
  */
 
-import { layoutFor } from '../../seating.js';
+import { layoutDaPartida } from '../../seating.js';
 import { replay } from '../../engine.js';
 import { SVG_NS } from './constantes.js';
 import { grausNaMesa, apontadorPreciso } from '../../orientation.js';
@@ -64,7 +64,7 @@ export function criarContexto(root, ctx) {
      */
     contarNoProximoSync: false,
 
-    layout: layoutFor(match.seats.length, match.layoutId),
+    layout: layoutDaPartida(match),
 
     // Preenchidos por mesa.js ao montar a tela.
     grid: null,

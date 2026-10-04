@@ -58,6 +58,28 @@ function isIOS() {
     || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
 }
 
+/**
+ * Em que navegador do iPhone a pagina esta aberta.
+ *
+ * Importa porque o caminho muda: no Safari e Compartilhar > Adicionar a Tela
+ * de Inicio; no Chrome e no Edge do iOS 16.4 em diante tambem existe, pelo
+ * compartilhar da barra de endereco; e dentro de outro app (Instagram,
+ * Facebook, o navegador do app do Google) nao existe de jeito nenhum - a
+ * pessoa precisa sair para um navegador de verdade, e a tela tem de dizer isso
+ * em vez de mandar procurar um botao que nao esta la.
+ *
+ * Devolve 'safari' | 'outro' | 'embutido'. Recebe o user agent para o teste.
+ */
+export function navegadorDoIOS(ua) {
+  const agente = ua !== undefined ? ua
+    : (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+  if (/FBAN|FBAV|FB_IAB|Instagram|LinkedInApp|Line\/|TikTok|musical_ly|Snapchat|GSA\/|Twitter/i.test(agente)) {
+    return 'embutido';
+  }
+  if (/CriOS|FxiOS|EdgiOS|OPiOS|OPT\/|DuckDuckGo|YaBrowser/i.test(agente)) return 'outro';
+  return 'safari';
+}
+
 function isInstalled() {
   return (typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches)
     || (typeof navigator !== 'undefined' && navigator.standalone === true);

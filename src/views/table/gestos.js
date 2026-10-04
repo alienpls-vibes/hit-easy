@@ -153,11 +153,17 @@ export function criarGestos(mesa) {
 
       // Mover ja arma na hora, sem esperar o tempo de toque.
       if (!mesa.gesture.active) {
-        // Com a repeticao em curso o gesto JA e ajuste de vida, e nao pode
-        // virar ataque no meio do caminho: a vida ja saiu, e converter agora
-        // deixaria o jogador com o ajuste aplicado e um ataque armado.
-        if (repeticao) return;
+        // Depois que a repeticao aplicou um passo o gesto JA e ajuste de vida,
+        // e nao pode virar ataque no meio do caminho: a vida ja saiu, e
+        // converter agora deixaria o jogador com o ajuste aplicado e um ataque
+        // armado.
+        if (mesa.gesture.repeated) return;
         if (Math.hypot(e.clientX - mesa.gesture.x0, e.clientY - mesa.gesture.y0) < DRAG_THRESHOLD) return;
+        // Antes disso, nenhum ponto saiu: o dedo encostou no + ou no - so
+        // porque o painel e pequeno, e ja saiu arrastando para atacar. A
+        // repeticao que esperava para comecar e cancelada, e o gesto vira o
+        // ataque que a pessoa queria - sem vida nenhuma mexida no caminho.
+        pararRepeticao();
         arm();
       }
 

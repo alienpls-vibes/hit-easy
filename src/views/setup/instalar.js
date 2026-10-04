@@ -6,11 +6,64 @@
  * app pedir instalacao sozinho, e a tela diz exatamente o que fazer no lugar.
  */
 
-import { el, clear, icon, toast } from '../../ui.js';
+import { el, clear, icon, toast, openSheet } from '../../ui.js';
 import { t } from '../../i18n.js';
 import {
   state as installState, promptInstall, onInstallChange, atualizarApp,
+  navegadorDoIOS,
 } from '../../install.js';
+
+/**
+ * O passo a passo da instalacao no iPhone e no iPad.
+ *
+ * A Apple nao deixa uma pagina pedir para ser instalada: nao ha convite, nao
+ * ha evento, nao ha botao que o app possa apertar pela pessoa. O maximo que da
+ * para fazer e dizer exatamente onde tocar - e isso precisava estar a um toque
+ * da home, e nao numa frase dentro das configuracoes, que era onde ninguem
+ * achava. O relato foi "no iPhone nao da para baixar o app".
+ */
+export function abrirInstalarNoIOS() {
+  const onde = navegadorDoIOS();
+  const passos = [
+    onde === 'embutido' ? t('install.iosStep1Embedded')
+      : onde === 'outro' ? t('install.iosStep1Other')
+        : t('install.iosStep1'),
+    t('install.iosStep2'),
+    t('install.iosStep3'),
+    t('install.iosStep4'),
+  ];
+
+  openSheet({
+    title: t('install.iosTitle'),
+    subtitle: t('install.iosSub'),
+    build: (pane, close) => {
+      pane.append(el('ol', { class: 'install-steps' }, passos.map((texto, i) => el('li', {
+        class: 'install-step' + (i === 0 && onde !== 'safari' ? ' is-alert' : ''),
+      }, [
+        el('span', { class: 'install-step-n', text: String(i + 1) }),
+        el('span', { class: 'install-step-text', text: texto }),
+      ]))));
+
+      const acoes = [el('button', { class: 'btn primary', onClick: close }, [t('common.done')])];
+      // Fora do Safari o passo 1 e levar o endereco para la. Copiar poupa a
+      // pessoa de digitar uma URL comprida no teclado do celular.
+      if (onde !== 'safari') {
+        acoes.unshift(el('button', {
+          class: 'btn ghost',
+          onClick: async () => {
+            try {
+              await navigator.clipboard.writeText(location.href.split('#')[0]);
+              toast(t('install.copied'));
+            } catch {
+              toast(location.href.split('#')[0]);
+            }
+          },
+        }, [t('install.copyLink')]));
+      }
+      pane.append(el('div', { class: 'sheet-actions' }, acoes));
+    },
+  });
+}
 
 /**
  * Bloco de instalacao. Cada situacao ganha uma resposta util - esconder a opcao
@@ -106,7 +159,10 @@ export function installBlock(onRefresh) {
     }
 
     if (mode === 'ios') {
-      box.append(el('div', { class: 'install-note' }, [
+      box.append(el('button', {
+        class: 'menu-item install-cta',
+        onClick: abrirInstalarNoIOS,
+      }, [
         el('span', { class: 'menu-label' }, [icon('share'), t('settings.installIOS')]),
         el('span', { class: 'menu-sub', text: t('settings.installIOSSub') }),
       ]));

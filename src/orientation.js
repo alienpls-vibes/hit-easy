@@ -39,6 +39,23 @@ function permitido() {
 }
 
 /**
+ * O ultimo pedido, para poder ser repetido.
+ *
+ * Sair do app derruba a tela cheia, e a trava de orientacao cai junto: na
+ * volta o aparelho obedece ao sensor e a mesa aparece em pe. Nada na mesa
+ * muda de rota nessa hora, entao ninguem pediria de novo - quem repete e
+ * retomarOrientacao(), com este registro.
+ */
+let ultimoPedido = { mode: null, explicito: false };
+
+/**
+ * A tela cheia entrou e mesmo assim a trava foi recusada: este aparelho nao
+ * trava (iPad, computador). Insistir a cada toque so serviria para jogar a
+ * pessoa de volta na tela cheia que ela acabou de fechar.
+ */
+let semSuporte = false;
+
+/**
  * Pede uma orientacao. `mode` e 'landscape', 'portrait' ou null (soltar).
  *
  * Entrar em tela cheia e condicao para travar, entao o pedido de paisagem
@@ -47,6 +64,7 @@ function permitido() {
  */
 export async function preferOrientation(mode, explicito = false) {
   if (typeof window === 'undefined') return;
+  ultimoPedido = { mode, explicito };
   if (!permitido()) return;
 
   // Retrato automatico so faz sentido no celular: num tablet apoiado, girar a
@@ -70,6 +88,7 @@ export async function preferOrientation(mode, explicito = false) {
     if (screen.orientation && screen.orientation.lock) await screen.orientation.lock(mode);
   } catch {
     /* sem suporte ou negado: o CSS se vira nas duas orientacoes */
+    if (document.fullscreenElement) semSuporte = true;
   }
 }
 
@@ -125,4 +144,33 @@ export function rotatesToSeat() {
  */
 export function grausNaMesa(graus, temApontadorPreciso) {
   return (giraComOAssento(temApontadorPreciso) ? (graus || 0) : 0) + 'deg';
+}
+
+/**
+ * A trava caiu e precisa ser pedida de novo?
+ *
+ * So quando ha um pedido de travar em vigor e a tela cheia nao esta mais
+ * ativa - e a tela cheia e a condicao para a trava existir.
+ */
+export function travaPerdida() {
+  if (typeof document === 'undefined') return false;
+  return Boolean(ultimoPedido.mode)
+    && !semSuporte
+    && permitido()
+    // Mouse ou trackpad: ninguem gira um computador, e pedir tela cheia a
+    // cada clique seria brigar com quem acabou de sair dela.
+    && !apontadorPreciso()
+    && !document.fullscreenElement;
+}
+
+/**
+ * Pede de novo a ultima orientacao.
+ *
+ * Entrar em tela cheia exige um toque recente da pessoa, entao chamar isto ao
+ * voltar para o app normalmente falha; quem garante e o primeiro toque depois
+ * da volta, que chama isto de novo (ver app.js).
+ */
+export function retomarOrientacao() {
+  if (!travaPerdida()) return Promise.resolve();
+  return preferOrientation(ultimoPedido.mode, ultimoPedido.explicito);
 }

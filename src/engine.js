@@ -13,10 +13,18 @@
  * diferente de dano levado e conta separado nas estatisticas.
  *
  * Eventos (todos com id, ts, turn, activeSeatId):
- *   life    { targetId, delta, sourceId }          delta negativo = perda
- *   cmd     { targetId, sourceId, cmdKey, delta }  dano de comandante (tambem tira vida)
- *   poison  { targetId, delta, sourceId }
- *   sweep   { sourceId, amount, gain, targets }    atinge varios de uma vez
+ *   life    { targetId, delta, sourceId, gain? }          delta negativo = perda
+ *   cmd     { targetId, sourceId, cmdKey, delta, gain? }  dano de comandante (tambem tira vida)
+ *   poison  { targetId, delta, sourceId, gain? }
+ *   sweep   { sourceId, amount, gain, targets }           atinge varios de uma vez
+ *
+ * `gain` e o lifelink: quanto quem causou o dano ganhou de vida NO MESMO
+ * evento. Junto, e nao como um `life` a parte, para desfazer voltar as duas
+ * coisas de uma vez - e para a cura nao parecer, na estatistica, vida que
+ * apareceu do nada. No sweep sempre existiu, e e o dreno.
+ *
+ * Os alvos de um sweep podem incluir quem o disparou ("dano em todos os
+ * jogadores"). Morrer do proprio sweep nao credita a eliminacao a ninguem.
  *   turn    {}                                     passa a vez
  *   pause   {} / resume {}                         relogio parado
  *   vote    { question, kind, options, ballots }  votacao secreta (so registro)
@@ -107,6 +115,9 @@ export function createMatch(seats, startingLife = DEFAULT_LIFE, options = {}) {
     // fisica e uma coisa, quem ganhou o dado e outra.
     firstSeatId: first ? first.id : built[0] && built[0].id,
     layoutId: options.layoutId || null,
+    // O jogador 1 senta no alto a esquerda. Partida sem esta marca comecou
+    // antes disso, e a mesa dela continua na ordem antiga - ver seating.js.
+    assentos: 'topo',
     events: [],
     redo: [],
   };
@@ -177,7 +188,7 @@ export function replay(match) {
         // sweep mata todos os seus alvos em nome de quem o disparou.
         const atingido = ev
           && (ev.targetId === id || (ev.targets && ev.targets.includes(id)));
-        const byId = atingido ? ev.sourceId || null : null;
+        const byId = atingido && ev.sourceId !== id ? ev.sourceId || null : null;
         p.elim = { turn, seq: turnoAtual, ts: ev ? ev.ts : Date.now(), byId, place: 0 };
         elimOrder.push(id);
       } else if (!shouldBeDead && p.dead) {
@@ -235,6 +246,7 @@ export function replay(match) {
     switch (ev.type) {
       case 'life':
         if (p) p.life += ev.delta;
+        if (ev.gain && players[ev.sourceId]) players[ev.sourceId].life += ev.gain;
         break;
       case 'sweep':
         for (const id of ev.targets || []) {
@@ -253,9 +265,11 @@ export function replay(match) {
           p.cmd[ev.cmdKey] = Math.max(0, (p.cmd[ev.cmdKey] || 0) + ev.delta);
           p.life -= ev.delta; // dano de comandante tambem sai da vida
         }
+        if (ev.gain && players[ev.sourceId]) players[ev.sourceId].life += ev.gain;
         break;
       case 'poison':
         if (p) p.poison = Math.max(0, p.poison + ev.delta);
+        if (ev.gain && players[ev.sourceId]) players[ev.sourceId].life += ev.gain;
         break;
       case 'turn':
         advanceTurn(ev);

@@ -9,6 +9,13 @@
  * esquerda, e como todo mundo olha para o centro da mesa, "a esquerda de cada
  * um" desenha um giro horario na vista de cima.
  *
+ * A volta comeca no alto a esquerda, com o aparelho deitado: e onde se comeca
+ * a ler, e e onde quem montou a mesa procura o jogador 1. Ate a 1.8 ela
+ * comecava embaixo a esquerda - ver ASSENTOS_ANTIGOS.
+ *
+ * Com 2, 3 e 5 a forma deitada vem primeiro, e e o padrao: a mesa foi pensada
+ * para o aparelho deitado no meio do grupo.
+ *
  * Com 2, 3 e 5 jogadores a escolha e da pessoa, e a pergunta que ela responde
  * e concreta: o aparelho vai ficar EM PE ou DEITADO no meio da mesa? Era essa
  * a decisao real o tempo todo - "2 embaixo, 1 em cima" descrevia a consequencia
@@ -28,43 +35,43 @@
 
 export const LAYOUTS = {
   2: [{
-    id: 'retrato',
-    orient: 'portrait',
-    labelKey: 'layout.portrait',
-    cols: 1, rows: 2,
-    seats: [{ r: 2, c: 1, rot: 0 }, { r: 1, c: 1, rot: 180 }],
-  }, {
     id: 'paisagem',
     orient: 'landscape',
     labelKey: 'layout.landscape',
-    // A mesma pilha de dois, agora larga e baixa. Duas pessoas de frente uma
-    // para a outra ficam nos lados opostos do aparelho de qualquer jeito; o
-    // que muda e o formato do painel de cada uma.
+    // Uma pilha de dois, larga e baixa. Duas pessoas de frente uma para a
+    // outra ficam nos lados opostos do aparelho de qualquer jeito; o que muda
+    // entre as variantes e o formato do painel de cada uma.
     cols: 1, rows: 2,
-    seats: [{ r: 2, c: 1, rot: 0 }, { r: 1, c: 1, rot: 180 }],
-  }],
-
-  3: [{
+    seats: [{ r: 1, c: 1, rot: 180 }, { r: 2, c: 1, rot: 0 }],
+  }, {
     id: 'retrato',
     orient: 'portrait',
     labelKey: 'layout.portrait',
-    // Em pe, sobra altura: duas pessoas do lado de ca, uma do lado de la.
-    cols: 2, rows: 2,
-    seats: [
-      { r: 2, c: 1, rot: 0 },
-      { r: 1, c: 1, cs: 2, rot: 180 },
-      { r: 2, c: 2, rot: 0 },
-    ],
-  }, {
+    cols: 1, rows: 2,
+    seats: [{ r: 1, c: 1, rot: 180 }, { r: 2, c: 1, rot: 0 }],
+  }],
+
+  3: [{
     id: 'paisagem',
     orient: 'landscape',
     labelKey: 'layout.landscape',
     // Deitado, sobra largura: duas do lado de la, uma ocupando a faixa de ca.
     cols: 2, rows: 2,
     seats: [
-      { r: 2, c: 1, cs: 2, rot: 0 },
       { r: 1, c: 1, rot: 180 },
       { r: 1, c: 2, rot: 180 },
+      { r: 2, c: 1, cs: 2, rot: 0 },
+    ],
+  }, {
+    id: 'retrato',
+    orient: 'portrait',
+    labelKey: 'layout.portrait',
+    // Em pe, sobra altura: uma pessoa do lado de la, duas do lado de ca.
+    cols: 2, rows: 2,
+    seats: [
+      { r: 1, c: 1, cs: 2, rot: 180 },
+      { r: 2, c: 2, rot: 0 },
+      { r: 2, c: 1, rot: 0 },
     ],
   }],
 
@@ -73,27 +80,14 @@ export const LAYOUTS = {
     labelKey: 'layout.pairs',
     cols: 2, rows: 2,
     seats: [
-      { r: 2, c: 1, rot: 0 },
       { r: 1, c: 1, rot: 180 },
       { r: 1, c: 2, rot: 180 },
       { r: 2, c: 2, rot: 0 },
+      { r: 2, c: 1, rot: 0 },
     ],
   }],
 
   5: [{
-    id: 'retrato',
-    orient: 'portrait',
-    labelKey: 'layout.portrait',
-    // Duas colunas por tres linhas. A celula vaga e onde o nucleo central cai.
-    cols: 2, rows: 3,
-    seats: [
-      { r: 3, c: 1, rot: 0 },
-      { r: 1, c: 1, rot: 180 },
-      { r: 1, c: 2, rot: 180 },
-      { r: 2, c: 2, rot: 0 },
-      { r: 3, c: 2, rot: 0 },
-    ],
-  }, {
     id: 'paisagem',
     orient: 'landscape',
     labelKey: 'layout.landscape',
@@ -102,11 +96,24 @@ export const LAYOUTS = {
     // caberia - por isso ela so existe deitada.
     cols: 3, rows: 2,
     seats: [
-      { r: 2, c: 1, rot: 0 },
       { r: 1, c: 1, rot: 180 },
       { r: 1, c: 2, rot: 180 },
       { r: 1, c: 3, rot: 180 },
       { r: 2, c: 3, rot: 0 },
+      { r: 2, c: 1, rot: 0 },
+    ],
+  }, {
+    id: 'retrato',
+    orient: 'portrait',
+    labelKey: 'layout.portrait',
+    // Duas colunas por tres linhas. A celula vaga e onde o nucleo central cai.
+    cols: 2, rows: 3,
+    seats: [
+      { r: 1, c: 1, rot: 180 },
+      { r: 1, c: 2, rot: 180 },
+      { r: 2, c: 2, rot: 0 },
+      { r: 3, c: 2, rot: 0 },
+      { r: 3, c: 1, rot: 0 },
     ],
   }],
 
@@ -115,26 +122,57 @@ export const LAYOUTS = {
     labelKey: 'layout.threes',
     cols: 2, rows: 3,
     seats: [
-      { r: 3, c: 1, rot: 0 },
-      { r: 2, c: 1, rot: 0 },
       { r: 1, c: 1, rot: 180 },
       { r: 1, c: 2, rot: 180 },
       { r: 2, c: 2, rot: 0 },
       { r: 3, c: 2, rot: 0 },
+      { r: 3, c: 1, rot: 0 },
+      { r: 2, c: 1, rot: 0 },
     ],
     land: {
       cols: 3, rows: 2,
       seats: [
-        { r: 2, c: 1, rot: 0 },
         { r: 1, c: 1, rot: 180 },
         { r: 1, c: 2, rot: 180 },
         { r: 1, c: 3, rot: 180 },
         { r: 2, c: 3, rot: 0 },
         { r: 2, c: 2, rot: 0 },
+        { r: 2, c: 1, rot: 0 },
       ],
     },
   }],
 };
+
+/**
+ * Onde cada assento sentava ate a 1.8: o jogador 1 embaixo a esquerda.
+ *
+ * So partida que comecou antes da troca usa isto - ela nao tem `assentos` - e
+ * existe pelo mesmo motivo de APELIDOS: o app atualiza no meio de um jogo, e
+ * redesenhar a mesa com a ordem nova trocaria todo mundo de lugar sem aviso.
+ * O giro e o mesmo; muda so em que cadeira a volta comeca.
+ *
+ * Chave `n:id`, e `n:id:land` para a forma deitada.
+ */
+const ASSENTOS_ANTIGOS = {
+  '2:paisagem': [[2, 1, 0], [1, 1, 180]],
+  '2:retrato': [[2, 1, 0], [1, 1, 180]],
+  '3:paisagem': [[2, 1, 0, 2], [1, 1, 180], [1, 2, 180]],
+  '3:retrato': [[2, 1, 0], [1, 1, 180, 2], [2, 2, 0]],
+  '4:padrao': [[2, 1, 0], [1, 1, 180], [1, 2, 180], [2, 2, 0]],
+  '5:paisagem': [[2, 1, 0], [1, 1, 180], [1, 2, 180], [1, 3, 180], [2, 3, 0]],
+  '5:retrato': [[3, 1, 0], [1, 1, 180], [1, 2, 180], [2, 2, 0], [3, 2, 0]],
+  '6:padrao': [[3, 1, 0], [2, 1, 0], [1, 1, 180], [1, 2, 180], [2, 2, 0], [3, 2, 0]],
+  '6:padrao:land': [[2, 1, 0], [1, 1, 180], [1, 2, 180], [1, 3, 180], [2, 3, 0], [2, 2, 0]],
+};
+
+/** Como a partida guarda que ja nasceu com o jogador 1 no alto a esquerda. */
+export const ASSENTOS_DO_TOPO = 'topo';
+
+function assentosAntigos(chave) {
+  const lista = ASSENTOS_ANTIGOS[chave];
+  if (!lista) return null;
+  return lista.map(([r, c, rot, cs]) => (cs ? { r, c, cs, rot } : { r, c, rot }));
+}
 
 /** Todas as variantes para essa quantidade de jogadores. */
 export function variantsFor(seatCount) {
@@ -170,20 +208,34 @@ export function variant(seatCount, id) {
  * `wide` vem da proporcao real da tela, nao do angulo do aparelho - o que
  * importa e se ha mais largura que altura para distribuir.
  */
-export function layoutFor(seatCount, id, wide = false) {
+export function layoutFor(seatCount, id, wide = false, assentos = ASSENTOS_DO_TOPO) {
   const v = variant(seatCount, id);
   // Variante que JA declara orientacao nao troca de forma com a tela: foi a
   // pessoa que disse como o aparelho fica na mesa, e o app e que deve seguir a
   // escolha dela - nao adivinhar pela proporcao e desmentir o que ela pediu.
-  const shape = !v.orient && wide && v.land ? v.land : v;
+  const deitada = !v.orient && wide && v.land;
+  const shape = deitada ? v.land : v;
+  const antigos = assentos === ASSENTOS_DO_TOPO
+    ? null
+    : assentosAntigos(seatCount + ':' + v.id + (deitada ? ':land' : ''));
   return {
     id: v.id,
     labelKey: v.labelKey,
     orient: v.orient || null,
     cols: shape.cols,
     rows: shape.rows,
-    seats: shape.seats,
+    seats: antigos || shape.seats,
   };
+}
+
+/**
+ * A forma que a mesa desta partida desenha.
+ *
+ * Partida sem `assentos` comecou antes de o jogador 1 ir para o alto, e segue
+ * na ordem com que comecou.
+ */
+export function layoutDaPartida(match, wide = false) {
+  return layoutFor(match.seats.length, match.layoutId, wide, match.assentos || 'antigos');
 }
 
 /**

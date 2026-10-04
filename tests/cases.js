@@ -25,7 +25,9 @@ import {
   chaveDaVotacao, rotuloDaVotacao, orientarRival,
   categoriaDaVotacao, rotuloDaCategoria,
 } from '../src/stats.js';
-import { LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf } from '../src/seating.js';
+import {
+  LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf, layoutDaPartida,
+} from '../src/seating.js';
 import { createSession, cast, tally, pending, isComplete, describe } from '../src/vote.js';
 import {
   openFlow, closeSheet, dismissOnBackdrop, el, isSheetOpen, onSheetChange,
@@ -52,6 +54,7 @@ import { abrirNovidades } from '../src/views/setup.js';
 // Direto da peca: o bloco de instalacao e detalhe das configuracoes, e
 // exporta-lo na porta o anunciaria como API publica da tela.
 import { installBlock } from '../src/views/setup/instalar.js';
+import { navegadorDoIOS } from '../src/install.js';
 import { APP_VERSION } from '../src/version.js';
 import {
   aSubir, aBaixar, aApagar, podeSincronizar,
@@ -4616,6 +4619,235 @@ export const cases = [
       view.destroy();
       return undefined;
     });
+  }],
+  ['o jogador 1 senta no alto à esquerda, em toda mesa', () => {
+    // Pedido de quem joga: com o aparelho deitado, o 1 é o canto de cima à
+    // esquerda, e a volta segue no horário (o teste do giro cuida do resto).
+    for (const n of [2, 3, 4, 5, 6]) {
+      for (const v of variantsFor(n)) {
+        for (const { nome, shape } of shapesOf(v)) {
+          const primeiro = shape.seats[0];
+          ok(primeiro.r === 1 && primeiro.c === 1,
+            n + ' jogadores / ' + v.id + ' / ' + nome + ': o 1 está em '
+            + primeiro.r + ':' + primeiro.c);
+        }
+      }
+    }
+
+    // Com 2, 3 e 5 a forma deitada é o padrão: é como a mesa foi pensada.
+    for (const n of [2, 3, 5]) {
+      eq(layoutFor(n, null).orient, 'landscape', n + ' jogadores: o padrão não é deitado');
+    }
+  }],
+
+  ['partida aberta antes da troca não muda ninguém de lugar', () => {
+    // O app atualiza no meio de um jogo. A partida que já estava na mesa não
+    // tem a marca `assentos`, e tem de continuar com o 1 embaixo à esquerda.
+    const nova = mesa(4);
+    eq(nova.assentos, 'topo', 'partida nova não nasce marcada');
+    eq(layoutDaPartida(nova).seats[0], { r: 1, c: 1, rot: 180 }, 'nova: o 1 no alto');
+
+    const antiga = mesa(4);
+    delete antiga.assentos;
+    antiga.layoutId = 'padrao';
+    eq(layoutDaPartida(antiga).seats.map((x) => x.r + ':' + x.c),
+      ['2:1', '1:1', '1:2', '2:2'], 'antiga de 4 trocou de lugar');
+
+    // E vale para toda variante: a antiga tem as mesmas cadeiras, e ainda gira
+    // no horário - só começa em outra.
+    const celulas = (l) => l.seats
+      .map((x) => x.r + ':' + x.c + ':' + (x.cs || 1) + ':' + x.rot).sort();
+    for (const n of [2, 3, 4, 5, 6]) {
+      for (const v of variantsFor(n)) {
+        for (const wide of [false, true]) {
+          const velha = mesa(n);
+          delete velha.assentos;
+          velha.layoutId = v.id;
+          const forma = layoutDaPartida(velha, wide);
+          const atual = layoutFor(n, v.id, wide);
+          const onde = n + '/' + v.id + (wide ? '/deitada' : '');
+          eq(forma.cols + 'x' + forma.rows, atual.cols + 'x' + atual.rows,
+            onde + ': a forma antiga mudou de grade');
+          eq(celulas(forma), celulas(atual), onde + ': as cadeiras não são as mesmas');
+          const ang = forma.seats.map((x) => seatAngle(x, forma));
+          let volta = 0;
+          for (let i = 0; i < n; i += 1) volta += (ang[(i + 1) % n] - ang[i] + 360) % 360;
+          ok(Math.abs(volta - 360) < 0.001, onde + ': a ordem antiga não gira no horário');
+        }
+      }
+    }
+  }],
+
+  ['lifelink cura quem causou, no mesmo evento', () => {
+    const m = mesa(4);
+    push(m, { type: 'life', targetId: 's1', delta: -5, sourceId: 's0', gain: 5 });
+    let st = replay(m);
+    eq(st.players.s1.life, 35, 'o alvo não perdeu');
+    eq(st.players.s0.life, 45, 'quem causou não ganhou');
+
+    const k = cmdKeyOf('s0', m.seats[0].commanders[0]);
+    push(m, { type: 'cmd', targetId: 's2', sourceId: 's0', cmdKey: k, delta: 3, gain: 3 });
+    st = replay(m);
+    eq(st.players.s0.life, 48, 'lifelink no dano de comandante');
+    eq(st.players.s2.cmd[k], 3, 'o dano de comandante continua contando');
+
+    // Um evento só: desfazer volta a cura junto.
+    undo(m);
+    eq(replay(m).players.s0.life, 45, 'desfazer deixou a cura para trás');
+
+    const { players } = aggregate([m]);
+    eq(players.find((x) => x.label === 'P0').healed, 5, 'a cura não entrou na estatística');
+  }],
+
+  ['dano em todos os jogadores pega quem lançou, sem contar como dano causado', () => {
+    const m = mesa(3, 4);
+    push(m, { type: 'sweep', sourceId: 's0', amount: 4, gain: 0, targets: ['s0', 's1', 's2'] });
+    const st = replay(m);
+    eq(st.players.s0.life, 0, 'quem lançou ficou de fora');
+    ok(st.players.s0.dead, 'quem lançou não morreu');
+    eq(st.players.s0.elim.byId, null, 'morrer do próprio dano virou eliminação de si mesmo');
+    eq(st.players.s1.elim.byId, 's0', 'os outros são eliminados por quem lançou');
+
+    const { players } = aggregate([m]);
+    const p0 = players.find((x) => x.label === 'P0');
+    eq(p0.damageDealt, 8, 'bater em si mesmo contou como dano causado');
+    eq(p0.damageTaken, 4, 'o dano levado por quem lançou sumiu');
+  }],
+
+  ['o teclado de dano começa no 0, e confirmar no 0 não grava nada', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      const m = mesa(4);
+      const { root, tiles, view } = mesaNaTela(m);
+      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+
+      apontarPara(tiles[1]);
+      fire(centro, 'pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
+      fire(centro, 'pointermove', { pointerId: 1, clientX: 90, clientY: 90 });
+      fire(centro, 'pointerup', { pointerId: 1, clientX: 90, clientY: 90 });
+      apontarPara(null);
+
+      eq(textOf(findAll(root, 'pad-amount')[0]), '0', 'o teclado não começou no 0');
+      const confirmar = findAll(root, 'btn').find((b) => textOf(b) === 'Confirmar');
+      fire(confirmar, 'click');
+      avancar(CONTAGEM_MS * 2);
+      eq(m.events.length, 0, 'confirmar no 0 gravou um evento');
+
+      // E o duplo toque também começa no 0.
+      avancar(300);
+      const tocar = (id) => {
+        fire(centro, 'pointerdown', { pointerId: id, clientX: 50, clientY: 50 });
+        fire(centro, 'pointerup', { pointerId: id, clientX: 50, clientY: 50 });
+      };
+      tocar(2);
+      tocar(3);
+      const valores = findAll(root, 'pad-amount').map(textOf);
+      eq(valores[valores.length - 1], '0', 'a ação em área não começou no 0');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['lifelink no teclado de dano cura quem atacou', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      const m = mesa(4);
+      const { root, tiles, view } = mesaNaTela(m);
+      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+
+      apontarPara(tiles[1]);
+      fire(centro, 'pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
+      fire(centro, 'pointermove', { pointerId: 1, clientX: 90, clientY: 90 });
+      fire(centro, 'pointerup', { pointerId: 1, clientX: 90, clientY: 90 });
+      apontarPara(null);
+
+      const marca = findAll(root, 'pad-tag')[0];
+      ok(marca && textOf(marca).includes('Lifelink'), 'o teclado não tem a marca de lifelink');
+      fire(marca, 'click');
+      fire(findAll(root, 'pad-chip').find((c) => textOf(c) === '5'), 'click');
+      avancar(CONTAGEM_MS * 3);
+
+      const st = replay(m);
+      eq(st.players.s1.life, 35, 'o alvo não levou o dano');
+      eq(st.players.s0.life, 45, 'quem atacou não ganhou a vida');
+      eq(m.events.length, 1, 'lifelink virou dois eventos');
+      eq(m.events[0].gain, 5, 'o evento não guardou a cura');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['arrastar a partir do + ou do − ataca, e não mexe na vida', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      const m = mesa(4);
+      const { root, tiles, view } = mesaNaTela(m);
+      const wrap = findAll(root, 'table-wrap')[0];
+
+      for (const faixa of ['tap-plus', 'tap-minus']) {
+        const borda = findAll(tiles[0], faixa)[0];
+        apontarPara(tiles[1]);
+        fire(borda, 'pointerdown', { pointerId: 1, clientX: 5, clientY: 5 });
+        avancar(80); // bem antes de a repetição começar
+        fire(borda, 'pointermove', { pointerId: 1, clientX: 90, clientY: 90 });
+        ok(wrap.classList.contains('is-dragging'), faixa + ': arrastar não armou o ataque');
+        avancar(HOLD_DELAY + REPEAT_MS * 4); // a repetição não pode acordar
+        fire(borda, 'pointerup', { pointerId: 1, clientX: 90, clientY: 90 });
+        apontarPara(null);
+        avancar(COMMIT_MS + 10);
+
+        eq(replay(m).players.s0.life, 40, faixa + ': a vida de quem arrastou mudou');
+        eq(m.events.length, 0, faixa + ': o arraste gravou ajuste de vida');
+        ok(findAll(root, 'pad-scrim').length >= 1, faixa + ': o teclado de dano não abriu');
+        fire(findAll(root, 'btn').find((b) => textOf(b) === 'Cancelar'), 'click');
+        avancar(300);
+      }
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['a ação em área oferece todos, oponentes e dreno', () => {
+    if (!simulated) return 'skip';
+    return comRelogioFalso((avancar) => {
+      const m = mesa(4);
+      const { root, tiles, view } = mesaNaTela(m);
+      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+      const tocar = (id) => {
+        fire(centro, 'pointerdown', { pointerId: id, clientX: 50, clientY: 50 });
+        fire(centro, 'pointerup', { pointerId: id, clientX: 50, clientY: 50 });
+      };
+      tocar(1);
+      tocar(2);
+
+      const modos = () => findAll(root, 'pad-mode');
+      eq(modos().map(textOf), ['Todos', 'Oponentes', 'Dreno'], 'os três modos');
+      const ligado = modos().find((b) => b.classList.contains('is-on'));
+      eq(textOf(ligado), 'Oponentes', 'o padrão não é só oponentes');
+
+      fire(modos().find((b) => textOf(b) === 'Todos'), 'click');
+      eq(textOf(findAll(root, 'pad-to')[0]), '4 jogadores', 'o cabeçalho não diz quem apanha');
+      fire(findAll(root, 'pad-chip').find((c) => textOf(c) === '3'), 'click');
+      avancar(CONTAGEM_MS * 3);
+
+      const st = replay(m);
+      for (const id of ['s0', 's1', 's2', 's3']) eq(st.players[id].life, 37, id + ' ficou de fora');
+      eq(m.events[0].targets, ['s0', 's1', 's2', 's3'], 'alvos fora da ordem da mesa');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['no iPhone, a instalação sabe em que navegador está', () => {
+    const ios = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) ';
+    eq(navegadorDoIOS(ios + 'Version/18.0 Mobile/15E148 Safari/604.1'), 'safari');
+    eq(navegadorDoIOS(ios + 'CriOS/129.0 Mobile/15E148 Safari/604.1'), 'outro');
+    eq(navegadorDoIOS(ios + 'Mobile/15E148 Instagram 350.0'), 'embutido');
+    eq(navegadorDoIOS(ios + 'Mobile/15E148 [FBAN/FBIOS;FBAV/480.0]'), 'embutido');
   }],
 ];
 
