@@ -67,6 +67,17 @@ export const NOVIDADES = [
         texto: 'No iPhone, segurar um botão para subir rápido selecionava o '
           + 'botão em vez de repetir.',
       },
+      {
+        tipo: 'corrigido',
+        texto: 'No iPhone, a tela começava a apagar sozinha no meio da '
+          + 'partida depois de bloquear o celular ou trocar de app. Agora o '
+          + 'primeiro toque na mesa volta a mantê-la acesa.',
+      },
+      {
+        tipo: 'novo',
+        texto: 'Aberto no Safari do iPhone, a mesa avisa que tela cheia só '
+          + 'existe com o app instalado, e leva ao passo a passo.',
+      },
     ],
   },
   {

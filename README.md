@@ -860,6 +860,20 @@ travar a orientação em tela cheia, e o Safari do iPhone **nem isso**. Por isso
 opção "tela cheia e girar" tenta, falha em silêncio onde não dá, e uma dica
 discreta sugere virar o aparelho.
 
+**Tela acesa no Safari.** O Safari (iPhone e iPad) só concede a trava de tela
+acesa logo depois de um toque da pessoa. Pedir ao voltar para o app, ou ao
+reabrir direto na mesa, é recusado em silêncio — e a tela passava a apagar
+sozinha no meio da partida. O pedido é refeito no primeiro `pointerup` na mesa
+sem trava, o que também recupera a trava que o sistema solta ao bloquear o
+celular. (No app instalado pela Tela de Início, a trava só funciona do iOS 18.4
+em diante — antes disso era defeito do próprio iOS.)
+
+**Tela cheia no iPhone só instalado.** O Safari do iPhone não tem tela cheia
+para página, só para vídeo: numa aba, a barra de endereço fica e nenhum código
+tira. Aberto pela Tela de Início, o app roda sem barra. Por isso a mesa, aberta
+no Safari de um iPhone, mostra uma vez por sessão o aviso com o atalho para o
+passo a passo de instalação.
+
 **Sair do app derruba a trava.** O Android tira o app da tela cheia quando ele
 vai para segundo plano, e a trava de paisagem cai junto: na volta, a mesa
 aparecia em pé. O app guarda o último pedido de orientação e o refaz ao voltar

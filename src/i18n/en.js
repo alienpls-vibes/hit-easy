@@ -109,6 +109,8 @@ export const EN = {
   'table.turnToast': 'Turn {n} · {name}',
   'table.dragHint': 'Drag from your panel to a target to deal damage',
   'table.rotateHint': 'Turn the device: the table works better in landscape',
+  'table.iosFullscreenHint': 'On iPhone, full screen needs the installed app',
+  'table.iosFullscreenAction': 'How to install',
   'table.match': 'Match',
   'table.pause': 'Pause the match',
   'table.pauseSub': 'Freezes the statistics clock',

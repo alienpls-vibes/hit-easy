@@ -10,7 +10,7 @@ import {
   toast, setHaptics, isSheetOpen, onSheetChange, closeSheet,
 } from './ui.js';
 import {
-  renderSetup, seedDraftFrom, abrirNovidades, passarMesa,
+  renderSetup, seedDraftFrom, abrirNovidades, passarMesa, abrirInstalarNoIOS,
 } from './views/setup.js';
 import { renderTable } from './views/table.js';
 import { renderStats, renderPaywall } from './views/stats.js';
@@ -29,6 +29,7 @@ import { podeVerEstatisticas } from './cloud.js';
 import * as sync from './sync.js';
 import { cloudEnabled } from './config.js';
 import { ehTeste } from './canal.js';
+import { state as installState } from './install.js';
 
 const root = document.getElementById('app');
 let route = store.getCurrent() ? 'table' : 'setup';
@@ -176,6 +177,7 @@ function desenhar() {
       },
     });
     hintRotate();
+    hintTelaCheiaNoIOS();
     return;
   }
 
@@ -271,23 +273,71 @@ function hintRotate() {
   setTimeout(() => toast(t('table.rotateHint')), 1400);
 }
 
+let telaCheiaHinted = false;
+
+/**
+ * No iPhone, tela cheia so existe com o app instalado.
+ *
+ * O Safari do iPhone nao implementa tela cheia para pagina - so para video -,
+ * entao numa aba a barra de endereco fica la e nenhum codigo tira. Aberto pela
+ * Tela de Inicio, o app roda sem barra nenhuma. A dica aparece na mesa, que e
+ * onde a barra incomoda, e leva direto ao passo a passo.
+ *
+ * Depois da dica de girar quando as duas cabem: um aviso substitui o outro, e
+ * a de girar ficaria 2s na tela antes de sumir.
+ */
+function hintTelaCheiaNoIOS() {
+  if (telaCheiaHinted || installState().mode !== 'ios') return;
+  telaCheiaHinted = true;
+  setTimeout(() => toast(t('table.iosFullscreenHint'), {
+    label: t('table.iosFullscreenAction'),
+    onClick: abrirInstalarNoIOS,
+  }), isWide() ? 1400 : 4000);
+}
+
 /* ---------------------------------------------------------------- */
 /* Tela acesa                                                        */
 /* ---------------------------------------------------------------- */
 
 // Ninguem quer destravar o celular a cada ataque. Liberado ao sair da mesa.
+//
+// O Safari (iPhone e iPad) so concede a trava logo depois de um toque da
+// pessoa. Pedir ao voltar para o app, ou ao reabrir direto na mesa, e recusado
+// em silencio - e a tela passava a apagar sozinha no meio da partida, sem nada
+// avisando. Por isso o primeiro toque na mesa sem trava pede de novo (ver o
+// `pointerup` abaixo). O sistema tambem solta a trava quando quer (bloquear o
+// celular, trocar de app), e o mesmo toque a recupera.
 let wakeLock = null;
+let pedindoTelaAcesa = false;
+
+/** A mesa esta a vista e a pessoa quer a tela acesa? */
+function querTelaAcesa() {
+  return route === 'table'
+    && settings().keepAwake
+    && document.visibilityState !== 'hidden';
+}
+
 async function keepAwake(on) {
+  if (!('wakeLock' in navigator)) return;
   try {
-    if (on && settings().keepAwake && 'wakeLock' in navigator && !wakeLock) {
-      wakeLock = await navigator.wakeLock.request('screen');
-      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    if (on && settings().keepAwake && !wakeLock && !pedindoTelaAcesa) {
+      pedindoTelaAcesa = true;
+      const trava = await navigator.wakeLock.request('screen');
+      pedindoTelaAcesa = false;
+      // A mesa pode ter fechado enquanto o pedido estava no ar.
+      if (!querTelaAcesa()) { trava.release(); return; }
+      wakeLock = trava;
+      trava.addEventListener('release', () => {
+        if (wakeLock === trava) wakeLock = null;
+      });
     } else if ((!on || !settings().keepAwake) && wakeLock) {
-      await wakeLock.release();
+      const trava = wakeLock;
       wakeLock = null;
+      await trava.release();
     }
   } catch {
-    /* sem suporte ou negado pelo navegador: segue o jogo */
+    /* sem suporte ou negado pelo navegador: o proximo toque tenta de novo */
+    pedindoTelaAcesa = false;
   }
 }
 
@@ -325,6 +375,8 @@ document.addEventListener('visibilitychange', () => {
  */
 document.addEventListener('pointerup', () => {
   if (travaPerdida()) retomarOrientacao();
+  // A mesma regra vale para a tela acesa no Safari - ver keepAwake().
+  if (!wakeLock && querTelaAcesa()) keepAwake(true);
 }, true);
 
 // Fechar o app para o relogio. Melhor esforco: um encerramento forcado pelo

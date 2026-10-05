@@ -109,6 +109,8 @@ export const DE = {
   'table.turnToast': 'Zug {n} · {name}',
   'table.dragHint': 'Von deinem Feld zum Ziel ziehen, um Schaden zu machen',
   'table.rotateHint': 'Gerät drehen: der Tisch wirkt im Querformat besser',
+  'table.iosFullscreenHint': 'Auf dem iPhone gibt es Vollbild nur mit installierter App',
+  'table.iosFullscreenAction': 'So installieren',
   'table.match': 'Partie',
   'table.pause': 'Partie pausieren',
   'table.pauseSub': 'Friert die Uhr der Statistik ein',

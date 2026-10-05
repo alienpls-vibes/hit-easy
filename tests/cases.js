@@ -4849,6 +4849,76 @@ export const cases = [
     eq(navegadorDoIOS(ios + 'Mobile/15E148 Instagram 350.0'), 'embutido');
     eq(navegadorDoIOS(ios + 'Mobile/15E148 [FBAN/FBIOS;FBAV/480.0]'), 'embutido');
   }],
+  ['a tela acesa volta no primeiro toque, como o Safari exige', async () => {
+    if (!simulated) return 'skip';
+    // O Safari só concede a trava logo depois de um toque. Pedir ao voltar
+    // para o app é recusado em silêncio, e a tela passava a apagar no meio da
+    // partida. Aqui o navegador recusa o primeiro pedido e aceita o seguinte.
+    const naRota = () => document.body.dataset.route;
+    const eraRota = naRota();
+    const navReal = globalThis.navigator;
+    const pedidos = [];
+    let travas = 0;
+    const ouvintes = [];
+    const falso = {
+      request: () => {
+        pedidos.push(Date.now());
+        if (pedidos.length === 1) return Promise.reject(new Error('NotAllowedError'));
+        travas += 1;
+        return Promise.resolve({
+          addEventListener: (tipo, fn) => { if (tipo === 'release') ouvintes.push(fn); },
+          release: () => Promise.resolve(),
+        });
+      },
+    };
+    const esperar = () => new Promise((r) => setTimeout(r, 0));
+    // Pendurado no navigator de verdade: um objeto no lugar dele quebra os
+    // campos privados que o Node usa para responder userAgent.
+    Object.defineProperty(navReal, 'wakeLock', { value: falso, configurable: true });
+    store.wipe();
+    try {
+      store.setCurrent(mesa(4));
+      // Para a home se redesenhar com o aviso de partida aberta: ida e volta
+      // pelas estatísticas, que é o caminho que o roteador já sabe fazer.
+      fire(botaoDeEstatisticas(), 'click');
+      fireWindow('popstate');
+      const continuar = findAll(document.getElementById('app'), 'invite-banner')[0];
+      ok(continuar, 'a home não ofereceu continuar a partida');
+      fire(continuar, 'click');
+      eq(naRota(), 'table', 'não entrou na mesa');
+      await esperar();
+      const antesDoToque = pedidos.length;
+
+      fire(document, 'pointerup', {});
+      await esperar();
+      ok(pedidos.length > antesDoToque, 'o toque na mesa não pediu a tela acesa');
+
+      // Recusado (o primeiro sempre é, aqui): o toque seguinte tenta de novo.
+      while (travas === 0 && pedidos.length < 5) {
+        fire(document, 'pointerup', {});
+        await esperar();
+      }
+      eq(travas, 1, 'depois de uma recusa, o toque seguinte não pediu de novo');
+
+      // Com a trava na mão, tocar não pede outra.
+      const comTrava = pedidos.length;
+      fire(document, 'pointerup', {});
+      await esperar();
+      eq(pedidos.length, comTrava, 'pediu de novo já tendo a trava');
+
+      // O sistema soltou (bloqueou o celular, trocou de app): o toque recupera.
+      ouvintes.forEach((fn) => fn());
+      fire(document, 'pointerup', {});
+      await esperar();
+      eq(travas, 2, 'a trava solta pelo sistema não voltou no toque');
+    } finally {
+      delete navReal.wakeLock;
+      closeSheet();
+      if (naRota() !== eraRota) document.body.dataset.route = eraRota;
+      store.wipe();
+    }
+    return undefined;
+  }],
 ];
 
 /** Roda tudo e devolve o resultado. Quem chama decide como mostrar. */

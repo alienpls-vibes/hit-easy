@@ -113,6 +113,8 @@ export const PT = {
   'table.turnToast': 'Turno {n} · {name}',
   'table.dragHint': 'Arraste do seu painel até o alvo para causar dano',
   'table.rotateHint': 'Vire o aparelho: a mesa rende mais deitada',
+  'table.iosFullscreenHint': 'No iPhone, tela cheia só com o app instalado',
+  'table.iosFullscreenAction': 'Como instalar',
   'table.match': 'Partida',
   'table.pause': 'Pausar a partida',
   'table.pauseSub': 'Congela o relógio das estatísticas',
