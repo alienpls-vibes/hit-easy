@@ -73,10 +73,13 @@ begin
   if c not in ('producao', 'beta') then
     raise exception 'canal invalido';
   end if;
+  -- O coalesce não é enfeite: chave ausente faz jsonb_typeof devolver NULL,
+  -- `NULL <> 'object'` dá NULL, e o `if` trata NULL como falso - a v1 sem ele
+  -- aceitou `{"x": 1}` como mesa.
   if mesa is null
-     or jsonb_typeof(mesa) <> 'object'
-     or jsonb_typeof(mesa -> 'partida') <> 'object'
-     or jsonb_typeof(mesa -> 'partida' -> 'events') <> 'array' then
+     or coalesce(jsonb_typeof(mesa), '') <> 'object'
+     or coalesce(jsonb_typeof(mesa -> 'partida'), '') <> 'object'
+     or coalesce(jsonb_typeof(mesa -> 'partida' -> 'events'), '') <> 'array' then
     raise exception 'mesa invalida';
   end if;
   if octet_length(mesa::text) > 1048576 then
