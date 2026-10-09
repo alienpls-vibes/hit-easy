@@ -17,9 +17,9 @@
 import { el, clear, icon, closeSheet, buzz, toast } from '../../ui.js';
 import * as store from '../../store.js';
 import { t, tn } from '../../i18n.js';
-import { identityOf } from '../../stats.js';
+import { identityOf, displayNameOf } from '../../stats.js';
 import * as cloud from '../../cloud.js';
-import { isHandleValid, displayHandle } from '../../cloud.js';
+import { isHandleValid, displayHandle, normalizeHandle } from '../../cloud.js';
 import { commanderStep } from './pick-deck.js';
 import {
   accountAtTable, ensureDraft, nameAtTable, canLinkAccounts,
@@ -140,10 +140,13 @@ export function playerStep(seat, refresh) {
         const deckCount = decks.length
           ? tn(decks.length, 'player.deckSaved', 'player.decksSaved')
           : t('player.noMatches');
+        // The other names the table used for this person, when the row is
+        // called by a different one - so "Alê" is still recognizable as the
+        // "Alex" of last week.
+        const otherNames = person.names.filter((n) => n !== person.label);
         const sub = busy
           ? t('player.isAtTable')
-          : [person.handle ? person.names.join(', ') : '', deckCount]
-            .filter(Boolean).join(' · ');
+          : [otherNames.join(', '), deckCount].filter(Boolean).join(' · ');
 
         return el('button', {
           class: 'player-row' + (busy ? ' is-busy' : ''),
@@ -155,7 +158,7 @@ export function playerStep(seat, refresh) {
           // every row tells nobody apart.
           el('span', {
             class: 'player-avatar',
-            text: (person.names[0] || person.handle || '?').slice(0, 1).toUpperCase(),
+            text: (person.label || person.names[0] || '?').slice(0, 1).toUpperCase(),
           }),
           el('span', { class: 'player-text' }, [
             el('span', { class: 'player-name', text: person.label }),
@@ -246,14 +249,17 @@ export function findHandleStep(
         proceed();
       };
 
-      const attach = (found) => {
+      const attach = (found, fromServer = true) => {
         if (accountAtTable(seat, found.handle)) {
           clear(result);
           result.append(el('p', { class: 'account-error is-on', text: t('handle.accountTaken') }));
           return;
         }
         // Remember the chosen name: the statistics and the next tables show it.
-        store.learnDisplayNames({ [found.handle]: found.display_name || null });
+        // Only what came from the server says it - an account picked from this
+        // device's list carries what the device already knew, and a missing
+        // name there means "not known", not "cleared".
+        if (fromServer) store.learnDisplayNames({ [found.handle]: found.display_name || null });
         if (adoptName) {
           // The account's name is what the rest of the table recognizes.
           // Without this the seat would stay "Player 2" while the statistics
@@ -317,11 +323,45 @@ export function findHandleStep(
 
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); });
 
+      // The accounts already tagged on this device, filtered as the @ is
+      // typed: the friends of every week are one tap away, without typing the
+      // whole @ and without the network. Whoever is already at this table
+      // stays out - the same account cannot sit twice.
+      const tagged = store.taggedAccounts()
+        .filter((a) => !accountAtTable(seat, a.handle) && a.handle !== normalizeHandle(seat.handle));
+      const taggedList = el('div', { class: 'result-list' });
+      const paintTagged = () => {
+        clear(taggedList);
+        const typed = normalizeHandle(input.value);
+        const shown = tagged.filter((a) => !typed
+          || a.handle.includes(typed)
+          || a.name.toLowerCase().includes(typed));
+        if (!shown.length) return;
+        taggedList.append(el('p', { class: 'sheet-legend', text: t('handle.taggedHere') }));
+        for (const a of shown) {
+          taggedList.append(el('button', {
+            class: 'player-row is-tagged',
+            onClick: () => attach({
+              handle: a.handle, id: null, display_name: displayNameOf(a.handle, store.knownHandles()) || null,
+            }, false),
+          }, [
+            el('span', { class: 'player-avatar', text: '@' }),
+            el('span', { class: 'player-text' }, [
+              el('span', { class: 'player-name', text: displayHandle(a.handle) }),
+              el('span', { class: 'player-sub', text: a.name }),
+            ]),
+          ]));
+        }
+      };
+      input.addEventListener('input', paintTagged);
+      paintTagged();
+
       pane.append(el('div', { class: 'name-row' }, [
         input,
         el('button', { class: 'btn primary', onClick: search }, [t('handle.search')]),
       ]));
       pane.append(result);
+      pane.append(taggedList);
       pane.append(el('p', { class: 'account-note', text: t('handle.why') }));
 
       if (!adoptName && isHandleValid(seat.handle)) {

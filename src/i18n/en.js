@@ -345,6 +345,7 @@ export const EN = {
   'handle.unlink': 'Unlink',
   'handle.skip': 'Skip, no account',
   'handle.why': 'The match will reach that person as an invitation. They decide whether it joins their history.',
+  'handle.taggedHere': 'Already tagged on this device',
   'account.yourHandle': 'Your @',
   'account.handleHint': 'This is how friends tag you at their table. 3 to 20 letters, numbers or _',
   'account.handleSave': 'Save @',

@@ -537,6 +537,14 @@ the `DISPLAY_NAMES` symbol, like the handle map:
   the typed name; renaming it also writes its `@`, or it would lose the account
   it was recognized by. Finished matches are never rewritten.
 
+**The @ only where it is typed.** The player picker ("Played here") calls
+every person by name - the chosen one, or the most recent the table used, with
+the other names under it - and never by `@`. The `@` shows up on the "Find by
+@" screen, where it is what gets typed; that screen also lists the accounts
+already tagged on this device (`taggedAccounts()`), filtered as you type by `@`
+or by name, so a weekly friend is one tap away without typing the whole `@` or
+going to the network. Whoever is already at the table is left out.
+
 The names are learned from three places: your own profile, on every account
 change (loading, saving the name); the account found by searching an `@`; and
 friends, on sync, through `perfis_por_handle` (`sql/011`), which answers the

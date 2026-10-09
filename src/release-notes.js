@@ -61,6 +61,12 @@ export const RELEASE_NOTES = [
       },
       {
         type: 'changed',
+        text: 'Na escolha de jogador, todo mundo aparece pelo nome; o @ fica só '
+          + 'na busca por @, que agora lista quem já foi marcado neste '
+          + 'aparelho - um toque, sem digitar o @ inteiro.',
+      },
+      {
+        type: 'changed',
         text: 'Todo @ que você já usou continua seu: ao trocar, o antigo não '
           + 'fica livre para outra pessoa, e quem marcar ele ainda acha você. '
           + 'O @ pode mudar uma vez a cada 15 dias, e nas estatísticas as '

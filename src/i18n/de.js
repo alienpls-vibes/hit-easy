@@ -345,6 +345,7 @@ export const DE = {
   'handle.unlink': 'Verknüpfung lösen',
   'handle.skip': 'Überspringen, kein Konto',
   'handle.why': 'Die Partie erreicht diese Person als Einladung. Sie entscheidet, ob sie in ihren Verlauf kommt.',
+  'handle.taggedHere': 'Auf diesem Gerät schon markiert',
   'account.yourHandle': 'Dein @',
   'account.handleHint': 'Damit markieren dich Freunde an ihrem Tisch. 3 bis 20 Buchstaben, Ziffern oder _',
   'account.handleSave': '@ speichern',

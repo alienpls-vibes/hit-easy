@@ -24,6 +24,7 @@ import {
   identityOf, labelOf, recordedName,
   voteKey, voteKeyLabel, orientRival,
   voteCategory, categoryLabel, CURRENT_HANDLES, currentHandle, seatName, timeline,
+  displayNameOf,
 } from '../src/stats.js';
 import {
   LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf, layoutOfMatch,
@@ -54,6 +55,8 @@ import { accountBlock } from '../src/views/setup/account.js';
 // Straight from the module: what loading or saving the profile triggers.
 import { notify as notifyAccount } from '../src/cloud/account.js';
 import { matchCard } from '../src/views/stats/match.js';
+import { findHandleStep } from '../src/views/setup/pick-player.js';
+import { ensureDraft } from '../src/views/setup/draft.js';
 import { cloudEnabled } from '../src/config.js';
 import { channelOf, channelOfCache } from '../src/channel.js';
 import { RELEASE_NOTES, releaseNotesSince, releaseNotesFor } from '../src/release-notes.js';
@@ -4317,8 +4320,14 @@ export const cases = [
     const people = store.knownPeople();
     eq(people.length, 2, 'two people on the list, not three names');
     const p = people.find((x) => x.key === '@alienpls');
-    eq(p.label, '@alienpls', 'the list row is called by the @');
+    // Called by a NAME, never by the @ - the @ belongs to the search screen.
+    // Without a chosen name, the most recent name the table used.
+    eq(p.label, p.names[0], 'the list row is not called by the most recent name');
+    ok(!p.label.startsWith('@'), 'the list row is called by the @');
     eq(p.names.slice().sort(), ['Alex', 'Alexandre'], 'and remembers both names');
+    store.learnDisplayNames({ alienpls: 'Alê Parma' });
+    eq(store.knownPeople().find((x) => x.key === '@alienpls').label, 'Alê Parma',
+      'the list row ignores the name the person chose');
 
     // Forgetting is about the person, not one of the names: forgetting only
     // one would leave them half on the list, and they would come back through
@@ -5732,6 +5741,58 @@ export const cases = [
       ok(rows.length > 0, 'the details did not open');
       ok(rows.some((x) => x.includes('Alê Parma')), 'the timeline still uses the typed name: ' + rows.join(' | '));
     } finally {
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+  ['the @ search lists the accounts already tagged here, one tap away', () => {
+    if (!simulated) return 'skip';
+    const realFetch = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = () => { calls += 1; return Promise.reject(new Error('offline')); };
+    store.wipe();
+    try {
+      // What tagging does on this device: the name on the list, and its @.
+      for (const [name, handle] of [['Alex', 'alienpls'], ['Bruno', 'bruno_b'], ['Caio', 'caio99']]) {
+        store.rememberPlayer(name);
+        store.rememberHandle(name, handle);
+      }
+      store.rememberPlayer('Ana'); // no account: never on the @ screen
+      store.learnDisplayNames({ alienpls: 'Alê Parma' });
+
+      const d = ensureDraft();
+      d.seats[1].name = 'Caio';
+      d.seats[1].handle = 'caio99'; // already at this table
+      const seat = d.seats[0];
+      openFlow(findHandleStep(seat, () => {}, { adoptName: true, then: 'close' }));
+
+      const rows = () => findAll(document.body, 'is-tagged');
+      const names = () => rows().map((r) => textOf(findAll(r, 'player-name')[0]));
+      eq(names().sort(), ['@alienpls', '@bruno_b'],
+        'the tagged accounts are missing, or someone at the table is offered again');
+      // Here the @ leads, with the name under it.
+      ok(textOf(rows().find((r) => textOf(r).includes('@alienpls'))).includes('Alê Parma'),
+        'the chosen name is not next to the @');
+
+      // Typing filters - by @ or by name.
+      const input = findAll(document.body, 'search-input').pop();
+      input.value = 'bru';
+      fire(input, 'input');
+      eq(names(), ['@bruno_b'], 'typing does not filter');
+      input.value = 'alê';
+      fire(input, 'input');
+      eq(names(), ['@alienpls'], 'the name does not filter');
+
+      // One tap: linked, under the chosen name, without the network.
+      fire(rows()[0], 'click');
+      eq(seat.handle, 'alienpls', 'the tap did not link the account');
+      eq(seat.name, 'Alê Parma', 'the seat did not take the chosen name');
+      eq(calls, 0, 'picking a tagged account went to the network');
+      eq(displayNameOf('alienpls', store.knownHandles()), 'Alê Parma',
+        'picking from the list forgot the known name');
+    } finally {
+      globalThis.fetch = realFetch;
       closeSheet();
       store.wipe();
     }

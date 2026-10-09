@@ -345,6 +345,7 @@ export const ES = {
   'handle.unlink': 'Desvincular',
   'handle.skip': 'Saltar, sin cuenta',
   'handle.why': 'La partida le llegará a esa persona como invitación. Ella decide si entra en su historial.',
+  'handle.taggedHere': 'Ya marcados en este dispositivo',
   'account.yourHandle': 'Tu @',
   'account.handleHint': 'Es como tus amigos te marcan en su mesa. De 3 a 20 letras, números o _',
   'account.handleSave': 'Guardar @',

@@ -549,7 +549,11 @@ export function knownPeople() {
       byKey.set(key, {
         key,
         handle,
-        label: handle ? '@' + handle : clean,
+        // By name, not by @: the @ belongs to the search screen, where it is
+        // what gets typed. Here the person is someone the table already
+        // knows - under the name they chose, or else the most recent name the
+        // table used for them (playerNames is newest first).
+        label: (handle && displayNameOf(handle, aliases)) || clean,
         names: [],
       });
     }
@@ -557,6 +561,19 @@ export function knownPeople() {
   }
 
   return [...byKey.values()];
+}
+
+/**
+ * The accounts this device has already tagged, for the @ search screen.
+ *
+ * Each entry is `{ handle, name }`: the current @ and the name to show next to
+ * it (the chosen one, or the most recent the table used). Picking from here
+ * skips typing the @ and the trip to the server.
+ */
+export function taggedAccounts() {
+  return knownPeople()
+    .filter((p) => p.handle)
+    .map((p) => ({ handle: p.handle, name: p.label }));
 }
 
 /** The names this device has already linked to this account. */
