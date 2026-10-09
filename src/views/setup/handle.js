@@ -12,6 +12,7 @@ import {
   handleValido, exibirHandle, normalizarHandle, proximaTrocaDoHandle, HANDLE_TROCA_DIAS,
 } from '../../cloud.js';
 import { formatDate } from '../../stats.js';
+import * as store from '../../store.js';
 import { linha } from './linhas.js';
 
 /**
@@ -141,7 +142,14 @@ function trocarHandleStep(api, aoMudar) {
         if (!livre) return;
         usar.disabled = true;
         try {
+          const antigo = perfil && perfil.handle;
           const novo = await cloud.salvarHandle(livre, null);
+          // As partidas antigas guardam o @ de antes. Ensinar o aparelho na
+          // hora faz as estatisticas continuarem vendo uma pessoa so, sem
+          // esperar a proxima sincronizacao (ver handleAtual em stats).
+          if (antigo && antigo !== novo.handle) {
+            store.lembrarHandlesAtuais({ [antigo]: novo.handle });
+          }
           toast(t('account.handleSaved', { handle: exibirHandle(novo.handle) }));
           // Nas configuracoes, volta para a conta ja com o @ novo; sozinho,
           // fecha o painel.

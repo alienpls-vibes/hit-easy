@@ -102,6 +102,7 @@ export {
   carregarPerfil,
   salvarNome,
   situacaoDoHandleAgora,
+  handlesAtuais,
   meuPerfil,
   salvarMeusDecks,
   colunaDeDecks,

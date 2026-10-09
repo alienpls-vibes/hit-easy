@@ -478,9 +478,36 @@ PATCH com uma data antiga antes de trocar. A recusa sai com o código próprio
 `HE015` e a data liberada no `details`; a linha do `@` já mostra "próxima troca
 em …" e não abre a tela de trocar dentro do prazo.
 
-> **Precisa de migração.** Rode `sql/008-handle-reservado-e-nome.sql` e depois
-> `sql/009-handle-a-cada-15-dias.sql` no Supabase. Sem ela o nome não grava (a coluna existe, mas a regra de tamanho
-> não) e o `@` antigo continua podendo ser pego por outra conta.
+**Trocar de @ não divide ninguém nas estatísticas.** O histórico **não é
+reescrito**: cada partida guarda o `@` que a cadeira tinha naquele dia — é o
+registro do que aconteceu, e partida registrada por outro anfitrião nem
+pertence a quem trocou. A consolidação acontece na leitura. O aparelho guarda
+um mapa `@antigo → @atual` (`handlesAtuais` no banco local), e `identityOf`
+passa por ele (`handleAtual`, que segue a cadeia de quem trocou várias vezes):
+estatísticas, rivalidades, cores, a lista de pessoas e o "ocultar" passam a
+ver uma pessoa só, chamada pelo `@` de hoje.
+
+O mapa viaja dentro do objeto `apelidos`, numa chave `Symbol`, e não como
+parâmetro novo — todo lugar que calcula identidade já recebe `apelidos`, e um
+parâmetro a mais esquecido em um deles dividiria a pessoa de novo.
+
+O mapa aprende por dois caminhos:
+
+- **o próprio `@`**, na hora da troca;
+- **os amigos que trocaram**, na sincronização: o app manda os `@` do
+  histórico para `handles_atuais` (`sql/010`), que devolve só os que mudaram —
+  em lote, só para quem está logado, o mesmo que `buscar_handle` já revela.
+
+Ao aprender uma troca, o aparelho também acerta o que guarda com o `@` velho:
+os nomes lembrados passam a apontar para o atual, e quem estava oculto
+continua oculto.
+
+> **Precisa de migração.** Rode no Supabase, nesta ordem:
+> `sql/008-handle-reservado-e-nome.sql` (sem ela, o `@` antigo pode ser pego
+> por outra conta e o nome não tem regra de tamanho),
+> `sql/009-handle-a-cada-15-dias.sql` (sem ela, o `@` troca a qualquer hora) e
+> `sql/010-handles-atuais.sql` (sem ela, a consolidação vale para o próprio
+> `@`, mas não para os amigos que trocaram).
 
 ## Os decks seguem a conta
 

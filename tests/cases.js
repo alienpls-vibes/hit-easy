@@ -23,7 +23,7 @@ import {
   playerColorOrder, playerColor,
   identityOf, labelOf, nomeRegistrado,
   chaveDaVotacao, rotuloDaVotacao, orientarRival,
-  categoriaDaVotacao, rotuloDaCategoria,
+  categoriaDaVotacao, rotuloDaCategoria, HANDLES_ATUAIS, handleAtual,
 } from '../src/stats.js';
 import {
   LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf, layoutDaPartida,
@@ -62,7 +62,7 @@ import { navegadorDoIOS } from '../src/install.js';
 import { APP_VERSION } from '../src/version.js';
 import {
   aSubir, aBaixar, aApagar, podeSincronizar,
-  cadeirasParaAssociar, apelidosAprendidos, associarConta, decksMudaram,
+  cadeirasParaAssociar, apelidosAprendidos, associarConta, decksMudaram, atualizarHandles,
 } from '../src/sync.js';
 import { giraComOAssento, grausNaMesa, rotatesToSeat } from '../src/orientation.js';
 import { renderTable } from '../src/views/table.js';
@@ -5397,6 +5397,111 @@ export const cases = [
       conta.sessao = sessaoReal;
       conta.perfil = perfilReal;
       closeSheet();
+    }
+    return undefined;
+  }],
+  ['quem troca de @ continua sendo uma pessoa só nas estatísticas', () => {
+    store.wipe();
+    try {
+      // Duas partidas, a mesma pessoa: na primeira era @alex, na segunda já
+      // tinha virado @alexandre. O histórico não é reescrito.
+      const comCadeiras = (handle0) => {
+        const m = mesa(2);
+        m.seats[0].handle = handle0;
+        m.seats[1].handle = 'bia';
+        push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
+        return m;
+      };
+      const antiga = comCadeiras('alex');
+      const nova = comCadeiras('alexandre');
+      nova.startedAt = antiga.startedAt + 1000;
+
+      // Sem saber da troca, são duas pessoas - era o defeito.
+      const semMapa = aggregate([antiga, nova], store.knownHandles()).players;
+      ok(semMapa.some((p) => p.key === '@alex') && semMapa.some((p) => p.key === '@alexandre'),
+        'o cenário do teste não divide a pessoa');
+
+      eq(store.lembrarHandlesAtuais({ alex: 'alexandre' }), 1);
+      const apelidos = store.knownHandles();
+
+      const jogadores = aggregate([antiga, nova], apelidos).players;
+      const alex = jogadores.filter((p) => p.key.startsWith('@alex'));
+      eq(alex.length, 1, 'a troca de @ dividiu a pessoa em duas linhas');
+      eq(alex[0].key, '@alexandre', 'a linha não usa o @ atual');
+      eq(alex[0].label, '@alexandre');
+      eq(alex[0].games, 2, 'as partidas do @ antigo ficaram de fora');
+      eq(alex[0].wins, 2);
+
+      const pares = rivalries([antiga, nova], apelidos);
+      eq(pares.length, 1, 'a rivalidade com a Bia virou duas');
+      eq(pares[0].games, 2);
+
+      const cores = playerColorOrder([antiga, nova], apelidos);
+      ok(!cores.has('@alex'), 'o @ antigo ganhou cor própria');
+
+      // O histórico continua dizendo o que aconteceu naquele dia.
+      eq(antiga.seats[0].handle, 'alex', 'a partida antiga foi reescrita');
+    } finally {
+      store.wipe();
+    }
+  }],
+
+  ['o mapa de @ segue trocas em cadeia, aceita voltar atrás e não trava em ciclo', () => {
+    const com = (mapa) => ({ [HANDLES_ATUAIS]: mapa });
+    eq(handleAtual('a', com({ a: 'b', b: 'c' })), 'c', 'trocou duas vezes');
+    eq(handleAtual('x', com({ a: 'b' })), 'x', 'quem nunca trocou');
+    eq(handleAtual('a', com({ a: 'b', b: 'a' })).length, 1, 'ciclo travou');
+    eq(identityOf({ handle: 'A' }, com({ a: 'b' })), '@b', 'a cadeira com o @ antigo');
+
+    store.wipe();
+    try {
+      store.rememberHandle('Alex', 'alex');
+      store.hidePlayer('@alex');
+      store.lembrarHandlesAtuais({ alex: 'alexandre' });
+      // O que o aparelho GUARDA também acompanha: o nome lembrado e quem
+      // estava oculto.
+      eq(store.knownHandles().alex, 'alexandre', 'o nome lembrado ficou com o @ antigo');
+      ok(store.isPlayerHidden('@alexandre'), 'quem estava oculto reapareceu depois da troca');
+
+      // Trocou de novo, e depois voltou ao primeiro.
+      store.lembrarHandlesAtuais({ alexandre: 'alex_m' });
+      eq(handleAtual('alex', store.knownHandles()), 'alex_m', 'a cadeia não foi seguida');
+      store.lembrarHandlesAtuais({ alex_m: 'alex' });
+      eq(handleAtual('alex', store.knownHandles()), 'alex', 'voltar ao @ antigo não funcionou');
+      eq(handleAtual('alexandre', store.knownHandles()), 'alex');
+    } finally {
+      store.wipe();
+    }
+  }],
+
+  ['a sincronização pergunta ao servidor quem trocou de @', async () => {
+    const fetchReal = globalThis.fetch;
+    const sessaoReal = conta.sessao;
+    const pedidos = [];
+    globalThis.fetch = (u, o) => {
+      pedidos.push({ url: String(u), corpo: JSON.parse((o && o.body) || 'null') });
+      return Promise.resolve({
+        ok: true, status: 200,
+        json: () => Promise.resolve([{ pedido: 'bia', atual: 'beatriz' }]),
+      });
+    };
+    conta.sessao = { user: { id: 'eu', email: 'eu@x.com' }, access_token: 'x', expires_at: Math.floor(Date.now() / 1000) + 3600 };
+    store.wipe();
+    try {
+      const m = mesa(2);
+      m.seats[0].handle = 'eu_mesmo';
+      m.seats[1].handle = 'bia';
+      store.archive(m);
+
+      eq(await atualizarHandles(), 1, 'não aprendeu a troca da Bia');
+      const pedido = pedidos.find((p) => p.url.endsWith('/rpc/handles_atuais'));
+      ok(pedido, 'não perguntou ao servidor');
+      eq(pedido.corpo.hs.sort(), ['bia', 'eu_mesmo'], 'não mandou os @ do histórico');
+      eq(identityOf(m.seats[1], store.knownHandles()), '@beatriz');
+    } finally {
+      globalThis.fetch = fetchReal;
+      conta.sessao = sessaoReal;
+      store.wipe();
     }
     return undefined;
   }],

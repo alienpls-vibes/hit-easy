@@ -204,6 +204,13 @@ let rodando = null;
  * pelo botao das configuracoes - duas ao mesmo tempo subiriam a mesma partida
  * duas vezes e disputariam a escrita do disco.
  */
+/** Pergunta quais @ do historico mudaram, e ensina o aparelho. */
+export async function atualizarHandles() {
+  const conhecidos = store.handlesConhecidos();
+  if (!conhecidos.length) return 0;
+  return store.lembrarHandlesAtuais(await cloud.handlesAtuais(conhecidos));
+}
+
 export async function sincronizar({ aoProgresso } = {}) {
   if (!podeSincronizar(cloudEnabled(), cloud.state())) {
     return { subiu: 0, baixou: 0, apagou: 0, falhou: 0, pulou: true };
@@ -251,6 +258,16 @@ export async function sincronizar({ aoProgresso } = {}) {
       await aprenderQuemEQuem(remotas);
     } catch {
       resumo.falhou += 1;
+    }
+
+    // 2b. Quem trocou de @. As partidas guardam o @ que a cadeira tinha no
+    //     dia; o servidor diz qual e o de hoje, e as estatisticas passam a
+    //     ver uma pessoa so. Falhar aqui (sem rede, banco sem sql/010) so
+    //     adia a consolidacao para a proxima passada.
+    try {
+      await atualizarHandles();
+    } catch {
+      /* fica para a proxima */
     }
 
     // 3. Reconciliar exclusoes: o que sumiu da nuvem sai daqui tambem.

@@ -7,7 +7,7 @@
  */
 
 import { chave } from './canal.js';
-import { identityOf } from './stats.js';
+import { identityOf, HANDLES_ATUAIS, handleAtual } from './stats.js';
 import {
   partidaValida, juntarDecks, passarAMesa, receberAMesa, retomarAMesa, mesaPassada,
 } from './engine.js';
@@ -40,6 +40,8 @@ const EMPTY = {
   // inteiras, com todos os eventos e a linha do tempo completa.
   hiddenDecks: [],
   hiddenPlayers: [],
+  // @ antigo -> @ atual, de quem trocou de @. Ver handleAtual em stats.
+  handlesAtuais: {},
   settings: {
     startingLife: 40,
     lang: null,           // null = seguir o navegador
@@ -328,7 +330,70 @@ export function decksDaConta(handle) {
 
 /** Nome (minusculo) -> handle, do que este aparelho ja viu. */
 export function knownHandles() {
-  return { ...(db.playerHandles || {}) };
+  const apelidos = { ...(db.playerHandles || {}) };
+  apelidos[HANDLES_ATUAIS] = { ...(db.handlesAtuais || {}) };
+  return apelidos;
+}
+
+/**
+ * Aprende que estes @ mudaram: `{ antigo: atual }`.
+ *
+ * Alem do mapa que as estatisticas leem, acerta o que este aparelho GUARDA
+ * com o @ antigo - senao a proxima cadeira marcada pelo nome lembrado sairia
+ * com o @ velho, e esconder alguem antes da troca deixaria de valer depois:
+ *
+ *   - os apelidos (nome -> @) passam a apontar para o atual;
+ *   - quem estava oculto como @antigo fica oculto como @atual.
+ *
+ * Devolve quantas entradas mudaram. So grava se mudou algo.
+ */
+export function lembrarHandlesAtuais(pares) {
+  const limpo = (h) => String(h || '').trim().replace(/^@+/, '').toLowerCase();
+  const mapa = { ...(db.handlesAtuais || {}) };
+  let mudou = 0;
+
+  for (const [antigoBruto, atualBruto] of Object.entries(pares || {})) {
+    const antigo = limpo(antigoBruto);
+    const atual = limpo(atualBruto);
+    if (!antigo || !atual || antigo === atual || mapa[antigo] === atual) continue;
+    // Quem trocou de volta para um @ antigo: esse @ deixa de ser "antigo".
+    delete mapa[atual];
+    mapa[antigo] = atual;
+    // Quem apontava para o antigo passa a apontar direto para o atual.
+    for (const k of Object.keys(mapa)) if (mapa[k] === antigo) mapa[k] = atual;
+    mudou += 1;
+  }
+  if (!mudou) return 0;
+
+  db.handlesAtuais = mapa;
+  const atualDe = (h) => {
+    let x = limpo(h);
+    for (let i = 0; i < 10 && mapa[x]; i += 1) x = mapa[x];
+    return x;
+  };
+  const apelidos = db.playerHandles || {};
+  for (const nome of Object.keys(apelidos)) {
+    if (apelidos[nome]) apelidos[nome] = atualDe(apelidos[nome]);
+  }
+  db.hiddenPlayers = [...new Set((db.hiddenPlayers || []).map((k) => (
+    k.startsWith('@') ? '@' + atualDe(k) : k
+  )))];
+  save();
+  return mudou;
+}
+
+/** Todo @ que aparece neste aparelho - para perguntar ao servidor quais mudaram. */
+export function handlesConhecidos() {
+  const limpo = (h) => String(h || '').trim().replace(/^@+/, '').toLowerCase();
+  const todos = new Set();
+  for (const m of db.history || []) {
+    for (const s of m.seats || []) if (s && s.handle) todos.add(limpo(s.handle));
+  }
+  for (const s of (db.current && db.current.seats) || []) if (s && s.handle) todos.add(limpo(s.handle));
+  for (const h of Object.values(db.playerHandles || {})) if (h) todos.add(limpo(h));
+  for (const k of db.hiddenPlayers || []) if (k.startsWith('@')) todos.add(limpo(k));
+  todos.delete('');
+  return [...todos];
 }
 
 /**
@@ -373,7 +438,7 @@ export function aprenderApelido(name, handle) {
  * herda a posicao do nome mais recente dela.
  */
 export function pessoasConhecidas() {
-  const apelidos = db.playerHandles || {};
+  const apelidos = knownHandles(); // com o mapa de @ que mudaram, como a estatistica
   const porChave = new Map();
 
   for (const nome of db.playerNames) {
@@ -403,7 +468,9 @@ export function nomesDaPessoa(handle) {
   const h = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
   if (!h) return [];
   const apelidos = db.playerHandles || {};
-  return Object.keys(apelidos).filter((nome) => apelidos[nome] === h);
+  const comMapa = knownHandles();
+  const atual = handleAtual(h, comMapa);
+  return Object.keys(apelidos).filter((nome) => handleAtual(apelidos[nome], comMapa) === atual);
 }
 
 /**
@@ -426,7 +493,7 @@ export function esquecerPessoa(chave) {
  * porque a busca e pela identidade e nao pelo texto que alguem digitou.
  */
 export function decksOfPlayer(name, handle) {
-  const apelidos = db.playerHandles || {};
+  const apelidos = knownHandles(); // com o mapa de @ que mudaram, como a estatistica
   const key = identityOf({ name, handle }, apelidos);
   if (!key || key === '?') return [];
 

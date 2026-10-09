@@ -78,14 +78,47 @@ function finalize(row) {
 export function identityOf(seat, apelidos) {
   if (!seat) return '?';
   const h = String(seat.handle || '').trim().replace(/^@+/, '').toLowerCase();
-  if (h) return '@' + h;
+  if (h) return '@' + handleAtual(h, apelidos);
 
   const nome = String(seat.name || '').trim().toLowerCase();
   if (nome && apelidos) {
     const lembrado = apelidos[nome] || (apelidos.get ? apelidos.get(nome) : null);
-    if (lembrado) return '@' + String(lembrado).trim().replace(/^@+/, '').toLowerCase();
+    if (lembrado) {
+      return '@' + handleAtual(String(lembrado).trim().replace(/^@+/, '').toLowerCase(), apelidos);
+    }
   }
   return nome || seat.id || '?';
+}
+
+/**
+ * Onde o aparelho guarda o que sabe sobre @ que mudaram: `@antigo -> @atual`.
+ *
+ * Viaja DENTRO de `apelidos`, numa chave Symbol, e nao como um parametro a
+ * mais: todo lugar que calcula identidade ja recebe `apelidos` (agregar,
+ * rivalidades, cores, a tela da partida, a lista de pessoas), e um parametro
+ * novo teria de ser lembrado em cada um - o que esquecesse dividiria a pessoa
+ * de novo. Symbol nao aparece em Object.keys nem no JSON, entao quem percorre
+ * os apelidos como "nome -> @" nao tropeca nele.
+ */
+export const HANDLES_ATUAIS = Symbol('handlesAtuais');
+
+/**
+ * O @ de hoje de quem usou este @.
+ *
+ * O historico NAO e reescrito: a partida guarda o @ que a cadeira tinha
+ * naquele dia, e partida registrada por outro anfitriao nem e deste aparelho
+ * para mudar. A consolidacao acontece aqui, na leitura - entao trocar de @ nao
+ * divide ninguem em duas linhas, duas cores e duas rivalidades.
+ *
+ * Segue a cadeia (a -> b -> c, quem trocou duas vezes) com limite, para um
+ * mapa com ciclo nao travar a tela.
+ */
+export function handleAtual(handle, apelidos) {
+  const mapa = apelidos && apelidos[HANDLES_ATUAIS];
+  let h = handle;
+  if (!mapa) return h;
+  for (let i = 0; i < 10 && mapa[h] && mapa[h] !== h; i += 1) h = mapa[h];
+  return h;
 }
 
 /**

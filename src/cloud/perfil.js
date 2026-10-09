@@ -126,6 +126,28 @@ export async function buscarHandle(handle) {
 }
 
 /**
+ * Quais destes @ mudaram de nome: `{ antigo: atual }`.
+ *
+ * Pergunta em lotes de 500 (o limite do banco, sql/010) e devolve so os que
+ * mudaram. E o que deixa as estatisticas consolidarem um amigo que trocou de
+ * @ - ver handleAtual em stats.
+ */
+export async function handlesAtuais(lista) {
+  const mapa = {};
+  const unicos = [...new Set((lista || []).map(normalizarHandle).filter(Boolean))];
+  for (let i = 0; i < unicos.length; i += 500) {
+    const linhas = await pedir('/rest/v1/rpc/handles_atuais', {
+      method: 'POST',
+      body: JSON.stringify({ hs: unicos.slice(i, i + 500) }),
+    });
+    for (const l of linhas || []) {
+      if (l && l.pedido && l.atual && l.pedido !== l.atual) mapa[l.pedido] = l.atual;
+    }
+  }
+  return mapa;
+}
+
+/**
  * O que este @ e para mim: 'atual', 'livre' ou 'ocupado' (ver regras.js).
  *
  * Isto e uma CONSULTA, nao uma reserva: entre a resposta e o salvamento alguem

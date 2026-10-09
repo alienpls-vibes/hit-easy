@@ -59,7 +59,8 @@ export const NOVIDADES = [
         tipo: 'mudou',
         texto: 'Todo @ que você já usou continua seu: ao trocar, o antigo não '
           + 'fica livre para outra pessoa, e quem marcar ele ainda acha você. '
-          + 'O @ pode mudar uma vez a cada 15 dias.',
+          + 'O @ pode mudar uma vez a cada 15 dias, e nas estatísticas as '
+          + 'partidas com o @ antigo continuam contando para a mesma pessoa.',
       },
       {
         tipo: 'corrigido',

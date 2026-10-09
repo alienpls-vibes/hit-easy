@@ -17,7 +17,7 @@
  */
 
 export {
-  aggregate, identityOf, labelOf, nomeRegistrado,
+  aggregate, identityOf, labelOf, nomeRegistrado, HANDLES_ATUAIS, handleAtual,
 } from './stats/agregar.js';
 export { ORDENACOES, ordenacaoPorId, ordenarLinhas } from './stats/ordenar.js';
 export {
