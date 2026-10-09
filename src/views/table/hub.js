@@ -1,41 +1,43 @@
 /**
- * O nucleo central - turno, desfazer e menu - e a cobertura da pausa.
+ * The central core - turn, undo and menu - and the pause cover.
  *
- * O botao de passar a vez e grande de proposito: e a acao mais repetida da
- * partida, muitas vezes com a mao ocupada. A pausa cobre a mesa e nao aceita
- * toque: uma pausa que deixa mexer no placar com o relogio parado nao e pausa.
+ * The pass-turn button is big on purpose: it is the most repeated action of
+ * the match, often with a busy hand. The pause covers the table and accepts no
+ * touch: a pause that lets you change the score with the clock stopped is no
+ * pause.
  */
 
 import { el, icon } from '../../ui.js';
 import { t } from '../../i18n.js';
 
-export function criarHub(mesa) {
+export function createHub(table) {
   function buildHub() {
     const turn = el('span', { class: 'hub-turn' });
     const ring = el('button', {
       class: 'hub-ring',
       'aria-label': t('table.passTurn'),
-      onClick: mesa.passTurn,
+      onClick: table.passTurn,
     }, [el('span', { class: 'hub-label', text: t('table.turn') }), turn]);
 
-    const undoBtn = el('button', { class: 'hub-btn', 'aria-label': t('common.undo'), onClick: mesa.doUndo }, [icon('undo')]);
+    const undoBtn = el('button', { class: 'hub-btn', 'aria-label': t('common.undo'), onClick: table.doUndo }, [icon('undo')]);
 
     /*
-     * Atalho da mana. So existe enquanto ha mana marcada, e ai vale dois
-     * papeis de uma vez: lembra que sobrou mana antes de passar a vez, e leva
-     * direto ao contador - que e o caminho de ida e volta o tempo todo quando
-     * se gasta parte da mana, resolve a magia e volta para acertar o resto.
+     * Mana shortcut. It only exists while there is marked mana, and then it
+     * plays two roles at once: it reminds that mana is left before passing the
+     * turn, and it goes straight to the counter - which is the round trip made
+     * all the time when spending part of the mana, resolving the spell and
+     * coming back to settle the rest.
      */
     const manaCount = el('span', { class: 'hub-mana-count' });
     const manaBtn = el('button', {
       class: 'hub-btn is-mana',
       'aria-label': t('mana.marker'),
       hidden: true,
-      onClick: mesa.openMana,
+      onClick: table.openMana,
     }, [manaCount]);
 
     const menuBtn = el('button', {
-      class: 'hub-btn', 'aria-label': t('common.menu'), onClick: mesa.openMenu,
+      class: 'hub-btn', 'aria-label': t('common.menu'), onClick: table.openMenu,
     }, [icon('more')]);
 
     return {
@@ -45,8 +47,8 @@ export function criarHub(mesa) {
   }
 
   /**
-   * Cobertura da pausa. Bloqueia mesmo - uma pausa que deixa tocar nao e
-   * pausa, e o placar andaria com o relogio parado.
+   * The pause cover. It really blocks - a pause that allows touching is no
+   * pause, and the score would move with the clock stopped.
    */
   function buildPause() {
     const clock = el('span', { class: 'pause-clock', text: '0s' });
@@ -57,7 +59,7 @@ export function criarHub(mesa) {
           el('span', { class: 'pause-eyebrow', text: t('table.paused') }),
           clock,
           el('p', { class: 'pause-note', text: t('table.pausedNote') }),
-          el('button', { class: 'btn primary', onClick: mesa.togglePause }, [t('table.resume')]),
+          el('button', { class: 'btn primary', onClick: table.togglePause }, [t('table.resume')]),
         ]),
       ]),
     };

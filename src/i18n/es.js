@@ -1,13 +1,13 @@
 /**
- * Espanol.
+ * Spanish.
  *
- * Dicionario plano, chave -> texto, com interpolacao por {nome}. Uma lingua por
- * arquivo: sao ~460 chaves cada, e num arquivo so nao dava para abrir a
- * traducao alema sem rolar por cima das outras tres.
+ * A flat dictionary, key -> text, with {name} interpolation. One language per
+ * file: there are ~460 keys each, and in a single file the German translation
+ * could not be opened without scrolling past the other three.
  *
- * Os testes exigem as quatro linguas com EXATAMENTE o mesmo conjunto de
- * chaves, nenhuma interpolacao perdida e nenhum texto vazio - e o que impede
- * uma traducao esquecida de chegar na mesa.
+ * The tests require all four languages to have EXACTLY the same set of keys,
+ * no lost interpolation and no empty text - that is what keeps a forgotten
+ * translation from reaching the table.
  */
 
 export const ES = {
@@ -395,7 +395,7 @@ export const ES = {
   'pass.shareCode': 'Enviar código',
   'pass.copyCode': 'Copiar',
   'pass.copied': 'Copiado',
-  'pass.shareText': 'Mesa de Hit Easy: {codigo}\nEn la app, toca "Recibir una mesa" y escribe el código. O abre: {link}',
+  'pass.shareText': 'Mesa de Hit Easy: {code}\nEn la app, toca "Recibir una mesa" y escribe el código. O abre: {link}',
   'pass.receiveCodeTitle': 'Recibir una mesa',
   'pass.receiveCodeSub': 'Escribe el código que apareció en el dispositivo de quien pasó la mesa.',
   'pass.haveFile': 'Tengo un archivo',
@@ -405,8 +405,8 @@ export const ES = {
   'pass.codeTaken': 'Esa mesa se acaba de recibir en otro dispositivo.',
   'pass.codeOffline': 'Sin conexión. Inténtalo de nuevo, o pide la mesa como archivo.',
   'pass.codeServer': 'El servidor no respondió. Inténtalo de nuevo en un momento.',
-  'pass.goneSubCode': 'Código {codigo} · esperando al otro dispositivo',
-  'pass.goneSubArrived': 'Código {codigo} · el otro dispositivo ya la recibió',
+  'pass.goneSubCode': 'Código {code} · esperando al otro dispositivo',
+  'pass.goneSubArrived': 'Código {code} · el otro dispositivo ya la recibió',
   'pass.showCode': 'Ver código',
   'pass.takeBackReceivedTitle': 'El otro dispositivo ya la recibió',
   'pass.takeBackReceivedMsg': 'Retomarla aquí deja la misma partida abierta en los dos. Al guardar, una de las dos se pierde.',
@@ -455,8 +455,8 @@ export const ES = {
   'account.handleChange': 'Cambiar',
   'account.handleCreate': 'Elegir mi @',
   'account.handleWarn': 'Tu @ anterior sigue siendo tuyo: nadie más puede tomarlo, y quien lo marque te sigue encontrando.',
-  'account.handleNextChange': 'Próximo cambio el {data}',
-  'account.handleTooSoon': 'Podrás cambiar tu @ el {data}',
+  'account.handleNextChange': 'Próximo cambio el {date}',
+  'account.handleTooSoon': 'Podrás cambiar tu @ el {date}',
   'account.handleCooldown': 'Después de guardar, tu @ solo puede cambiar de nuevo en {n} días.',
   'handle.yours': '{handle} ya es tu @',
   'account.displayName': 'Nombre en las partidas',
@@ -465,10 +465,10 @@ export const ES = {
   'account.displayNameSub': 'Sin nombre, la mesa muestra {handle}',
   'account.displayNameTitle': 'Nombre en las partidas',
   'account.displayNameStepSub': 'Cómo apareces en la mesa de tus amigos',
-  'account.displayNamePreview': 'En la mesa: {nome} · {n}/{max}',
+  'account.displayNamePreview': 'En la mesa: {name} · {n}/{max}',
   'account.displayNameCut': 'el resto queda fuera',
   'account.displayNameSave': 'Guardar nombre',
-  'account.displayNameSaved': 'En la mesa, eres {nome}',
+  'account.displayNameSaved': 'En la mesa, eres {name}',
   'account.displayNameCleared': 'La mesa vuelve a mostrar tu @',
   'account.displayNameUseHandle': 'Usar solo el @',
 
@@ -509,7 +509,7 @@ export const ES = {
   'sync.check': 'Revisar',
   'sync.working': 'Enviando...',
   'sync.progress': 'Enviando... {n}',
-  'sync.done': '{subiu} enviadas, {baixou} traídas',
+  'sync.done': '{sent} enviadas, {received} traídas',
   'sync.partial': '{n} no subieron; lo intentaremos más tarde',
   'sync.nothing': 'Ya estaba todo al día',
 
@@ -529,9 +529,9 @@ export const ES = {
 
   'news.title': 'Novedades',
   'news.sub': 'Qué cambió en la versión {v}',
-  'news.novo': 'nuevo',
-  'news.corrigido': 'corregido',
-  'news.mudou': 'cambió',
+  'news.new': 'nuevo',
+  'news.fixed': 'corregido',
+  'news.changed': 'cambió',
   'news.seeAll': 'Ver todas las {n} versiones',
 
   'settings.title': 'Ajustes',

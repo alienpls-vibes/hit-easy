@@ -1,5 +1,5 @@
-# Repositorio normalizado em LF. Sem isto, cada arquivo salvo no Windows
-# aparece como "arquivo inteiro alterado" no diff.
+# The repository is normalized to LF. Without this, every file saved on Windows
+# shows up as "whole file changed" in the diff.
 * text=auto eol=lf
 
 *.png binary

@@ -1,112 +1,55 @@
 /**
- * Service worker: o app precisa abrir sem internet, porque mesa de Commander
- * acontece em qualquer lugar.
+ * Service worker: the app has to open without internet, because a Commander
+ * table happens anywhere.
  *
- * Estrategia:
- *  - o proprio app (HTML/CSS/JS) vem do cache primeiro, atualizado em segundo
- *    plano - abertura instantanea, versao nova na proxima vez;
- *  - artes da Scryfall vao para um cache separado, servidas do disco quando ja
- *    conhecidas;
- *  - chamadas a API da Scryfall nunca sao cacheadas aqui (o app ja mantem seu
- *    proprio cache de busca em localStorage).
+ * Strategy:
+ *  - the app itself (HTML/CSS/JS) comes from the cache first, updated in the
+ *    background - instant opening, new version next time;
+ *  - Scryfall art goes to a separate cache, served from disk when already
+ *    known;
+ *  - calls to the Scryfall API are never cached here (the app already keeps
+ *    its own search cache in localStorage).
  */
 
-// Mesma string de APP_VERSION em src/version.js - worker nao importa modulo.
-// Se mudar la, mude aqui; check-syntax.js confere os dois.
+// The same string as APP_VERSION in src/version.js - a worker does not import
+// modules. If it changes there, change it here; check-syntax.js compares both.
 const VERSION = '1.9.0';
 
 /**
- * Producao e beta dividem a mesma origem, e Cache Storage e por origem. O canal
- * sai do caminho deste proprio arquivo: /hit-easy/sw.js contra
- * /hit-easy/beta/sw.js. Sem isto os dois canais brigariam pelos mesmos nomes.
+ * Production and beta share the same origin, and Cache Storage is per origin.
+ * The channel comes from this very file's path: /hit-easy/sw.js versus
+ * /hit-easy/beta/sw.js. Without this the two channels would fight over the
+ * same names.
  *
- * Producao segue com o prefixo curto de sempre; so o beta ganha marca.
+ * Production keeps the short prefix it always had; only beta gets a mark.
+ * 'producao' is the stored channel name (see src/channel.js): do not translate.
  */
-const CANAL = /(^|\/)beta(\/|$)/.test(self.location.pathname) ? 'beta' : 'producao';
-const PREFIXO = CANAL === 'beta' ? 'hiteasy-beta-' : 'hiteasy-';
-const SHELL = PREFIXO + 'shell-' + VERSION;
-const ART = PREFIXO + 'art-' + VERSION;
+const CHANNEL = /(^|\/)beta(\/|$)/.test(self.location.pathname) ? 'beta' : 'producao';
+const PREFIX = CHANNEL === 'beta' ? 'hiteasy-beta-' : 'hiteasy-';
+const SHELL = PREFIX + 'shell-' + VERSION;
+const ART = PREFIX + 'art-' + VERSION;
 
 /**
- * De quem e um cache. Mesma regra de canalDoCache() em src/canal.js - o worker
- * nao importa modulo, entao ela vive nos dois lugares. Se mudar la, mude aqui.
+ * Whose cache this is. The same rule as channelOfCache() in src/channel.js -
+ * the worker does not import modules, so it lives in both places. If it
+ * changes there, change it here.
  */
-function canalDoCache(nome) {
-  const n = String(nome || '');
+function channelOfCache(name) {
+  const n = String(name || '');
   if (n.startsWith('hiteasy-beta-')) return 'beta';
   if (n.startsWith('hiteasy-')) return 'producao';
   return null;
 }
 
 /**
- * O que entra no cache antes de faltar internet.
+ * What goes into the cache before the internet runs out.
  *
- * Lista explicita porque o worker precisa saber o que baixar ANTES de ficar
- * offline - nao da para descobrir modulo por modulo na hora. Sao 60+ arquivos,
- * e entrada faltando nao da erro: o app so nao abre sem internet, e isso se
- * descobre na mesa.
+ * An explicit list because the worker needs to know what to download BEFORE
+ * going offline - it cannot discover module by module on the spot. There are
+ * 60+ files, and a missing entry gives no error: the app just does not open
+ * without internet, and that is found out at the table.
  *
- * `npm test` confere que todo .js e .css de src/ esta aqui.
- */
-/**
- * O que entra no cache antes de faltar internet.
- *
- * Lista explicita porque o worker precisa saber o que baixar ANTES de ficar
- * offline - nao da para descobrir modulo por modulo na hora. Sao 60+ arquivos,
- * e entrada faltando nao da erro: o app so nao abre sem internet, e isso se
- * descobre na mesa.
- *
- * `npm test` confere que todo .js e .css de src/ esta aqui.
- */
-/**
- * O que entra no cache antes de faltar internet.
- *
- * Lista explicita porque o worker precisa saber o que baixar ANTES de ficar
- * offline - nao da para descobrir modulo por modulo na hora. Sao 60+ arquivos,
- * e entrada faltando nao da erro: o app so nao abre sem internet, e isso se
- * descobre na mesa.
- *
- * `npm test` confere que todo .js e .css de src/ esta aqui.
- */
-/**
- * O que entra no cache antes de faltar internet.
- *
- * Lista explicita porque o worker precisa saber o que baixar ANTES de ficar
- * offline - nao da para descobrir modulo por modulo na hora. Sao 60+ arquivos,
- * e entrada faltando nao da erro: o app so nao abre sem internet, e isso se
- * descobre na mesa.
- *
- * `npm test` confere que todo .js e .css de src/ esta aqui.
- */
-/**
- * O que entra no cache antes de faltar internet.
- *
- * Lista explicita porque o worker precisa saber o que baixar ANTES de ficar
- * offline - nao da para descobrir modulo por modulo na hora. Sao 60+ arquivos,
- * e entrada faltando nao da erro: o app so nao abre sem internet, e isso se
- * descobre na mesa.
- *
- * `npm test` confere que todo .js e .css de src/ esta aqui.
- */
-/**
- * O que entra no cache antes de faltar internet.
- *
- * Lista explicita porque o worker precisa saber o que baixar ANTES de ficar
- * offline - nao da para descobrir modulo por modulo na hora. Sao 60+ arquivos,
- * e entrada faltando nao da erro: o app so nao abre sem internet, e isso se
- * descobre na mesa.
- *
- * `npm test` confere que todo .js e .css de src/ esta aqui.
- */
-/**
- * O que entra no cache antes de faltar internet.
- *
- * Lista explicita porque o worker precisa saber o que baixar ANTES de ficar
- * offline - nao da para descobrir modulo por modulo na hora. Sao 60+ arquivos,
- * e entrada faltando nao da erro: o app so nao abre sem internet, e isso se
- * descobre na mesa.
- *
- * `npm test` confere que todo .js e .css de src/ esta aqui.
+ * `npm test` checks that every .js and .css in src/ is here.
  */
 const ASSETS = [
   './',
@@ -114,62 +57,62 @@ const ASSETS = [
   './privacidade.html',
   './manifest.webmanifest',
   './src/app.js',
-  './src/canal.js',
+  './src/channel.js',
   './src/cloud.js',
-  './src/cloud/assinatura.js',
+  './src/cloud/subscription.js',
   './src/cloud/auth.js',
-  './src/cloud/convites.js',
-  './src/cloud/estado.js',
+  './src/cloud/invites.js',
+  './src/cloud/account.js',
   './src/cloud/http.js',
-  './src/cloud/iniciar.js',
-  './src/cloud/mesa-por-codigo.js',
-  './src/cloud/partidas.js',
-  './src/cloud/perfil.js',
-  './src/cloud/regras.js',
+  './src/cloud/boot.js',
+  './src/cloud/table-by-code.js',
+  './src/cloud/matches.js',
+  './src/cloud/profile.js',
+  './src/cloud/rules.js',
   './src/colors.js',
   './src/config.js',
   './src/engine.js',
-  './src/estilos/base.css',
-  './src/estilos/configuracoes.css',
-  './src/estilos/conta.css',
-  './src/estilos/dano.css',
-  './src/estilos/erro.css',
-  './src/estilos/home.css',
-  './src/estilos/mana.css',
-  './src/estilos/mesa.css',
-  './src/estilos/motivos-de-vitoria.css',
-  './src/estilos/nucleo.css',
-  './src/estilos/ocultar-rivalidades.css',
-  './src/estilos/painel.css',
-  './src/estilos/stats-votacoes.css',
-  './src/estilos/stats.css',
-  './src/estilos/tela.css',
-  './src/estilos/telas-largas.css',
-  './src/estilos/tokens.css',
-  './src/estilos/vitoria-tela-baixa.css',
-  './src/estilos/vitoria.css',
-  './src/estilos/votacao.css',
+  './src/styles/base.css',
+  './src/styles/settings.css',
+  './src/styles/account.css',
+  './src/styles/damage.css',
+  './src/styles/error.css',
+  './src/styles/home.css',
+  './src/styles/mana.css',
+  './src/styles/table.css',
+  './src/styles/win-reasons.css',
+  './src/styles/core.css',
+  './src/styles/hide-rivalries.css',
+  './src/styles/panel.css',
+  './src/styles/stats-votes.css',
+  './src/styles/stats.css',
+  './src/styles/screen.css',
+  './src/styles/wide-screens.css',
+  './src/styles/tokens.css',
+  './src/styles/victory-short-screens.css',
+  './src/styles/victory.css',
+  './src/styles/vote.css',
   './src/i18n.js',
   './src/i18n/de.js',
-  './src/i18n/dicionarios.js',
+  './src/i18n/dictionaries.js',
   './src/i18n/en.js',
   './src/i18n/es.js',
   './src/i18n/ordinal.js',
   './src/i18n/pt.js',
-  './src/i18n/traduzir.js',
+  './src/i18n/translate.js',
   './src/install.js',
-  './src/novidades.js',
+  './src/release-notes.js',
   './src/orientation.js',
   './src/scryfall.js',
   './src/seating.js',
   './src/stats.js',
-  './src/stats/agregar.js',
-  './src/stats/cores.js',
-  './src/stats/formatar.js',
-  './src/stats/ordenar.js',
-  './src/stats/partida.js',
-  './src/stats/rivalidades.js',
-  './src/stats/votacoes.js',
+  './src/stats/aggregate.js',
+  './src/stats/colors.js',
+  './src/stats/format.js',
+  './src/stats/sort.js',
+  './src/stats/match.js',
+  './src/stats/rivalries.js',
+  './src/stats/votes.js',
   './src/store.js',
   './src/styles.css',
   './src/sync.js',
@@ -177,92 +120,93 @@ const ASSETS = [
   './src/ui.js',
   './src/version.js',
   './src/views/setup.js',
-  './src/views/setup/antes-de-comecar.js',
-  './src/views/setup/cartao-jogador.js',
-  './src/views/setup/configuracoes.js',
-  './src/views/setup/conta.js',
-  './src/views/setup/convites.js',
-  './src/views/setup/escolher-deck.js',
-  './src/views/setup/escolher-jogador.js',
+  './src/views/setup/pre-game.js',
+  './src/views/setup/seat-card.js',
+  './src/views/setup/settings.js',
+  './src/views/setup/account.js',
+  './src/views/setup/invites.js',
+  './src/views/setup/pick-deck.js',
+  './src/views/setup/pick-player.js',
   './src/views/setup/handle.js',
   './src/views/setup/home.js',
-  './src/views/setup/instalar.js',
-  './src/views/setup/linhas.js',
-  './src/views/setup/notas-de-versao.js',
-  './src/views/setup/passar-mesa.js',
-  './src/views/setup/rascunho.js',
-  './src/views/setup/sincronizacao.js',
+  './src/views/setup/install.js',
+  './src/views/setup/rows.js',
+  './src/views/setup/release-notes.js',
+  './src/views/setup/pass-table.js',
+  './src/views/setup/draft.js',
+  './src/views/setup/sync.js',
   './src/views/stats.js',
   './src/views/stats/backup.js',
   './src/views/stats/deck.js',
-  './src/views/stats/jogador.js',
-  './src/views/stats/marcar-conta.js',
-  './src/views/stats/partida.js',
+  './src/views/stats/player.js',
+  './src/views/stats/link-account.js',
+  './src/views/stats/match.js',
   './src/views/stats/paywall.js',
-  './src/views/stats/pecas.js',
-  './src/views/stats/rivalidades.js',
-  './src/views/stats/tela.js',
-  './src/views/stats/vitoria.js',
-  './src/views/stats/votacoes.js',
+  './src/views/stats/widgets.js',
+  './src/views/stats/rivalries.js',
+  './src/views/stats/screen.js',
+  './src/views/stats/win-reasons.js',
+  './src/views/stats/votes.js',
   './src/views/table.js',
-  './src/views/table/area.js',
-  './src/views/table/constantes.js',
-  './src/views/table/contexto.js',
-  './src/views/table/dano.js',
-  './src/views/table/estado.js',
-  './src/views/table/gestos.js',
+  './src/views/table/sweep.js',
+  './src/views/table/constants.js',
+  './src/views/table/context.js',
+  './src/views/table/damage.js',
+  './src/views/table/state.js',
+  './src/views/table/gestures.js',
   './src/views/table/hub.js',
-  './src/views/table/jogador.js',
+  './src/views/table/player.js',
   './src/views/table/mana.js',
   './src/views/table/menu.js',
-  './src/views/table/mesa.js',
-  './src/views/table/pecas.js',
-  './src/views/table/pintar.js',
-  './src/views/table/vitoria.js',
-  './src/views/table/votacao.js',
+  './src/views/table/table.js',
+  './src/views/table/widgets.js',
+  './src/views/table/paint.js',
+  './src/views/table/victory.js',
+  './src/views/table/vote.js',
   './src/vote.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
 ];
 
 /**
- * Pedido que NAO aceita resposta do cache do navegador.
+ * A request that does NOT accept an answer from the browser cache.
  *
- * `cache.add(url)` faz um fetch comum, e fetch comum passa pelo cache HTTP. O
- * GitHub Pages manda `max-age=600` em tudo, entao um worker novo instalava e
- * enchia o cache novo com os arquivos VELHOS que o navegador ainda guardava:
- * versao nova do worker, conteudo antigo. O app "atualizava" e continuava
- * exatamente igual - por ate dez minutos, sem explicacao visivel.
+ * `cache.add(url)` does a regular fetch, and a regular fetch goes through the
+ * HTTP cache. GitHub Pages sends `max-age=600` on everything, so a new worker
+ * installed and filled the new cache with the OLD files the browser still
+ * kept: new worker version, old content. The app "updated" and stayed exactly
+ * the same - for up to ten minutes, with no visible explanation.
  *
- * `cache: 'reload'` obriga a ir na rede.
+ * `cache: 'reload'` forces going to the network.
  */
-function daRede(url) {
+function fromNetwork(url) {
   return new Request(url, { cache: 'reload' });
 }
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(SHELL)
-      // addAll falha inteiro se um item faltar; item a item e mais tolerante.
-      .then((cache) => Promise.allSettled(ASSETS.map((url) => cache.add(daRede(url)))))
+      // addAll fails entirely if one item is missing; item by item is more tolerant.
+      .then((cache) => Promise.allSettled(ASSETS.map((url) => cache.add(fromNetwork(url)))))
       .then(() => self.skipWaiting()),
   );
 });
 
 /**
- * Destravar um worker parado em "waiting".
+ * Unsticking a worker stopped in "waiting".
  *
- * O install ja chama skipWaiting, entao normalmente nao ha ninguem esperando.
- * Mas se uma atualizacao anterior ficou presa - a aba ficou aberta durante a
- * troca, por exemplo -, o botao de atualizar manda esta mensagem e o worker
- * novo assume em vez de esperar todas as abas fecharem.
+ * install already calls skipWaiting, so normally nobody is waiting. But if an
+ * earlier update got stuck - the tab stayed open during the swap, for example
+ * - the update button sends this message and the new worker takes over
+ * instead of waiting for every tab to close.
  */
 self.addEventListener('message', (event) => {
   if (!event.data) return;
   if (event.data.type === 'SKIP_WAITING') self.skipWaiting();
-  // Diagnostico: a tela mostra a versao do MODULO, que vem do cache. Se o
-  // worker responder outra, e sinal de cache velho servindo codigo antigo -
-  // exatamente o que aconteceu e nao dava para ver de fora.
+  // Diagnostics: the screen shows the MODULE version, which comes from the
+  // cache. If the worker answers another one, it is a sign of a stale cache
+  // serving old code - exactly what happened and could not be seen from
+  // outside.
   if (event.data.type === 'VERSION' && event.ports && event.ports[0]) {
     event.ports[0].postMessage(VERSION);
   }
@@ -272,11 +216,12 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
-        // So o proprio canal, e so o que ficou velho. Antes daqui saia um
-        // `k !== SHELL` solto, que apagava TUDO - inclusive o cache offline do
-        // outro canal e o de qualquer outra pagina desta origem.
+        // Only our own channel, and only what went stale. A loose
+        // `k !== SHELL` used to leave from here, deleting EVERYTHING -
+        // including the other channel's offline cache and that of any other
+        // page on this origin.
         keys
-          .filter((k) => canalDoCache(k) === CANAL && k !== SHELL && k !== ART)
+          .filter((k) => channelOfCache(k) === CHANNEL && k !== SHELL && k !== ART)
           .map((k) => caches.delete(k)),
       ))
       .then(() => self.clients.claim()),
@@ -289,10 +234,11 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // Busca de cartas: sempre rede. O app trata a falha e cai nos decks salvos.
+  // Card search: always network. The app handles the failure and falls back
+  // to the saved decks.
   if (url.hostname === 'api.scryfall.com') return;
 
-  // Artes das cartas: cache-first, sao imutaveis.
+  // Card art: cache-first, it is immutable.
   if (url.hostname.endsWith('scryfall.io')) {
     event.respondWith(
       caches.open(ART).then(async (cache) => {
@@ -308,19 +254,19 @@ self.addEventListener('fetch', (event) => {
 
   if (url.origin !== self.location.origin) return;
 
-  // O carimbo do build: sempre rede, nunca cache.
+  // The build stamp: always network, never cache.
   //
-  // Ele existe justamente para dizer QUAL codigo esta no aparelho, e servi-lo
-  // do cache responderia com o build anterior - a unica resposta que nao serve
-  // para nada. `ignoreSearch` abaixo tambem impediria furar com ?v=.
+  // It exists precisely to say WHICH code is on the device, and serving it
+  // from the cache would answer with the previous build - the only answer
+  // that is useless. `ignoreSearch` below would also block busting it with ?v=.
   if (url.pathname.endsWith('/build.json')) return;
 
-  // App: responde do cache e revalida por tras.
+  // The app: answers from the cache and revalidates behind it.
   event.respondWith(
     caches.open(SHELL).then(async (cache) => {
       const hit = await cache.match(request, { ignoreSearch: true });
-      // Tambem sem o cache do navegador: revalidar contra ele nao revalida
-      // nada, so recopia o que ja estava velho.
+      // Without the browser cache too: revalidating against it revalidates
+      // nothing, it just copies again what was already stale.
       const fresh = fetch(new Request(request, { cache: 'reload' }))
         .then((res) => {
           if (res.ok) cache.put(request, res.clone());

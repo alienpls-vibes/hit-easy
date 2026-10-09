@@ -1,17 +1,17 @@
 /**
- * Portugues - a lingua de origem, e tambem o retorno.
+ * Portuguese - the source language, and also the fallback.
  *
- * Chave faltando em qualquer outro idioma cai aqui, em vez de mostrar a
- * chave crua para o usuario. Por isso este arquivo e o unico que nao pode
- * ter lacuna: ele define o conjunto de chaves que os outros devem cobrir.
+ * A key missing in any other language falls back to this one instead of
+ * showing the raw key to the user. That is why this file is the only one that
+ * cannot have gaps: it defines the set of keys the others must cover.
  *
- * Dicionario plano, chave -> texto, com interpolacao por {nome}. Uma lingua por
- * arquivo: sao ~460 chaves cada, e num arquivo so nao dava para abrir a
- * traducao alema sem rolar por cima das outras tres.
+ * A flat dictionary, key -> text, with {name} interpolation. One language per
+ * file: there are ~460 keys each, and in a single file the German translation
+ * could not be opened without scrolling past the other three.
  *
- * Os testes exigem as quatro linguas com EXATAMENTE o mesmo conjunto de
- * chaves, nenhuma interpolacao perdida e nenhum texto vazio - e o que impede
- * uma traducao esquecida de chegar na mesa.
+ * The tests require all four languages to have EXACTLY the same set of keys,
+ * no lost interpolation and no empty text - that is what keeps a forgotten
+ * translation from reaching the table.
  */
 
 export const PT = {
@@ -399,7 +399,7 @@ export const PT = {
   'pass.shareCode': 'Enviar código',
   'pass.copyCode': 'Copiar',
   'pass.copied': 'Copiado',
-  'pass.shareText': 'Mesa do Hit Easy: {codigo}\nNo app, toque em "Receber uma mesa" e digite o código. Ou abra: {link}',
+  'pass.shareText': 'Mesa do Hit Easy: {code}\nNo app, toque em "Receber uma mesa" e digite o código. Ou abra: {link}',
   'pass.receiveCodeTitle': 'Receber uma mesa',
   'pass.receiveCodeSub': 'Digite o código que apareceu no aparelho de quem passou a mesa.',
   'pass.haveFile': 'Tenho um arquivo',
@@ -409,8 +409,8 @@ export const PT = {
   'pass.codeTaken': 'Essa mesa acabou de ser recebida em outro aparelho.',
   'pass.codeOffline': 'Sem conexão. Tente de novo, ou peça a mesa como arquivo.',
   'pass.codeServer': 'O servidor não respondeu. Tente de novo em instantes.',
-  'pass.goneSubCode': 'Código {codigo} · esperando o outro aparelho',
-  'pass.goneSubArrived': 'Código {codigo} · o outro aparelho já recebeu',
+  'pass.goneSubCode': 'Código {code} · esperando o outro aparelho',
+  'pass.goneSubArrived': 'Código {code} · o outro aparelho já recebeu',
   'pass.showCode': 'Ver código',
   'pass.takeBackReceivedTitle': 'O outro aparelho já recebeu',
   'pass.takeBackReceivedMsg': 'Retomar aqui deixa a mesma partida aberta nos dois aparelhos. Ao salvar, uma das duas se perde.',
@@ -459,8 +459,8 @@ export const PT = {
   'account.handleChange': 'Trocar',
   'account.handleCreate': 'Escolher meu @',
   'account.handleWarn': 'O @ antigo continua seu: ninguém mais pode pegar, e quem marcar ele ainda acha você.',
-  'account.handleNextChange': 'Próxima troca em {data}',
-  'account.handleTooSoon': 'Você poderá trocar de @ em {data}',
+  'account.handleNextChange': 'Próxima troca em {date}',
+  'account.handleTooSoon': 'Você poderá trocar de @ em {date}',
   'account.handleCooldown': 'Depois de salvar, o @ só pode mudar de novo daqui a {n} dias.',
   'handle.yours': '{handle} já é o seu @',
   'account.displayName': 'Nome nas partidas',
@@ -469,10 +469,10 @@ export const PT = {
   'account.displayNameSub': 'Sem nome, a mesa mostra {handle}',
   'account.displayNameTitle': 'Nome nas partidas',
   'account.displayNameStepSub': 'Como você aparece na mesa dos amigos',
-  'account.displayNamePreview': 'Na mesa: {nome} · {n}/{max}',
+  'account.displayNamePreview': 'Na mesa: {name} · {n}/{max}',
   'account.displayNameCut': 'o resto fica de fora',
   'account.displayNameSave': 'Salvar nome',
-  'account.displayNameSaved': 'Na mesa, você é {nome}',
+  'account.displayNameSaved': 'Na mesa, você é {name}',
   'account.displayNameCleared': 'A mesa volta a mostrar o seu @',
   'account.displayNameUseHandle': 'Usar só o @',
 
@@ -513,7 +513,7 @@ export const PT = {
   'sync.check': 'Conferir',
   'sync.working': 'Enviando...',
   'sync.progress': 'Enviando... {n}',
-  'sync.done': '{subiu} enviadas, {baixou} trazidas',
+  'sync.done': '{sent} enviadas, {received} trazidas',
   'sync.partial': '{n} não subiram; tentamos de novo depois',
   'sync.nothing': 'Já estava tudo em dia',
 
@@ -533,9 +533,9 @@ export const PT = {
 
   'news.title': 'Novidades',
   'news.sub': 'O que mudou na versão {v}',
-  'news.novo': 'novo',
-  'news.corrigido': 'corrigido',
-  'news.mudou': 'mudou',
+  'news.new': 'novo',
+  'news.fixed': 'corrigido',
+  'news.changed': 'mudou',
   'news.seeAll': 'Ver todas as {n} versões',
 
   'settings.title': 'Configurações',

@@ -1,29 +1,29 @@
 /**
- * A mesa - a porta da tela.
+ * The table - the entry point of the screen.
  *
- * Event sourcing: a partida E a lista de eventos, e o estado visivel e sempre
- * `replay(match)`. Dai saem de graca o desfazer, as estatisticas exatas e a
- * garantia de que o placar nunca diverge do historico.
+ * Event sourcing: the match IS the list of events, and the visible state is
+ * always `replay(match)`. From that come, for free, undo, exact statistics and
+ * the guarantee that the scoreboard never diverges from the history.
  *
- * As pecas vivem em src/views/table/:
+ * The pieces live in src/views/table/:
  *
- *   contexto.js    o que todas compartilham (antes era o closure)
- *   mesa.js        monta a tela e liga as pecas
- *   constantes.js  as medidas do gesto, e as cores de mana
- *   pecas.js       rotulo/numero, a linha com - e +, o "segurar repete"
- *   estado.js      quem muda a partida: apply, desfazer, passar a vez, pausa
- *   pintar.js      desenhar a mesa a partir do estado
- *   gestos.js      a duracao do toque decide o que ele e
- *   dano.js        a seta direcional e o teclado do dano
- *   area.js        dano em todos, e dreno
- *   mana.js        o marcador de mana
- *   votacao.js     votacao secreta, passando o aparelho de mao em mao
- *   jogador.js     o painel de um jogador
- *   hub.js         o nucleo central, e a cobertura da pausa
- *   menu.js        o menu da partida
- *   vitoria.js     quem ganhou, como ganhou, e o cartaz
+ *   context.js     what they all share (it used to be the closure)
+ *   table.js       builds the screen and wires the pieces
+ *   constants.js   the gesture measurements, and the mana colors
+ *   widgets.js     label/number, the row with - and +, "hold to repeat"
+ *   state.js       whoever changes the match: apply, undo, pass turn, pause
+ *   paint.js       drawing the table from the state
+ *   gestures.js    the length of the touch decides what it is
+ *   damage.js      the directional arrow and the damage pad
+ *   sweep.js       damage to everyone, and drain
+ *   mana.js        the mana marker
+ *   vote.js        secret vote, passing the device from hand to hand
+ *   player.js      a player's panel
+ *   hub.js         the central core, and the pause cover
+ *   menu.js        the match menu
+ *   victory.js     who won, how they won, and the poster
  *
- * Um nome atravessa essa porta.
+ * One name goes through this door.
  */
 
-export { renderTable } from './table/mesa.js';
+export { renderTable } from './table/table.js';

@@ -1,22 +1,22 @@
 /**
- * Estatisticas - a porta da tela.
+ * Statistics - the entry point of the screen.
  *
- * As pecas vivem em src/views/stats/, uma por elemento:
+ * The pieces live in src/views/stats/, one per element:
  *
- *   tela.js           as abas, e qual esta aberta
- *   pecas.js          as pecas pequenas que varias abas reusam
- *   deck.js           o cartao de um deck (cor pela identidade WUBRG)
- *   jogador.js        o cartao de um jogador (cor pela pessoa)
- *   rivalidades.js    o par de jogadores, e quem persegue quem
- *   partida.js        o cartao de uma partida e a linha do tempo
- *   vitoria.js        como as vitorias foram ganhas
- *   votacoes.js       escolhas em votacoes secretas
- *   backup.js         exportar e importar JSON
- *   marcar-conta.js   marcar a conta de uma cadeira depois do jogo
- *   paywall.js        o que se ve sem assinatura
+ *   screen.js         the tabs, and which one is open
+ *   widgets.js        the small pieces several tabs reuse
+ *   deck.js           a deck's card (color by WUBRG identity)
+ *   player.js         a player's card (color by person)
+ *   rivalries.js      the pair of players, and who chases whom
+ *   match.js          a match's card and the timeline
+ *   win-reasons.js    how the wins were won
+ *   votes.js          choices in secret votes
+ *   backup.js         exporting and importing JSON
+ *   link-account.js   tagging a seat's account after the game
+ *   paywall.js        what is seen without a subscription
  *
- * Dois nomes atravessam essa porta, e so eles.
+ * Two names go through this door, and only those.
  */
 
-export { renderStats } from './stats/tela.js';
+export { renderStats } from './stats/screen.js';
 export { renderPaywall } from './stats/paywall.js';

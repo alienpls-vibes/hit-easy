@@ -2,11 +2,11 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<!-- Sem `interactive-widget`: ele faria o viewport de LAYOUT mudar, e as
-     telas deste app sao `height: 100%` em cadeia (html, #app, .stats) -
-     mudar o layout durante a rolagem re-layouta tudo e mexe na ancora de
-     scroll. Quem cuida do teclado e a variavel --kb, em src/ui.js, que
-     resolve nos dois sistemas sem tocar no layout. -->
+<!-- No `interactive-widget`: it would make the LAYOUT viewport change, and
+     this app's screens are `height: 100%` in a chain (html, #app, .stats) -
+     changing the layout while scrolling re-lays out everything and moves the
+     scroll anchor. The keyboard is handled by the --kb variable, in
+     src/ui.js, which works on both systems without touching the layout. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Hit Easy — commander made simple</title>
 <meta name="description" content="Hit Easy — commander made simple. Contador de vida para mesas de Commander, com estatisticas por deck.">
@@ -19,19 +19,20 @@
 <link rel="icon" href="./icons/icon-192.png" sizes="192x192">
 <link rel="apple-touch-icon" href="./icons/icon-192.png">
 <script>
-/* Tema antes da primeira pintura: sem isso, quem usa claro ve um lampejo
-   escuro a cada abertura, porque o CSS assume escuro ate o app carregar.
-   Duplica a chave do localStorage de proposito - nao da para importar um
-   modulo aqui sem adiar a pintura, que e justamente o que se quer evitar. */
+/* Theme before the first paint: without this, whoever uses light sees a
+   dark flash on every open, because the CSS assumes dark until the app loads.
+   It duplicates the localStorage key on purpose - a module cannot be imported
+   here without delaying the paint, which is exactly what we want to avoid.
+   The theme values 'claro' (light) and 'escuro' (dark) are stored settings. */
 (function () {
   try {
     var cfg = (JSON.parse(localStorage.getItem('mtglc.db.v1')) || {}).settings || {};
-    var claro = cfg.theme === 'claro'
+    var light = cfg.theme === 'claro'
       || (cfg.theme !== 'escuro' && matchMedia('(prefers-color-scheme: light)').matches);
-    document.documentElement.dataset.theme = claro ? 'light' : 'dark';
+    document.documentElement.dataset.theme = light ? 'light' : 'dark';
     document.querySelector('meta[name="theme-color"]')
-      .setAttribute('content', claro ? '#f4f4f2' : '#08080a');
-  } catch (e) { /* primeira visita ou storage bloqueado: fica no escuro */ }
+      .setAttribute('content', light ? '#f4f4f2' : '#08080a');
+  } catch (e) { /* first visit or blocked storage: stays dark */ }
 })();
 </script>
 <link rel="stylesheet" href="./src/styles.css">
@@ -39,16 +40,17 @@
 <body>
 <main id="app"></main>
 <script>
-/* Tela de erro no lugar da tela preta.
-   Sem isto, qualquer excecao na carga deixa o #app vazio e o usuario olhando
-   para o fundo escuro sem nenhuma pista - e no celular nao ha console para
-   abrir. Fica em script classico, antes do modulo, para pegar tambem os erros
-   que acontecem ao carregar o proprio app.js. */
+/* An error screen instead of a black screen.
+   Without this, any exception while loading leaves #app empty and the user
+   staring at the dark background with no clue - and on a phone there is no
+   console to open. It is a classic script, before the module, to also catch
+   the errors that happen while loading app.js itself. The texts below are
+   shown to the user, so they stay in Portuguese. */
 (function () {
-  var mostrado = false;
-  function mostrar(titulo, detalhe) {
-    if (mostrado) return;
-    mostrado = true;
+  var shown = false;
+  function show(title, detail) {
+    if (shown) return;
+    shown = true;
     var app = document.getElementById('app');
     if (!app) return;
     app.innerHTML = '';
@@ -62,20 +64,20 @@
       '<button id="crash-reload" class="btn primary">Recarregar</button>' +
       '<button id="crash-reset" class="btn ghost">Limpar cache e recarregar</button>' +
       '</div>';
-    box.querySelector('.crash-detail').textContent = titulo + '
+    box.querySelector('.crash-detail').textContent = title + '
 
-' + (detalhe || '');
+' + (detail || '');
     app.appendChild(box);
 
     document.getElementById('crash-reload').onclick = function () { location.reload(); };
     document.getElementById('crash-reset').onclick = function () {
-      /* Nao apaga o historico de partidas - so o cache do app, que e o
-         suspeito mais comum quando uma versao nova chega pela metade. */
-      var pronto = Promise.resolve();
-      if (window.caches) pronto = caches.keys().then(function (ks) {
+      /* Does not delete the match history - only the app cache, which is
+         the most common suspect when a new version arrives halfway. */
+      var ready = Promise.resolve();
+      if (window.caches) ready = caches.keys().then(function (ks) {
         return Promise.all(ks.map(function (k) { return caches.delete(k); }));
       });
-      pronto.then(function () {
+      ready.then(function () {
         if (navigator.serviceWorker) {
           return navigator.serviceWorker.getRegistrations().then(function (rs) {
             return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -86,23 +88,23 @@
   }
 
   window.addEventListener('error', function (e) {
-    mostrar(e.message || 'Erro', (e.filename || '') + (e.lineno ? ':' + e.lineno : '') +
+    show(e.message || 'Erro', (e.filename || '') + (e.lineno ? ':' + e.lineno : '') +
       (e.error && e.error.stack ? '
 
 ' + e.error.stack : ''));
   });
   window.addEventListener('unhandledrejection', function (e) {
     var r = e.reason || {};
-    mostrar(r.message || String(r), r.stack || '');
+    show(r.message || String(r), r.stack || '');
   });
 
-  /* Se em 6s nada foi desenhado, algo silencioso deu errado (rede caida no
-     meio do carregamento dos modulos, por exemplo). */
+  /* If nothing was drawn in 6s, something silent went wrong (the network
+     dropped in the middle of loading the modules, for example). */
   window.addEventListener('load', function () {
     setTimeout(function () {
       var app = document.getElementById('app');
       if (app && app.children.length === 0) {
-        mostrar('O app nao desenhou nada em 6 segundos.',
+        show('O app nao desenhou nada em 6 segundos.',
           'Costuma ser um modulo que nao chegou. Tente "Limpar cache e recarregar", '
           + 'e confira se o servidor ainda esta no ar.');
       }
@@ -111,16 +113,16 @@
 })();
 </script>
 <script>
-  /* Convite de instalacao: capturado ANTES dos modulos.
+  /* Install prompt: captured BEFORE the modules.
    *
-   * O Chrome dispara `beforeinstallprompt` assim que decide que a pagina e
-   * instalavel, e isso pode acontecer antes de src/install.js ter sido
-   * avaliado. Quando acontecia, o evento se perdia e o botao de instalar
-   * simplesmente nao aparecia - as vezes sim, as vezes nao, sem nada mudar na
-   * pagina. Era o sintoma classico de corrida, e o unico conserto e escutar de
-   * um lugar que ja existe quando o navegador avisa.
+   * Chrome fires `beforeinstallprompt` as soon as it decides the page is
+   * installable, and that can happen before src/install.js has been
+   * evaluated. When it did, the event was lost and the install button simply
+   * did not show - sometimes yes, sometimes no, with nothing changing on the
+   * page. It was the classic symptom of a race, and the only fix is listening
+   * from a place that already exists when the browser announces it.
    *
-   * install.js le esta gaveta ao subir. */
+   * install.js reads this drawer when it starts. */
   window.__hitEasyInstall = null;
   window.addEventListener('beforeinstallprompt', function (e) {
     e.preventDefault();

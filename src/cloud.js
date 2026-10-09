@@ -1,140 +1,141 @@
 /**
- * Conta e armazenamento na nuvem (Supabase) - a porta do subsistema.
+ * Account and cloud storage (Supabase) - the entry point of the subsystem.
  *
- * Sem SDK: sao chamadas REST diretas. O SDK do Supabase traz mais de 100 KB
- * para fazer o que aqui cabe em algumas centenas de linhas, e o app inteiro
- * nao tem uma dependencia sequer - nao vale comecar agora.
+ * No SDK: these are direct REST calls. The Supabase SDK brings more than 100 KB
+ * to do what fits here in a few hundred lines, and the whole app has not a
+ * single dependency - not worth starting now.
  *
- * O que este modulo NAO faz: decidir quem pode ler o que. Isso e do banco (ver
- * sql/schema.sql). Se alguem apagar o portao daqui pelo devtools, o Postgres
- * continua devolvendo lista vazia. O cliente so pergunta; quem responde e o
- * servidor.
+ * What this module does NOT do: decide who can read what. That belongs to the
+ * database (see sql/schema.sql). If someone deletes the gate here through
+ * devtools, Postgres keeps returning an empty list. The client only asks; the
+ * server answers.
  *
- * As pecas vivem em src/cloud/, em camadas que so olham para baixo:
+ * The pieces live in src/cloud/, in layers that only look down:
  *
- *   regras.js      funcao pura - e a parte que os testes alcancam sem rede
- *   estado.js      o que se lembra de quem entrou
- *   http.js        um pedido, com renovacao de token em volta
- *   auth.js        entrar e sair
- *   assinatura.js  se a assinatura vale
- *   partidas.js    subir, baixar e apagar partida
- *   perfil.js      o nome e o @
- *   convites.js    partida em que alguem diz que voce estava
- *   mesa-por-codigo.js  passar a mesa a outro aparelho por um codigo curto
- *   iniciar.js     a subida, em ordem
+ *   rules.js           pure functions - the part the tests reach without a network
+ *   account.js         what is remembered about whoever signed in
+ *   http.js            one request, with token renewal around it
+ *   auth.js            signing in and out
+ *   subscription.js    whether the subscription is valid
+ *   matches.js         uploading, downloading and deleting matches
+ *   profile.js         the name and the @
+ *   invites.js         matches in which someone says you were present
+ *   table-by-code.js   passing the table to another device with a short code
+ *   boot.js            the startup, in order
  *
- * Quem importa daqui nao precisa saber dessa divisao, e e de proposito: mexer
- * na divisao amanha nao toca em nenhum dos cinco modulos que dependem daqui.
+ * Whoever imports from here does not need to know about this split, on
+ * purpose: changing the split tomorrow does not touch any of the modules that
+ * depend on this one.
  */
 
 export {
   HANDLE_RE,
-  SENHA_MINIMA,
+  MIN_PASSWORD_LENGTH,
   accountState,
-  assinaturaAtiva,
-  exibirHandle,
+  isSubscriptionActive,
+  displayHandle,
   fromRow,
-  handleValido,
-  montarConvites,
-  normalizarHandle,
-  normalizarNome,
-  NOME_MAX,
-  HANDLE_TROCA_DIAS,
-  proximaTrocaDoHandle,
-  situacaoDoHandle,
-  participantesDe,
-  pendentes,
-  podeVerEstatisticas,
-  precisaRenovar,
-  senhaValida,
-  sessaoAproveitavel,
-  sessaoGuardada,
-  sessaoValida,
+  isHandleValid,
+  buildInvites,
+  normalizeHandle,
+  normalizeName,
+  NAME_MAX,
+  HANDLE_CHANGE_DAYS,
+  nextHandleChange,
+  handleStatus,
+  participantsOf,
+  pendingUploads,
+  canSeeStats,
+  needsRefresh,
+  isPasswordValid,
+  isSessionUsable,
+  sessionFromStorage,
+  isSessionValid,
   toRow,
-} from './cloud/regras.js';
+} from './cloud/rules.js';
 
 export {
-  conta,
+  account,
   currentUser,
-  esquecerSessao,
+  forgetSession,
   onAccountChange,
-  ouvirContaEnquanto,
+  watchAccountWhile,
   state,
   subscription,
-} from './cloud/estado.js';
+} from './cloud/account.js';
 
 export {
-  renovarSessao,
+  refreshSession,
 } from './cloud/http.js';
 
 export {
-  capturarRetorno,
-  carregarConfig,
-  carregarUsuario,
-  criarConta,
-  definirSenha,
-  entrarCom,
-  entrarComSenha,
-  enviarLink,
-  jaTinhaConta,
-  pedidoDeLink,
-  pedirTrocaDeSenha,
-  provedores,
-  sair,
-  temSenha,
-  urlDeRetorno,
+  captureReturn,
+  loadConfig,
+  loadUser,
+  createAccount,
+  setPassword,
+  signInWith,
+  signInWithPassword,
+  sendMagicLink,
+  accountAlreadyExisted,
+  magicLinkRequest,
+  requestPasswordReset,
+  providers,
+  signOut,
+  hasPassword,
+  returnUrl,
 } from './cloud/auth.js';
 
 export {
-  assinaturaConhecida,
-  carregarAssinatura,
-} from './cloud/assinatura.js';
+  isSubscriptionKnown,
+  loadSubscription,
+} from './cloud/subscription.js';
 
 export {
-  apagarPartida,
-  baixarPartidas,
-  enviarPartida,
-  idsRemotos,
-} from './cloud/partidas.js';
+  deleteRemoteMatch,
+  downloadMatches,
+  uploadMatch,
+  remoteIds,
+} from './cloud/matches.js';
 
 export {
-  buscarHandle,
-  carregarPerfil,
-  salvarNome,
-  situacaoDoHandleAgora,
-  handlesAtuais,
-  meuPerfil,
-  salvarMeusDecks,
-  colunaDeDecks,
-  salvarHandle,
-} from './cloud/perfil.js';
+  findHandle,
+  loadProfile,
+  saveName,
+  handleStatusNow,
+  currentHandles,
+  myProfile,
+  saveMyDecks,
+  decksColumn,
+  saveHandle,
+} from './cloud/profile.js';
 
 export {
-  anfitriaoDoConvite,
-  anfitrioesConfiaveis,
-  anfitrioesRecusados,
-  confiarEm,
-  convitesAbertos,
-  convitesPendentes,
-  deixarDeConfiar,
-  enviarParticipantes,
-  responderConvite,
-} from './cloud/convites.js';
+  inviteHost,
+  trustedHosts,
+  refusedHosts,
+  trustHost,
+  openInvites,
+  pendingInvites,
+  untrustHost,
+  sendParticipants,
+  answerInvite,
+} from './cloud/invites.js';
 
 export {
-  iniciar,
-} from './cloud/iniciar.js';
+  boot,
+} from './cloud/boot.js';
 
 export {
-  ALFABETO_DO_CODIGO,
-  TAMANHO_DO_CODIGO,
-  cancelarMesa,
-  codigoNoTexto,
-  codigoValido,
-  enviarMesa,
-  formatarCodigo,
-  normalizarCodigo,
-  pegarMesa,
-  situacaoDaMesa,
-  verMesa,
-} from './cloud/mesa-por-codigo.js';
+  CODE_ALPHABET,
+  CODE_LENGTH,
+  cancelTable,
+  codeInText,
+  isCodeValid,
+  sendTable,
+  formatCode,
+  normalizeCode,
+  takeTable,
+  tableStatus,
+  peekTable,
+} from './cloud/table-by-code.js';

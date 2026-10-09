@@ -1,0 +1,89 @@
+/* ==========================================================================
+   Screen adjustments: safe area, fullscreen, orientation hints.
+   ========================================================================== */
+
+@media (max-width: 400px) {
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .stats-summary { grid-template-columns: repeat(2, 1fr); }
+  .tile-face { padding: 10px 46px; }
+}
+
+/* --------------------------------------------------------------------------
+   Orientation
+
+   The home screen is designed for the device standing up — that is where the
+   match is configured, with a vertical list of players. The table is designed
+   for lying down, which is how it sits in the middle of the group.
+
+   Neither of them *breaks* in the wrong orientation: the home screen becomes
+   two columns when lying down, and the table shrinks what it needs to when
+   standing up. Locking would be worse — the browser only allows locking the
+   orientation in fullscreen, and the iPhone not even that.
+   -------------------------------------------------------------------------- */
+
+/* Home lying down: two columns, with the player list scrolling on its own,
+   so the start button is not pushed off the screen. */
+@media (orientation: landscape) and (min-width: 640px) {
+  .setup {
+    display: grid;
+    grid-template-columns: minmax(200px, 280px) 1fr;
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      "head    players"
+      "life    list"
+      "foot    list";
+    column-gap: 28px;
+    row-gap: 16px;
+    max-width: 920px;
+    overflow: hidden;
+    align-content: start;
+  }
+  .setup-head { grid-area: head; }
+  .setup-life { grid-area: life; flex-direction: column; align-items: flex-start; gap: 10px; }
+  .setup-players { grid-area: players; }
+  .seat-list { grid-area: list; overflow-y: auto; padding-right: 4px; min-height: 0; }
+  .setup-foot { grid-area: foot; margin-top: 0; align-self: start; }
+}
+
+/* Home lying down on a short, narrow screen: keeps a single column, just
+   tighter. */
+@media (orientation: landscape) and (max-width: 639px) {
+  .setup { gap: 14px; padding-top: 12px; }
+  .seat-card { padding: 9px; gap: 9px; }
+  .seat-art { width: 46px; height: 46px; }
+  .btn { height: 46px; }
+}
+
+/* Table on a low screen (the normal lying-down case): the panel is wide and
+   shallow, so the numeral shrinks so it does not collide with the name and
+   badges. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .tile-life { font-size: clamp(2.2rem, 19vh, 4.6rem); }
+  .tile-face { padding: 8px 50px; gap: 2px; }
+  .tile-deck { display: none; }
+  .hub-ring { width: 76px; height: 76px; }
+  .hub-turn { font-size: 1.8rem; }
+  .hub-btn { width: 34px; height: 34px; }
+  .pause-clock { font-size: 2rem; }
+  .pause-card { padding: 18px 24px; }
+  .tap-glyph { width: 28px; height: 28px; }
+  .badge { font-size: 0.56rem; padding: 2px 6px; }
+}
+
+/* Very low screen: little is left for the panel, everything that is not
+   the number goes. */
+@media (orientation: landscape) and (max-height: 400px) {
+  .tile-player { font-size: 0.76rem; }
+  .tile-status { font-size: 0.56rem; letter-spacing: 0.1em; }
+  .table-grid { gap: 6px; padding: 6px; }
+  .tile { border-radius: 16px; }
+}
+
+/* Table standing up: it works, but the hub squeezes against narrower panels. */
+@media (orientation: portrait) {
+  .hub { gap: 3px; padding: 5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}

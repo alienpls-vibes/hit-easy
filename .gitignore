@@ -1,4 +1,4 @@
-# Nada aqui e necessario para o app rodar: ele e estatico e sem build.
+# Nothing here is needed for the app to run: it is static and has no build.
 __pycache__/
 *.pyc
 .DS_Store

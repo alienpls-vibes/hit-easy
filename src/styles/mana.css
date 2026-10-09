@@ -1,0 +1,140 @@
+/* ==========================================================================
+   The mana marker.
+
+   One piece per color, and each one is a life panel in miniature: the same
+   grammar as the table, nothing new to learn.
+   ========================================================================== */
+
+.mana-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.mana-tile {
+  position: relative;
+  overflow: hidden;
+  min-height: 88px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  touch-action: none;
+  transition: border-color var(--fast), background var(--fast);
+}
+.mana-tile.is-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+/* Browsers without color-mix stay readable through the accent border. */
+@supports not (background: color-mix(in srgb, red 10%, transparent)) {
+  .mana-tile.is-on { background: var(--surface-strong); }
+}
+
+.mana-tap {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 42%;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  color: var(--text);
+}
+.mana-minus { left: 0; justify-content: flex-start; padding-left: 10px; }
+.mana-plus { right: 0; justify-content: flex-end; padding-right: 10px; }
+.mana-tap .tap-glyph { width: 26px; height: 26px; }
+.mana-tap.is-pressed .tap-glyph {
+  opacity: 0.95;
+  background: var(--press);
+  transform: scale(1.1);
+}
+
+.mana-face {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+/* The color letter on a disc: no mana symbol font needed. */
+.mana-pip {
+  width: 20px; height: 20px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+.mana-name {
+  font-size: 0.54rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-dim);
+}
+.mana-count {
+  font-size: 1.9rem;
+  font-weight: 250;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.mana-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+.mana-total-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+}
+.mana-total-value {
+  font-size: 1.5rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Mana shortcut on the central core.
+
+   Filled, not ghost like its neighbors: it only exists while there is marked
+   mana, so drawing attention is its job — it disappears by itself when the
+   pool empties or when the turn passes. */
+.hub-btn.is-mana {
+  background: var(--contrast);
+  color: var(--on-contrast);
+  font-size: 0.86rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  animation: mana-entra 180ms var(--ease);
+}
+.hub-btn.is-mana:hover:not(:disabled) {
+  background: var(--contrast);
+  color: var(--on-contrast);
+  opacity: 0.88;
+}
+.hub-btn[hidden] { display: none; }
+.hub-btn { position: relative; }
+
+@keyframes mana-entra {
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub-btn.is-mana { animation: none; }
+}
+
+/* Wide screen: the six colors fit in two rows of three. */
+@media (min-width: 480px) {
+  .mana-grid { grid-template-columns: repeat(3, 1fr); }
+}

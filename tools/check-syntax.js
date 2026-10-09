@@ -1,10 +1,12 @@
 /**
- * Passa `node --check` em todo modulo do projeto.
+ * Runs `node --check` on every module of the project, plus the cross-file
+ * checks nothing in the language enforces.
  *
- * Os casos em tests/ so exercitam engine, stats e seating - o resto depende de
- * DOM e nao roda no Node. Esta checagem alcanca o resto: nao prova que a
- * interface funciona, mas garante que ela ao menos PARSEIA, que e o erro mais
- * bobo e mais facil de deixar passar num projeto sem build.
+ * The cases in tests/ only exercise engine, stats and seating - the rest
+ * depends on the DOM and does not run in Node. This check reaches the rest: it
+ * does not prove the interface works, but it guarantees it at least PARSES,
+ * which is the silliest error and the easiest one to let through in a project
+ * with no build.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -23,7 +25,7 @@ function walk(dir, out = []) {
   return out;
 }
 
-/** O mesmo, para as folhas de estilo. */
+/** The same, for the stylesheets. */
 function walkCss(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const full = join(dir, name);
@@ -40,242 +42,247 @@ const files = [
   join(ROOT, 'sw.js'),
 ].sort();
 
-const falhas = [];
+const failures = [];
 for (const file of files) {
   try {
     execFileSync(process.execPath, ['--check', file], { stdio: 'pipe' });
   } catch (err) {
-    falhas.push({ file, why: String(err.stderr || err.message).trim() });
+    failures.push({ file, why: String(err.stderr || err.message).trim() });
   }
 }
 
-if (falhas.length) {
-  console.error('\n\x1b[31m Erro de sintaxe:\x1b[0m');
-  for (const f of falhas) console.error('  ' + relative(ROOT, f.file) + '\n' + f.why + '\n');
+if (failures.length) {
+  console.error('\n\x1b[31m Syntax error:\x1b[0m');
+  for (const f of failures) console.error('  ' + relative(ROOT, f.file) + '\n' + f.why + '\n');
   process.exit(1);
 }
 
 /*
- * O formato do @ vive em dois lugares que nao se enxergam: o regex do cliente
- * (src/cloud.js) e a constraint do Postgres (sql/002-participantes.sql). Nada na
- * linguagem obriga os dois a concordarem, e quando divergem o sintoma e pessimo:
- * o app aceita o que a pessoa digitou, manda para o banco, e o banco devolve um
- * 400 sem explicacao. Aqui os dois textos sao comparados de verdade.
+ * The @ format lives in two places that do not see each other: the client
+ * regex (src/cloud/rules.js) and the Postgres constraint
+ * (sql/002-participants.sql). Nothing in the language forces the two to agree,
+ * and when they diverge the symptom is awful: the app accepts what the person
+ * typed, sends it to the database, and the database returns an unexplained
+ * 400. Here the two texts are really compared.
  */
-function conferirHandle() {
-  // Procura em todo src/ em vez de abrir um caminho fixo: a regra e "o formato
-  // do @ vive em algum modulo do cliente", nao "vive neste arquivo". Mover a
-  // constante de pasta e refatoracao legitima e nao pode derrubar o build.
-  let noCliente = null;
-  let ondeCliente = null;
+function checkHandle() {
+  // Searches all of src/ instead of opening a fixed path: the rule is "the @
+  // format lives in some client module", not "lives in this file". Moving the
+  // constant to another folder is a legitimate refactor and cannot break the
+  // build.
+  let inClient = null;
+  let clientFile = null;
   for (const file of walk(join(ROOT, 'src'))) {
-    const achado = readFileSync(file, 'utf8').match(/HANDLE_RE\s*=\s*\/\^(.+?)\$\//);
-    if (achado) {
-      noCliente = achado;
-      ondeCliente = relative(ROOT, file).split(sep).join('/');
+    const found = readFileSync(file, 'utf8').match(/HANDLE_RE\s*=\s*\/\^(.+?)\$\//);
+    if (found) {
+      inClient = found;
+      clientFile = relative(ROOT, file).split(sep).join('/');
       break;
     }
   }
-  const sql = readFileSync(join(ROOT, 'sql/002-participantes.sql'), 'utf8');
-  const noBanco = sql.match(/handle\s*~\s*'\^(.+?)\$'/);
+  const sql = readFileSync(join(ROOT, 'sql/002-participants.sql'), 'utf8');
+  const inDatabase = sql.match(/handle\s*~\s*'\^(.+?)\$'/);
 
-  if (!noCliente) return 'HANDLE_RE sumiu de src/: nenhum modulo define o formato do @';
-  if (!noBanco) return 'a constraint handle_formato sumiu do SQL';
-  if (noCliente[1] !== noBanco[1]) {
-    return 'o formato do @ diverge:\n'
-      + '    cliente: ^' + noCliente[1] + '$   (' + ondeCliente + ')\n'
-      + '    banco:   ^' + noBanco[1] + '$   (sql/002-participantes.sql)\n'
-      + '    Divergir aqui faz o app aceitar um @ que o banco recusa com 400.';
+  if (!inClient) return 'HANDLE_RE vanished from src/: no module defines the @ format';
+  if (!inDatabase) return 'the handle_formato constraint vanished from the SQL';
+  if (inClient[1] !== inDatabase[1]) {
+    return 'the @ format diverges:\n'
+      + '    client:   ^' + inClient[1] + '$   (' + clientFile + ')\n'
+      + '    database: ^' + inDatabase[1] + '$   (sql/002-participants.sql)\n'
+      + '    Diverging here makes the app accept an @ the database refuses with a 400.';
   }
   return null;
 }
 
-const handleRuim = conferirHandle();
-if (handleRuim) {
-  console.error('\n\x1b[31m Formato do @:\x1b[0m\n  ' + handleRuim + '\n');
+const badHandle = checkHandle();
+if (badHandle) {
+  console.error('\n\x1b[31m @ format:\x1b[0m\n  ' + badHandle + '\n');
   process.exit(1);
 }
 
 /*
- * Uma policy de RLS nao pode consultar OUTRA tabela protegida diretamente.
+ * An RLS policy cannot query ANOTHER protected table directly.
  *
- * Quando a policy de A consulta B e a de B consulta A, o Postgres avalia uma
- * dentro da outra sem fim e derruba as duas com 42P17, "infinite recursion
- * detected in policy". O sintoma e brutal: some ate a leitura que ja
- * funcionava antes, porque o erro e da AVALIACAO da policy, nao da consulta.
+ * When A's policy queries B and B's policy queries A, Postgres evaluates one
+ * inside the other endlessly and takes both down with 42P17, "infinite
+ * recursion detected in policy". The symptom is brutal: even the read that
+ * already worked disappears, because the error is in the policy EVALUATION,
+ * not the query.
  *
- * Aconteceu aqui entre matches e match_players. A saida e uma funcao
- * `security definer`, que roda como dona da tabela e por isso nao dispara RLS
- * de novo. Como nada na linguagem obriga isso, a regra fica escrita aqui.
+ * It happened here between matches and match_players. The way out is a
+ * `security definer` function, which runs as the table owner and so does not
+ * trigger RLS again. Since nothing in the language enforces it, the rule is
+ * written here.
  */
-function conferirPolicies() {
-  const arquivos = readdirSync(join(ROOT, 'sql'))
+function checkPolicies() {
+  const sqlFiles = readdirSync(join(ROOT, 'sql'))
     .filter((n) => n.endsWith('.sql'))
     .map((n) => join(ROOT, 'sql', n));
 
-  const problemas = [];
-  for (const arquivo of arquivos) {
-    const texto = readFileSync(arquivo, 'utf8');
-    // Cada "create policy" ate o ponto-e-virgula que fecha o comando.
-    const partes = texto.split(/create policy/i).slice(1);
-    for (const bruto of partes) {
-      const corpo = bruto.split(/;\s*(?:\n|$)/)[0];
-      const alvo = corpo.match(/\bon\s+public\.(\w+)/i);
-      if (!alvo) continue;
-      const tabela = alvo[1];
+  const problems = [];
+  for (const sqlFile of sqlFiles) {
+    const text = readFileSync(sqlFile, 'utf8');
+    // Each "create policy" up to the semicolon that closes the statement.
+    const parts = text.split(/create policy/i).slice(1);
+    for (const raw of parts) {
+      const body = raw.split(/;\s*(?:\n|$)/)[0];
+      const target = body.match(/\bon\s+public\.(\w+)/i);
+      if (!target) continue;
+      const table = target[1];
 
-      // Tudo depois do "on public.X for ..." e a condicao da policy.
-      const condicao = corpo.slice(alvo.index + alvo[0].length);
-      const refs = [...condicao.matchAll(/\b(?:from|join)\s+public\.(\w+)/gi)]
+      // Everything after "on public.X for ..." is the policy condition.
+      const condition = body.slice(target.index + target[0].length);
+      const refs = [...condition.matchAll(/\b(?:from|join)\s+public\.(\w+)/gi)]
         .map((m) => m[1])
-        .filter((t) => t !== tabela);
+        .filter((t) => t !== table);
 
-      for (const outra of new Set(refs)) {
-        problemas.push(
-          relative(ROOT, arquivo) + ': policy em public.' + tabela
-          + ' consulta public.' + outra + ' direto.\n'
-          + '    Se public.' + outra + ' tiver policy citando public.' + tabela
-          + ', o Postgres derruba as duas com 42P17.\n'
-          + '    Passe por uma funcao `security definer`.',
+      for (const other of new Set(refs)) {
+        problems.push(
+          relative(ROOT, sqlFile) + ': policy on public.' + table
+          + ' queries public.' + other + ' directly.\n'
+          + '    If public.' + other + ' has a policy citing public.' + table
+          + ', Postgres takes both down with 42P17.\n'
+          + '    Go through a `security definer` function.',
         );
       }
     }
   }
-  return problemas;
+  return problems;
 }
 
-const policiesRuins = conferirPolicies();
-if (policiesRuins.length) {
-  console.error('\n\x1b[31m Recursao possivel em RLS:\x1b[0m');
-  for (const x of policiesRuins) console.error('  ' + x + '\n');
+const badPolicies = checkPolicies();
+if (badPolicies.length) {
+  console.error('\n\x1b[31m Possible RLS recursion:\x1b[0m');
+  for (const x of badPolicies) console.error('  ' + x + '\n');
   process.exit(1);
 }
 
 /*
- * O convite de instalacao tem de ser capturado ANTES dos modulos.
+ * The install prompt has to be captured BEFORE the modules.
  *
- * O Chrome dispara `beforeinstallprompt` assim que decide que a pagina e
- * instalavel, e isso pode acontecer antes de src/install.js ser avaliado.
- * Quando acontecia, o evento se perdia e o botao de instalar aparecia so as
- * vezes - o mesmo app, a mesma pagina, resultado diferente a cada abertura.
+ * Chrome fires `beforeinstallprompt` as soon as it decides the page is
+ * installable, and that can happen before src/install.js is evaluated. When it
+ * did, the event was lost and the install button only showed sometimes - the
+ * same app, the same page, a different result on every open.
  *
- * A ordem no HTML e o conserto inteiro, e nada no codigo a defende: um dia
- * alguem move o bloco "solto" para junto do resto e o defeito volta, sem que
- * teste nenhum reclame.
+ * The order in the HTML is the whole fix, and nothing in the code defends it:
+ * one day someone moves the "loose" block next to the rest and the defect
+ * comes back, with no test complaining.
  */
-function conferirInstall() {
+function checkInstall() {
   const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
-  const captura = html.indexOf('beforeinstallprompt');
-  const modulo = html.indexOf('type="module"');
+  const capture = html.indexOf('beforeinstallprompt');
+  const module = html.indexOf('type="module"');
   const install = readFileSync(join(ROOT, 'src/install.js'), 'utf8');
 
-  if (captura === -1) {
-    return 'index.html nao captura beforeinstallprompt: o botao de instalar fica intermitente';
+  if (capture === -1) {
+    return 'index.html does not capture beforeinstallprompt: the install button becomes intermittent';
   }
-  if (modulo === -1) return 'index.html nao carrega o modulo do app';
-  if (captura > modulo) {
-    return 'a captura de beforeinstallprompt vem DEPOIS do modulo em index.html. '
-      + 'Nessa ordem o evento se perde quando o Chrome o dispara cedo.';
+  if (module === -1) return 'index.html does not load the app module';
+  if (capture > module) {
+    return 'the beforeinstallprompt capture comes AFTER the module in index.html. '
+      + 'In that order the event is lost when Chrome fires it early.';
   }
   if (!install.includes('__hitEasyInstall')) {
-    return 'src/install.js nao le a gaveta window.__hitEasyInstall que index.html preenche';
+    return 'src/install.js does not read the window.__hitEasyInstall drawer that index.html fills';
   }
   return null;
 }
 
-const installRuim = conferirInstall();
-if (installRuim) {
-  console.error('\n\x1b[31m Convite de instalacao:\x1b[0m\n  ' + installRuim + '\n');
+const badInstall = checkInstall();
+if (badInstall) {
+  console.error('\n\x1b[31m Install prompt:\x1b[0m\n  ' + badInstall + '\n');
   process.exit(1);
 }
 
 /*
- * Codigo depois de um `return`, no mesmo bloco, nunca roda.
+ * Code after a `return`, in the same block, never runs.
  *
- * Isto nasceu de um defeito real e caro: a divisao do table.js deixou um
- * `return` vazado dentro de `criarVitoria`, o `return` que instalava as
- * funcoes ficou inalcancavel, e `mesa.showVictory` e `mesa.pickWinner` nunca
- * foram pendurados no contexto. Na mesa, a partida nao encerrava sozinha com um
- * jogador vivo e o botao de declarar vencedor nao fazia nada.
+ * This was born from a real and expensive defect: splitting table.js left a
+ * stray `return` inside `createVictory`, the `return` that installed the
+ * functions became unreachable, and `table.showVictory` and
+ * `table.pickWinner` were never hung on the context. At the table, the match
+ * did not end by itself with one player alive and the declare-winner button
+ * did nothing.
  *
- * Nada acusou: `node --check` passa, porque codigo inalcancavel e sintaxe
- * valida; a checagem de imports passa; a de referencias passa, porque todas
- * existem. E a suite tinha 150 casos verdes.
+ * Nothing reported it: `node --check` passes, because unreachable code is
+ * valid syntax; the import check passes; the references check passes, because
+ * they all exist. And the suite had 150 green cases.
  *
- * A heuristica e a indentacao, que neste projeto e consistente: achado um
- * `return` com N espacos, a proxima linha com EXATAMENTE N espacos tem de
- * fechar o bloco. Qualquer outra coisa ali e inalcancavel.
+ * The heuristic is indentation, which is consistent in this project: given a
+ * `return` with N spaces, the next line with EXACTLY N spaces has to close the
+ * block. Anything else there is unreachable.
  */
 /**
- * A linha sem o comentario de fim, e sem o que esta dentro de texto.
+ * The line without its trailing comment, and without what is inside strings.
  *
- * `return null; // porque` nao terminava em ponto e virgula para o teste
- * abaixo, entao a busca pelo fim da instrucao seguia adiante e ia parar dentro
- * da funcao SEGUINTE - acusando codigo que roda. Guarda que mente e pior que
- * guarda nenhuma: ensina a ignorar o alarme.
+ * `return null; // because` did not end with a semicolon for the test below,
+ * so the search for the end of the statement went on and ended up inside the
+ * NEXT function - flagging code that runs. A guard that lies is worse than no
+ * guard: it teaches people to ignore the alarm.
  *
- * Pular o conteudo das aspas serve ao mesmo fim por outro caminho: uma chave
- * ou um `//` dentro de um texto nao sao codigo, e contavam como se fossem.
+ * Skipping the content of quotes serves the same end by another path: a brace
+ * or a `//` inside a string is not code, and it used to count as if it were.
  */
-function semComentario(linha) {
-  let aspas = null;
-  for (let i = 0; i < linha.length; i += 1) {
-    const c = linha[i];
-    if (aspas) {
+function withoutComment(line) {
+  let quote = null;
+  for (let i = 0; i < line.length; i += 1) {
+    const c = line[i];
+    if (quote) {
       if (c === '\\') i += 1;
-      else if (c === aspas) aspas = null;
+      else if (c === quote) quote = null;
       continue;
     }
-    if (c === "'" || c === '"' || c === '`') { aspas = c; continue; }
-    if (c === '/' && linha[i + 1] === '/') return linha.slice(0, i).trimEnd();
+    if (c === "'" || c === '"' || c === '`') { quote = c; continue; }
+    if (c === '/' && line[i + 1] === '/') return line.slice(0, i).trimEnd();
   }
-  return linha;
+  return line;
 }
 
-function conferirInalcancavel() {
-  const problemas = [];
+function checkUnreachable() {
+  const problems = [];
 
   for (const file of walk(join(ROOT, 'src')).concat(walk(join(ROOT, 'tools')))) {
-    const linhas = readFileSync(file, 'utf8').split('\n');
+    const lines = readFileSync(file, 'utf8').split('\n');
 
-    for (let i = 0; i < linhas.length; i += 1) {
-      const m = linhas[i].match(/^(\s+)return\b/);
+    for (let i = 0; i < lines.length; i += 1) {
+      const m = lines[i].match(/^(\s+)return\b/);
       if (!m) continue;
-      const recuo = m[1].length;
+      const indent = m[1].length;
 
-      // Um `return` pode abrir objeto ou lista e fechar linhas depois. Anda
-      // ate o fim da propria instrucao antes de olhar o que vem a seguir.
+      // A `return` may open an object or a list and close lines later. Walk to
+      // the end of the statement itself before looking at what comes next.
       //
-      // Contando PROFUNDIDADE, e nao "a primeira linha que termina em ponto e
-      // virgula": num `return { destroy: () => { ...; } };` aquela regra para
-      // dentro da arrow, e a checagem passa a olhar o lugar errado - foi assim
-      // que a primeira versao disto nao disparou no defeito que a motivou.
+      // Counting DEPTH, and not "the first line ending in a semicolon": in a
+      // `return { destroy: () => { ...; } };` that rule stops inside the arrow,
+      // and the check starts looking at the wrong place - that is how the
+      // first version of this did not fire on the defect that motivated it.
       let j = i;
-      let fundo = 0;
-      for (; j < linhas.length; j += 1) {
-        const codigo = semComentario(linhas[j]);
-        for (const ch of codigo) {
-          if (ch === '{' || ch === '(' || ch === '[') fundo += 1;
-          else if (ch === '}' || ch === ')' || ch === ']') fundo -= 1;
+      let depth = 0;
+      for (; j < lines.length; j += 1) {
+        const code = withoutComment(lines[j]);
+        for (const ch of code) {
+          if (ch === '{' || ch === '(' || ch === '[') depth += 1;
+          else if (ch === '}' || ch === ')' || ch === ']') depth -= 1;
         }
-        if (fundo <= 0 && /;\s*$/.test(codigo)) break;
+        if (depth <= 0 && /;\s*$/.test(code)) break;
       }
 
-      // A proxima linha que importa: ignora vazia e comentario.
-      for (let k = j + 1; k < linhas.length; k += 1) {
-        const linha = linhas[k];
-        if (!linha.trim()) continue;
-        if (/^\s*(\/\/|\/\*|\*)/.test(linha)) continue;
+      // The next line that matters: skips blank lines and comments.
+      for (let k = j + 1; k < lines.length; k += 1) {
+        const line = lines[k];
+        if (!line.trim()) continue;
+        if (/^\s*(\/\/|\/\*|\*)/.test(line)) continue;
 
-        const dela = linha.match(/^(\s*)/)[1].length;
-        // Recuo menor: o bloco acabou, nada a dizer.
-        if (dela < recuo) break;
-        // Mesmo recuo e nao fecha o bloco: inalcancavel.
-        if (dela === recuo && !/^\s*[}\)\]]/.test(linha)) {
-          problemas.push(
+        const own = line.match(/^(\s*)/)[1].length;
+        // Smaller indent: the block ended, nothing to say.
+        if (own < indent) break;
+        // Same indent and it does not close the block: unreachable.
+        if (own === indent && !/^\s*[}\)\]]/.test(line)) {
+          problems.push(
             relative(ROOT, file).split(sep).join('/') + ':' + (k + 1)
-            + ': codigo depois de `return` (linha ' + (i + 1) + ') nunca roda.'
-            + '\n    ' + linha.trim().slice(0, 70),
+            + ': code after `return` (line ' + (i + 1) + ') never runs.'
+            + '\n    ' + line.trim().slice(0, 70),
           );
         }
         break;
@@ -283,212 +290,215 @@ function conferirInalcancavel() {
     }
   }
 
-  return problemas;
+  return problems;
 }
 
-const inalcancavel = conferirInalcancavel();
-if (inalcancavel.length) {
-  console.error('\n\x1b[31m Codigo inalcancavel:\x1b[0m');
-  for (const x of inalcancavel) console.error('  ' + x);
+const unreachable = checkUnreachable();
+if (unreachable.length) {
+  console.error('\n\x1b[31m Unreachable code:\x1b[0m');
+  for (const x of unreachable) console.error('  ' + x);
   console.error('');
   process.exit(1);
 }
 
 /*
- * Todo modulo e toda folha de estilo precisam estar na lista do service worker.
+ * Every module and every stylesheet has to be in the service worker list.
  *
- * A lista em sw.js e explicita porque o worker tem de saber o que baixar ANTES
- * de faltar internet - nao da para descobrir import por import na hora. Sao
- * mais de oitenta arquivos, e nada na linguagem liga um ao outro: criar um
- * modulo novo e esquecer a linha no sw.js nao da erro, nao quebra teste e nao
- * aparece no navegador com rede. O app simplesmente para de abrir offline, e
- * isso se descobre na mesa, que e o unico lugar onde importa.
+ * The list in sw.js is explicit because the worker has to know what to
+ * download BEFORE the internet runs out - it cannot discover import by import
+ * on the spot. There are more than eighty files, and nothing in the language
+ * links one to the other: creating a new module and forgetting the line in
+ * sw.js gives no error, breaks no test and does not show in a browser with a
+ * network. The app simply stops opening offline, and that is found out at the
+ * table, the only place where it matters.
  *
- * Confere tambem o contrario - entrada na lista apontando para arquivo que nao
- * existe mais -, porque `cache.addAll()` rejeita TUDO se um unico pedido falhar:
- * um caminho morto na lista nao deixa nada ser cacheado.
+ * It also checks the reverse - a list entry pointing to a file that no longer
+ * exists - because `cache.addAll()` rejects EVERYTHING if a single request
+ * fails: a dead path in the list keeps anything from being cached.
  */
-function conferirCache() {
+function checkCache() {
   const sw = readFileSync(join(ROOT, 'sw.js'), 'utf8');
-  const bloco = sw.match(/const ASSETS = \[([\s\S]*?)\n\];/);
-  if (!bloco) return ['a lista ASSETS sumiu de sw.js'];
+  const block = sw.match(/const ASSETS = \[([\s\S]*?)\n\];/);
+  if (!block) return ['the ASSETS list vanished from sw.js'];
 
-  const listados = new Set(
-    [...bloco[1].matchAll(/'([^']+)'/g)].map((m) => m[1]),
+  const listed = new Set(
+    [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1]),
   );
 
-  const naDisco = walk(join(ROOT, 'src'))
+  const onDisk = walk(join(ROOT, 'src'))
     .concat(walkCss(join(ROOT, 'src')))
     .map((f) => './' + relative(ROOT, f).split(sep).join('/'));
 
-  const problemas = [];
-  for (const caminho of naDisco.sort()) {
-    if (!listados.has(caminho)) {
-      problemas.push(caminho + ' existe em src/ e NAO esta na lista ASSETS de '
-        + 'sw.js: o app nao abriria offline.');
+  const problems = [];
+  for (const path of onDisk.sort()) {
+    if (!listed.has(path)) {
+      problems.push(path + ' exists in src/ and is NOT in the ASSETS list of '
+        + 'sw.js: the app would not open offline.');
     }
   }
-  for (const caminho of [...listados].sort()) {
-    if (!caminho.startsWith('./src/')) continue;
-    if (!existsSync(join(ROOT, caminho))) {
-      problemas.push(caminho + ' esta na lista ASSETS de sw.js e nao existe '
-        + 'mais: addAll() rejeita tudo se um pedido falhar.');
+  for (const path of [...listed].sort()) {
+    if (!path.startsWith('./src/')) continue;
+    if (!existsSync(join(ROOT, path))) {
+      problems.push(path + ' is in the ASSETS list of sw.js and no longer '
+        + 'exists: addAll() rejects everything if one request fails.');
     }
   }
-  return problemas;
+  return problems;
 }
 
 /**
- * Todo icone referenciado existe no disco?
+ * Does every referenced icon exist on disk?
  *
- * Tres arquivos apontam para os icones - manifest.webmanifest, index.html e a
- * lista ASSETS de sw.js -, entao trocar a arte significa acertar os tres.
- * Errar um nao quebra teste nenhum, e cada um falha de um jeito diferente:
+ * Three files point to the icons - manifest.webmanifest, index.html and the
+ * ASSETS list of sw.js - so changing the art means fixing all three. Getting
+ * one wrong breaks no test, and each one fails in a different way:
  *
- *   - manifest com caminho morto: so aparece na hora de instalar, no aparelho
- *     de outra pessoa, e o sistema cai para um icone generico sem avisar;
- *   - sw.js com caminho morto: `cache.addAll()` rejeita TUDO se um unico
- *     pedido falhar, entao o app inteiro deixa de funcionar offline;
- *   - index.html com caminho morto: a aba fica sem favicon.
+ *   - manifest with a dead path: only shows at install time, on someone
+ *     else's device, and the system falls back to a generic icon silently;
+ *   - sw.js with a dead path: `cache.addAll()` rejects EVERYTHING if a single
+ *     request fails, so the whole app stops working offline;
+ *   - index.html with a dead path: the tab gets no favicon.
  *
- * Confere tambem o contrario: PNG em icons/ que ninguem referencia. Arte
- * antiga esquecida ali continua sendo baixada por quem clonar o repositorio e
- * vira duvida sobre qual e a atual.
+ * It also checks the reverse: a PNG in icons/ nobody references. Old art left
+ * there keeps being downloaded by whoever clones the repository and becomes a
+ * doubt about which one is current.
  */
-function conferirIcones() {
-  const problemas = [];
-  const citados = new Set();
+function checkIcons() {
+  const problems = [];
+  const cited = new Set();
 
-  const fontes = [
+  const sources = [
     ['manifest.webmanifest', /"src"\s*:\s*"\.\/(icons\/[^"]+)"/g],
     ['index.html', /href="\.\/(icons\/[^"]+)"/g],
     ['sw.js', /'\.\/(icons\/[^']+)'/g],
   ];
 
-  for (const [arquivo, re] of fontes) {
-    const texto = readFileSync(join(ROOT, arquivo), 'utf8');
-    for (const m of texto.matchAll(re)) {
-      citados.add(m[1]);
+  for (const [file, re] of sources) {
+    const text = readFileSync(join(ROOT, file), 'utf8');
+    for (const m of text.matchAll(re)) {
+      cited.add(m[1]);
       if (!existsSync(join(ROOT, m[1]))) {
-        problemas.push(arquivo + ' aponta para ' + m[1] + ', que nao existe.');
+        problems.push(file + ' points to ' + m[1] + ', which does not exist.');
       }
     }
   }
 
-  if (!citados.size) problemas.push('nenhum icone referenciado em lugar nenhum');
+  if (!cited.size) problems.push('no icon referenced anywhere');
 
   for (const f of readdirSync(join(ROOT, 'icons'))) {
     if (!f.endsWith('.png')) continue;
-    if (!citados.has('icons/' + f)) {
-      problemas.push('icons/' + f + ' nao e referenciado por ninguem: '
-        + 'arte antiga esquecida vira duvida sobre qual e a atual.');
+    if (!cited.has('icons/' + f)) {
+      problems.push('icons/' + f + ' is referenced by nobody: '
+        + 'old art left behind becomes a doubt about which one is current.');
     }
   }
 
-  return problemas;
+  return problems;
 }
 
-const iconesRuins = conferirIcones();
-if (iconesRuins.length) {
-  console.error('\n\x1b[31m Icones:\x1b[0m');
-  for (const x of iconesRuins) console.error('  ' + x);
+const badIcons = checkIcons();
+if (badIcons.length) {
+  console.error('\n\x1b[31m Icons:\x1b[0m');
+  for (const x of badIcons) console.error('  ' + x);
   console.error('');
   process.exit(1);
 }
 
-const cacheRuim = conferirCache();
-if (cacheRuim.length) {
-  console.error('\n\x1b[31m Cache do service worker:\x1b[0m');
-  for (const x of cacheRuim) console.error('  ' + x);
+const badCache = checkCache();
+if (badCache.length) {
+  console.error('\n\x1b[31m Service worker cache:\x1b[0m');
+  for (const x of badCache) console.error('  ' + x);
   console.error('');
   process.exit(1);
 }
 
 /*
- * A versao vive em dois lugares que nao se enxergam: src/version.js e sw.js.
+ * The version lives in two places that do not see each other: src/version.js
+ * and sw.js.
  *
- * Worker nao importa modulo, entao a string e repetida na mao. Divergirem tem
- * consequencia real: o nome do cache sai da versao do WORKER, e a tela mostra a
- * do modulo. Alguem relataria "estou na 1.2.0" enquanto roda o cache da 1.1.0,
- * e a investigacao comecaria pelo lugar errado.
+ * A worker does not import modules, so the string is repeated by hand. If they
+ * diverge there is a real consequence: the cache name comes from the WORKER
+ * version, and the screen shows the module's. Someone would report "I'm on
+ * 1.2.0" while running the 1.1.0 cache, and the investigation would start in
+ * the wrong place.
  */
-function conferirVersao() {
+function checkVersion() {
   const mod = readFileSync(join(ROOT, 'src/version.js'), 'utf8');
   const sw = readFileSync(join(ROOT, 'sw.js'), 'utf8');
 
-  const noModulo = mod.match(/APP_VERSION\s*=\s*'([^']+)'/);
-  const noWorker = sw.match(/const VERSION\s*=\s*'([^']+)'/);
+  const inModule = mod.match(/APP_VERSION\s*=\s*'([^']+)'/);
+  const inWorker = sw.match(/const VERSION\s*=\s*'([^']+)'/);
 
-  if (!noModulo) return 'APP_VERSION sumiu de src/version.js';
-  if (!noWorker) return 'VERSION sumiu de sw.js';
-  if (noModulo[1] !== noWorker[1]) {
-    return 'a versao diverge: src/version.js diz ' + noModulo[1]
-      + ' e sw.js diz ' + noWorker[1]
-      + '. O cache sai do worker e a tela sai do modulo.';
+  if (!inModule) return 'APP_VERSION vanished from src/version.js';
+  if (!inWorker) return 'VERSION vanished from sw.js';
+  if (inModule[1] !== inWorker[1]) {
+    return 'the version diverges: src/version.js says ' + inModule[1]
+      + ' and sw.js says ' + inWorker[1]
+      + '. The cache comes from the worker and the screen from the module.';
   }
   return null;
 }
 
-const versaoRuim = conferirVersao();
-if (versaoRuim) {
-  console.error('\n\x1b[31m Versao do app:\x1b[0m\n  ' + versaoRuim + '\n');
+const badVersion = checkVersion();
+if (badVersion) {
+  console.error('\n\x1b[31m App version:\x1b[0m\n  ' + badVersion + '\n');
   process.exit(1);
 }
 
 /*
- * A politica de privacidade tem campos que so o responsavel pode preencher:
- * nome do controlador, e-mail de contato, regiao dos servidores.
+ * The privacy policy has fields only the person responsible can fill in:
+ * controller name, contact email, server region.
  *
- * Isto AVISA e nao derruba o build, de proposito. Derrubar impediria de
- * publicar no canal de teste, que e justamente onde o texto deve ser revisado
- * antes de ir para producao. Mas publicar uma politica com lacuna e pior que
- * nao ter politica, entao o aviso e barulhento.
+ * This WARNS and does not break the build, on purpose. Breaking it would
+ * block publishing to the test channel, which is precisely where the text
+ * should be reviewed before going to production. But publishing a policy with
+ * a gap is worse than having no policy, so the warning is loud.
  */
-function conferirPrivacidade() {
+function checkPrivacy() {
   const html = readFileSync(join(ROOT, 'privacidade.html'), 'utf8');
-  const lacunas = html.match(/class="falta"/g);
-  return lacunas ? lacunas.length : 0;
+  const gaps = html.match(/class="falta"/g);
+  return gaps ? gaps.length : 0;
 }
 
-const lacunas = conferirPrivacidade();
-if (lacunas) {
-  console.error('\n\x1b[33m Politica de privacidade:\x1b[0m '
-    + lacunas + ' campo(s) por preencher (nome do controlador, contato, regiao).'
-    + '\n  Nao publique em producao assim.\n');
+const gaps = checkPrivacy();
+if (gaps) {
+  console.error('\n\x1b[33m Privacy policy:\x1b[0m '
+    + gaps + ' field(s) still to fill in (controller name, contact, region).'
+    + '\n  Do not publish to production like this.\n');
 }
 
 /*
- * A versao atual precisa ter notas de versao.
+ * The current version needs release notes.
  *
- * Notas escritas "depois" nao sao escritas: a memoria do que mudou dura horas,
- * nao dias, e quem le a nota nao tem como saber que ela esta incompleta. Ligar
- * isto ao build e o unico jeito de a nota acompanhar a publicacao em vez de
- * depender de disciplina.
+ * Notes written "later" are not written: the memory of what changed lasts
+ * hours, not days, and whoever reads the note has no way to know it is
+ * incomplete. Tying this to the build is the only way for the note to go
+ * along with the release instead of depending on discipline.
  *
- * Derruba o build de proposito, ao contrario do aviso da politica de
- * privacidade: aquele campo precisa de decisao humana e travaria o canal de
- * teste, este e so escrever o que acabou de ser feito.
+ * It breaks the build on purpose, unlike the privacy policy warning: that
+ * field needs a human decision and would block the test channel, this one is
+ * just writing down what was just done.
  */
-function conferirNovidades() {
-  const versao = readFileSync(join(ROOT, 'src/version.js'), 'utf8')
+function checkReleaseNotes() {
+  const version = readFileSync(join(ROOT, 'src/version.js'), 'utf8')
     .match(/APP_VERSION\s*=\s*'([^']+)'/);
-  if (!versao) return null; // o conferidor de versao ja reclama disto
+  if (!version) return null; // the version check already complains about this
 
-  const notas = readFileSync(join(ROOT, 'src/novidades.js'), 'utf8');
-  const temEntrada = new RegExp("versao:\\s*'" + versao[1].replace(/\./g, '\\.') + "'")
-    .test(notas);
+  const notes = readFileSync(join(ROOT, 'src/release-notes.js'), 'utf8');
+  const hasEntry = new RegExp("version:\\s*'" + version[1].replace(/\./g, '\\.') + "'")
+    .test(notes);
 
-  if (!temEntrada) {
-    return 'a versao ' + versao[1] + ' nao tem entrada em src/novidades.js. '
-      + 'Escreva o que mudou antes de publicar.';
+  if (!hasEntry) {
+    return 'version ' + version[1] + ' has no entry in src/release-notes.js. '
+      + 'Write what changed before publishing.';
   }
   return null;
 }
 
-const notasRuins = conferirNovidades();
-if (notasRuins) {
-  console.error('\n\x1b[31m Notas de versao:\x1b[0m\n  ' + notasRuins + '\n');
+const badNotes = checkReleaseNotes();
+if (badNotes) {
+  console.error('\n\x1b[31m Release notes:\x1b[0m\n  ' + badNotes + '\n');
   process.exit(1);
 }
 
-console.log(` \x1b[2m${files.length} módulos com sintaxe válida\x1b[0m`);
+console.log(` \x1b[2m${files.length} modules with valid syntax\x1b[0m`);

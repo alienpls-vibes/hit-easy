@@ -1,16 +1,16 @@
-import { chave } from './canal.js';
+import { storageKey } from './channel.js';
 /**
- * Busca de comandantes na Scryfall.
+ * Commander search on Scryfall.
  *
- * Regras da casa (documentadas pela Scryfall): no maximo ~10 req/s e um
- * User-Agent identificavel. O debounce da UI ja segura isso com folga, e todo
- * resultado vai pro cache local - decks ja usados continuam funcionando offline.
+ * House rules (documented by Scryfall): at most ~10 req/s and an identifiable
+ * User-Agent. The UI debounce already keeps well within that, and every
+ * result goes to the local cache - decks already used keep working offline.
  */
 
 const API = 'https://api.scryfall.com';
-const CACHE_KEY = chave('mtglc.scryfallCache.v1');
-const CACHE_TTL = 1000 * 60 * 60 * 24 * 30; // 30 dias
-const MIN_INTERVAL = 120; // ms entre chamadas
+const CACHE_KEY = storageKey('mtglc.scryfallCache.v1');
+const CACHE_TTL = 1000 * 60 * 60 * 24 * 30; // 30 days
+const MIN_INTERVAL = 120; // ms between calls
 
 let lastCall = 0;
 let cache = load();
@@ -25,16 +25,16 @@ function load() {
 
 function persist() {
   try {
-    // Mantem o cache enxuto: as 200 buscas mais recentes bastam.
+    // Keeps the cache lean: the 200 most recent searches are enough.
     const entries = Object.entries(cache).sort((a, b) => b[1].ts - a[1].ts).slice(0, 200);
     cache = Object.fromEntries(entries);
     localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
   } catch {
-    /* cota estourada: seguir sem cache e melhor que quebrar a busca */
+    /* quota exceeded: carrying on without a cache beats breaking the search */
   }
 }
 
-/** Reduz o card da Scryfall ao minimo que o app precisa guardar. */
+/** Reduces the Scryfall card to the minimum the app needs to keep. */
 function toCommander(card) {
   const face = card.card_faces && card.card_faces[0] && card.card_faces[0].image_uris
     ? card.card_faces[0]
@@ -52,8 +52,8 @@ function toCommander(card) {
 }
 
 /**
- * Procura comandantes legais por nome.
- * Retorna [] quando nao ha resultado (a Scryfall responde 404 nesse caso).
+ * Searches legal commanders by name.
+ * Returns [] when there is no result (Scryfall answers 404 in that case).
  */
 export async function searchCommanders(query, { signal } = {}) {
   const q = String(query || '').trim();
@@ -67,9 +67,9 @@ export async function searchCommanders(query, { signal } = {}) {
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   lastCall = Date.now();
 
-  // order=edhrec + dir=asc: rank menor = mais jogado, entao o comandante que a
-  // pessoa provavelmente quer aparece na primeira linha. Com dir=desc a lista
-  // vem exatamente ao contrario.
+  // order=edhrec + dir=asc: a lower rank = more played, so the commander the
+  // person probably wants shows up on the first row. With dir=desc the list
+  // comes exactly the other way around.
   const url =
     API +
     '/cards/search?q=' +
@@ -82,7 +82,7 @@ export async function searchCommanders(query, { signal } = {}) {
     persist();
     return [];
   }
-  if (!res.ok) throw new Error('Scryfall respondeu ' + res.status);
+  if (!res.ok) throw new Error('Scryfall responded ' + res.status);
 
   const data = await res.json();
   const results = (data.data || []).slice(0, 24).map(toCommander);
@@ -91,7 +91,7 @@ export async function searchCommanders(query, { signal } = {}) {
   return results;
 }
 
-/** Falha silenciosa: sem rede, a UI cai nos decks ja salvos. */
+/** Silent failure: with no network, the UI falls back to the saved decks. */
 export function isOffline() {
   return typeof navigator !== 'undefined' && navigator.onLine === false;
 }

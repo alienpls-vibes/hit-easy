@@ -1,30 +1,32 @@
 /**
- * A home: a tela que monta a mesa.
+ * The home screen: the screen that sets up the table.
  *
- * Desenha o cabecalho, a vida inicial, a lista de assentos e o botao de
- * comecar - e nada mais. Cada peca da lista vem de um arquivo proprio desta
- * pasta, entao mexer no cartao do jogador nao passa por aqui.
+ * It draws the header, the starting life, the list of seats and the start
+ * button - and nothing else. Each piece of the list comes from its own file in
+ * this folder, so changing the player card does not go through here.
  *
- * A partida so comeca quando todo assento tem comandante: e o comandante que
- * amarra a estatistica ao deck.
+ * The match only starts when every seat has a commander: the commander is
+ * what ties the statistics to the deck.
  */
 
 import { el, clear, icon, brandMark, buzz, toast } from '../../ui.js';
 import { t } from '../../i18n.js';
 import { state as installState, promptInstall } from '../../install.js';
-import { openPreGame } from './antes-de-comecar.js';
-import { bindReorder, seatCard } from './cartao-jogador.js';
-import { openSettings } from './configuracoes.js';
-import { abrirInstalarNoIOS } from './instalar.js';
-import { convitesBanner } from './convites.js';
+import { openPreGame } from './pre-game.js';
+import { bindReorder, seatCard } from './seat-card.js';
+import { openSettings } from './settings.js';
+import { openIOSInstall } from './install.js';
+import { invitesBanner } from './invites.js';
 import {
-  continuarMesaBanner, mesaPassadaBanner, receberMesaBotao,
-} from './passar-mesa.js';
+  resumeTableBanner, handedOffBanner, receiveTableButton,
+} from './pass-table.js';
 import {
   LIFE_PRESETS, MAX_SEATS, ensureDraft, freshSeat,
-} from './rascunho.js';
+} from './draft.js';
 
-export function renderSetup(root, { onStart, onStats, onRefresh, onAbrirMesa }) {
+export function renderSetup(root, {
+  onStart, onStats, onRefresh, onOpenTable,
+}) {
   const d = ensureDraft();
   clear(root);
 
@@ -38,17 +40,17 @@ export function renderSetup(root, { onStart, onStats, onRefresh, onAbrirMesa }) 
       seatList.append(
         el('button', { class: 'seat-add', onClick: () => {
           d.seats.push(freshSeat(d.seats.length));
-          d.layoutId = null; // a disposicao muda com a quantidade de gente
+          d.layoutId = null; // the arrangement changes with the number of people
           refresh();
         } }, [icon('plus'), t('setup.addPlayer')]),
       );
     }
     bindReorder(seatList, d, refresh);
 
-    const faltam = d.seats.filter((s) => !s.commanders.length).length;
-    startBtn.disabled = faltam > 0;
-    startBtn.textContent = faltam
-      ? (faltam === 1 ? t('setup.missingCommander') : t('setup.missingCommanders', { n: faltam }))
+    const missing = d.seats.filter((s) => !s.commanders.length).length;
+    startBtn.disabled = missing > 0;
+    startBtn.textContent = missing
+      ? (missing === 1 ? t('setup.missingCommander') : t('setup.missingCommanders', { n: missing }))
       : t('setup.startMatch');
   };
 
@@ -63,16 +65,17 @@ export function renderSetup(root, { onStart, onStats, onRefresh, onAbrirMesa }) 
           ]),
         ]),
         el('div', { class: 'head-actions' }, [
-          // Aparece quando o navegador diz que dá para instalar agora - e no
-          // iPhone, onde ele nunca diz: lá o botão abre o passo a passo, porque
-          // esconder a opção era o que fazia parecer que não dava para instalar.
+          // Shows when the browser says the app can be installed now - and on
+          // the iPhone, where it never says so: there the button opens the
+          // step by step, because hiding the option is what made it look like
+          // it could not be installed.
           installState().mode === 'ios'
             ? el('button', {
                 class: 'icon-btn is-install',
                 'aria-label': t('setup.installApp'),
-                onClick: abrirInstalarNoIOS,
+                onClick: openIOSInstall,
               }, [icon('download')])
-            : installState().mode === 'pronto'
+            : installState().mode === 'ready'
             ? el('button', {
                 class: 'icon-btn is-install',
                 'aria-label': t('setup.installApp'),
@@ -88,18 +91,18 @@ export function renderSetup(root, { onStart, onStats, onRefresh, onAbrirMesa }) 
         ]),
       ]),
 
-      // Logo abaixo do cabeçalho: é a primeira coisa depois do nome do app,
-      // que é onde um aviso é visto sem precisar rolar nada.
-      convitesBanner(onRefresh),
+      // Right below the header: it is the first thing after the app name,
+      // which is where a notice is seen without scrolling.
+      invitesBanner(onRefresh),
 
-      // A mesa que saiu deste aparelho. Mesmo lugar e mesmo motivo: quem
-      // passou a mesa e voltou aqui precisa entender por que o jogo sumiu,
-      // sem procurar.
-      mesaPassadaBanner(onRefresh, onAbrirMesa),
+      // The table that left this device. Same place and same reason: whoever
+      // passed the table and came back here needs to understand why the game
+      // vanished, without looking for it.
+      handedOffBanner(onRefresh, onOpenTable),
 
-      // Partida aberta que a home encontrou: oferece entrar. So aparece
-      // quando o estado existe, e normalmente ele nao existe.
-      continuarMesaBanner(onAbrirMesa),
+      // An open match the home screen found: offers to go in. It only shows
+      // when that state exists, and normally it does not.
+      resumeTableBanner(onOpenTable),
 
       el('div', { class: 'field-row setup-life' }, [
         el('span', { class: 'label' }, [t('setup.startingLife')]),
@@ -123,14 +126,15 @@ export function renderSetup(root, { onStart, onStats, onRefresh, onAbrirMesa }) 
       seatList,
       el('div', { class: 'setup-foot' }, [
         startBtn,
-        // Dentro do rodapé de propósito: ele já tem área no grid da versão
-        // deitada, então a assinatura acompanha sem mexer no layout.
-        // Não entra no dicionário de idiomas — apelido não se traduz.
-        // Receber uma mesa fica no pé, e não no cabeçalho: é raro, e quem
-        // precisa dele sabe que precisa - alguém acabou de dizer "te mandei a
-        // partida". Pôr no alto custaria espaço permanente por um uso
-        // ocasional.
-        receberMesaBotao(onAbrirMesa),
+        // Inside the footer on purpose: it already has an area in the grid of
+        // the lying-down version, so the signature follows without touching
+        // the layout. It is not in the language dictionary - a nickname is not
+        // translated.
+        // Receiving a table sits in the footer, not the header: it is rare,
+        // and whoever needs it knows they need it - someone just said "I sent
+        // you the match". Putting it at the top would cost permanent space for
+        // an occasional use.
+        receiveTableButton(onOpenTable),
         el('p', { class: 'signature', text: 'designed by @AlienPls' }),
       ]),
     ]),

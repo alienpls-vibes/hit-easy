@@ -1,22 +1,25 @@
 -- =====================================================================
--- Hit Easy — esquema do banco (Supabase / Postgres)
+-- Hit Easy — database schema (Supabase / Postgres)
 --
--- Rode isto no SQL Editor do Supabase, de uma vez. É idempotente:
--- rodar duas vezes não quebra nada.
+-- Run this in the Supabase SQL Editor, all at once. It is idempotent:
+-- running it twice breaks nothing.
 --
--- A ideia central: o bloqueio NÃO fica no aplicativo, fica aqui.
--- Uma política de linha (RLS) decide quem lê o quê, e o Postgres a
--- aplica em toda consulta, venha ela de onde vier. Não há "if" no
--- JavaScript para alguém remover pelo devtools.
+-- The central idea: the lock does NOT live in the app, it lives here.
+-- A row-level policy (RLS) decides who reads what, and Postgres applies
+-- it to every query, wherever it comes from. There is no "if" in the
+-- JavaScript for someone to remove through devtools.
+--
+-- Table, column, policy and function names are part of the live
+-- database and stay as they are (several are in Portuguese).
 -- =====================================================================
 
 
 -- ---------------------------------------------------------------------
--- Assinaturas
+-- Subscriptions
 --
--- Preenchida pelo webhook do Stripe, nunca pelo aplicativo: por isso ela
--- não tem política de escrita para o usuário comum. Quem grava aqui é a
--- chave de serviço, que vive no servidor e nunca chega ao navegador.
+-- Filled by the Stripe webhook, never by the app: that is why it has no
+-- write policy for a regular user. What writes here is the service key,
+-- which lives on the server and never reaches the browser.
 -- ---------------------------------------------------------------------
 create table if not exists public.subscriptions (
   user_id             uuid primary key references auth.users on delete cascade,
@@ -28,8 +31,8 @@ create table if not exists public.subscriptions (
 
 alter table public.subscriptions enable row level security;
 
--- A pessoa pode VER a própria assinatura (a interface precisa mostrar o
--- estado), mas não pode alterá-la. Nenhuma política de insert/update.
+-- The person can SEE their own subscription (the interface needs to show
+-- the state), but cannot change it. No insert/update policy.
 drop policy if exists "ler a propria assinatura" on public.subscriptions;
 create policy "ler a propria assinatura"
   on public.subscriptions for select
@@ -37,11 +40,11 @@ create policy "ler a propria assinatura"
 
 
 -- ---------------------------------------------------------------------
--- Quem tem acesso agora
+-- Who has access right now
 --
--- security definer para conseguir ler subscriptions ignorando o RLS -
--- senão a função enxergaria só a própria linha e não serviria como
--- portão. O search_path fixo evita sequestro por schema.
+-- security definer so it can read subscriptions bypassing RLS -
+-- otherwise the function would only see its own row and would not work
+-- as a gate. The fixed search_path prevents schema hijacking.
 -- ---------------------------------------------------------------------
 create or replace function public.is_subscriber(uid uuid)
 returns boolean
@@ -55,23 +58,24 @@ as $$
       from public.subscriptions s
      where s.user_id = uid
        and s.status = 'active'
-       -- Tolerância de um dia: falha de cartão não deve derrubar o
-       -- acesso antes de o Stripe tentar de novo.
+       -- One day of grace: a card failure should not drop access before
+       -- Stripe tries again.
        and (s.current_period_end is null or s.current_period_end > now() - interval '1 day')
   );
 $$;
 
 
 -- ---------------------------------------------------------------------
--- Partidas
+-- Matches
 --
--- `payload` guarda a partida inteira em JSON - assentos e log de eventos.
--- Sem normalizar de propósito: o aplicativo já trata a partida como um
--- log fechado, e toda estatística é derivada dele no cliente. Normalizar
--- só valeria se houvesse consulta por evento no servidor.
+-- `payload` keeps the whole match as JSON - seats and event log. Not
+-- normalized on purpose: the app already treats the match as a closed
+-- log, and every statistic is derived from it on the client.
+-- Normalizing would only be worth it if there were per-event queries on
+-- the server.
 --
--- `id` é o mesmo identificador que o aplicativo já gera, então enviar
--- duas vezes a mesma partida é conflito de chave, não duplicata.
+-- `id` is the same identifier the app already generates, so sending the
+-- same match twice is a key conflict, not a duplicate.
 -- ---------------------------------------------------------------------
 create table if not exists public.matches (
   id          text primary key,
@@ -86,39 +90,41 @@ create index if not exists matches_owner_started_idx
 
 alter table public.matches enable row level security;
 
--- GRAVAR não exige assinatura, de propósito.
+-- WRITING does not require a subscription, on purpose.
 --
--- Quem ainda não assina continua jogando e as partidas continuam sendo
--- guardadas. Ninguém perde histórico por não ter pago - só não consegue
--- ler de volta ainda. Apagar dados de alguém seria a escolha hostil, e
--- ainda por cima criaria um problema quando a pessoa assinasse depois.
+-- Whoever does not subscribe yet keeps playing and the matches keep
+-- being stored. Nobody loses history for not having paid - they just
+-- cannot read it back yet. Deleting someone's data would be the hostile
+-- choice, and on top of that would create a problem when the person
+-- subscribed later.
 drop policy if exists "gravar as proprias partidas" on public.matches;
 create policy "gravar as proprias partidas"
   on public.matches for insert
   with check (auth.uid() = owner);
 
--- LER exige assinatura ativa. É este o portão, e é o Postgres que o aplica.
+-- READING requires an active subscription. This is the gate, and
+-- Postgres is what applies it.
 drop policy if exists "ler as proprias partidas assinando" on public.matches;
 create policy "ler as proprias partidas assinando"
   on public.matches for select
   using (auth.uid() = owner and public.is_subscriber(auth.uid()));
 
--- APAGAR nunca exige assinatura: é direito sobre o próprio dado (LGPD),
--- e não pode ficar atrás de um pagamento.
+-- DELETING never requires a subscription: it is a right over your own
+-- data (LGPD), and cannot sit behind a payment.
 drop policy if exists "apagar as proprias partidas" on public.matches;
 create policy "apagar as proprias partidas"
   on public.matches for delete
   using (auth.uid() = owner);
 
--- Partida encerrada é imutável. Sem política de update: o histórico não
--- se reescreve, e é isso que faz a estatística ser confiável.
+-- A finished match is immutable. No update policy: the history is not
+-- rewritten, and that is what makes the statistics trustworthy.
 
 
 -- ---------------------------------------------------------------------
--- Preferências da conta
+-- Account preferences
 --
--- Decks e jogadores ocultos: são escolha da pessoa, não dado de partida,
--- e precisam acompanhar a conta entre aparelhos.
+-- Hidden decks and players: they are the person's choice, not match
+-- data, and need to follow the account across devices.
 -- ---------------------------------------------------------------------
 create table if not exists public.preferences (
   user_id     uuid primary key references auth.users on delete cascade,

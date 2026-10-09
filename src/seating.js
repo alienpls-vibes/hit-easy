@@ -1,36 +1,40 @@
 /**
- * Disposicao dos assentos na mesa.
+ * Seat arrangement at the table.
  *
- * Separado da view de proposito: e dado puro, sem DOM, e por isso da para
- * TESTAR a propriedade que realmente importa - a ordem dos assentos, que e a
- * ordem dos turnos, precisa correr no sentido horario visto de cima.
+ * Kept apart from the view on purpose: it is pure data, no DOM, and that is why
+ * the property that really matters can be TESTED - the seat order, which is
+ * the turn order, has to run clockwise seen from above.
  *
- * Horario e o certo porque em Commander a vez passa para o vizinho da
- * esquerda, e como todo mundo olha para o centro da mesa, "a esquerda de cada
- * um" desenha um giro horario na vista de cima.
+ * Clockwise is right because in Commander the turn passes to the neighbor on
+ * the left, and since everyone looks at the center of the table, "each one's
+ * left" draws a clockwise turn seen from above.
  *
- * A volta comeca no alto a esquerda, com o aparelho deitado: e onde se comeca
- * a ler, e e onde quem montou a mesa procura o jogador 1. Ate a 1.8 ela
- * comecava embaixo a esquerda - ver ASSENTOS_ANTIGOS.
+ * The round starts at the top left, with the device lying down: it is where
+ * reading starts, and where whoever set up the table looks for player 1. Until
+ * 1.8 it started at the bottom left - see LEGACY_SEATS.
  *
- * Com 2, 3 e 5 a forma deitada vem primeiro, e e o padrao: a mesa foi pensada
- * para o aparelho deitado no meio do grupo.
+ * With 2, 3 and 5 the lying-down shape comes first, and it is the default: the
+ * table was designed for the device lying in the middle of the group.
  *
- * Com 2, 3 e 5 jogadores a escolha e da pessoa, e a pergunta que ela responde
- * e concreta: o aparelho vai ficar EM PE ou DEITADO no meio da mesa? Era essa
- * a decisao real o tempo todo - "2 embaixo, 1 em cima" descrevia a consequencia
- * de uma escolha que ninguem tinha feito ainda. Cada variante dessas declara
- * `orient`, e a partida passa a pedir essa orientacao.
+ * With 2, 3 and 5 players the choice is the person's, and the question it
+ * answers is concrete: will the device STAND UP or LIE DOWN in the middle of
+ * the table? That was the real decision all along - "2 below, 1 above"
+ * described the consequence of a choice nobody had made yet. Each of these
+ * variants declares `orient`, and the match then requests that orientation.
  *
- * Com 4 e 6 nao ha o que escolher: quatro e simetrico, e seis e tres de cada
- * lado. Essas duas seguem se adaptando sozinhas pela proporcao da tela, e por
- * isso ainda usam `land` - a grade 2x3 que serve o retrato vira tres colunas
- * por duas linhas na paisagem, senao os paineis ficam altos e estreitos e o
- * numero de vida nao cabe.
+ * With 4 and 6 there is nothing to choose: four is symmetric, and six is three
+ * on each side. Those two keep adapting by themselves to the screen ratio, and
+ * that is why they still use `land` - the 2x3 grid that serves portrait
+ * becomes three columns by two rows in landscape, otherwise the panels end up
+ * tall and narrow and the life number does not fit.
  *
- * Quem esta do outro lado da mesa aparece de cabeca para baixo (rot 180) para
- * ler o proprio painel sem girar o aparelho. So usamos 0 e 180: virar um
- * painel de lado deixaria o nome e o numero deitados.
+ * Whoever is on the other side of the table shows up upside down (rot 180) to
+ * read their own panel without rotating the device. We only use 0 and 180:
+ * turning a panel sideways would leave the name and the number lying down.
+ *
+ * The variant ids ('paisagem', 'retrato', 'padrao', and the legacy ones in
+ * LEGACY_IDS) are stored in each match as `layoutId`, so they keep their
+ * Portuguese names.
  */
 
 export const LAYOUTS = {
@@ -38,9 +42,9 @@ export const LAYOUTS = {
     id: 'paisagem',
     orient: 'landscape',
     labelKey: 'layout.landscape',
-    // Uma pilha de dois, larga e baixa. Duas pessoas de frente uma para a
-    // outra ficam nos lados opostos do aparelho de qualquer jeito; o que muda
-    // entre as variantes e o formato do painel de cada uma.
+    // A stack of two, wide and short. Two people facing each other end up on
+    // opposite sides of the device anyway; what changes between the variants
+    // is the shape of each one's panel.
     cols: 1, rows: 2,
     seats: [{ r: 1, c: 1, rot: 180 }, { r: 2, c: 1, rot: 0 }],
   }, {
@@ -55,7 +59,8 @@ export const LAYOUTS = {
     id: 'paisagem',
     orient: 'landscape',
     labelKey: 'layout.landscape',
-    // Deitado, sobra largura: duas do lado de la, uma ocupando a faixa de ca.
+    // Lying down, there is width to spare: two on the far side, one taking
+    // the whole near strip.
     cols: 2, rows: 2,
     seats: [
       { r: 1, c: 1, rot: 180 },
@@ -66,7 +71,8 @@ export const LAYOUTS = {
     id: 'retrato',
     orient: 'portrait',
     labelKey: 'layout.portrait',
-    // Em pe, sobra altura: uma pessoa do lado de la, duas do lado de ca.
+    // Standing up, there is height to spare: one person on the far side, two
+    // on the near side.
     cols: 2, rows: 2,
     seats: [
       { r: 1, c: 1, cs: 2, rot: 180 },
@@ -91,9 +97,9 @@ export const LAYOUTS = {
     id: 'paisagem',
     orient: 'landscape',
     labelKey: 'layout.landscape',
-    // Tres colunas por duas linhas: tres do lado de la, dois do lado de ca.
-    // Em pe esta forma daria paineis altos e estreitos, e o numero de vida nao
-    // caberia - por isso ela so existe deitada.
+    // Three columns by two rows: three on the far side, two on the near side.
+    // Standing up this shape would give tall, narrow panels, and the life
+    // number would not fit - that is why it only exists lying down.
     cols: 3, rows: 2,
     seats: [
       { r: 1, c: 1, rot: 180 },
@@ -106,7 +112,7 @@ export const LAYOUTS = {
     id: 'retrato',
     orient: 'portrait',
     labelKey: 'layout.portrait',
-    // Duas colunas por tres linhas. A celula vaga e onde o nucleo central cai.
+    // Two columns by three rows. The empty cell is where the central core goes.
     cols: 2, rows: 3,
     seats: [
       { r: 1, c: 1, rot: 180 },
@@ -144,16 +150,17 @@ export const LAYOUTS = {
 };
 
 /**
- * Onde cada assento sentava ate a 1.8: o jogador 1 embaixo a esquerda.
+ * Where each seat sat until 1.8: player 1 at the bottom left.
  *
- * So partida que comecou antes da troca usa isto - ela nao tem `assentos` - e
- * existe pelo mesmo motivo de APELIDOS: o app atualiza no meio de um jogo, e
- * redesenhar a mesa com a ordem nova trocaria todo mundo de lugar sem aviso.
- * O giro e o mesmo; muda so em que cadeira a volta comeca.
+ * Only a match that started before the change uses this - it has no
+ * `assentos` - and it exists for the same reason as LEGACY_IDS: the app updates
+ * in the middle of a game, and redrawing the table in the new order would swap
+ * everyone's places without warning. The rotation is the same; only the seat
+ * where the round starts changes.
  *
- * Chave `n:id`, e `n:id:land` para a forma deitada.
+ * Key `n:id`, and `n:id:land` for the lying-down shape.
  */
-const ASSENTOS_ANTIGOS = {
+const LEGACY_SEATS = {
   '2:paisagem': [[2, 1, 0], [1, 1, 180]],
   '2:retrato': [[2, 1, 0], [1, 1, 180]],
   '3:paisagem': [[2, 1, 0, 2], [1, 1, 180], [1, 2, 180]],
@@ -165,95 +172,104 @@ const ASSENTOS_ANTIGOS = {
   '6:padrao:land': [[2, 1, 0], [1, 1, 180], [1, 2, 180], [1, 3, 180], [2, 3, 0], [2, 2, 0]],
 };
 
-/** Como a partida guarda que ja nasceu com o jogador 1 no alto a esquerda. */
-export const ASSENTOS_DO_TOPO = 'topo';
+/**
+ * How the match records that it was born with player 1 at the top left. The
+ * value is stored in the match's `assentos` field: do not translate.
+ */
+export const SEATS_FROM_TOP = 'topo';
 
-function assentosAntigos(chave) {
-  const lista = ASSENTOS_ANTIGOS[chave];
-  if (!lista) return null;
-  return lista.map(([r, c, rot, cs]) => (cs ? { r, c, cs, rot } : { r, c, rot }));
+function legacySeats(key) {
+  const list = LEGACY_SEATS[key];
+  if (!list) return null;
+  return list.map(([r, c, rot, cs]) => (cs ? { r, c, cs, rot } : { r, c, rot }));
 }
 
-/** Todas as variantes para essa quantidade de jogadores. */
+/** All the variants for this number of players. */
 export function variantsFor(seatCount) {
   return LAYOUTS[seatCount] || LAYOUTS[4];
 }
 
 /**
- * Nomes antigos de variante.
+ * Old variant names.
  *
- * Partida salva - e partida EM ANDAMENTO - guarda o id que existia quando ela
- * comecou. Sem isto, atualizar o app no meio de um jogo de tres jogadores
- * jogaria a mesa no padrao e trocaria as pessoas de lugar, sem aviso.
+ * A saved match - and a match IN PROGRESS - keeps the id that existed when it
+ * started. Without this, updating the app in the middle of a three-player game
+ * would throw the table into the default and swap people's places, without
+ * warning.
  *
- * Tres dos quatro casos caem no arranjo identico ao antigo; so o '3-2' de cinco
- * nao tem equivalente exato, e vai para a forma deitada, que e a mais parecida.
+ * Three of the four cases land on the exact same arrangement as before; only
+ * five-player '3-2' has no exact equivalent, and goes to the lying-down shape,
+ * which is the closest.
  */
-const APELIDOS = {
-  '2-1': 'retrato',    // 3: duas embaixo, uma em cima - mesmo desenho
-  '1-2': 'paisagem',   // 3: uma embaixo, duas em cima - mesmo desenho
-  volta: 'retrato',    // 5: duas colunas por tres linhas - mesmo desenho
-  '3-2': 'paisagem',   // 5: sem equivalente exato; a deitada e a mais proxima
+const LEGACY_IDS = {
+  '2-1': 'retrato',    // 3: two below, one above - same drawing
+  '1-2': 'paisagem',   // 3: one below, two above - same drawing
+  volta: 'retrato',    // 5: two columns by three rows - same drawing
+  '3-2': 'paisagem',   // 5: no exact equivalent; lying down is the closest
 };
 
-/** A variante escolhida, caindo na primeira quando o id nao existe mais. */
+/** The chosen variant, falling back to the first when the id no longer exists. */
 export function variant(seatCount, id) {
   const list = variantsFor(seatCount);
-  const alvo = APELIDOS[id] || id;
-  return list.find((l) => l.id === alvo) || list[0];
+  const target = LEGACY_IDS[id] || id;
+  return list.find((l) => l.id === target) || list[0];
 }
 
 /**
- * A forma concreta a desenhar: a mesma variante, na versao em pe ou deitada.
- * `wide` vem da proporcao real da tela, nao do angulo do aparelho - o que
- * importa e se ha mais largura que altura para distribuir.
+ * The concrete shape to draw: the same variant, in its standing or lying-down
+ * version. `wide` comes from the real screen ratio, not the device angle -
+ * what matters is whether there is more width than height to distribute.
  */
-export function layoutFor(seatCount, id, wide = false, assentos = ASSENTOS_DO_TOPO) {
+export function layoutFor(seatCount, id, wide = false, seatOrder = SEATS_FROM_TOP) {
   const v = variant(seatCount, id);
-  // Variante que JA declara orientacao nao troca de forma com a tela: foi a
-  // pessoa que disse como o aparelho fica na mesa, e o app e que deve seguir a
-  // escolha dela - nao adivinhar pela proporcao e desmentir o que ela pediu.
-  const deitada = !v.orient && wide && v.land;
-  const shape = deitada ? v.land : v;
-  const antigos = assentos === ASSENTOS_DO_TOPO
+  // A variant that ALREADY declares an orientation does not change shape with
+  // the screen: the person said how the device sits on the table, and the app
+  // must follow that choice - not guess from the ratio and contradict what
+  // they asked for.
+  const lyingDown = !v.orient && wide && v.land;
+  const shape = lyingDown ? v.land : v;
+  const legacy = seatOrder === SEATS_FROM_TOP
     ? null
-    : assentosAntigos(seatCount + ':' + v.id + (deitada ? ':land' : ''));
+    : legacySeats(seatCount + ':' + v.id + (lyingDown ? ':land' : ''));
   return {
     id: v.id,
     labelKey: v.labelKey,
     orient: v.orient || null,
     cols: shape.cols,
     rows: shape.rows,
-    seats: antigos || shape.seats,
+    seats: legacy || shape.seats,
   };
 }
 
 /**
- * A forma que a mesa desta partida desenha.
+ * The shape this match's table draws.
  *
- * Partida sem `assentos` comecou antes de o jogador 1 ir para o alto, e segue
- * na ordem com que comecou.
+ * A match without `assentos` started before player 1 moved to the top, and
+ * keeps the order it started with.
  */
-export function layoutDaPartida(match, wide = false) {
-  return layoutFor(match.seats.length, match.layoutId, wide, match.assentos || 'antigos');
+export function layoutOfMatch(match, wide = false) {
+  return layoutFor(match.seats.length, match.layoutId, wide, match.assentos || 'legacy');
 }
 
 /**
- * Como o aparelho deve ficar nesta mesa.
+ * How the device should sit at this table.
  *
- * `null` quando a variante nao se importa - com 4 ou 6 a forma se adapta
- * sozinha, e travar a orientacao ali so tiraria liberdade de quem joga.
+ * `null` when the variant does not care - with 4 or 6 the shape adapts by
+ * itself, and locking the orientation there would only take freedom away from
+ * the players.
  */
 export function orientOf(seatCount, id) {
   return variant(seatCount, id).orient || null;
 }
 
-/** As formas de uma variante (uma ou duas), para varrer nos testes. */
+/** The shapes of a variant (one or two), to sweep in the tests. */
 export function shapesOf(v) {
-  return v.land ? [{ nome: 'retrato', shape: v }, { nome: 'paisagem', shape: v.land }] : [{ nome: 'única', shape: v }];
+  return v.land
+    ? [{ name: 'portrait', shape: v }, { name: 'landscape', shape: v.land }]
+    : [{ name: 'single', shape: v }];
 }
 
-/** Centro do assento na grade, em fracao de 0 a 1. */
+/** Center of the seat in the grid, as a fraction from 0 to 1. */
 export function seatCenter(spec, layout) {
   const colSpan = spec.cs || 1;
   return {
@@ -263,9 +279,9 @@ export function seatCenter(spec, layout) {
 }
 
 /**
- * Angulo do assento em relacao ao centro da mesa, em graus de 0 a 360.
- * Coordenada de tela tem Y para baixo, entao angulo CRESCENTE = sentido
- * horario - que e exatamente a propriedade que queremos verificar.
+ * Angle of the seat relative to the center of the table, in degrees from 0 to
+ * 360. Screen coordinates have Y pointing down, so an INCREASING angle =
+ * clockwise - which is exactly the property we want to check.
  */
 export function seatAngle(spec, layout) {
   const { x, y } = seatCenter(spec, layout);

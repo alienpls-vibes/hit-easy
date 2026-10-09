@@ -1,27 +1,27 @@
 /**
- * Instalar o app a partir do navegador.
+ * Installing the app from the browser.
  *
- * O Chrome (Android e desktop) dispara `beforeinstallprompt` quando a pagina e
- * instalavel; guardamos o evento e o disparamos de volta quando o usuario
- * pedir. So ha um convite por visita, e ele so aparece se:
+ * Chrome (Android and desktop) fires `beforeinstallprompt` when the page is
+ * installable; we keep the event and fire it back when the user asks. There is
+ * only one prompt per visit, and it only shows up if:
  *
- *   - a pagina esta em https:// ou localhost (pelo IP da rede, nao aparece);
- *   - ha manifest valido e service worker registrado;
- *   - o app ainda nao esta instalado.
+ *   - the page is on https:// or localhost (over the network IP, it does not);
+ *   - there is a valid manifest and a registered service worker;
+ *   - the app is not installed yet.
  *
- * O Safari do iPhone nao implementa nada disso: la e Compartilhar > Adicionar a
- * Tela de Inicio, na mao. Por isso `state()` devolve o motivo, e nao so um
- * booleano - a tela precisa dizer o que fazer em cada caso, em vez de esconder
- * a opcao e deixar a pessoa sem saida.
+ * iPhone Safari implements none of this: there it is Share > Add to Home
+ * Screen, by hand. That is why `state()` returns the reason, and not just a
+ * boolean - the screen has to say what to do in each case, instead of hiding
+ * the option and leaving the person with no way out.
  */
 
 /**
- * O evento pode ter chegado antes deste modulo existir.
+ * The event may have arrived before this module existed.
  *
- * index.html guarda `beforeinstallprompt` numa gaveta desde o primeiro
- * instante da pagina, justamente porque o Chrome costuma dispara-lo antes de os
- * modulos terminarem de carregar. Ler a gaveta aqui e o que transforma o botao
- * de instalar de intermitente em confiavel.
+ * index.html keeps `beforeinstallprompt` in a drawer from the page's very
+ * first instant, precisely because Chrome tends to fire it before the modules
+ * finish loading. Reading the drawer here is what turns the install button
+ * from intermittent into reliable.
  */
 let deferred = (typeof window !== 'undefined' && window.__hitEasyInstall) || null;
 const listeners = new Set();
@@ -32,7 +32,7 @@ function notify() {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault(); // o convite e nosso, na hora que a pessoa pedir
+    e.preventDefault(); // the prompt is ours, when the person asks for it
     deferred = e;
     notify();
   });
@@ -48,41 +48,41 @@ export function onInstallChange(fn) {
   return () => listeners.delete(fn);
 }
 
-// Os testes montam as views sem navegador: nenhuma destas checagens pode
-// explodir onde `window` ou `navigator` nao existem.
-function isIOS() {
+// The tests mount the views without a browser: none of these checks can blow
+// up where `window` or `navigator` do not exist.
+function detectIOS() {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent || '';
-  // iPad moderno se anuncia como Mac; o toque e o que o denuncia.
+  // A modern iPad announces itself as a Mac; touch is what gives it away.
   return /iphone|ipad|ipod/i.test(ua)
     || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
 }
 
 /**
- * Em que navegador do iPhone a pagina esta aberta.
+ * Which iPhone browser the page is open in.
  *
- * Importa porque o caminho muda: no Safari e Compartilhar > Adicionar a Tela
- * de Inicio; no Chrome e no Edge do iOS 16.4 em diante tambem existe, pelo
- * compartilhar da barra de endereco; e dentro de outro app (Instagram,
- * Facebook, o navegador do app do Google) nao existe de jeito nenhum - a
- * pessoa precisa sair para um navegador de verdade, e a tela tem de dizer isso
- * em vez de mandar procurar um botao que nao esta la.
+ * It matters because the path changes: in Safari it is Share > Add to Home
+ * Screen; in Chrome and Edge from iOS 16.4 on it also exists, through the
+ * address bar's share; and inside another app (Instagram, Facebook, the
+ * Google app's browser) it does not exist at all - the person has to go out to
+ * a real browser, and the screen has to say so instead of sending them to look
+ * for a button that is not there.
  *
- * Devolve 'safari' | 'outro' | 'embutido'. Recebe o user agent para o teste.
+ * Returns 'safari' | 'other' | 'in-app'. Takes the user agent for the test.
  */
-export function navegadorDoIOS(ua) {
-  const agente = ua !== undefined ? ua
+export function iosBrowser(ua) {
+  const agent = ua !== undefined ? ua
     : (typeof navigator !== 'undefined' && navigator.userAgent) || '';
-  if (/FBAN|FBAV|FB_IAB|Instagram|LinkedInApp|Line\/|TikTok|musical_ly|Snapchat|GSA\/|Twitter/i.test(agente)) {
-    return 'embutido';
+  if (/FBAN|FBAV|FB_IAB|Instagram|LinkedInApp|Line\/|TikTok|musical_ly|Snapchat|GSA\/|Twitter/i.test(agent)) {
+    return 'in-app';
   }
-  if (/CriOS|FxiOS|EdgiOS|OPiOS|OPT\/|DuckDuckGo|YaBrowser/i.test(agente)) return 'outro';
+  if (/CriOS|FxiOS|EdgiOS|OPiOS|OPT\/|DuckDuckGo|YaBrowser/i.test(agent)) return 'other';
   return 'safari';
 }
 
-/** E iPhone ou iPad? Exportado para as telas esconderem o que la nao existe. */
-export function ehIOS() {
-  return isIOS();
+/** iPhone or iPad? Exported so screens can hide what does not exist there. */
+export function isIOS() {
+  return detectIOS();
 }
 
 function isInstalled() {
@@ -95,29 +95,29 @@ function isSecure() {
 }
 
 /**
- * Situacao atual da instalacao.
- * `mode` e um de: 'instalado' | 'pronto' | 'ios' | 'inseguro' | 'indisponivel'.
+ * The current install situation.
+ * `mode` is one of: 'installed' | 'ready' | 'ios' | 'insecure' | 'unavailable'.
  */
 export function state() {
-  if (isInstalled()) return { mode: 'instalado' };
-  if (deferred) return { mode: 'pronto' };
-  if (isIOS()) return { mode: 'ios' };
-  if (!isSecure()) return { mode: 'inseguro' };
-  return { mode: 'indisponivel' };
+  if (isInstalled()) return { mode: 'installed' };
+  if (deferred) return { mode: 'ready' };
+  if (detectIOS()) return { mode: 'ios' };
+  if (!isSecure()) return { mode: 'insecure' };
+  return { mode: 'unavailable' };
 }
 
-/** Devolve 'accepted', 'dismissed' ou 'indisponivel'. */
+/** Returns 'accepted', 'dismissed' or 'unavailable'. */
 export async function promptInstall() {
-  if (!deferred) return 'indisponivel';
-  const evento = deferred;
-  deferred = null; // so vale uma vez, mesmo que a pessoa recuse
-  // A gaveta tambem: senao um recarregamento de tela leria de novo um evento
-  // ja gasto e ofereceria um botao que nao faz nada.
+  if (!deferred) return 'unavailable';
+  const event = deferred;
+  deferred = null; // it only works once, even if the person declines
+  // The drawer too: otherwise a screen reload would read an already spent
+  // event again and offer a button that does nothing.
   if (typeof window !== 'undefined') window.__hitEasyInstall = null;
   notify();
   try {
-    evento.prompt();
-    const { outcome } = await evento.userChoice;
+    event.prompt();
+    const { outcome } = await event.userChoice;
     return outcome;
   } catch {
     return 'dismissed';
@@ -125,109 +125,114 @@ export async function promptInstall() {
 }
 
 /**
- * Qual build do beta esta rodando.
+ * Which beta build is running.
  *
- * O arquivo e escrito pelo CI na publicacao, e so existe em /beta/. Em
- * producao devolve null: la o numero da versao ja responde a pergunta, porque
- * so muda quando ha publicacao.
+ * The file is written by CI on publish, and only exists in /beta/. In
+ * production it returns null: there the version number already answers the
+ * question, because it only changes when there is a release.
  *
- * `no-store` e o service worker deixando passar: servir isto do cache
- * responderia com o build anterior, que e a unica resposta inutil.
+ * Its fields (`build`, `quando`) are written by the workflow of whichever
+ * branch publishes, so they stay as they are.
+ *
+ * `no-store` and the service worker letting it through: serving this from the
+ * cache would answer with the previous build, the only useless answer.
  */
-export async function buildDoBeta() {
+export async function betaBuild() {
   try {
     const res = await fetch('./build.json', { cache: 'no-store' });
     if (!res.ok) return null;
-    const dado = await res.json();
-    return dado && dado.build ? dado : null;
+    const data = await res.json();
+    return data && data.build ? data : null;
   } catch {
-    return null; // sem rede, ou producao, que nao tem o arquivo
+    return null; // no network, or production, which has no such file
   }
 }
 
 /**
- * Buscar uma versao nova do aplicativo instalado.
+ * Fetches a new version of the installed app.
  *
- * O service worker ja se troca sozinho (skipWaiting no install), mas a PAGINA
- * aberta continua rodando o codigo antigo ate ser recarregada - e um app
- * instalado costuma ficar dias sem nunca ser fechado. Sem este botao, a pessoa
- * relata um defeito ja corrigido e nao ha como pedir que ela "atualize".
+ * The service worker already replaces itself (skipWaiting on install), but the
+ * open PAGE keeps running the old code until it is reloaded - and an installed
+ * app often goes days without ever being closed. Without this button, the
+ * person reports an already fixed defect and there is no way to ask them to
+ * "update".
  *
- * O detalhe que faz isto funcionar ou nao: `reg.update()` resolve quando a
- * CHECAGEM termina, nao quando a instalacao acaba. Recarregar ali recarrega com
- * o worker velho ainda no comando, que serve o shell antigo do cache - o app
- * volta identico e parece que o botao nao fez nada. Por isso esperamos o
- * `controllerchange`, que so dispara quando o worker novo assume de verdade.
+ * The detail that makes this work or not: `reg.update()` resolves when the
+ * CHECK finishes, not when the installation ends. Reloading there reloads with
+ * the old worker still in charge, which serves the old shell from the cache -
+ * the app comes back identical and it looks like the button did nothing. That
+ * is why we wait for `controllerchange`, which only fires when the new worker
+ * really takes over.
  *
- * Devolve 'atualizando' quando ha versao nova, 'atual' quando nao ha.
+ * Returns 'updating' when there is a new version, 'current' when there is not.
  */
-export async function atualizarApp(esperaMax = 10000) {
+export async function updateApp(maxWait = 10000) {
   if (typeof navigator === 'undefined' || !navigator.serviceWorker) {
     if (typeof location !== 'undefined') location.reload();
-    return 'atualizando';
+    return 'updating';
   }
 
   try {
     const reg = await navigator.serviceWorker.getRegistration();
-    if (!reg) { location.reload(); return 'atualizando'; }
+    if (!reg) { location.reload(); return 'updating'; }
 
     await reg.update();
 
-    // Nem instalando nem esperando: nao veio codigo novo.
-    if (!reg.installing && !reg.waiting) return 'atual';
+    // Neither installing nor waiting: no new code came.
+    if (!reg.installing && !reg.waiting) return 'current';
 
     await new Promise((resolve) => {
-      let feito = false;
-      const terminar = () => {
-        if (feito) return;
-        feito = true;
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
         resolve();
       };
-      navigator.serviceWorker.addEventListener('controllerchange', terminar, { once: true });
+      navigator.serviceWorker.addEventListener('controllerchange', finish, { once: true });
 
-      // Worker parado em "waiting" de uma tentativa anterior nao sai de la
-      // sozinho: um empurrao resolve. O install ja chama skipWaiting, entao
-      // isto so importa para o caso preso.
+      // A worker stuck in "waiting" from an earlier attempt does not leave by
+      // itself: a nudge solves it. install already calls skipWaiting, so this
+      // only matters for the stuck case.
       if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
 
-      // Rede ruim nao pode deixar a pessoa presa numa tela travada: passado o
-      // limite, recarrega assim mesmo. No pior caso ela toca de novo.
-      setTimeout(terminar, esperaMax);
+      // A bad network cannot leave the person stuck on a frozen screen: past
+      // the limit, reload anyway. At worst they tap again.
+      setTimeout(finish, maxWait);
     });
 
     location.reload();
-    return 'atualizando';
+    return 'updating';
   } catch {
-    return 'atual';
+    return 'current';
   }
 }
 
 /**
- * Que versao o service worker diz que e.
+ * Which version the service worker says it is.
  *
- * A tela mostra APP_VERSION, que vem do modulo - e o modulo vem do cache. Se o
- * cache estiver velho, a tela mente com toda a confianca do mundo. O worker e
- * a unica parte que o navegador atualiza por fora, entao perguntar a ele revela
- * a divergencia.
+ * The screen shows APP_VERSION, which comes from the module - and the module
+ * comes from the cache. If the cache is stale, the screen lies with all the
+ * confidence in the world. The worker is the only part the browser updates
+ * from outside, so asking it reveals the mismatch.
  *
- * Devolve null quando nao ha worker ou ele nao responde a tempo.
+ * Returns null when there is no worker or it does not answer in time.
  */
-export function versaoDoWorker(esperaMax = 1500) {
+export function workerVersion(maxWait = 1500) {
   if (typeof navigator === 'undefined'
     || !navigator.serviceWorker
     || !navigator.serviceWorker.controller) {
     return Promise.resolve(null);
   }
   return new Promise((resolve) => {
-    let feito = false;
-    const responder = (v) => { if (!feito) { feito = true; resolve(v); } };
+    let done = false;
+    const answer = (v) => { if (!done) { done = true; resolve(v); } };
     try {
-      const canal = new MessageChannel();
-      canal.port1.onmessage = (e) => responder(e.data || null);
-      navigator.serviceWorker.controller.postMessage({ type: 'VERSION' }, [canal.port2]);
-      setTimeout(() => responder(null), esperaMax);
+      const channel = new MessageChannel();
+      channel.port1.onmessage = (e) => answer(e.data || null);
+      navigator.serviceWorker.controller.postMessage({ type: 'VERSION' }, [channel.port2]);
+      setTimeout(() => answer(null), maxWait);
     } catch {
-      responder(null);
+      answer(null);
     }
   });
 }

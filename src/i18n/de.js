@@ -1,13 +1,13 @@
 /**
- * Deutsch.
+ * German.
  *
- * Dicionario plano, chave -> texto, com interpolacao por {nome}. Uma lingua por
- * arquivo: sao ~460 chaves cada, e num arquivo so nao dava para abrir a
- * traducao alema sem rolar por cima das outras tres.
+ * A flat dictionary, key -> text, with {name} interpolation. One language per
+ * file: there are ~460 keys each, and in a single file the German translation
+ * could not be opened without scrolling past the other three.
  *
- * Os testes exigem as quatro linguas com EXATAMENTE o mesmo conjunto de
- * chaves, nenhuma interpolacao perdida e nenhum texto vazio - e o que impede
- * uma traducao esquecida de chegar na mesa.
+ * The tests require all four languages to have EXACTLY the same set of keys,
+ * no lost interpolation and no empty text - that is what keeps a forgotten
+ * translation from reaching the table.
  */
 
 export const DE = {
@@ -395,7 +395,7 @@ export const DE = {
   'pass.shareCode': 'Code senden',
   'pass.copyCode': 'Kopieren',
   'pass.copied': 'Kopiert',
-  'pass.shareText': 'Hit-Easy-Tisch: {codigo}\nIn der App auf "Tisch empfangen" tippen und den Code eingeben. Oder öffnen: {link}',
+  'pass.shareText': 'Hit-Easy-Tisch: {code}\nIn der App auf "Tisch empfangen" tippen und den Code eingeben. Oder öffnen: {link}',
   'pass.receiveCodeTitle': 'Tisch empfangen',
   'pass.receiveCodeSub': 'Gib den Code ein, der auf dem Gerät erschienen ist, das den Tisch weitergegeben hat.',
   'pass.haveFile': 'Ich habe eine Datei',
@@ -405,8 +405,8 @@ export const DE = {
   'pass.codeTaken': 'Dieser Tisch wurde gerade auf einem anderen Gerät empfangen.',
   'pass.codeOffline': 'Keine Verbindung. Versuch es nochmal, oder lass dir den Tisch als Datei geben.',
   'pass.codeServer': 'Der Server hat nicht geantwortet. Versuch es gleich nochmal.',
-  'pass.goneSubCode': 'Code {codigo} · warte auf das andere Gerät',
-  'pass.goneSubArrived': 'Code {codigo} · das andere Gerät hat ihn',
+  'pass.goneSubCode': 'Code {code} · warte auf das andere Gerät',
+  'pass.goneSubArrived': 'Code {code} · das andere Gerät hat ihn',
   'pass.showCode': 'Code zeigen',
   'pass.takeBackReceivedTitle': 'Das andere Gerät hat ihn schon',
   'pass.takeBackReceivedMsg': 'Zurückholen lässt dieselbe Partie auf beiden Geräten offen. Beim Speichern geht eine verloren.',
@@ -455,8 +455,8 @@ export const DE = {
   'account.handleChange': 'Ändern',
   'account.handleCreate': 'Mein @ wählen',
   'account.handleWarn': 'Dein altes @ bleibt deins: niemand sonst kann es nehmen, und wer es markiert, findet weiter dich.',
-  'account.handleNextChange': 'Nächste Änderung am {data}',
-  'account.handleTooSoon': 'Du kannst dein @ am {data} ändern',
+  'account.handleNextChange': 'Nächste Änderung am {date}',
+  'account.handleTooSoon': 'Du kannst dein @ am {date} ändern',
   'account.handleCooldown': 'Nach dem Speichern kann dein @ erst in {n} Tagen wieder geändert werden.',
   'handle.yours': '{handle} ist schon dein @',
   'account.displayName': 'Name in Partien',
@@ -465,10 +465,10 @@ export const DE = {
   'account.displayNameSub': 'Ohne Namen zeigt der Tisch {handle}',
   'account.displayNameTitle': 'Name in Partien',
   'account.displayNameStepSub': 'Wie du am Tisch deiner Freunde erscheinst',
-  'account.displayNamePreview': 'Am Tisch: {nome} · {n}/{max}',
+  'account.displayNamePreview': 'Am Tisch: {name} · {n}/{max}',
   'account.displayNameCut': 'der Rest fällt weg',
   'account.displayNameSave': 'Namen speichern',
-  'account.displayNameSaved': 'Am Tisch bist du {nome}',
+  'account.displayNameSaved': 'Am Tisch bist du {name}',
   'account.displayNameCleared': 'Der Tisch zeigt wieder dein @',
   'account.displayNameUseHandle': 'Nur das @ verwenden',
 
@@ -509,7 +509,7 @@ export const DE = {
   'sync.check': 'Prüfen',
   'sync.working': 'Wird gesendet...',
   'sync.progress': 'Wird gesendet... {n}',
-  'sync.done': '{subiu} gesendet, {baixou} geholt',
+  'sync.done': '{sent} gesendet, {received} geholt',
   'sync.partial': '{n} kamen nicht durch; wir versuchen es später',
   'sync.nothing': 'Es war schon alles aktuell',
 
@@ -529,9 +529,9 @@ export const DE = {
 
   'news.title': 'Neuigkeiten',
   'news.sub': 'Was sich in Version {v} geändert hat',
-  'news.novo': 'neu',
-  'news.corrigido': 'behoben',
-  'news.mudou': 'geändert',
+  'news.new': 'neu',
+  'news.fixed': 'behoben',
+  'news.changed': 'geändert',
   'news.seeAll': 'Alle {n} Versionen ansehen',
 
   'settings.title': 'Einstellungen',

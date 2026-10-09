@@ -1,13 +1,13 @@
 /**
  * English.
  *
- * Dicionario plano, chave -> texto, com interpolacao por {nome}. Uma lingua por
- * arquivo: sao ~460 chaves cada, e num arquivo so nao dava para abrir a
- * traducao alema sem rolar por cima das outras tres.
+ * A flat dictionary, key -> text, with {name} interpolation. One language per
+ * file: there are ~460 keys each, and in a single file the German translation
+ * could not be opened without scrolling past the other three.
  *
- * Os testes exigem as quatro linguas com EXATAMENTE o mesmo conjunto de
- * chaves, nenhuma interpolacao perdida e nenhum texto vazio - e o que impede
- * uma traducao esquecida de chegar na mesa.
+ * The tests require all four languages to have EXACTLY the same set of keys,
+ * no lost interpolation and no empty text - that is what keeps a forgotten
+ * translation from reaching the table.
  */
 
 export const EN = {
@@ -395,7 +395,7 @@ export const EN = {
   'pass.shareCode': 'Send code',
   'pass.copyCode': 'Copy',
   'pass.copied': 'Copied',
-  'pass.shareText': 'Hit Easy table: {codigo}\nIn the app, tap "Receive a table" and type the code. Or open: {link}',
+  'pass.shareText': 'Hit Easy table: {code}\nIn the app, tap "Receive a table" and type the code. Or open: {link}',
   'pass.receiveCodeTitle': 'Receive a table',
   'pass.receiveCodeSub': 'Type the code shown on the device that passed the table.',
   'pass.haveFile': 'I have a file',
@@ -405,8 +405,8 @@ export const EN = {
   'pass.codeTaken': 'That table was just received on another device.',
   'pass.codeOffline': 'No connection. Try again, or ask for the table as a file.',
   'pass.codeServer': 'The server did not answer. Try again in a moment.',
-  'pass.goneSubCode': 'Code {codigo} · waiting for the other device',
-  'pass.goneSubArrived': 'Code {codigo} · the other device has it',
+  'pass.goneSubCode': 'Code {code} · waiting for the other device',
+  'pass.goneSubArrived': 'Code {code} · the other device has it',
   'pass.showCode': 'Show code',
   'pass.takeBackReceivedTitle': 'The other device already has it',
   'pass.takeBackReceivedMsg': 'Taking it back leaves the same match open on both devices. When saving, one of them is lost.',
@@ -455,8 +455,8 @@ export const EN = {
   'account.handleChange': 'Change',
   'account.handleCreate': 'Choose my @',
   'account.handleWarn': 'Your old @ stays yours: nobody else can take it, and anyone who tags it still finds you.',
-  'account.handleNextChange': 'Next change on {data}',
-  'account.handleTooSoon': 'You can change your @ on {data}',
+  'account.handleNextChange': 'Next change on {date}',
+  'account.handleTooSoon': 'You can change your @ on {date}',
   'account.handleCooldown': 'After saving, your @ can only change again in {n} days.',
   'handle.yours': '{handle} is already your @',
   'account.displayName': 'Name in matches',
@@ -465,10 +465,10 @@ export const EN = {
   'account.displayNameSub': 'Without a name, the table shows {handle}',
   'account.displayNameTitle': 'Name in matches',
   'account.displayNameStepSub': 'How you appear at your friends\' table',
-  'account.displayNamePreview': 'At the table: {nome} · {n}/{max}',
+  'account.displayNamePreview': 'At the table: {name} · {n}/{max}',
   'account.displayNameCut': 'the rest is left out',
   'account.displayNameSave': 'Save name',
-  'account.displayNameSaved': 'At the table, you are {nome}',
+  'account.displayNameSaved': 'At the table, you are {name}',
   'account.displayNameCleared': 'The table shows your @ again',
   'account.displayNameUseHandle': 'Use just the @',
 
@@ -509,7 +509,7 @@ export const EN = {
   'sync.check': 'Check',
   'sync.working': 'Sending...',
   'sync.progress': 'Sending... {n}',
-  'sync.done': '{subiu} sent, {baixou} brought down',
+  'sync.done': '{sent} sent, {received} brought down',
   'sync.partial': '{n} did not go up; we will try again later',
   'sync.nothing': 'Everything was already up to date',
 
@@ -529,9 +529,9 @@ export const EN = {
 
   'news.title': "What's new",
   'news.sub': 'What changed in version {v}',
-  'news.novo': 'new',
-  'news.corrigido': 'fixed',
-  'news.mudou': 'changed',
+  'news.new': 'new',
+  'news.fixed': 'fixed',
+  'news.changed': 'changed',
   'news.seeAll': 'See all {n} versions',
 
   'settings.title': 'Settings',

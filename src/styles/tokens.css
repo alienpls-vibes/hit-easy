@@ -1,0 +1,173 @@
+/* ==========================================================================
+   Tokens: every color, measure and timing of the interface.
+
+   Switching themes is switching this file - no component in the other sheets
+   knows which theme it is in. The WUBRG palette switches too: in light the
+   tones darken, because a creamy white over a light background simply
+   disappears, and the accent is the only sign of the deck's identity.
+
+   Dark by decision, not by fashion: the table is usually played in low light
+   and the device sits in the middle, in everyone's field of view.
+   ========================================================================== */
+
+:root {
+  /* Measures and timings do not depend on the theme. */
+  --r-lg: 22px;
+  --r-md: 16px;
+  --r-sm: 11px;
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --fast: 160ms var(--ease);
+  --slow: 320ms var(--ease);
+
+  --font: "Segoe UI Variable Display", "SF Pro Display", -apple-system,
+    BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* --------------------------------------------------------------------------
+   Color tokens.
+
+   Every color of the interface comes from here. Switching themes is switching
+   this block — no component down below knows whether it is light or dark.
+   `--contrast` is the maximum highlight color (primary button, attack target
+   ring): white in dark, near-black in light, and always with `--on-contrast`
+   on top.
+
+   Dark is the default: the table is usually played in low light, and the
+   device sits in the middle, in everyone's field of view.
+   -------------------------------------------------------------------------- */
+
+:root, :root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #08080a;
+  --bg-lift: #0f0f12;
+  --sheet-bg: #101014;
+
+  --surface: rgba(255, 255, 255, 0.038);
+  --surface-strong: rgba(255, 255, 255, 0.07);
+  --press: rgba(255, 255, 255, 0.12);
+  --line: rgba(255, 255, 255, 0.09);
+  --line-soft: rgba(255, 255, 255, 0.055);
+
+  --text: rgba(255, 255, 255, 0.94);
+  --text-mid: rgba(255, 255, 255, 0.58);
+  --text-dim: rgba(255, 255, 255, 0.34);
+
+  --contrast: #ffffff;
+  --contrast-soft: rgba(255, 255, 255, 0.4);
+  --on-contrast: #0a0a0c;
+
+  --scrim: rgba(4, 4, 6, 0.66);
+  --scrim-strong: rgba(5, 5, 7, 0.82);
+  --glass: rgba(10, 10, 12, 0.86);
+  --glass-strong: rgba(20, 20, 24, 0.95);
+  --shadow: rgba(0, 0, 0, 0.9);
+  --vignette: rgba(255, 255, 255, 0.045);
+  --art-opacity: 0.26;
+
+  --danger: #e2614a;
+  --accent: rgba(255, 255, 255, 0.5);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f4f4f2;
+  --bg-lift: #ffffff;
+  --sheet-bg: #ffffff;
+
+  --surface: rgba(12, 14, 20, 0.035);
+  --surface-strong: rgba(12, 14, 20, 0.075);
+  --press: rgba(12, 14, 20, 0.13);
+  --line: rgba(12, 14, 20, 0.14);
+  --line-soft: rgba(12, 14, 20, 0.08);
+
+  --text: rgba(12, 14, 20, 0.92);
+  --text-mid: rgba(12, 14, 20, 0.6);
+  --text-dim: rgba(12, 14, 20, 0.42);
+
+  --contrast: #16181e;
+  --contrast-soft: rgba(12, 14, 20, 0.32);
+  --on-contrast: #fdfdfc;
+
+  --scrim: rgba(28, 30, 38, 0.36);
+  --scrim-strong: rgba(28, 30, 38, 0.55);
+  --glass: rgba(255, 255, 255, 0.9);
+  --glass-strong: rgba(255, 255, 255, 0.96);
+  --shadow: rgba(20, 24, 40, 0.26);
+  --vignette: rgba(12, 14, 20, 0.04);
+  /* Art more present in light: over white it disappears if it is this faded. */
+  --art-opacity: 0.42;
+
+  --danger: #bb3a25;
+  --accent: rgba(12, 14, 20, 0.45);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overscroll-behavior: none;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-feature-settings: "tnum" 1, "ss01" 1;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  /* iPhone Safari still only understands the prefixed version. Without it,
+     holding a + button to repeat selected the button text (and opened the
+     magnifier and the copy menu) instead of repeating. The callout is the
+     long-press menu. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* The opposite of the body: a text field has to accept selection, otherwise
+   iPhone Safari does not even let you place the cursor inside it. */
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* A soft vignette: gives depth without weighing anything. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(120% 80% at 50% 0%, var(--vignette), transparent 60%);
+}
+
+#app {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+}
+
+button, input { font: inherit; color: inherit; }
+
+button {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+  touch-action: manipulation;
+}
+
+.icon { width: 20px; height: 20px; flex: none; }
+
+.label {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+  font-weight: 500;
+}

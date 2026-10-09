@@ -1,0 +1,40 @@
+/* ==========================================================================
+   The victory poster lying down.
+
+   With the phone lying down there are ~390px of height left and the stacked
+   version did not fit. If it still does not fit, it scrolls whole instead of
+   cutting off the top.
+   ========================================================================== */
+
+@media (orientation: landscape) and (max-height: 560px) {
+  .victory { padding: 12px; }
+
+  .victory-card {
+    display: flex;
+    width: min(700px, 100%);
+    max-height: 100%;
+  }
+  .victory-art {
+    flex: 0 0 40%;
+    height: auto;
+    -webkit-mask-image: linear-gradient(90deg, #000 45%, transparent);
+    mask-image: linear-gradient(90deg, #000 45%, transparent);
+  }
+  .victory-body {
+    flex: 1;
+    min-width: 0;
+    padding: 16px 22px;
+    overflow-y: auto;
+    justify-content: center;
+  }
+  .victory-name { font-size: 1.45rem; }
+  .victory-deck { font-size: 0.76rem; }
+  .victory-stats { margin: 12px 0 14px; padding: 10px 0; }
+  .stat-value { font-size: 1.1rem; }
+  .victory-actions .btn { height: 44px; font-size: 0.86rem; padding: 0 12px; }
+}
+
+/* Very narrow screens: the two buttons do not fit side by side. */
+@media (max-width: 340px) {
+  .victory-actions { grid-template-columns: 1fr; }
+}

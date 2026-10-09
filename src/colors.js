@@ -1,13 +1,15 @@
 /**
- * Paleta de identidade de cor (WUBRG), em duas versoes.
+ * Color identity palette (WUBRG), in two versions.
  *
- * A mesma cor nao serve aos dois temas: no escuro os tons sao claros e
- * dessaturados, para brilhar sobre o quase-preto sem competir com os numerais.
- * No claro eles precisam ESCURECER - branco (#E8DCBE) sobre fundo claro
- * simplesmente some, e o acento e o unico sinal da identidade do deck.
+ * The same color does not serve both themes: in dark the tones are light and
+ * desaturated, to shine over the near-black without competing with the
+ * numerals. In light they have to DARKEN - white (#E8DCBE) over a light
+ * background simply disappears, and the accent is the only sign of the deck's
+ * identity.
  *
- * Trocar a paleta e uma chamada de setPalette; quem ja desenhou com a antiga
- * precisa ser redesenhado, porque o acento vai como valor fixo no style.
+ * Switching the palette is one setPalette call; whatever was already drawn
+ * with the old one has to be redrawn, because the accent goes as a fixed value
+ * in the style.
  */
 const PALETTES = {
   dark: {
@@ -29,30 +31,30 @@ const PALETTES = {
 };
 
 let active = PALETTES.dark;
-let modo = 'dark';
+let paletteMode = 'dark';
 
-/** `mode` e 'light' ou 'dark'. */
+/** `mode` is 'light' or 'dark'. */
 export function setPalette(mode) {
   active = PALETTES[mode] || PALETTES.dark;
-  modo = PALETTES[mode] ? mode : 'dark';
+  paletteMode = PALETTES[mode] ? mode : 'dark';
 }
 
 /**
- * Cor de serie: uma por posicao, o mais separadas possivel entre si.
+ * Series color: one per position, as far apart from each other as possible.
  *
- * O angulo aureo (137.5 graus) e o truque classico para isso - por mais itens
- * que existam, cada novo cai no maior vao que sobrou, e nunca se agrupam. Nao
- * ha paleta fixa para acabar.
+ * The golden angle (137.5 degrees) is the classic trick for this - however
+ * many items there are, each new one falls into the largest gap left, and they
+ * never cluster. There is no fixed palette to run out of.
  *
- * Isto NAO e identidade de cor de Magic: serve para reconhecer a mesma PESSOA
- * em partidas diferentes, que e outro eixo. O comandante identifica o deck; o
- * mesmo jogador troca de deck e continua sendo ele.
+ * This is NOT Magic color identity: it serves to recognize the same PERSON
+ * across different matches, which is another axis. The commander identifies
+ * the deck; the same player switches decks and is still themselves.
  */
 export function seriesColor(index) {
   const hue = ((Number(index) || 0) * 137.508) % 360;
-  return modo === 'light'
-    ? 'hsl(' + hue.toFixed(1) + ' 58% 36%)'   // escurece para ler sobre branco
-    : 'hsl(' + hue.toFixed(1) + ' 55% 68%)';  // clareia para ler sobre quase-preto
+  return paletteMode === 'light'
+    ? 'hsl(' + hue.toFixed(1) + ' 58% 36%)'   // darkens to read on white
+    : 'hsl(' + hue.toFixed(1) + ' 55% 68%)';  // lightens to read on near-black
 }
 
 export function colorHex(letter) {
@@ -61,22 +63,22 @@ export function colorHex(letter) {
 
 const ORDER = ['W', 'U', 'B', 'R', 'G'];
 
-/** Normaliza e ordena a identidade de cor no padrão WUBRG. */
+/** Normalizes and sorts the color identity in WUBRG order. */
 export function normalizeIdentity(colors) {
   const set = new Set((colors || []).filter((c) => ORDER.includes(c)));
   const out = ORDER.filter((c) => set.has(c));
   return out.length ? out : ['C'];
 }
 
-/** Cor sólida principal — usada em bordas, realces e textos de acento. */
+/** Main solid color - used in borders, highlights and accent text. */
 export function accentOf(colors) {
   const id = normalizeIdentity(colors);
   if (id.length === 1) return colorHex(id[0]);
-  // Multicolorido: mistura as pontas do gradiente para um acento único e estável.
+  // Multicolor: mixes the ends of the gradient into a single, stable accent.
   return mix(colorHex(id[0]), colorHex(id[id.length - 1]), 0.5);
 }
 
-/** Gradiente da identidade, com alpha, para o tingimento de fundo do painel. */
+/** The identity gradient, with alpha, for tinting the panel background. */
 export function identityGradient(colors, alpha = 1, angle = '145deg') {
   const id = normalizeIdentity(colors);
   const stops = id.map((c) => withAlpha(colorHex(c), alpha));
@@ -114,7 +116,7 @@ function clamp01(v) {
   return Math.max(0, Math.min(1, v));
 }
 
-/** Pips de mana em texto, para listas densas onde não cabe arte. */
+/** Mana pips as text, for dense lists where art does not fit. */
 export function pips(colors) {
   return normalizeIdentity(colors).join('');
 }

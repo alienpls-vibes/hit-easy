@@ -1,67 +1,77 @@
 /**
- * Voto secreto e simultaneo.
+ * Secret, simultaneous voting.
  *
- * Nasceu do Prisoner's Dilemma ("cada oponente escolhe em segredo silence ou
- * snitch"), mas o espaco de cartas e maior e tem duas familias:
+ * It was born from Prisoner's Dilemma ("each opponent secretly chooses silence
+ * or snitch"), but the space of cards is larger and has two families:
  *
- *   ESCOLHA SECRETA  Prisoner's Dilemma, Call to the Void, Menacing Ogre,
- *                    Wheel of Misfortune, Itazura. Todo mundo escolhe ao mesmo
- *                    tempo e revela junto. As vezes a escolha e uma OPCAO
- *                    nomeada, as vezes e um NUMERO qualquer - e ai o que
- *                    importa e quem tirou o maior e o menor.
+ *   SECRET CHOICE  Prisoner's Dilemma, Call to the Void, Menacing Ogre,
+ *                  Wheel of Misfortune, Itazura. Everyone chooses at the same
+ *                  time and reveals together. Sometimes the choice is a named
+ *                  OPTION, sometimes it is any NUMBER - and then what matters
+ *                  is who got the highest and the lowest.
  *
- *   VOTACAO          will of the council / council's dilemma: Coercive Portal,
- *                    Council Guardian, Council's Judgment e companhia. Pelas
- *                    regras o voto e aberto e em ordem de turno, mas na mesa
- *                    quase todo mundo prefere simultaneo - e alguns efeitos dao
- *                    VOTOS EXTRAS a um jogador (Brago's Representative).
+ *   VOTING         will of the council / council's dilemma: Coercive Portal,
+ *                  Council Guardian, Council's Judgment and company. By the
+ *                  rules the vote is open and in turn order, but at the table
+ *                  almost everyone prefers simultaneous - and some effects give
+ *                  one player EXTRA VOTES (Brago's Representative).
  *
- * Dai os tres eixos deste modulo: `kind` ('opcoes' ou 'numero'), quem participa
- * (nem sempre a mesa toda - Prisoner's Dilemma e so oponentes) e quantos votos
- * cada um tem.
+ * Hence the three axes of this module: `kind` (options or number), who takes
+ * part (not always the whole table - Prisoner's Dilemma is opponents only) and
+ * how many votes each one has.
  *
- * Sem DOM de proposito: a apuracao e a parte que precisa estar certa, e ela e
- * testavel sozinha.
+ * No DOM on purpose: the tally is the part that has to be right, and it is
+ * testable on its own.
+ *
+ * The `kind` values and the preset ids are written into vote events, which are
+ * stored with the match. They keep their original (Portuguese) values.
  */
 
 import { t } from './i18n.js';
 
+/** Stored `kind` values. Do not translate. */
+export const KIND_OPTIONS = 'opcoes';
+export const KIND_NUMBER = 'numero';
+
 /**
- * Modelos prontos para as cartas mais comuns.
+ * Ready-made models for the most common cards.
  *
- * `label` e getter porque o idioma pode mudar depois que o modulo carregou -
- * um texto fixo aqui ficaria congelado no idioma da primeira carga.
+ * `label` is a getter because the language can change after the module has
+ * loaded - fixed text here would stay frozen in the language of the first load.
+ *
+ * The ids ('duas', 'dilema', 'numero', 'jogador') are stored in vote events as
+ * `preset`. The 'Sim'/'Não' options are stored too, and shown as written.
  */
 export const PRESETS = [
   {
     id: 'duas',
     get label() { return t('vote.preset.two'); },
-    kind: 'opcoes',
+    kind: KIND_OPTIONS,
     options: ['Sim', 'Não'],
     excludeActive: false,
   },
   {
     id: 'dilema',
     label: "Prisoner's Dilemma",
-    // Preenche a pergunta sozinho: sem titulo, a estatistica depois vira uma
-    // pilha de linhas iguais e indistinguiveis.
+    // Fills in the question by itself: without a title, the statistics later
+    // become a pile of identical, indistinguishable rows.
     title: "Prisoner's Dilemma",
-    kind: 'opcoes',
+    kind: KIND_OPTIONS,
     options: ['Silence', 'Snitch'],
-    excludeActive: true, // "cada oponente", nao a mesa toda
+    excludeActive: true, // "each opponent", not the whole table
   },
   {
     id: 'numero',
     get label() { return t('vote.preset.number'); },
-    kind: 'numero',
+    kind: KIND_NUMBER,
     options: [],
     excludeActive: false,
   },
   {
     id: 'jogador',
     get label() { return t('vote.preset.player'); },
-    kind: 'opcoes',
-    options: [], // preenchido com os nomes da mesa
+    kind: KIND_OPTIONS,
+    options: [], // filled with the names at the table
     fromPlayers: true,
     excludeActive: false,
   },
@@ -72,11 +82,11 @@ export function presetById(id) {
 }
 
 /**
- * `voters` e [{ id, name, votes }]. `votes` cobre os efeitos que dao voto
- * extra; o padrao e 1.
+ * `voters` is [{ id, name, votes }]. `votes` covers the effects that grant
+ * extra votes; the default is 1.
  */
 export function createSession({
-  question = '', preset = '', kind = 'opcoes', options = [], voters = [],
+  question = '', preset = '', kind = KIND_OPTIONS, options = [], voters = [],
 }) {
   return {
     question,
@@ -84,17 +94,17 @@ export function createSession({
     kind,
     options: [...options],
     voters: voters.map((v) => ({ id: v.id, name: v.name, votes: Math.max(1, v.votes || 1) })),
-    ballots: {}, // voterId -> array de escolhas
+    ballots: {}, // voterId -> array of choices
   };
 }
 
-/** Registra o voto de alguem. Em 'numero', `choices` e [n]. */
+/** Records someone's vote. For a number vote, `choices` is [n]. */
 export function cast(session, voterId, choices) {
   session.ballots[voterId] = [...choices];
   return session;
 }
 
-/** Quem ainda nao votou, na ordem em que devem receber o aparelho. */
+/** Who has not voted yet, in the order they should receive the device. */
 export function pending(session) {
   return session.voters.filter((v) => !session.ballots[v.id]);
 }
@@ -104,18 +114,19 @@ export function isComplete(session) {
 }
 
 /**
- * Apuracao.
+ * The tally.
  *
- * Em 'opcoes' devolve as opcoes ordenadas por votos, quem votou em cada uma, e
- * dois fatos derivados que as cartas realmente perguntam: houve EMPATE no topo,
- * e a escolha foi UNANIME (Prisoner's Dilemma pergunta exatamente isso -
- * "se cada oponente escolheu silence...").
+ * For options it returns the options sorted by votes, who voted for each one,
+ * and two derived facts the cards actually ask about: was there a TIE at the
+ * top, and was the choice UNANIMOUS (Prisoner's Dilemma asks exactly that -
+ * "if each opponent chose silence...").
  *
- * Em 'numero' devolve os valores por jogador com o maior e o menor, empates
- * incluidos - que e o que Menacing Ogre e Wheel of Misfortune precisam.
+ * For numbers it returns the values per player with the highest and the
+ * lowest, ties included - which is what Menacing Ogre and Wheel of Misfortune
+ * need.
  */
 export function tally(session) {
-  if (session.kind === 'numero') return tallyNumbers(session);
+  if (session.kind === KIND_NUMBER) return tallyNumbers(session);
 
   const rows = session.options.map((label, index) => ({
     index,
@@ -126,8 +137,8 @@ export function tally(session) {
 
   let total = 0;
   for (const voter of session.voters) {
-    for (const escolha of session.ballots[voter.id] || []) {
-      const row = rows[escolha];
+    for (const choice of session.ballots[voter.id] || []) {
+      const row = rows[choice];
       if (!row) continue;
       row.votes += 1;
       total += 1;
@@ -135,17 +146,17 @@ export function tally(session) {
     }
   }
 
-  const ordenadas = [...rows].sort((a, b) => b.votes - a.votes || a.index - b.index);
-  const maisVotos = ordenadas.length ? ordenadas[0].votes : 0;
-  const top = ordenadas.filter((r) => r.votes === maisVotos && maisVotos > 0).map((r) => r.index);
+  const sorted = [...rows].sort((a, b) => b.votes - a.votes || a.index - b.index);
+  const mostVotes = sorted.length ? sorted[0].votes : 0;
+  const top = sorted.filter((r) => r.votes === mostVotes && mostVotes > 0).map((r) => r.index);
 
   return {
-    kind: 'opcoes',
-    rows: ordenadas,
+    kind: KIND_OPTIONS,
+    rows: sorted,
     total,
     top,
     tie: top.length > 1,
-    unanimous: top.length === 1 && maisVotos === total && total > 0,
+    unanimous: top.length === 1 && mostVotes === total && total > 0,
   };
 }
 
@@ -156,28 +167,29 @@ function tallyNumbers(session) {
     value: Number((session.ballots[v.id] || [0])[0]) || 0,
   }));
 
-  const valores = rows.map((r) => r.value);
-  const maior = valores.length ? Math.max(...valores) : 0;
-  const menor = valores.length ? Math.min(...valores) : 0;
+  const values = rows.map((r) => r.value);
+  const max = values.length ? Math.max(...values) : 0;
+  const min = values.length ? Math.min(...values) : 0;
 
   return {
-    kind: 'numero',
+    kind: KIND_NUMBER,
     rows: [...rows].sort((a, b) => b.value - a.value),
-    highest: rows.filter((r) => r.value === maior).map((r) => r.voterId),
-    lowest: rows.filter((r) => r.value === menor).map((r) => r.voterId),
-    maior,
-    menor,
-    // Todo mundo no mesmo numero: nao ha maior nem menor de verdade.
-    allEqual: maior === menor && rows.length > 1,
+    highest: rows.filter((r) => r.value === max).map((r) => r.voterId),
+    lowest: rows.filter((r) => r.value === min).map((r) => r.voterId),
+    max,
+    min,
+    // Everyone on the same number: there is no real highest or lowest.
+    allEqual: max === min && rows.length > 1,
   };
 }
 
-/** Resumo de uma linha, para o histórico e para a linha do tempo. */
-export function describe(session, resultado) {
-  const r = resultado || tally(session);
-  if (r.kind === 'numero') {
+/** One-line summary, for the history and the timeline. */
+export function describe(session, result) {
+  const r = result || tally(session);
+  if (r.kind === KIND_NUMBER) {
     return r.rows.map((x) => x.name + ' ' + x.value).join(' · ');
   }
+  // 'sem votos' is shown to the user and stored in the event summary.
   return r.rows.filter((x) => x.votes > 0).map((x) => x.label + ' ' + x.votes).join(' × ')
     || 'sem votos';
 }
