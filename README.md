@@ -303,10 +303,23 @@ pergunta, então "Silence" do Prisoner's Dilemma não se mistura com "Sim" de um
 voto qualquer. Cada partida guarda a
 linha do tempo completa. Exporta e importa JSON.
 
-**Configurações** (engrenagem na home): tema, vibração, manter a tela acesa,
-tela cheia na partida, reexibir a dica do arraste e **instalar o app**. Vida inicial e disposição da
-mesa ficam de fora daqui de propósito — mudam a cada jogo, então vivem na home
-e na tela de antes de começar.
+**Configurações** (engrenagem na home), em grupos no desenho dos ajustes do
+celular — um título curto e um cartão de linhas:
+
+- **Conta** — uma linha só (o `@`, a assinatura, convites esperando), que abre
+  a própria tela com @, sincronização, senha, assinatura e sair. Antes vinha
+  inteira no topo e empurrava idioma e tema para o fim da rolagem;
+- **Aparência** — idioma e tema;
+- **Na mesa** — vibração, tela acesa e travar na horizontal (este some no
+  iPhone, onde o Safari não trava nada);
+- **Aplicativo** — instalar ou atualizar (uma linha que muda conforme o
+  aparelho), novidades, rever a dica de dano e privacidade.
+
+Texto só onde ele muda a decisão: "vibração" não precisa de legenda; travar na
+horizontal precisa avisar que entra em tela cheia. As peças vivem em
+`src/views/setup/linhas.js`. Vida inicial e disposição da mesa ficam de fora
+daqui de propósito — mudam a cada jogo, então vivem na home e na tela de antes
+de começar.
 
 ## Motivo da vitória
 

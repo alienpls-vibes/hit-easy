@@ -187,6 +187,7 @@ const ASSETS = [
   './src/views/setup/handle.js',
   './src/views/setup/home.js',
   './src/views/setup/instalar.js',
+  './src/views/setup/linhas.js',
   './src/views/setup/notas-de-versao.js',
   './src/views/setup/passar-mesa.js',
   './src/views/setup/rascunho.js',

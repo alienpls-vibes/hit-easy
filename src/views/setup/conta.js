@@ -1,6 +1,11 @@
 /**
  * Conta e assinatura nas configuracoes: entrar, criar, sair, trocar senha.
  *
+ * Na tela principal das configuracoes a conta e UMA linha (contaResumo), que
+ * abre esta tela propria. Antes ela vinha inteira no topo - login, senha,
+ * sincronizacao, @, convites e assinatura, cada um com sua nota -, e empurrava
+ * idioma e tema para o fim de uma rolagem longa.
+ *
  * Redesenha sozinho quando o estado muda - entrar, sair, assinatura carregada -
  * porque o login por link magico volta de FORA do app: a pessoa sai para o
  * e-mail e retorna pela URL, e a tela precisa refletir isso sem recarregar.
@@ -9,11 +14,69 @@
 import { el, clear, buzz, toast } from '../../ui.js';
 import { t } from '../../i18n.js';
 import * as cloud from '../../cloud.js';
+import { exibirHandle } from '../../cloud.js';
 import { CHECKOUT_URL } from '../../config.js';
 import { formatDate } from '../../stats.js';
 import { invitesBlock } from './convites.js';
 import { handleBlock } from './handle.js';
 import { syncBlock } from './sincronizacao.js';
+import { grupo, linha } from './linhas.js';
+
+/**
+ * A linha da conta na tela principal: quem e, e o que a espera.
+ *
+ * Deslogado, o convite para entrar. Logado, o @ (ou o e-mail, sem @), com a
+ * assinatura ao lado - e o numero de convites esperando, que e a unica coisa
+ * da conta que pede uma acao.
+ */
+export function contaResumo(api, onRefresh) {
+  const caixa = el('div', { class: 'set-slot' });
+
+  const pintar = () => {
+    clear(caixa);
+    const estado = cloud.state();
+    const abrir = () => api.next(passoDaConta(onRefresh));
+
+    if (estado === 'deslogado') {
+      caixa.append(linha({
+        rotulo: t('account.rowOut'),
+        sub: t('account.rowOutSub'),
+        seta: true,
+        classe: 'set-conta',
+        aoTocar: abrir,
+      }));
+      return;
+    }
+
+    const usuario = cloud.currentUser();
+    const email = (usuario && usuario.email) || '';
+    const perfil = cloud.meuPerfil();
+    const handle = perfil && perfil.handle ? exibirHandle(perfil.handle) : null;
+    const convites = cloud.convitesAbertos().length;
+
+    caixa.append(linha({
+      rotulo: handle || email,
+      sub: [handle ? email : null, estado === 'assinante' ? t('account.subActive') : null]
+        .filter(Boolean).join(' \u00b7 ') || t('account.title'),
+      seta: true,
+      classe: 'set-conta',
+      extra: convites ? el('span', { class: 'set-badge', text: String(convites) }) : null,
+      aoTocar: abrir,
+    }));
+  };
+
+  pintar();
+  cloud.onAccountChange(pintar);
+  return caixa;
+}
+
+/** A tela da conta, empilhada sobre as configuracoes (tem voltar). */
+export function passoDaConta(onRefresh) {
+  return {
+    title: t('account.title'),
+    build: (pane, api) => pane.append(accountBlock(onRefresh, api)),
+  };
+}
 
 /**
  * Conta e assinatura.
@@ -22,7 +85,7 @@ import { syncBlock } from './sincronizacao.js';
  * porque o login por link magico volta de FORA do app: a pessoa sai para o
  * e-mail e retorna pela URL, e a tela precisa refletir isso sem recarregar.
  */
-export function accountBlock(onRefresh) {
+export function accountBlock(onRefresh, api) {
   const caixa = el('div', { class: 'account' });
 
   const pintar = () => {
@@ -35,46 +98,48 @@ export function accountBlock(onRefresh) {
     }
 
     const usuario = cloud.currentUser();
-    caixa.append(el('div', { class: 'account-row' }, [
-      el('span', {
-        class: 'account-email',
-        text: t('account.signedInAs', { email: (usuario && usuario.email) || '' }),
+    const assinatura = cloud.subscription();
+
+    // Quem esta dentro, e a assinatura: o que a pessoa confere primeiro.
+    caixa.append(grupo(null, [
+      linha({
+        rotulo: (usuario && usuario.email) || '',
+        sub: t('account.connected'),
+        classe: 'set-email',
       }),
-      el('button', {
-        class: 'account-out',
-        onClick: async () => { await cloud.sair(); pintar(); if (onRefresh) onRefresh(); },
-      }, [t('account.signOut')]),
+      estado === 'assinante'
+        ? linha({
+          rotulo: t('account.subActive'),
+          sub: assinatura && assinatura.current_period_end
+            ? t('account.subUntil', { date: formatDate(assinatura.current_period_end) })
+            : null,
+          classe: 'is-good',
+        })
+        : linha({
+          rotulo: t('account.subInactive'),
+          sub: t('account.subPitch'),
+          valor: t('account.subscribe'),
+          aoTocar: () => {
+            if (!CHECKOUT_URL) { toast(t('account.subSoon')); return; }
+            location.assign(CHECKOUT_URL);
+          },
+        }),
     ]));
 
-    caixa.append(senhaBlock());
-    caixa.append(syncBlock());
-    caixa.append(handleBlock());
+    caixa.append(grupo(t('account.yourHandle'), [handleBlock(api, pintar)]));
+    caixa.append(grupo(t('sync.title'), [syncBlock()]));
+    caixa.append(grupo(t('account.password'), [senhaBlock()]));
     caixa.append(invitesBlock());
 
-    const assinatura = cloud.subscription();
-    if (estado === 'assinante') {
-      caixa.append(el('div', { class: 'account-sub is-on' }, [
-        el('span', { class: 'menu-label', text: t('account.subActive') }),
-        assinatura && assinatura.current_period_end
-          ? el('span', {
-            class: 'menu-sub',
-            text: t('account.subUntil', { date: formatDate(assinatura.current_period_end) }),
-          })
-          : null,
-      ]));
-    } else {
-      caixa.append(el('div', { class: 'account-sub' }, [
-        el('span', { class: 'menu-label', text: t('account.subInactive') }),
-        el('span', { class: 'menu-sub', text: t('paywall.body') }),
-      ]));
-      caixa.append(el('button', {
-        class: 'btn primary block',
-        onClick: () => {
-          if (!CHECKOUT_URL) { toast(t('account.subSoon')); return; }
-          location.assign(CHECKOUT_URL);
-        },
-      }, [t('account.subscribe')]));
-    }
+    caixa.append(grupo(null, [linha({
+      rotulo: t('account.signOut'),
+      perigo: true,
+      aoTocar: async () => {
+        await cloud.sair();
+        pintar();
+        if (onRefresh) onRefresh();
+      },
+    })]));
   };
 
   pintar();
@@ -221,9 +286,6 @@ function loginBlock(repintar, onRefresh) {
  * uma vez, e nunca mais e-mail em aparelho nenhum.
  */
 function senhaBlock() {
-  const caixa = el('div', { class: 'account-senha' });
-  caixa.append(el('p', { class: 'sheet-legend', text: t('account.password') }));
-
   // Ja tem senha: trocar passa pelo e-mail.
   //
   // Definir a PRIMEIRA senha estando logado e seguro - quem esta dentro ja
@@ -233,31 +295,32 @@ function senhaBlock() {
   if (cloud.temSenha()) {
     const usuario = cloud.currentUser();
     const email = (usuario && usuario.email) || '';
-    const trocar = el('button', { class: 'btn ghost block' }, [t('account.changePassword')]);
+    let enviado = false;
 
-    trocar.addEventListener('click', async () => {
-      trocar.disabled = true;
-      trocar.textContent = t('account.sending');
-      try {
-        await cloud.pedirTrocaDeSenha(email);
-        clear(caixa);
-        caixa.append(
-          el('p', { class: 'sheet-legend', text: t('account.password') }),
-          el('p', { class: 'account-sent', text: t('account.recoverSent', { email }) }),
-          el('p', { class: 'account-note', text: t('account.linkSentHint') }),
-        );
-      } catch {
-        trocar.disabled = false;
-        trocar.textContent = t('account.changePassword');
-        toast(t('account.failed'));
-      }
+    const trocar = linha({
+      rotulo: t('account.changePassword'),
+      sub: t('account.changePasswordSub'),
+      seta: true,
+      aoTocar: async () => {
+        if (enviado || trocar.disabled) return;
+        trocar.disabled = true;
+        trocar._sub.textContent = t('account.sending');
+        try {
+          await cloud.pedirTrocaDeSenha(email);
+          enviado = true;
+          trocar._sub.textContent = t('account.recoverSent', { email });
+          trocar.classList.add('is-good');
+        } catch {
+          trocar.disabled = false;
+          trocar._sub.textContent = t('account.changePasswordSub');
+          toast(t('account.failed'));
+        }
+      },
     });
-
-    caixa.append(trocar);
-    caixa.append(el('p', { class: 'account-note', text: t('account.changePasswordHint') }));
-    return caixa;
+    return trocar;
   }
 
+  const caixa = el('div', { class: 'set-row is-form' });
   const campo = el('input', {
     class: 'search-input',
     type: 'password',
@@ -274,7 +337,7 @@ function senhaBlock() {
       await cloud.definirSenha(campo.value);
       campo.value = '';
       toast(t('account.passwordSaved'));
-      // A secao inteira muda de forma: daqui em diante so existe trocar.
+      // A linha inteira muda de forma: daqui em diante so existe trocar.
       const nova = senhaBlock();
       if (caixa.parentElement) caixa.parentElement.replaceChild(nova, caixa);
     } catch {
@@ -284,8 +347,10 @@ function senhaBlock() {
     }
   });
 
-  caixa.append(el('div', { class: 'name-row' }, [campo, salvar]));
-  caixa.append(el('p', { class: 'account-note', text: t('account.setPasswordHint') }));
+  caixa.append(
+    el('div', { class: 'name-row' }, [campo, salvar]),
+    el('span', { class: 'set-sub', text: t('account.setPasswordSub') }),
+  );
   return caixa;
 }
 

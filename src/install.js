@@ -80,6 +80,11 @@ export function navegadorDoIOS(ua) {
   return 'safari';
 }
 
+/** E iPhone ou iPad? Exportado para as telas esconderem o que la nao existe. */
+export function ehIOS() {
+  return isIOS();
+}
+
 function isInstalled() {
   return (typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches)
     || (typeof navigator !== 'undefined' && navigator.standalone === true);

@@ -51,6 +51,12 @@ export const NOVIDADES = [
       },
       {
         tipo: 'mudou',
+        texto: 'As configurações foram reorganizadas em grupos - Aparência, '
+          + 'Na mesa e Aplicativo -, com menos texto. A conta virou uma linha '
+          + 'que abre a própria tela.',
+      },
+      {
+        tipo: 'mudou',
         texto: 'O jogador 1 senta no alto à esquerda, e a vez segue no '
           + 'sentido horário. Com 2, 3 e 5 jogadores a mesa deitada passou a '
           + 'ser o padrão. Partidas que já estavam abertas continuam como '

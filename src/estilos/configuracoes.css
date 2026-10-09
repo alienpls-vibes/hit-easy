@@ -5,9 +5,6 @@
    lado no celular) e entrega o seletor que o aparelho ja usa em todo lugar.
    ========================================================================== */
 
-/* ---------- configurações ---------- */
-
-.chips-fill { display: flex; gap: 6px; }
 /* ---------- campo de escolha única ---------- */
 
 .select-row {
@@ -47,23 +44,8 @@
   transform: rotate(90deg);
 }
 .select-caret .icon { width: 16px; height: 16px; }
-.chips-fill .chip { flex: 1; min-width: 0; }
 
-.toggle-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  padding: 11px 12px;
-  border-radius: var(--r-sm);
-  text-align: left;
-  transition: background var(--fast);
-}
-.toggle-row:hover { background: var(--surface); }
 
-.toggle-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.toggle-label { font-size: 0.94rem; }
-.toggle-sub { font-size: 0.72rem; color: var(--text-dim); }
 
 .switch {
   position: relative;
@@ -86,27 +68,7 @@
 .switch.is-on { background: var(--contrast); border-color: var(--contrast); }
 .switch.is-on::after { transform: translateX(18px); background: var(--on-contrast); }
 
-.install-note {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 13px 14px;
-  border-radius: var(--r-sm);
-  background: var(--surface);
-  border: 1px solid var(--line-soft);
-}
-.install-note.is-done { border-color: rgba(79, 169, 124, 0.4); }
-.install-note .menu-sub { line-height: 1.45; }
-.install-note .menu-label,
-.install-cta .menu-label { display: flex; align-items: center; gap: 8px; }
-.install-note .icon, .install-cta .icon { width: 16px; height: 16px; color: var(--text-mid); }
 
-.install-cta {
-  border: 1px solid var(--line);
-  border-left: 2px solid var(--contrast);
-  background: var(--surface);
-}
-.install-cta .menu-sub { line-height: 1.45; }
 
 .settings-note {
   margin: 16px 2px 0;
@@ -196,3 +158,125 @@
   font-variant-numeric: tabular-nums;
 }
 .install-step-text { font-size: 0.86rem; line-height: 1.45; color: var(--text); }
+
+/* ---------- grupos de linhas ----------
+   O desenho dos ajustes do celular: um título curto e um cartão com linhas
+   separadas por um fio. Uma forma só para tudo - antes cada bloco tinha a sua,
+   e a tela não dizia o que era parte de quê. */
+
+.set-section { display: flex; flex-direction: column; }
+.set-section + .set-section { margin-top: 6px; }
+.set-section .sheet-legend { margin: 14px 4px 8px; }
+
+.set-group {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+/* `* + *` e não `.set-row + .set-row`: linhas que se repintam sozinhas (conta,
+   instalar, sincronizar) vivem dentro de um envoltório. */
+.set-group > * + * { border-top: 1px solid var(--line-soft); }
+.set-slot { display: flex; flex-direction: column; }
+
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 14px;
+  text-align: left;
+  color: var(--text);
+  text-decoration: none;
+  background: transparent;
+  transition: background var(--fast);
+}
+.set-row.is-tap { cursor: pointer; }
+.set-row.is-tap:hover { background: var(--surface-strong); }
+.set-row.is-tap:active { background: var(--surface-strong); }
+.set-row:disabled { cursor: default; }
+
+.set-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.set-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.set-sub { font-size: 0.74rem; line-height: 1.4; color: var(--text-dim); }
+.set-sub[hidden] { display: none; }
+.set-value {
+  flex: none;
+  max-width: 45%;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.set-chevron { flex: none; display: grid; place-items: center; color: var(--text-dim); opacity: 0.7; }
+.set-chevron .icon { width: 15px; height: 15px; }
+
+.set-row.is-danger { justify-content: center; }
+.set-row.is-danger .set-text { align-items: center; }
+.set-row.is-danger .set-label { color: var(--danger); }
+.set-row.is-muted .set-label { color: var(--text-mid); }
+.set-row.is-good .set-sub { color: rgb(79, 169, 124); }
+/* Valor que é ação ("Enviar agora", "Assinar") se lê como ação. */
+.set-row.is-pending .set-value { color: var(--text); font-weight: 500; }
+.set-row.is-updating { opacity: 0.7; }
+
+/* Convites esperando: o único número da conta que pede uma ação. */
+.set-badge {
+  flex: none;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--contrast);
+  color: var(--on-contrast);
+  font-size: 0.74rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Idioma: o seletor nativo, encolhido à direita da linha. */
+.set-select-box { position: relative; flex: none; display: flex; align-items: center; }
+.set-select {
+  width: auto;
+  height: 36px;
+  padding: 0 32px 0 12px;
+  border-radius: var(--r-sm);
+  font-size: 0.9rem;
+  background: var(--surface-strong);
+}
+.set-select-box .select-caret { right: 10px; }
+
+/* Tema: três segmentos, um aceso. */
+.set-segments {
+  flex: none;
+  display: flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: var(--r-sm);
+  background: var(--surface-strong);
+}
+.set-segment {
+  padding: 6px 11px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  transition: background var(--fast), color var(--fast);
+}
+.set-segment.is-on { background: var(--sheet-bg); color: var(--text); box-shadow: 0 1px 3px var(--shadow); }
+
+/* Senha a definir: campo e botão dentro da própria linha. */
+.set-row.is-form { flex-direction: column; align-items: stretch; gap: 6px; padding: 12px 14px; }
+.set-row.is-form .name-row .search-input { height: 44px; }
+.set-row.is-form .name-row .btn { height: 44px; }
+
+.settings-note { margin: 14px 4px 0; text-align: center; }

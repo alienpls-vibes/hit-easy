@@ -1004,7 +1004,7 @@ export const cases = [
     });
     try {
       const box = installBlock();
-      const botao = findAll(box, 'menu-item')[0];
+      const botao = findAll(box, 'set-row')[0];
       ok(botao, 'instalado, deveria haver o botão de atualizar');
       eq(findAll(botao, 'spinner').length, 0, 'girador antes de tocar');
 
@@ -3320,8 +3320,8 @@ export const cases = [
     ok(redesenhos > 0, 'a tela de trás precisa ser redesenhada');
 
     // O painel reabre traduzido, senão ficaria em português até fechar na mão.
-    const legendas = findAll(document.body, 'sheet-legend').map(textOf);
-    ok(legendas.includes('Sprache'), 'o painel não reabriu em alemão: ' + legendas.join(' | '));
+    const rotulos = findAll(document.body, 'set-label').map(textOf);
+    ok(rotulos.includes('Sprache'), 'o painel não reabriu em alemão: ' + rotulos.join(' | '));
 
     closeSheet();
     setLang('pt');
@@ -3519,14 +3519,21 @@ export const cases = [
     renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
     fire(findAll(root, 'icon-btn').find((b) => b.attributes['aria-label'] === t('common.settings')), 'click');
 
-    const conta = findAll(document.body, 'account')[0];
+    // A conta é UMA linha na tela principal, e abre a própria tela. Na
+    // principal ela não pode vir inteira: era o bloco que empurrava idioma e
+    // tema para o fim da rolagem.
+    const resumo = findAll(document.body, 'set-conta')[0];
     if (!cloudEnabled()) {
-      ok(!conta, 'sem nuvem configurada, nada de conta na tela');
+      ok(!resumo, 'sem nuvem configurada, nada de conta na tela');
       closeSheet();
       return;
     }
+    ok(resumo, 'com nuvem, a linha da conta precisa existir');
+    eq(findAll(document.body, 'account').length, 0, 'a conta inteira voltou para a tela principal');
+    fire(resumo, 'click');
 
-    ok(conta, 'com nuvem, a seção de conta precisa existir');
+    const conta = findAll(document.body, 'account')[0];
+    ok(conta, 'a linha da conta não abriu a tela da conta');
     eq(accountNow(), 'deslogado', 'ninguém entrou ainda');
 
     // E-mail e senha: entrar num aparelho novo não pode depender de abrir a
@@ -3956,6 +3963,7 @@ export const cases = [
     const root = document.createElement('div');
     renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
     fire(findAll(root, 'icon-btn').find((b) => b.attributes['aria-label'] === t('common.settings')), 'click');
+    fire(findAll(document.body, 'set-conta')[0], 'click');
 
     const conta = findAll(document.body, 'account')[0];
     ok(conta, 'a seção de conta');
@@ -5139,6 +5147,43 @@ export const cases = [
       ok(store.getCurrent(), 'a mesa não voltou');
     } finally {
       globalThis.fetch = fetchReal;
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+  ['as configurações vêm em grupos, na ordem de uso', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    store.wipe();
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+    fire(findAll(root, 'icon-btn').find((b) => b.attributes['aria-label'] === t('common.settings')), 'click');
+
+    try {
+      // Aparência, mesa, aplicativo: do que se mexe mais para o que se mexe
+      // menos. A conta, quando existe, é uma linha só antes de tudo.
+      const titulos = findAll(document.body, 'sheet-legend').map(textOf);
+      eq(titulos, [t('settings.appearance'), t('settings.onTable'), t('settings.app')],
+        'grupos fora de ordem');
+      eq(findAll(document.body, 'set-conta').length, cloudEnabled() ? 1 : 0,
+        'a conta não é uma linha só');
+
+      // Vibração e tela acesa sem legenda: o rótulo já diz tudo.
+      const interruptores = findAll(document.body, 'is-toggle');
+      ok(interruptores.length >= 2, 'faltam os interruptores da mesa');
+      for (const linha of interruptores.slice(0, 2)) {
+        ok(findAll(linha, 'set-sub').every((x) => x.hidden), textOf(linha) + ': legenda sobrando');
+      }
+
+      // O tema pelos segmentos grava e acende o escolhido.
+      const escuro = findAll(document.body, 'set-segment').find((b) => textOf(b) === t('settings.themeDark'));
+      fire(escuro, 'click');
+      eq(store.getDB().settings.theme, 'escuro', 'o tema não foi gravado');
+      const aceso = findAll(document.body, 'set-segment').filter((b) => b.classList.contains('is-on'));
+      eq(aceso.map(textOf), [t('settings.themeDark')], 'o segmento escolhido não acendeu');
+    } finally {
       closeSheet();
       store.wipe();
     }

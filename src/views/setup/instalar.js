@@ -6,12 +6,13 @@
  * app pedir instalacao sozinho, e a tela diz exatamente o que fazer no lugar.
  */
 
-import { el, clear, icon, toast, openSheet } from '../../ui.js';
+import { el, clear, toast, openSheet } from '../../ui.js';
 import { t } from '../../i18n.js';
 import {
   state as installState, promptInstall, onInstallChange, atualizarApp,
   navegadorDoIOS,
 } from '../../install.js';
+import { linha } from './linhas.js';
 
 /**
  * O passo a passo da instalacao no iPhone e no iPad.
@@ -66,22 +67,26 @@ export function abrirInstalarNoIOS() {
 }
 
 /**
- * Bloco de instalacao. Cada situacao ganha uma resposta util - esconder a opcao
- * quando ela nao esta disponivel so deixaria a pessoa procurando.
+ * A linha de instalar, nas configuracoes. Uma linha so, que muda conforme o
+ * aparelho - esconder a opcao quando ela nao esta disponivel deixaria a pessoa
+ * procurando, mas tambem nao precisa de um paragrafo para cada caso:
+ *
+ *   instalado   Atualizar o app (o caso de todo dia de quem ja instalou)
+ *   pronto      Instalar, com o convite do proprio navegador
+ *   ios         Instalar no iPhone, que abre o passo a passo
+ *   o resto     a linha diz onde da, sem acao
+ *
+ * Fica dentro de um envoltorio que se repinta sozinho: o convite do navegador
+ * pode chegar depois de a tela abrir.
  */
 export function installBlock(onRefresh) {
-  const box = el('div', { class: 'menu' });
+  const box = el('div', { class: 'set-slot' });
 
   const paint = () => {
     clear(box);
     const { mode } = installState();
 
     if (mode === 'instalado') {
-      box.append(el('div', { class: 'install-note is-done' }, [
-        el('span', { class: 'menu-label', text: t('settings.installed') }),
-        el('span', { class: 'menu-sub', text: t('settings.installedSub') }),
-      ]));
-
       // Instalado, o app costuma ficar dias sem nunca ser fechado - e a pagina
       // aberta continua rodando o codigo antigo mesmo depois de o service
       // worker se trocar. Sem este botao, quem relata um defeito ja corrigido
@@ -90,12 +95,14 @@ export function installBlock(onRefresh) {
       // `atualizarApp` consulta a rede e depois aguarda o worker novo assumir,
       // ate dez segundos. Com o botao so desabilitado, nada se move - e um
       // botao que escurece e fica parado parece um botao que nao funcionou.
-      // Foi exatamente a duvida que surgiu em uso: "o botao fez algo?".
-      const rotulo = el('span', { class: 'menu-label' }, [
-        icon('download'), t('settings.update'),
-      ]);
-      const sub = el('span', { class: 'menu-sub', text: t('settings.updateSub') });
-      const atualizar = el('button', { class: 'menu-item' }, [rotulo, sub]);
+      const atualizar = linha({
+        rotulo: t('settings.update'),
+        sub: t('settings.updateSub'),
+        classe: 'is-update',
+        aoTocar: () => {},
+      });
+      const rotulo = atualizar._rotulo;
+      const sub = atualizar._sub;
 
       /**
        * Troca o conteudo do rotulo, no lugar.
@@ -131,7 +138,7 @@ export function installBlock(onRefresh) {
         if (r === 'atual') {
           atualizar.disabled = false;
           atualizar.classList.remove('is-updating');
-          pintarRotulo(icon('download'), t('settings.update'));
+          pintarRotulo(t('settings.update'));
           sub.textContent = t('settings.updateSub');
           toast(t('settings.updateNone'));
         }
@@ -143,39 +150,35 @@ export function installBlock(onRefresh) {
     }
 
     if (mode === 'pronto') {
-      box.append(el('button', {
-        class: 'menu-item install-cta',
-        onClick: async () => {
+      box.append(linha({
+        rotulo: t('settings.installNow'),
+        sub: t('settings.installNowSub'),
+        seta: true,
+        aoTocar: async () => {
           const r = await promptInstall();
           if (r === 'accepted') toast(t('settings.installDone'));
           paint();
           if (onRefresh) onRefresh();
         },
-      }, [
-        el('span', { class: 'menu-label' }, [icon('download'), t('settings.installNow')]),
-        el('span', { class: 'menu-sub', text: t('settings.installNowSub') }),
-      ]));
+      }));
       return;
     }
 
     if (mode === 'ios') {
-      box.append(el('button', {
-        class: 'menu-item install-cta',
-        onClick: abrirInstalarNoIOS,
-      }, [
-        el('span', { class: 'menu-label' }, [icon('share'), t('settings.installIOS')]),
-        el('span', { class: 'menu-sub', text: t('settings.installIOSSub') }),
-      ]));
+      box.append(linha({
+        rotulo: t('settings.installIOS'),
+        sub: t('settings.installIOSSub'),
+        seta: true,
+        aoTocar: abrirInstalarNoIOS,
+      }));
       return;
     }
 
-    box.append(el('div', { class: 'install-note' }, [
-      el('span', { class: 'menu-label', text: t('settings.installNo') }),
-      el('span', {
-        class: 'menu-sub',
-        text: mode === 'inseguro' ? t('settings.installInsecure') : t('settings.installUnsupported'),
-      }),
-    ]));
+    box.append(linha({
+      rotulo: t('settings.installNo'),
+      sub: mode === 'inseguro' ? t('settings.installInsecure') : t('settings.installUnsupported'),
+      classe: 'is-muted',
+    }));
   };
 
   paint();

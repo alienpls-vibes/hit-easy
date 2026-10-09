@@ -9,6 +9,7 @@ import { el, clear, openFlow, closeSheet, toast } from '../../ui.js';
 import { t } from '../../i18n.js';
 import * as cloud from '../../cloud.js';
 import { handleValido, exibirHandle, normalizarHandle } from '../../cloud.js';
+import { linha } from './linhas.js';
 
 /**
  * O proprio @: como amigos marcam voce na mesa deles.
@@ -16,11 +17,15 @@ import { handleValido, exibirHandle, normalizarHandle } from '../../cloud.js';
  * Quem nao escolher um @ continua usando o app inteiro normalmente - so nao
  * pode ser convidado. E opcional de proposito.
  */
-export function handleBlock() {
-  const caixa = el('div', { class: 'account-handle' });
+export function handleBlock(api, aoMudar) {
   const perfil = cloud.meuPerfil();
-
-  caixa.append(el('p', { class: 'sheet-legend', text: t('account.yourHandle') }));
+  // Dentro das configuracoes, a escolha entra como mais uma tela (com voltar);
+  // fora delas, abre um painel proprio.
+  const abrir = () => {
+    const passo = trocarHandleStep(api, aoMudar);
+    if (api) api.next(passo);
+    else openFlow(passo);
+  };
 
   if (perfil && perfil.handle) {
     // Ja criado: nao e um campo de texto.
@@ -29,24 +34,22 @@ export function handleBlock() {
     // um input com botao de salvar convida a trocar sem querer - e trocar de @
     // quebra a marcacao que os outros ja tinham guardado. Trocar continua
     // possivel, mas por uma porta separada, que confere se o nome esta livre
-    // antes de deixar salvar.
-    caixa.append(el('div', { class: 'account-row' }, [
-      el('span', { class: 'account-handle-fixo', text: exibirHandle(perfil.handle) }),
-      el('button', {
-        class: 'account-out',
-        onClick: () => openFlow(trocarHandleStep()),
-      }, [t('account.handleChange')]),
-    ]));
-    caixa.append(el('p', { class: 'account-note', text: t('account.handleLocked') }));
-    return caixa;
+    // antes de deixar salvar - e avisa do custo la dentro.
+    return linha({
+      rotulo: exibirHandle(perfil.handle),
+      valor: t('account.handleChange'),
+      seta: true,
+      classe: 'account-handle-fixo',
+      aoTocar: abrir,
+    });
   }
 
-  caixa.append(el('button', {
-    class: 'btn primary block',
-    onClick: () => openFlow(trocarHandleStep()),
-  }, [t('account.handleCreate')]));
-  caixa.append(el('p', { class: 'account-note', text: t('account.handleHint') }));
-  return caixa;
+  return linha({
+    rotulo: t('account.handleCreate'),
+    sub: t('account.handleCreateSub'),
+    seta: true,
+    aoTocar: abrir,
+  });
 }
 
 /**
@@ -57,7 +60,7 @@ export function handleBlock() {
  * unico do banco. O valor disto e nao deixar a pessoa digitar, confirmar e so
  * entao descobrir que o nome era de outro.
  */
-function trocarHandleStep() {
+function trocarHandleStep(api, aoMudar) {
   const perfil = cloud.meuPerfil();
   return {
     title: perfil && perfil.handle ? t('handle.changeTitle') : t('handle.chooseTitle'),
@@ -120,7 +123,14 @@ function trocarHandleStep() {
         try {
           const novo = await cloud.salvarHandle(livre, null);
           toast(t('account.handleSaved', { handle: exibirHandle(novo.handle) }));
-          closeSheet();
+          // Nas configuracoes, volta para a conta ja com o @ novo; sozinho,
+          // fecha o painel.
+          if (api) {
+            api.back();
+            if (aoMudar) aoMudar();
+          } else {
+            closeSheet();
+          }
         } catch (err) {
           usar.disabled = false;
           // O 409 do banco e a unica resposta confiavel: alguem pode ter pegado
