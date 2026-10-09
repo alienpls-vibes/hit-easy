@@ -201,12 +201,16 @@
 
 .set-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .set-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   font-size: 0.95rem;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
+/* E-mail e conta cortam com reticências: quebrar um e-mail no meio é pior
+   que esconder o fim dele. O resto quebra linha - texto cortado esconde
+   justamente a parte que diz o que a linha é. */
+.set-email .set-label,
+.set-conta .set-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-row.is-update .set-label { display: flex; align-items: center; gap: 8px; }
 .set-sub { font-size: 0.74rem; line-height: 1.4; color: var(--text-dim); }
 .set-sub[hidden] { display: none; }
 .set-value {

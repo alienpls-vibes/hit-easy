@@ -434,6 +434,40 @@ A home continua sendo a base: dali o voltar sai do app, que é o que se espera.
 E a mesa segue como era — não há entrada empilhada nela, e trocar isso mereceria
 decisão própria, porque "voltar" numa partida em andamento não tem destino óbvio.
 
+## O @ é de quem pegou; o nome é livre
+
+Duas coisas diferentes, que antes se confundiam:
+
+- **O `@`** é a identidade — por onde os amigos acham e marcam a pessoa. Só
+  minúsculas, letras, números e `_`, para `@Alex` e `@alex` nunca serem duas
+  pessoas.
+- **O nome nas partidas** (`profiles.display_name`) é como a pessoa aparece na
+  cadeira quando alguém a marca. Livre na forma — "Alê", "Dr. Strange",
+  "MARIA", emoji —, preso só no tamanho (18, o que cabe no painel da mesa).
+  Sem nome, a mesa usa o `@`. Fica em Configurações → Conta.
+
+**Todo `@` que uma conta já usou continua dela, para sempre.** O índice único de
+`profiles.handle` só protegia o `@` em uso *agora*: trocar soltava o antigo, e
+outra conta podia pegá-lo — e com ele os convites de quem ainda marcava o `@`
+velho, justamente quem confiava naquele nome. Agora `handles_usados` guarda
+cada `@` com o dono, e o gatilho `guardar_handle` recusa (com 23505, que o
+PostgREST devolve como 409 e o app já entende como "ocupado") qualquer `@` que
+já foi de outra conta. A pessoa pode trocar e voltar a um antigo; ninguém mais
+pega nenhum deles. Apagar a conta solta os `@` dela.
+
+E o `@` antigo continua achando a pessoa: `buscar_handle` e o gatilho de
+convites resolvem por `dono_do_handle`, que olha o atual e depois os antigos, e
+a busca devolve o `@` atual — a cadeira passa a ser marcada com ele.
+
+Conferir o próprio `@` agora diz "já é o seu @" em vez de "está livre", sem
+botão de salvar (`situacaoDoHandle` em `regras.js`: `atual`, `livre` ou
+`ocupado`). E trocar o `@` parou de apagar o nome: o upsert mandava
+`display_name: null` junto.
+
+> **Precisa de migração.** Rode `sql/008-handle-reservado-e-nome.sql` no
+> Supabase. Sem ela o nome não grava (a coluna existe, mas a regra de tamanho
+> não) e o `@` antigo continua podendo ser pego por outra conta.
+
 ## Os decks seguem a conta
 
 A lista de decks de alguém é **derivada** do histórico local — nada é guardado

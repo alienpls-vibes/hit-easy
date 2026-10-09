@@ -185,6 +185,46 @@ export function exibirHandle(h) {
 }
 
 /**
+ * O que um @ e para mim: o que ja uso, um livre, ou de outra conta.
+ *
+ * `achado` e o que a busca devolveu (ou null). A busca resolve @ ANTIGO para o
+ * dono atual, entao "achou uma conta" nao basta para dizer ocupado:
+ *
+ *   achou a mim, com o mesmo @   'atual'   - e o que ja uso; nao ha o que trocar
+ *   achou a mim, com outro @     'livre'   - um @ antigo meu, posso voltar a ele
+ *   achou outra conta            'ocupado' - atual ou antigo, e de outra pessoa
+ *   nao achou                    'livre'
+ *
+ * Antes o primeiro caso dizia "livre", e a pessoa via o proprio @ oferecido
+ * como se fosse um nome novo.
+ */
+export function situacaoDoHandle(pedido, achado, meuId) {
+  if (!achado) return 'livre';
+  if (!meuId || achado.id !== meuId) return 'ocupado';
+  return normalizarHandle(achado.handle) === normalizarHandle(pedido) ? 'atual' : 'livre';
+}
+
+/** O tamanho que cabe no painel de um jogador na mesa - o mesmo do nome digitado. */
+export const NOME_MAX = 18;
+
+/**
+ * O nome nas partidas, do jeito que a pessoa escreveu.
+ *
+ * Livre na forma: maiusculas, acentos, pontuacao, emoji. So se tira o que
+ * nao e escrita - caractere de controle, espaco sobrando, caractere invisivel
+ * que inverte ou esconde texto - e se corta no tamanho, contando por ponto de
+ * codigo, como o `char_length` do banco. O U+200D fica: e ele que junta os
+ * emojis compostos.
+ */
+export function normalizarNome(texto) {
+  const limpo = String(texto == null ? '' : texto)
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b\u200c\u200e\u200f\u2028-\u202e\u2060-\u206f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return [...limpo].slice(0, NOME_MAX).join('').trim();
+}
+
+/**
  * As cadeiras que viram convite.
  *
  * So entra cadeira marcada com um @. As outras seguem sendo texto livre, como

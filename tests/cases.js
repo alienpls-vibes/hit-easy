@@ -46,7 +46,9 @@ import {
   colunaDeDecks, baixarPartidas, idsRemotos,
   enviarPartida, enviarParticipantes, salvarMeusDecks, conta,
   confiarEm, deixarDeConfiar, convitesPendentes,
+  situacaoDoHandle, normalizarNome, NOME_MAX, salvarHandle, salvarNome,
 } from '../src/cloud.js';
+import { handleBlock } from '../src/views/setup/handle.js';
 import { accountBlock } from '../src/views/setup/conta.js';
 import { cloudEnabled } from '../src/config.js';
 import { canalDe, canalDoCache } from '../src/canal.js';
@@ -5246,6 +5248,98 @@ export const cases = [
       conta.sessao = sessaoReal;
       conta.convites = [];
       document.body.childNodes.length = 0;
+    }
+    return undefined;
+  }],
+  ['o @ é atual, livre ou de outra pessoa - e o seu não aparece como livre', () => {
+    // A busca resolve @ antigo para o dono atual (sql/008). Achar uma conta
+    // não basta para dizer "ocupado", e achar a si mesmo não é "livre".
+    eq(situacaoDoHandle('alex', null, 'eu'), 'livre', 'ninguém usa');
+    eq(situacaoDoHandle('alex', { id: 'eu', handle: 'alex' }, 'eu'), 'atual', 'é o meu de agora');
+    eq(situacaoDoHandle('@Alex', { id: 'eu', handle: 'alex' }, 'eu'), 'atual', 'com @ e maiúscula também');
+    eq(situacaoDoHandle('alex', { id: 'eu', handle: 'alexandre' }, 'eu'), 'livre',
+      'um @ antigo meu: posso voltar a ele');
+    eq(situacaoDoHandle('alex', { id: 'outra', handle: 'alex' }, 'eu'), 'ocupado');
+    eq(situacaoDoHandle('alex', { id: 'outra', handle: 'alexandre' }, 'eu'), 'ocupado',
+      'o @ antigo de outra pessoa continua dela');
+  }],
+
+  ['o nome nas partidas fica do jeito que a pessoa escreveu', () => {
+    eq(normalizarNome('  Alê   do   Rio  '), 'Alê do Rio', 'espaços sobrando');
+    eq(normalizarNome('Dr. Strange!'), 'Dr. Strange!', 'maiúscula e pontuação ficam');
+    eq(normalizarNome('MARIA'), 'MARIA');
+    eq(normalizarNome('Ana\u0000\u0007'), 'Ana', 'caractere de controle sai');
+    eq(normalizarNome('‮anA'), 'anA', 'o que inverte o texto sai');
+    eq(normalizarNome('👨‍👩‍👧 Família'), '👨‍👩‍👧 Família',
+      'o emoji composto continua inteiro');
+    eq([...normalizarNome('a'.repeat(30))].length, NOME_MAX, 'corta no tamanho do painel');
+    eq([...normalizarNome('🐉'.repeat(30))].length, NOME_MAX, 'emoji conta como um');
+    eq(normalizarNome('   '), '', 'só espaço é nome nenhum');
+  }],
+
+  ['trocar o @ não apaga o nome, e o nome vai normalizado', async () => {
+    const fetchReal = globalThis.fetch;
+    const sessaoReal = conta.sessao;
+    const perfilReal = conta.perfil;
+    const pedidos = [];
+    globalThis.fetch = (u, o) => {
+      pedidos.push({ url: String(u), metodo: (o && o.method) || 'GET', corpo: JSON.parse((o && o.body) || 'null') });
+      return Promise.resolve({
+        ok: true, status: 200,
+        json: () => Promise.resolve([{ id: 'eu', handle: 'alexandre', display_name: 'Alê' }]),
+      });
+    };
+    conta.sessao = { user: { id: 'eu', email: 'eu@x.com' }, access_token: 'x', expires_at: Math.floor(Date.now() / 1000) + 3600 };
+    conta.perfil = { id: 'eu', handle: 'alex', display_name: 'Alê' };
+    try {
+      await salvarHandle('alexandre', null);
+      const upsert = pedidos.find((p) => p.metodo === 'POST' && p.url.includes('/profiles'));
+      ok(upsert, 'não gravou o @');
+      ok(!('display_name' in upsert.corpo), 'trocar o @ mandou display_name e apagaria o nome');
+
+      await salvarNome('  Dr.   Strange  ');
+      const patch = pedidos.find((p) => p.metodo === 'PATCH');
+      eq(patch.corpo, { display_name: 'Dr. Strange' }, 'o nome não foi normalizado');
+      eq(conta.perfil.display_name, 'Dr. Strange');
+
+      await salvarNome('   ');
+      eq(pedidos.filter((p) => p.metodo === 'PATCH').pop().corpo, { display_name: null },
+        'nome vazio tem de voltar para o @');
+    } finally {
+      globalThis.fetch = fetchReal;
+      conta.sessao = sessaoReal;
+      conta.perfil = perfilReal;
+    }
+    return undefined;
+  }],
+
+  ['conferir o próprio @ diz que já é seu, e não deixa salvar', async () => {
+    if (!simulated) return 'skip';
+    const fetchReal = globalThis.fetch;
+    const sessaoReal = conta.sessao;
+    const perfilReal = conta.perfil;
+    globalThis.fetch = () => Promise.resolve({
+      ok: true, status: 200, json: () => Promise.resolve([{ id: 'eu', handle: 'alex', display_name: null }]),
+    });
+    conta.sessao = { user: { id: 'eu', email: 'eu@x.com' }, access_token: 'x', expires_at: Math.floor(Date.now() / 1000) + 3600 };
+    conta.perfil = { id: 'eu', handle: 'alex', display_name: null };
+    const respirar = async () => { for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0)); };
+    try {
+      fire(handleBlock(), 'click');
+      const campo = findAll(document.body, 'search-input').pop();
+      campo.value = 'alex';
+      fire(findAll(document.body, 'btn').filter((b) => textOf(b) === t('handle.check')).pop(), 'click');
+      await respirar();
+
+      const recado = findAll(document.body, 'handle-result').pop();
+      eq(textOf(recado), t('handle.yours', { handle: '@alex' }), 'o próprio @ apareceu como livre');
+      const usar = findAll(document.body, 'btn').filter((b) => textOf(b) === t('handle.useThis')).pop();
+      ok(usar.disabled, 'deixou salvar o @ que já é seu');
+    } finally {
+      globalThis.fetch = fetchReal;
+      conta.sessao = sessaoReal;
+      conta.perfil = perfilReal;
+      closeSheet();
     }
     return undefined;
   }],

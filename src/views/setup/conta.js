@@ -52,11 +52,13 @@ export function contaResumo(api, onRefresh) {
     const email = (usuario && usuario.email) || '';
     const perfil = cloud.meuPerfil();
     const handle = perfil && perfil.handle ? exibirHandle(perfil.handle) : null;
+    const nome = perfil && perfil.display_name;
     const convites = cloud.convitesAbertos().length;
 
+    // Como a pessoa aparece na mesa vem primeiro; o @ e o e-mail, embaixo.
     caixa.append(linha({
-      rotulo: handle || email,
-      sub: [handle ? email : null, estado === 'assinante' ? t('account.subActive') : null]
+      rotulo: nome || handle || email,
+      sub: [nome ? handle : (handle ? email : null), estado === 'assinante' ? t('account.subActive') : null]
         .filter(Boolean).join(' \u00b7 ') || t('account.title'),
       seta: true,
       classe: 'set-conta',
@@ -127,6 +129,7 @@ export function accountBlock(onRefresh, api) {
     ]));
 
     caixa.append(grupo(t('account.yourHandle'), [handleBlock(api, pintar)]));
+    caixa.append(grupo(t('account.displayName'), [nomeBlock(api, pintar)]));
     caixa.append(grupo(t('sync.title'), [syncBlock()]));
     caixa.append(grupo(t('account.password'), [senhaBlock()]));
     caixa.append(invitesBlock());
@@ -277,6 +280,98 @@ function loginBlock(repintar, onRefresh) {
 
   caixa.append(el('p', { class: 'account-note', text: t('account.why') }));
   return caixa;
+}
+
+/**
+ * O nome nas partidas: como a pessoa aparece na mesa dos amigos.
+ *
+ * O @ e a identidade - so minusculas, para "@Alex" e "@alex" nunca serem duas
+ * pessoas. O nome e outra coisa: e o que a cadeira mostra quando alguem marca
+ * esta conta, e pode ser escrito do jeito que a pessoa quiser. Sem nome, a
+ * mesa usa o @.
+ *
+ * So existe com @: o nome mora na mesma linha do perfil, que nasce com ele.
+ */
+function nomeBlock(api, aoMudar) {
+  const perfil = cloud.meuPerfil();
+  if (!perfil || !perfil.handle) {
+    return linha({ rotulo: t('account.displayNameNeedsHandle'), classe: 'is-muted' });
+  }
+  const nome = perfil.display_name;
+  return linha({
+    rotulo: nome || t('account.displayNameEmpty'),
+    sub: nome ? null : t('account.displayNameSub', { handle: exibirHandle(perfil.handle) }),
+    valor: nome ? t('account.handleChange') : null,
+    seta: true,
+    classe: nome ? 'set-nome' : 'set-nome is-muted',
+    aoTocar: () => {
+      const passo = passoDoNome(api, aoMudar);
+      if (api) api.next(passo);
+    },
+  });
+}
+
+/** A tela de escrever o nome, com a previa de como fica na mesa. */
+function passoDoNome(api, aoMudar) {
+  const perfil = cloud.meuPerfil() || {};
+  return {
+    title: t('account.displayNameTitle'),
+    subtitle: t('account.displayNameStepSub'),
+    build: (pane) => {
+      const campo = el('input', {
+        class: 'search-input',
+        placeholder: perfil.handle || '',
+        autocapitalize: 'words',
+        autocomplete: 'nickname',
+        spellcheck: 'false',
+        enterkeyhint: 'done',
+        'aria-label': t('account.displayName'),
+      });
+      campo.value = perfil.display_name || '';
+
+      // A previa e o que convence: "Alê" com acento, do jeito que vai sair no
+      // painel. E mostra o corte quando passa do tamanho, em vez de cortar
+      // calado na hora de salvar.
+      const previa = el('p', { class: 'account-note' });
+      const contar = () => {
+        const limpo = cloud.normalizarNome(campo.value);
+        const passou = [...campo.value.trim()].length > cloud.NOME_MAX;
+        previa.textContent = t('account.displayNamePreview', {
+          nome: limpo || exibirHandle(perfil.handle),
+          n: [...limpo].length,
+          max: cloud.NOME_MAX,
+        }) + (passou ? ' \u00b7 ' + t('account.displayNameCut') : '');
+      };
+      campo.addEventListener('input', contar);
+      contar();
+
+      const salvar = el('button', { class: 'btn primary block' }, [t('account.displayNameSave')]);
+      const gravar = async (texto) => {
+        salvar.disabled = true;
+        try {
+          const novo = await cloud.salvarNome(texto);
+          toast(novo
+            ? t('account.displayNameSaved', { nome: novo })
+            : t('account.displayNameCleared'));
+          if (api) api.back();
+          if (aoMudar) aoMudar();
+        } catch {
+          salvar.disabled = false;
+          toast(t('account.failed'));
+        }
+      };
+      salvar.addEventListener('click', () => gravar(campo.value));
+      campo.addEventListener('keydown', (e) => { if (e.key === 'Enter') gravar(campo.value); });
+
+      pane.append(campo, previa, salvar);
+      if (perfil.display_name) {
+        pane.append(el('button', {
+          class: 'btn ghost block',
+          onClick: () => gravar(''),
+        }, [t('account.displayNameUseHandle')]));
+      }
+    },
+  };
 }
 
 /**

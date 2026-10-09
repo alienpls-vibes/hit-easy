@@ -102,15 +102,20 @@ function trocarHandleStep(api, aoMudar) {
         }
         recado.append(el('p', { class: 'account-note', text: t('handle.searching') }));
         try {
-          const ok = await cloud.handleDisponivel(bruto);
+          const situacao = await cloud.situacaoDoHandleAgora(bruto);
           clear(recado);
+          // O proprio @ nao e "livre": nao ha o que trocar, e oferecer o botao
+          // de usar faria a pessoa salvar o que ja tem.
+          const texto = {
+            livre: 'handle.free',
+            atual: 'handle.yours',
+            ocupado: 'handle.taken',
+          }[situacao];
           recado.append(el('p', {
-            class: ok ? 'account-sent' : 'account-note',
-            text: ok
-              ? t('handle.free', { handle: exibirHandle(bruto) })
-              : t('handle.taken', { handle: exibirHandle(bruto) }),
+            class: situacao === 'livre' ? 'account-sent' : 'account-note',
+            text: t(texto, { handle: exibirHandle(bruto) }),
           }));
-          if (ok) { livre = bruto; usar.disabled = false; }
+          if (situacao === 'livre') { livre = bruto; usar.disabled = false; }
         } catch {
           clear(recado);
           recado.append(el('p', { class: 'account-note', text: t('account.failed') }));

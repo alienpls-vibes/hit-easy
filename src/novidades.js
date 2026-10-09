@@ -50,6 +50,22 @@ export const NOVIDADES = [
           + 'escondida nas configurações.',
       },
       {
+        tipo: 'novo',
+        texto: 'Escolha como você aparece nas partidas: em Configurações → '
+          + 'Conta, o nome nas partidas aceita maiúsculas, acentos e o que '
+          + 'mais quiser. O @ continua sendo como os amigos acham você.',
+      },
+      {
+        tipo: 'mudou',
+        texto: 'Todo @ que você já usou continua seu: ao trocar, o antigo não '
+          + 'fica livre para outra pessoa, e quem marcar ele ainda acha você.',
+      },
+      {
+        tipo: 'corrigido',
+        texto: 'Conferir o próprio @ dizia que ele estava livre. Agora diz que '
+          + 'já é seu.',
+      },
+      {
         tipo: 'mudou',
         texto: 'As configurações foram reorganizadas em grupos - Aparência, '
           + 'Na mesa e Aplicativo -, com menos texto. A conta virou uma linha '
