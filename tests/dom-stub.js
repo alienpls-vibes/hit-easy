@@ -111,6 +111,15 @@ class Node {
     if (this.parentNode) this.parentNode.removeChild(this);
   }
   get firstChild() { return this.childNodes[0] || null; }
+  /** Como no navegador: na pagina e quem chega ao corpo por pais de verdade. */
+  get isConnected() {
+    let n = this;
+    while (n.parentNode) {
+      if (!n.parentNode.childNodes.includes(n)) return false;
+      n = n.parentNode;
+    }
+    return n === globalThis.document.body || n === globalThis.document.documentElement;
+  }
   get parentElement() { return this.parentNode; }
   // <select> guarda o valor escolhido numa propriedade, nao num atributo.
   get value() { return this._value === undefined ? '' : this._value; }

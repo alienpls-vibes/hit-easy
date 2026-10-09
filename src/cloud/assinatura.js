@@ -32,6 +32,7 @@ export async function carregarAssinatura() {
     conta.assinaturaLida = true;
     return null;
   }
+  const antes = JSON.stringify([conta.assinatura, conta.assinaturaLida]);
   try {
     const linhas = await pedir('/rest/v1/subscriptions?select=*&limit=1');
     conta.assinatura = Array.isArray(linhas) && linhas.length
@@ -42,6 +43,7 @@ export async function carregarAssinatura() {
     // Mesmo falhando, a pergunta deixa de estar em aberto: insistir em
     // "verificando" para sempre seria pior que dizer que nao ha acesso.
     conta.assinaturaLida = true;
-    avisar();
+    // So avisa se algo mudou - ver convitesPendentes(), que tinha o laco.
+    if (JSON.stringify([conta.assinatura, conta.assinaturaLida]) !== antes) avisar();
   }
 }

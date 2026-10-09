@@ -17,8 +17,12 @@ export function meuPerfil() {
 export async function carregarPerfil() {
   if (!conta.sessao) { conta.perfil = null; return null; }
   const linhas = await pedir('/rest/v1/profiles?select=*&limit=1');
-  conta.perfil = Array.isArray(linhas) && linhas.length ? linhas[0] : null;
-  avisar();
+  const novo = Array.isArray(linhas) && linhas.length ? linhas[0] : null;
+  // Como os convites: avisar sem mudanca faz quem redesenha ao ouvir buscar
+  // de novo, e buscar de novo avisar de novo.
+  const mudou = JSON.stringify(novo) !== JSON.stringify(conta.perfil);
+  conta.perfil = novo;
+  if (mudou) avisar();
   return conta.perfil;
 }
 

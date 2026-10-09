@@ -53,6 +53,7 @@ export {
   currentUser,
   esquecerSessao,
   onAccountChange,
+  ouvirContaEnquanto,
   state,
   subscription,
 } from './cloud/estado.js';

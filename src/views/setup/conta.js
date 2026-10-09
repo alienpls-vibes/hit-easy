@@ -66,7 +66,7 @@ export function contaResumo(api, onRefresh) {
   };
 
   pintar();
-  cloud.onAccountChange(pintar);
+  cloud.ouvirContaEnquanto(caixa, pintar);
   return caixa;
 }
 
@@ -143,7 +143,7 @@ export function accountBlock(onRefresh, api) {
   };
 
   pintar();
-  cloud.onAccountChange(pintar);
+  cloud.ouvirContaEnquanto(caixa, pintar);
   return caixa;
 }
 

@@ -50,9 +50,19 @@ export async function convitesPendentes() {
     + '&canal=eq.' + canal()
     + '&user_id=eq.' + encodeURIComponent(dono.id),
   )) || [];
+  // So avisa se a lista MUDOU. Avisar sempre fechava um laco: a tela da conta
+  // se redesenha a cada aviso, redesenhar monta o bloco de convites, o bloco
+  // busca os convites, e a busca avisava de novo - para sempre, uma ida a rede
+  // por volta. Os botoes eram recriados sem parar debaixo do mouse: piscavam,
+  // e o clique caia num botao que ja nao existia.
+  const mudou = assinaturaDosConvites(linhas) !== assinaturaDosConvites(conta.convites);
   conta.convites = linhas;
-  avisar();
+  if (mudou) avisar();
   return linhas;
+}
+
+function assinaturaDosConvites(lista) {
+  return (lista || []).map((c) => c.match_id + ':' + c.seat_id + ':' + c.status).sort().join('|');
 }
 
 /** Quem registrou a partida a que este convite se refere. */

@@ -60,6 +60,26 @@ export function onAccountChange(fn) {
   return () => ouvintes.delete(fn);
 }
 
+/**
+ * Ouve a conta enquanto `no` estiver na pagina.
+ *
+ * Cada bloco das configuracoes se inscrevia e nunca saia: abrir a tela dez
+ * vezes deixava dez ouvintes redesenhando caixas que ninguem via - e, somados
+ * ao laco dos convites, cada um disparava a sua ida a rede. Aqui o ouvinte se
+ * desfaz sozinho no primeiro aviso depois de o bloco sair da tela.
+ *
+ * "Ja esteve na pagina", e nao so "esta": o bloco e montado antes de ser
+ * pendurado, e um aviso nesse intervalo nao pode cancelar a inscricao.
+ */
+export function ouvirContaEnquanto(no, fn) {
+  let esteve = false;
+  const sair = onAccountChange((s) => {
+    if (no.isConnected) { esteve = true; fn(s); return; }
+    if (esteve) sair();
+  });
+  return sair;
+}
+
 export function state() {
   return accountState({
     ligado: cloudEnabled(),

@@ -68,6 +68,13 @@ export const NOVIDADES = [
       },
       {
         tipo: 'corrigido',
+        texto: 'Depois de entrar na conta, os botões podiam começar a piscar '
+          + 'sob o mouse e parar de responder, e os filtros das estatísticas '
+          + 'quebravam. A tela da conta se redesenhava sem parar, buscando '
+          + 'os convites na internet a cada volta.',
+      },
+      {
+        tipo: 'corrigido',
         texto: 'Sair do app e voltar no meio da partida deixava a tela em pé. '
           + 'Agora o primeiro toque devolve a mesa deitada.',
       },

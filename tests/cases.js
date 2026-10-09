@@ -45,8 +45,9 @@ import {
   normalizarHandle, handleValido, exibirHandle, participantesDe, montarConvites,
   colunaDeDecks, baixarPartidas, idsRemotos,
   enviarPartida, enviarParticipantes, salvarMeusDecks, conta,
-  confiarEm, deixarDeConfiar,
+  confiarEm, deixarDeConfiar, convitesPendentes,
 } from '../src/cloud.js';
+import { accountBlock } from '../src/views/setup/conta.js';
 import { cloudEnabled } from '../src/config.js';
 import { canalDe, canalDoCache } from '../src/canal.js';
 import { NOVIDADES, novidadesDesde, novidadesDe } from '../src/novidades.js';
@@ -5186,6 +5187,65 @@ export const cases = [
     } finally {
       closeSheet();
       store.wipe();
+    }
+    return undefined;
+  }],
+  ['a tela da conta não entra em laço de redesenho', async () => {
+    if (!simulated || !cloudEnabled()) return 'skip';
+    // O defeito relatado: depois de entrar na conta, os botões piscavam como se
+    // o mouse passasse rápido e paravam de aceitar clique. A tela da conta se
+    // redesenhava a cada aviso de conta, redesenhar buscava os convites, e a
+    // busca avisava de novo - para sempre, recriando os botões debaixo do
+    // mouse a cada volta da rede.
+    const fetchReal = globalThis.fetch;
+    const sessaoReal = conta.sessao;
+    let buscas = 0;
+    let convites = [];
+    globalThis.fetch = (u) => {
+      if (String(u).includes('match_players')) buscas += 1;
+      const corpo = String(u).includes('match_players') ? convites : [];
+      // Responde num tique à parte, como a rede de verdade: respondendo na
+      // hora, o laço antigo nunca devolvia a vez e travava a suíte inteira.
+      return new Promise((r) => setTimeout(() => r({
+        ok: true, status: 200, json: () => Promise.resolve(corpo),
+      }), 0));
+    };
+    conta.sessao = {
+      user: { id: 'eu', email: 'eu@exemplo.com' }, access_token: 'x',
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+    };
+    const respirar = async (n = 30) => { for (let i = 0; i < n; i += 1) await new Promise((r) => setTimeout(r, 0)); };
+    document.body.childNodes.length = 0;
+    try {
+      const bloco = accountBlock(() => {});
+      document.body.append(bloco);
+      await respirar();
+      const depoisDeMontar = buscas;
+      ok(depoisDeMontar >= 1, 'a tela da conta não buscou os convites');
+
+      // Um aviso de conta qualquer: a tela redesenha UMA vez, e para.
+      await convitesPendentes();
+      await respirar();
+      ok(buscas - depoisDeMontar <= 3,
+        'laço: ' + (buscas - depoisDeMontar) + ' buscas de convite depois de um aviso só');
+
+      // Fechada a tela, ela para de ouvir: um convite novo de verdade avisa,
+      // e a caixa que ninguém vê não pode sair buscando de novo.
+      bloco.remove();
+      await respirar();
+      convites = [{ match_id: 'm1', seat_id: 's1', status: 'pendente', handle: 'eu' }];
+      await convitesPendentes();
+      await respirar();
+      const antes = buscas;
+      convites = [];
+      await convitesPendentes();
+      await respirar();
+      eq(buscas - antes, 1, 'a tela fechada continuou buscando convites');
+    } finally {
+      globalThis.fetch = fetchReal;
+      conta.sessao = sessaoReal;
+      conta.convites = [];
+      document.body.childNodes.length = 0;
     }
     return undefined;
   }],
