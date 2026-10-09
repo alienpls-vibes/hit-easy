@@ -155,6 +155,33 @@ export async function currentHandles(list) {
 }
 
 /**
+ * Current @ and chosen match name of these @s, in batches of 500 (sql/011).
+ *
+ * Returns `{ current: { old: current }, names: { current: name | null } }`.
+ * Every account found comes back in `names` - with null when it chose no
+ * name - so a name cleared by its owner is forgotten here too.
+ */
+export async function profilesByHandle(list) {
+  const current = {};
+  const names = {};
+  const unique = [...new Set((list || []).map(normalizeHandle).filter(Boolean))];
+  for (let i = 0; i < unique.length; i += 500) {
+    const rows = await request('/rest/v1/rpc/perfis_por_handle', {
+      method: 'POST',
+      body: JSON.stringify({ hs: unique.slice(i, i + 500) }),
+    });
+    // The RPC answers `{ pedido, atual, nome }`: the requested @, its current
+    // one, and the name that account chose.
+    for (const l of rows || []) {
+      if (!l || !l.pedido || !l.atual) continue;
+      if (l.pedido !== l.atual) current[l.pedido] = l.atual;
+      names[l.atual] = l.nome || null;
+    }
+  }
+  return { current, names };
+}
+
+/**
  * What this @ is to me: 'current', 'free' or 'taken' (see rules.js).
  *
  * This is a QUERY, not a reservation: between the answer and the save someone

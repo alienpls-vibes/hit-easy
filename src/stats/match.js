@@ -8,7 +8,7 @@
 
 import { replay, standings, elapsedOf } from '../engine.js';
 import { t } from '../i18n.js';
-import { lastTs } from './aggregate.js';
+import { lastTs, seatName } from './aggregate.js';
 import { voteTitle } from './votes.js';
 
 /**
@@ -51,10 +51,12 @@ export function summarize(match) {
 }
 
 /** Readable timeline of a match. */
-export function timeline(match) {
+export function timeline(match, aliases = null) {
+  // With `aliases`, an account seat is called by the name its owner chose
+  // (see seatName); without, by the name typed that day - as always.
   const nameOf = (id) => {
     const seat = match.seats.find((s) => s.id === id);
-    return seat ? seat.name : '?';
+    return seat ? seatName(seat, aliases) : '?';
   };
   const cmdName = (key) => {
     if (!key) return t('tl.commander');

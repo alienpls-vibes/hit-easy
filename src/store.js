@@ -14,7 +14,9 @@
  */
 
 import { storageKey } from './channel.js';
-import { identityOf, CURRENT_HANDLES, currentHandle } from './stats.js';
+import {
+  identityOf, CURRENT_HANDLES, currentHandle, DISPLAY_NAMES, displayNameOf,
+} from './stats.js';
 import {
   isValidMatch, mergeDecks, handOffTable, receiveTable, reclaimTable, isHandedOff,
 } from './engine.js';
@@ -50,6 +52,8 @@ const EMPTY = {
   hiddenPlayers: [],
   // Old @ -> current @, for whoever changed @. See currentHandle in stats.
   handlesAtuais: {},
+  // Current @ -> the name that account chose for matches. See learnDisplayNames.
+  displayNames: {},
   settings: {
     startingLife: 40,
     lang: null,           // null = follow the browser
@@ -336,7 +340,91 @@ export function accountDecks(handle) {
 export function knownHandles() {
   const aliases = { ...(db.playerHandles || {}) };
   aliases[CURRENT_HANDLES] = { ...(db.handlesAtuais || {}) };
+  aliases[DISPLAY_NAMES] = { ...(db.displayNames || {}) };
   return aliases;
+}
+
+/** The longest seat name - what fits on a player's panel at the table. */
+const SEAT_NAME_MAX = 18;
+
+/**
+ * The name a seat should carry: the chosen name of its account, when known.
+ *
+ * Seats without an account, or whose account has no chosen name, keep the
+ * name typed for them.
+ */
+export function nameForSeat(seat) {
+  if (!seat) return '';
+  // By identity, not only by `seat.handle`: a seat reused from the previous
+  // table carries just the typed name, and the account is known through the
+  // name -> @ the device remembers.
+  const identity = identityOf(seat, knownHandles());
+  if (!identity.startsWith('@')) return seat.name;
+  const chosen = displayNameOf(identity.slice(1), knownHandles());
+  return chosen ? [...chosen].slice(0, SEAT_NAME_MAX).join('') : seat.name;
+}
+
+/**
+ * Puts the chosen names on these seats (mutates them). Returns how many changed.
+ *
+ * Used where seats are about to be seen at the table: picking a person,
+ * reusing the previous table, starting a match.
+ */
+export function applyDisplayNames(seats) {
+  let changed = 0;
+  for (const seat of seats || []) {
+    const name = nameForSeat(seat);
+    if (!name || name === seat.name) continue;
+    // The account came from the typed name: once the name changes, the seat
+    // has to carry the @ itself, or it would lose the account it just got.
+    if (!seat.handle) {
+      const identity = identityOf(seat, knownHandles());
+      if (identity.startsWith('@')) seat.handle = identity.slice(1);
+    }
+    seat.name = name;
+    changed += 1;
+  }
+  return changed;
+}
+
+/**
+ * Learns the names accounts chose for matches: `{ handle: name | null }`.
+ *
+ * The statistics read the map on the fly (labelOf, seatName). The OPEN match
+ * is different: the table, the victory card and the votes read `seat.name`,
+ * so its seats are renamed here - otherwise someone who chose "Alê" would
+ * still be "Alex" on the panel until the next match. Finished matches are not
+ * touched: they record the name the table used that day.
+ *
+ * `null` forgets the name (the person went back to using the @). Returns
+ * `{ changed, table }`: how many names changed, and whether the open match
+ * changed - the caller redraws the table only then.
+ */
+export function learnDisplayNames(pairs) {
+  const clean = (h) => String(h || '').trim().replace(/^@+/, '').toLowerCase();
+  const map = { ...(db.displayNames || {}) };
+  let changed = 0;
+  for (const [raw, name] of Object.entries(pairs || {})) {
+    const h = clean(raw);
+    if (!h) continue;
+    const value = String(name || '').trim();
+    if (value) {
+      if (map[h] === value) continue;
+      map[h] = value;
+    } else {
+      if (!(h in map)) continue;
+      delete map[h];
+    }
+    changed += 1;
+  }
+  if (!changed) return { changed: 0, table: false };
+
+  db.displayNames = map;
+  const table = db.current && !db.current.passadaEm
+    ? applyDisplayNames(db.current.seats) > 0
+    : false;
+  save();
+  return { changed, table };
 }
 
 /**

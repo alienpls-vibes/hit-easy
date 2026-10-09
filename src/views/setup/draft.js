@@ -53,6 +53,8 @@ export function seedDraftFrom(match) {
     layoutId: match.layoutId || null,
     firstSeatId: null, // who starts is decided again for every match
   };
+  // Whoever chose a name since the last match shows up under it already.
+  store.applyDisplayNames(draft.seats);
 }
 
 /** Shortcuts over the draft; the rule itself lives in the engine. */

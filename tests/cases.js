@@ -23,7 +23,7 @@ import {
   playerColorOrder, playerColor,
   identityOf, labelOf, recordedName,
   voteKey, voteKeyLabel, orientRival,
-  voteCategory, categoryLabel, CURRENT_HANDLES, currentHandle,
+  voteCategory, categoryLabel, CURRENT_HANDLES, currentHandle, seatName, timeline,
 } from '../src/stats.js';
 import {
   LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf, layoutOfMatch,
@@ -51,6 +51,9 @@ import {
 } from '../src/cloud.js';
 import { handleBlock } from '../src/views/setup/handle.js';
 import { accountBlock } from '../src/views/setup/account.js';
+// Straight from the module: what loading or saving the profile triggers.
+import { notify as notifyAccount } from '../src/cloud/account.js';
+import { matchCard } from '../src/views/stats/match.js';
 import { cloudEnabled } from '../src/config.js';
 import { channelOf, channelOfCache } from '../src/channel.js';
 import { RELEASE_NOTES, releaseNotesSince, releaseNotesFor } from '../src/release-notes.js';
@@ -5558,12 +5561,24 @@ export const cases = [
     }
   }],
 
-  ['the sync asks the server who changed @', async () => {
+  ['the sync asks the server who changed @ and what name they chose', async () => {
     const realFetch = globalThis.fetch;
     const realSession = account.session;
     const requests = [];
+    let has011 = true;
     globalThis.fetch = (u, o) => {
-      requests.push({ url: String(u), body: JSON.parse((o && o.body) || 'null') });
+      const url = String(u);
+      requests.push({ url, body: JSON.parse((o && o.body) || 'null') });
+      if (url.endsWith('/rpc/perfis_por_handle')) {
+        if (!has011) return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+        return Promise.resolve({
+          ok: true, status: 200,
+          json: () => Promise.resolve([
+            { pedido: 'bia', atual: 'beatriz', nome: 'Bia Souza' },
+            { pedido: 'eu_mesmo', atual: 'eu_mesmo', nome: null },
+          ]),
+        });
+      }
       return Promise.resolve({
         ok: true, status: 200,
         json: () => Promise.resolve([{ pedido: 'bia', atual: 'beatriz' }]),
@@ -5577,14 +5592,147 @@ export const cases = [
       m.seats[1].handle = 'bia';
       store.archive(m);
 
-      eq(await refreshHandles(), 1, 'it did not learn Bia\'s change');
-      const request = requests.find((p) => p.url.endsWith('/rpc/handles_atuais'));
+      const learned = await refreshHandles();
+      eq(learned.handles, 1, 'it did not learn Bia\'s change of @');
+      eq(learned.names, 1, 'it did not learn the name Bia chose');
+      const request = requests.find((p) => p.url.endsWith('/rpc/perfis_por_handle'));
       ok(request, 'it did not ask the server');
       eq(request.body.hs.sort(), ['bia', 'eu_mesmo'], 'it did not send the @s of the history');
       eq(identityOf(m.seats[1], store.knownHandles()), '@beatriz');
+      eq(labelOf(m.seats[1], store.knownHandles()), 'Bia Souza', 'the statistics still show the @');
+
+      // A database without sql/011 still answers the @ changes through 010.
+      store.wipe();
+      store.archive(m);
+      has011 = false;
+      const fallback = await refreshHandles();
+      eq(fallback.handles, 1, 'without 011 the @ change was lost');
+      ok(requests.some((p) => p.url.endsWith('/rpc/handles_atuais')), 'it did not fall back to 010');
     } finally {
       globalThis.fetch = realFetch;
       account.session = realSession;
+      store.wipe();
+    }
+    return undefined;
+  }],
+  ['the chosen name labels the person in the statistics and inside the match', () => {
+    store.wipe();
+    try {
+      const m = makeMatch(2);
+      m.seats[0].handle = 'alex';
+      m.seats[0].name = 'Alex';
+      push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
+
+      // Before any name is known: the @, as always.
+      eq(labelOf(m.seats[0], store.knownHandles()), '@alex');
+
+      store.learnDisplayNames({ alex: 'Alê Parma' });
+      const aliases = store.knownHandles();
+      eq(labelOf(m.seats[0], aliases), 'Alê Parma', 'the statistics still show the @');
+      eq(seatName(m.seats[0], aliases), 'Alê Parma');
+      eq(seatName(m.seats[1], aliases), m.seats[1].name, 'a seat without account keeps its typed name');
+      eq(aggregate([m], aliases).players.find((p) => p.key === '@alex').label, 'Alê Parma');
+      ok(timeline(m, aliases).some((ev) => ev.text.includes('Alê Parma')),
+        'the timeline still uses the typed name');
+
+      // The identity is still the @: the name only labels it.
+      eq(identityOf(m.seats[0], aliases), '@alex');
+
+      // An old @ finds the chosen name of today's account.
+      store.learnCurrentHandles({ alex: 'alexandre' });
+      store.learnDisplayNames({ alexandre: 'Alê Parma' });
+      eq(labelOf(m.seats[0], store.knownHandles()), 'Alê Parma', 'the old @ lost the name');
+
+      // Clearing the name goes back to the @.
+      store.learnDisplayNames({ alexandre: null });
+      eq(labelOf(m.seats[0], store.knownHandles()), '@alexandre');
+      eq(m.seats[0].name, 'Alex', 'the finished match was rewritten');
+    } finally {
+      store.wipe();
+    }
+  }],
+
+  ['a chosen name reaches the open table, but not finished matches', () => {
+    store.wipe();
+    try {
+      const finished = makeMatch(2);
+      finished.seats[0].handle = 'alex';
+      finished.seats[0].name = 'Alex';
+      store.archive(finished);
+
+      const open = makeMatch(2);
+      open.seats[0].handle = 'alex';
+      open.seats[0].name = 'Alex';
+      store.setCurrent(open);
+
+      const learned = store.learnDisplayNames({ alex: 'Alê Parma' });
+      eq(learned.table, true, 'the caller was not told to redraw the table');
+      eq(store.getCurrent().seats[0].name, 'Alê Parma', 'the open table kept the old name');
+      eq(store.getDB().history[0].seats[0].name, 'Alex', 'a finished match was rewritten');
+
+      // Learning the same name again changes nothing and redraws nothing.
+      eq(store.learnDisplayNames({ alex: 'Alê Parma' }).changed, 0);
+
+      // A seat reused from the previous table carries only the typed name;
+      // the account comes from the remembered alias - and the seat keeps it.
+      store.rememberHandle('Alex', 'alex');
+      const reused = { id: 'x', name: 'Alex', commanders: [] };
+      eq(store.applyDisplayNames([reused]), 1);
+      eq(reused.name, 'Alê Parma');
+      eq(reused.handle, 'alex', 'renaming the seat lost its account');
+
+      // Long names are cut to what fits on the panel.
+      store.learnDisplayNames({ alex: 'Alê Parma da Silva Sauro' });
+      eq([...store.nameForSeat(reused)].length, 18);
+    } finally {
+      store.wipe();
+    }
+  }],
+
+  ['my own chosen name reaches the open table as soon as the profile says it', () => {
+    if (!simulated) return 'skip';
+    const realProfile = account.profile;
+    const realSession = account.session;
+    store.wipe();
+    try {
+      const open = makeMatch(2);
+      open.seats[0].handle = 'alex';
+      open.seats[0].name = 'Alex';
+      store.setCurrent(open);
+
+      account.session = { user: { id: 'eu', email: 'eu@x.com' }, access_token: 'x', expires_at: Math.floor(Date.now() / 1000) + 3600 };
+      account.profile = { id: 'eu', handle: 'alex', display_name: 'Alê' };
+      notifyAccount(); // what loading or saving the profile does
+
+      eq(store.getCurrent().seats[0].name, 'Alê', 'the open table did not get my chosen name');
+      eq(labelOf({ handle: 'alex' }, store.knownHandles()), 'Alê');
+    } finally {
+      account.profile = realProfile;
+      account.session = realSession;
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['the match details open, with the chosen name in the timeline', () => {
+    if (!simulated) return 'skip';
+    store.wipe();
+    try {
+      const m = makeMatch(2);
+      m.seats[0].handle = 'alex';
+      m.seats[0].name = 'Alex';
+      push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
+      store.learnDisplayNames({ alex: 'Alê Parma' });
+
+      const card = matchCard(m, () => {});
+      ok(textOf(findAll(card, 'card-name')[0]).includes('Alê Parma'), 'the winner shows the typed name');
+      const details = findAll(card, 'icon-btn').find((b) => b.attributes['aria-label'] === t('stats.details'));
+      fire(details, 'click');
+      const rows = findAll(document.body, 'timeline-text').map(textOf);
+      ok(rows.length > 0, 'the details did not open');
+      ok(rows.some((x) => x.includes('Alê Parma')), 'the timeline still uses the typed name: ' + rows.join(' | '));
+    } finally {
+      closeSheet();
       store.wipe();
     }
     return undefined;

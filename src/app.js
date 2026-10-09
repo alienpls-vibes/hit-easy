@@ -223,6 +223,8 @@ function draw() {
     // color.
     onRefresh: () => render(),
     onStart: (draft) => {
+      // Seats tagged with an account start under the name that account chose.
+      store.applyDisplayNames(draft.seats);
       const match = createMatch(draft.seats, draft.startingLife, {
         firstSeatId: draft.firstSeatId,
         layoutId: draft.layoutId,
@@ -509,7 +511,7 @@ cloud.boot().then((state) => {
   // Syncs after knowing who the person is. Failing here gets in the way of
   // nothing: what did not go up stays unmarked and goes up on the next open.
   sync.sync().then((r) => {
-    if (r && (r.downloaded || r.uploaded)) render();
+    if (r && (r.downloaded || r.uploaded || r.people)) render();
   }).catch(() => {});
 });
 
@@ -518,7 +520,13 @@ cloud.boot().then((state) => {
 // looking at the statistics needs to see the change without leaving and
 // coming back.
 cloud.onAccountChange(() => {
-  if (route === 'stats') render();
+  // My own chosen name, as soon as the profile says it: the open table, the
+  // statistics and the next seats use it without waiting for a sync.
+  const profile = cloud.myProfile();
+  const learned = profile && profile.handle
+    ? store.learnDisplayNames({ [profile.handle]: profile.display_name || null })
+    : { changed: 0, table: false };
+  if (route === 'stats' || (route === 'table' && learned.table)) render();
 });
 
 if ('serviceWorker' in navigator) {

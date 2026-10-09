@@ -518,12 +518,40 @@ When it learns a change, the device also fixes what it keeps under the old `@`:
 remembered names start pointing to the current one, and whoever was hidden stays
 hidden.
 
+**The chosen name shows up everywhere the person does.** Setting it in
+Settings → Account used to change only one thing: the seat name when someone
+found you by searching your `@`. The statistics kept showing the `@`, a person
+picked from the device's list kept the typed name, and an open match kept the
+name it started with. Now the device keeps a second map, `current @ → chosen
+name` (`displayNames` in the local database), travelling inside `aliases` under
+the `DISPLAY_NAMES` symbol, like the handle map:
+
+- **statistics** — `labelOf` shows the chosen name instead of the `@` (the
+  identity underneath is still the `@`); inside a match, `seatName` uses it for
+  the winner and the timeline;
+- **the table** — `seat.name` is what the panel, the victory card, the votes
+  and the toasts read, so the seats are renamed instead: when picking a person,
+  when reusing the previous table, when starting a match, and — for the open
+  match — the moment a name is learned (`learnDisplayNames` reports it, and the
+  app redraws the table). A seat reused from the previous table carries only
+  the typed name; renaming it also writes its `@`, or it would lose the account
+  it was recognized by. Finished matches are never rewritten.
+
+The names are learned from three places: your own profile, on every account
+change (loading, saving the name); the account found by searching an `@`; and
+friends, on sync, through `perfis_por_handle` (`sql/011`), which answers the
+current `@` and the chosen name of every `@` in the history, in batch. Without
+011 the sync falls back to `handles_atuais` (010) and only the `@` changes are
+learned.
+
 > **Needs a migration.** Run in Supabase, in this order:
 > `sql/008-reserved-handle-and-name.sql` (without it, the old `@` can be taken
 > by another account and the name has no length rule),
-> `sql/009-handle-every-15-days.sql` (without it, the `@` changes at any time)
-> and `sql/010-current-handles.sql` (without it, consolidation works for your
-> own `@`, but not for friends who changed).
+> `sql/009-handle-every-15-days.sql` (without it, the `@` changes at any time),
+> `sql/010-current-handles.sql` (without it, consolidation works for your own
+> `@`, but not for friends who changed) and `sql/011-profiles-by-handle.sql`
+> (without it, friends' chosen names are not learned on sync - yours and the
+> ones found by search still are).
 
 ## Decks follow the account
 

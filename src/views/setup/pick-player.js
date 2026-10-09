@@ -49,6 +49,8 @@ export function playerStep(seat, refresh) {
         const remembered = store.handleOf(name);
         if (remembered) { seat.handle = remembered; seat.userId = null; }
         else if (seat.handle) { seat.handle = ''; seat.userId = null; }
+        // An account with a chosen name sits under that name.
+        store.applyDisplayNames([seat]);
         buzz(12);
         refresh();
         api.next(commanderStep(seat, 0, refresh));
@@ -79,6 +81,8 @@ export function playerStep(seat, refresh) {
           seat.userId = null;
         }
         store.rememberPlayer(name);
+        // An account with a chosen name sits under that name.
+        store.applyDisplayNames([seat]);
         buzz(12);
         refresh();
         api.next(commanderStep(seat, 0, refresh));
@@ -248,6 +252,8 @@ export function findHandleStep(
           result.append(el('p', { class: 'account-error is-on', text: t('handle.accountTaken') }));
           return;
         }
+        // Remember the chosen name: the statistics and the next tables show it.
+        store.learnDisplayNames({ [found.handle]: found.display_name || null });
         if (adoptName) {
           // The account's name is what the rest of the table recognizes.
           // Without this the seat would stay "Player 2" while the statistics

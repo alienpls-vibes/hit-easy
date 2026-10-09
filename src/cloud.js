@@ -104,6 +104,7 @@ export {
   saveName,
   handleStatusNow,
   currentHandles,
+  profilesByHandle,
   myProfile,
   saveMyDecks,
   decksColumn,

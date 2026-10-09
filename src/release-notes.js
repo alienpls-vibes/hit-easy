@@ -55,7 +55,9 @@ export const RELEASE_NOTES = [
         type: 'new',
         text: 'Escolha como você aparece nas partidas: em Configurações → '
           + 'Conta, o nome nas partidas aceita maiúsculas, acentos e o que '
-          + 'mais quiser. O @ continua sendo como os amigos acham você.',
+          + 'mais quiser. Ele aparece na mesa, no card de vitória, nas '
+          + 'votações e nas estatísticas - o @ continua sendo como os amigos '
+          + 'acham você.',
       },
       {
         type: 'changed',

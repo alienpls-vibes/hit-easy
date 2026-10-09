@@ -198,8 +198,17 @@ let running = null;
 /** Asks which @s in the history changed, and teaches the device. */
 export async function refreshHandles() {
   const known = store.allKnownHandles();
-  if (!known.length) return 0;
-  return store.learnCurrentHandles(await cloud.currentHandles(known));
+  if (!known.length) return { handles: 0, names: 0, table: false };
+  let found;
+  try {
+    found = await cloud.profilesByHandle(known);
+  } catch {
+    // Database without sql/011 yet: 010 still answers the @ changes.
+    found = { current: await cloud.currentHandles(known), names: {} };
+  }
+  const handles = store.learnCurrentHandles(found.current);
+  const { changed, table } = store.learnDisplayNames(found.names);
+  return { handles, names: changed, table };
 }
 
 /**
@@ -274,7 +283,10 @@ export async function sync({ onProgress } = {}) {
     //     single person. Failing here (no network, database without sql/010)
     //     only postpones the consolidation to the next pass.
     try {
-      await refreshHandles();
+      const learned = await refreshHandles();
+      // Someone's chosen name or @ changed: the screens that show people
+      // need a redraw (see the caller in app.js).
+      summary.people = learned.handles + learned.names;
     } catch {
       /* next time */
     }

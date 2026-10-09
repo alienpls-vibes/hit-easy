@@ -141,10 +141,43 @@ export function currentHandle(handle, aliases) {
  */
 export function labelOf(seat, aliases) {
   const identity = identityOf(seat, aliases);
-  if (identity.startsWith('@')) return identity;
+  if (identity.startsWith('@')) return displayNameOf(identity.slice(1), aliases) || identity;
 
   const name = String((seat && seat.name) || '').trim();
   return name || 'Sem nome';
+}
+
+/**
+ * The name each account chose for matches: `current @ -> name`.
+ *
+ * Travels inside `aliases` under a Symbol, for the same reason as
+ * CURRENT_HANDLES: every place that labels a person already receives
+ * `aliases`, and a new parameter forgotten in one of them would show the @ on
+ * one screen and the chosen name on another.
+ */
+export const DISPLAY_NAMES = Symbol('displayNames');
+
+/** The chosen name for this @ (old or current), or '' when none is known. */
+export function displayNameOf(handle, aliases) {
+  const map = aliases && aliases[DISPLAY_NAMES];
+  if (!map || !handle) return '';
+  const h = currentHandle(String(handle).trim().replace(/^@+/, '').toLowerCase(), aliases);
+  return map[h] || '';
+}
+
+/**
+ * How a seat is called inside a match (timeline, winner, places).
+ *
+ * The chosen name when the seat is someone's account and that name is known;
+ * otherwise the name the table typed that day. Unlike labelOf it never falls
+ * back to the @: inside one match, "Alex took 3" reads better than "@alex took
+ * 3", and the typed name is what the table actually called that person.
+ */
+export function seatName(seat, aliases) {
+  if (!seat) return '?';
+  const identity = identityOf(seat, aliases);
+  const chosen = identity.startsWith('@') ? displayNameOf(identity.slice(1), aliases) : '';
+  return chosen || String(seat.name || '').trim() || '?';
 }
 
 /**

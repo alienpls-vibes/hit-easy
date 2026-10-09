@@ -17,7 +17,7 @@
  */
 
 export {
-  aggregate, identityOf, labelOf, recordedName, CURRENT_HANDLES, currentHandle,
+  aggregate, identityOf, labelOf, recordedName, CURRENT_HANDLES, currentHandle, DISPLAY_NAMES, displayNameOf, seatName,
 } from './stats/aggregate.js';
 export { SORTS, sortById, sortRows } from './stats/sort.js';
 export {

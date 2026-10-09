@@ -9,7 +9,7 @@
 
 import { el, icon, openSheet, confirmAction } from '../../ui.js';
 import {
-  summarize, timeline, formatDuration, formatDate, labelOf, recordedName,
+  summarize, timeline, formatDuration, formatDate, labelOf, recordedName, seatName,
 } from '../../stats.js';
 import { deckNameOf } from '../../engine.js';
 import * as store from '../../store.js';
@@ -27,7 +27,7 @@ export function matchCard(match, refresh) {
   const card = el('article', { class: 'card is-match' }, [
     el('header', { class: 'card-head' }, [
       el('div', { class: 'card-titles' }, [
-        el('h3', { class: 'card-name', text: s.winner ? t('stats.wonBy', { name: s.winner.name }) : t('stats.noWinner') }),
+        el('h3', { class: 'card-name', text: s.winner ? t('stats.wonBy', { name: seatName(s.winner, aliases) }) : t('stats.noWinner') }),
         el('span', {
           class: 'card-sub',
           text: formatDate(s.startedAt) + ' · ' + formatDuration(s.duration)
@@ -72,6 +72,8 @@ export function matchCard(match, refresh) {
 }
 
 function openMatchDetail(match, refresh) {
+  // Account seats are called by the name their owner chose (see seatName).
+  const aliases = store.knownHandles();
   const s = summarize(match);
   openSheet({
     title: formatDate(s.startedAt),
@@ -80,7 +82,7 @@ function openMatchDetail(match, refresh) {
       body.append(el('p', { class: 'sheet-legend', text: t('stats.timeline') }));
       const log = el('ol', { class: 'timeline' });
       let lastTurn = null;
-      for (const ev of timeline(match)) {
+      for (const ev of timeline(match, aliases)) {
         if (ev.turn !== lastTurn) {
           lastTurn = ev.turn;
           log.append(el('li', { class: 'timeline-turn', text: t('tl.turnLabel', { n: ev.turn }) }));
