@@ -71,13 +71,16 @@ import {
 } from '../src/views/table/constantes.js';
 import {
   renderSetup, seedDraftFrom, continuarMesaBanner, nomeDoArquivo,
-  mesaPassadaBanner,
+  mesaPassadaBanner, passarMesa, abrirReceberMesa, linkDaMesa,
 } from '../src/views/setup.js';
+import {
+  normalizarCodigo, codigoValido, formatarCodigo, codigoNoTexto,
+} from '../src/cloud.js';
 import { renderStats, renderPaywall } from '../src/views/stats.js';
 import { brandMark } from '../src/ui.js';
 import * as store from '../src/store.js';
 // Importar app.js JA e o teste: ele sobe sozinho ao ser avaliado.
-import { anunciarVersao } from '../src/app.js';
+import { anunciarVersao, codigoDoLink } from '../src/app.js';
 
 function eq(actual, expected, what) {
   const a = JSON.stringify(actual);
@@ -1170,6 +1173,15 @@ export const cases = [
       const receber = findAll(raiz, 'receber-mesa')[0];
       ok(receber, 'a home não oferece receber uma mesa');
       fire(receber, 'click');
+
+      // Com nuvem, receber abre o campo de código; o arquivo fica a um toque,
+      // em "Tenho um arquivo", para quando não há internet.
+      if (cloudEnabled()) {
+        const tenho = findAll(document.body, 'btn')
+          .find((b) => textOf(b) === t('pass.haveFile'));
+        ok(tenho, 'receber por código não oferece o arquivo');
+        fire(tenho, 'click');
+      }
 
       const campo = document.body.childNodes[document.body.childNodes.length - 1];
       eq(campo.attributes.type, 'file', 'tocar em receber não abriu o seletor');
@@ -4915,6 +4927,219 @@ export const cases = [
       delete navReal.wakeLock;
       closeSheet();
       if (naRota() !== eraRota) document.body.dataset.route = eraRota;
+      store.wipe();
+    }
+    return undefined;
+  }],
+  ['o código da mesa é lido do jeito que a pessoa digita ou cola', () => {
+    eq(normalizarCodigo(' k7m-2qx '), 'K7M2QX');
+    ok(codigoValido('K7M 2QX'), 'o código como aparece na tela não vale');
+    ok(!codigoValido('K7M2Q'), 'cinco caracteres valeram');
+    ok(!codigoValido('O0I1L2'), 'letras fora do alfabeto valeram');
+    eq(formatarCodigo('k7m2qx'), 'K7M 2QX');
+
+    // Colar a mensagem inteira da conversa: o campo acha o código lá dentro.
+    const mensagem = t('pass.shareText', {
+      codigo: 'K7M 2QX', link: 'https://x.github.io/hit-easy/beta/?mesa=K7M2QX',
+    });
+    eq(codigoNoTexto(mensagem), 'K7M2QX', 'não achou o código na mensagem');
+    eq(codigoNoTexto('Mesa do Hit Easy: K7M 2QX'), 'K7M2QX');
+    eq(codigoNoTexto('abre aí https://a.b/?mesa=ABCDEF'), 'ABCDEF', 'não leu o link');
+    eq(codigoNoTexto('oi tudo bem'), null, 'inventou um código');
+
+    // O link de quem passou leva ao MESMO canal: código do beta só abre no beta.
+    eq(linkDaMesa('K7M2QX', { origin: 'https://x.github.io', pathname: '/hit-easy/beta/index.html' }),
+      'https://x.github.io/hit-easy/beta/?mesa=K7M2QX');
+    eq(codigoDoLink('?mesa=k7m2qx'), 'K7M2QX', 'o arranque não leu o link');
+    eq(codigoDoLink('?outra=1'), null);
+  }],
+
+  ['passar por código só solta a mesa depois de subir', () => {
+    store.wipe();
+    try {
+      store.setCurrent(mesa(4));
+      const envelope = store.mesaParaEnviar(1000);
+      ok(envelope && envelope.partida, 'não montou o envelope');
+      ok(store.getCurrent(), 'montar o envelope já soltou a mesa');
+      ok(!envelope.partida.passadaEm, 'o envelope saiu carimbado de passado');
+
+      eq(store.soltarMesa('K7M2QX', 2000), true);
+      eq(store.getCurrent(), null, 'a mesa continua valendo aqui');
+      eq(store.mesaGuardada().passadaCodigo, 'K7M2QX', 'a mesa não lembra o código');
+      eq(store.mesaParaEnviar(), null, 'mesa já passada foi enviada de novo');
+
+      // Quem recebe não herda o código; quem retoma também não.
+      const chegou = receberAMesa(store.mesaGuardada(), 3000);
+      ok(!chegou.passadaCodigo, 'o código viajou para o outro aparelho');
+      store.retomarMesa();
+      ok(!store.getCurrent().passadaCodigo, 'retomar deixou o código para trás');
+    } finally {
+      store.wipe();
+    }
+  }],
+
+  ['passar a mesa por código, e cair no arquivo sem rede', async () => {
+    if (!simulated) return 'skip';
+    const fetchReal = globalThis.fetch;
+    const pedidos = [];
+    let rede = true;
+    globalThis.fetch = (u, o) => {
+      pedidos.push({ url: String(u), corpo: JSON.parse((o && o.body) || 'null') });
+      if (!rede) return Promise.reject(new TypeError('Failed to fetch'));
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve('K7M2QX') });
+    };
+    const respirar = async () => { for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0)); };
+    const confirmar = () => {
+      const acoes = findAll(document.body, 'sheet-actions').slice(-1)[0];
+      fire(acoes.childNodes[1], 'click');
+    };
+    store.wipe();
+    try {
+      store.setCurrent(mesa(4));
+      let saiu = 0;
+      const indo = passarMesa(() => { saiu += 1; });
+      await respirar();
+      confirmar();
+      eq(await indo, true, 'a passagem não terminou');
+
+      const pedido = pedidos.find((p) => p.url.endsWith('/rpc/enviar_mesa'));
+      ok(pedido, 'não subiu a mesa');
+      eq(pedido.corpo.c, 'producao', 'subiu sem o canal');
+      eq(pedido.corpo.mesa.partida.id, store.mesaGuardada().id, 'subiu outra mesa');
+      eq(saiu, 1, 'quem chamou não soube que a mesa saiu');
+      eq(store.mesaGuardada().passadaCodigo, 'K7M2QX');
+      const codigo = findAll(document.body, 'mesa-codigo').slice(-1)[0];
+      ok(codigo && textOf(codigo) === 'K7M 2QX', 'o código não apareceu');
+      closeSheet();
+
+      // Sem rede: a mesa NÃO sai daqui, e a tela oferece o arquivo.
+      store.wipe();
+      store.setCurrent(mesa(4));
+      rede = false;
+      const semRede = passarMesa(() => { saiu += 1; });
+      await respirar();
+      confirmar();
+      await respirar();
+      ok(store.getCurrent(), 'sem rede, a mesa sumiu deste aparelho');
+      const oferta = findAll(document.body, 'btn').find((b) => textOf(b) === t('pass.sendFile'));
+      ok(oferta, 'sem rede, não ofereceu o arquivo');
+      closeSheet();
+      await respirar();
+      eq(await semRede, false);
+      eq(saiu, 1, 'sem rede, a tela trocou como se tivesse passado');
+    } finally {
+      globalThis.fetch = fetchReal;
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['receber por código vê, confirma e só então pega', async () => {
+    if (!simulated) return 'skip';
+    const fetchReal = globalThis.fetch;
+    const pedidos = [];
+    const original = mesa(4);
+    original.id = 'p-por-codigo';
+    push(original, { type: 'life', targetId: 's1', sourceId: 's0', delta: -9 });
+    const envelope = { formato: 'hit-easy/mesa', versao: 1, em: 1, partida: original };
+    let pegaram = false;
+    globalThis.fetch = (u, o) => {
+      const url = String(u);
+      pedidos.push({ url, corpo: JSON.parse((o && o.body) || 'null') });
+      let resposta = null;
+      if (url.endsWith('/rpc/ver_mesa')) resposta = pegaram ? null : envelope;
+      if (url.endsWith('/rpc/pegar_mesa')) { resposta = pegaram ? null : envelope; pegaram = true; }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(resposta) });
+    };
+    const respirar = async () => { for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0)); };
+    store.wipe();
+    try {
+      // O envelope que o arquivo usa: o formato tem de ser o mesmo nos dois.
+      store.setCurrent(mesa(2));
+      envelope.formato = JSON.parse(store.empacotarMesa(1)).formato;
+      store.wipe();
+
+      let abriu = 0;
+      abrirReceberMesa(() => { abriu += 1; }, 'k7m2qx');
+      const campo = findAll(document.body, 'mesa-codigo-campo').slice(-1)[0];
+      eq(campo.value, 'K7M 2QX', 'o código do link não veio preenchido');
+      fire(findAll(document.body, 'btn').filter((b) => textOf(b) === t('pass.receive')).pop(), 'click');
+      await respirar();
+
+      ok(pedidos.some((p) => p.url.endsWith('/rpc/ver_mesa')), 'não procurou a mesa');
+      ok(!pedidos.some((p) => p.url.endsWith('/rpc/pegar_mesa')), 'pegou antes de a pessoa confirmar');
+
+      const acoes = findAll(document.body, 'sheet-actions').slice(-1)[0];
+      fire(acoes.childNodes[1], 'click');
+      await respirar();
+
+      const pegar = pedidos.find((p) => p.url.endsWith('/rpc/pegar_mesa'));
+      ok(pegar, 'confirmou e não pegou');
+      eq(pegar.corpo.cod, 'K7M2QX');
+      eq(store.getCurrent() && store.getCurrent().id, 'p-por-codigo', 'a mesa não foi instalada');
+      eq(replay(store.getCurrent()).players.s1.life, 31, 'a mesa chegou sem os eventos');
+      eq(abriu, 1, 'receber não levou para a mesa');
+
+      // Um segundo aparelho com o mesmo código não leva nada.
+      store.wipe();
+      abrirReceberMesa(() => { abriu += 1; }, 'K7M2QX');
+      fire(findAll(document.body, 'btn').filter((b) => textOf(b) === t('pass.receive')).pop(), 'click');
+      await respirar();
+      const erro = findAll(document.body, 'mesa-codigo-erro').slice(-1)[0];
+      eq(textOf(erro), t('pass.codeNotFound'), 'o código usado não foi recusado');
+      eq(store.getCurrent(), null);
+      eq(abriu, 1);
+    } finally {
+      globalThis.fetch = fetchReal;
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['retomar uma mesa que o outro aparelho já pegou pede confirmação a mais', async () => {
+    if (!simulated) return 'skip';
+    const fetchReal = globalThis.fetch;
+    const pedidos = [];
+    globalThis.fetch = (u) => {
+      const url = String(u);
+      pedidos.push(url);
+      const resposta = url.endsWith('/rpc/cancelar_mesa') || url.endsWith('/rpc/situacao_mesa')
+        ? 'recebida' : null;
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(resposta) });
+    };
+    const respirar = async () => { for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0)); };
+    const confirmar = () => {
+      const acoes = findAll(document.body, 'sheet-actions').slice(-1)[0];
+      fire(acoes.childNodes[1], 'click');
+    };
+    store.wipe();
+    try {
+      store.setCurrent(mesa(4));
+      store.soltarMesa('K7M2QX');
+      let retomou = 0;
+      const caixa = mesaPassadaBanner(() => {}, () => { retomou += 1; });
+      await respirar();
+      ok(textOf(caixa).includes(t('pass.goneSubArrived', { codigo: 'K7M 2QX' })),
+        'o aviso não disse que o outro aparelho já recebeu');
+
+      const retomar = findAll(caixa, 'btn').find((b) => textOf(b) === t('pass.takeBack'));
+      fire(retomar, 'click');
+      await respirar();
+      confirmar();
+      await respirar();
+      ok(pedidos.some((u) => u.endsWith('/rpc/cancelar_mesa')), 'retomar não cancelou o código');
+      eq(retomou, 0, 'retomou sem avisar que o outro aparelho já tem a mesa');
+      const titulo = findAll(document.body, 'sheet-title').slice(-1)[0];
+      eq(textOf(titulo), t('pass.takeBackReceivedTitle'));
+      confirmar();
+      await respirar();
+      eq(retomou, 1, 'confirmar de novo não retomou');
+      ok(store.getCurrent(), 'a mesa não voltou');
+    } finally {
+      globalThis.fetch = fetchReal;
+      closeSheet();
       store.wipe();
     }
     return undefined;

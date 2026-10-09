@@ -11,7 +11,9 @@ import {
 } from './ui.js';
 import {
   renderSetup, seedDraftFrom, abrirNovidades, passarMesa, abrirInstalarNoIOS,
+  abrirReceberMesa,
 } from './views/setup.js';
+import { codigoNoTexto } from './cloud.js';
 import { renderTable } from './views/table.js';
 import { renderStats, renderPaywall } from './views/stats.js';
 import { createMatch, sairDaMesa, voltarAMesa } from './engine.js';
@@ -169,12 +171,10 @@ function desenhar() {
         go('setup');
         toast(t('victory.discarded'));
       },
-      onPassar: async () => {
-        // A mesa sai daqui no ato de empacotar, entao voltar para a home e
-        // consequencia e nao decisao: a rota acima ja recusaria entrar nela.
-        const foi = await passarMesa();
-        if (foi) { go('setup'); toast(t('pass.done')); }
-      },
+      // A mesa sai daqui no ato de passar, entao voltar para a home e
+      // consequencia e nao decisao: a rota acima ja recusaria entrar nela.
+      // Volta ANTES de o codigo aparecer - trocar de tela fecha os paineis.
+      onPassar: () => passarMesa(() => go('setup')),
     });
     hintRotate();
     hintTelaCheiaNoIOS();
@@ -426,6 +426,32 @@ if (ehTeste()) {
 }
 
 render();
+
+/**
+ * O link de uma mesa passada: `?mesa=K7M2QX`.
+ *
+ * Quem recebe o codigo pelo WhatsApp toca no link e cai aqui, com o receber
+ * ja aberto e o codigo preenchido - falta so confirmar. O parametro sai da
+ * barra na hora: recarregar a pagina nao pode oferecer de novo uma mesa que ja
+ * foi recebida.
+ */
+export function codigoDoLink(busca) {
+  try {
+    return codigoNoTexto(new URLSearchParams(busca || '').get('mesa') || '');
+  } catch {
+    return null;
+  }
+}
+
+const codigoRecebidoPorLink = codigoDoLink(typeof location === 'undefined' ? '' : location.search);
+if (codigoRecebidoPorLink) {
+  try {
+    history.replaceState(history.state, '', location.pathname + location.hash);
+  } catch { /* sem history: o parametro fica, e o receber recusa o codigo usado */ }
+  // Depois das novidades (700ms): receber a mesa e o que a pessoa veio fazer,
+  // e um painel aberto por cima do outro fecha o de baixo.
+  setTimeout(() => abrirReceberMesa(() => go('table'), codigoRecebidoPorLink), 900);
+}
 
 /**
  * Novidades depois de atualizar, uma vez so.

@@ -23,8 +23,16 @@ export const NOVIDADES = [
   {
     versao: '1.9.0',
     data: '2026-10-04',
-    titulo: 'Lifelink, jogador 1 no alto, e instalar no iPhone',
+    titulo: 'Passar a mesa por código, lifelink, e instalar no iPhone',
     itens: [
+      {
+        tipo: 'novo',
+        texto: 'Passar a mesa agora gera um código de seis letras: quem vai '
+          + 'continuar toca em "Receber uma mesa" e digita, ou toca no link '
+          + 'que vai junto na mensagem. Acabou o arquivo que não abria no '
+          + 'WhatsApp. Vale por 24 horas, uma vez só, e quem passou vê quando '
+          + 'chegou. Sem internet, o arquivo continua funcionando.',
+      },
       {
         tipo: 'novo',
         texto: 'O teclado de dano ganhou a marca Lifelink: ligada, quem causou '

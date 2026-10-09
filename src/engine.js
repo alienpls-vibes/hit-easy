@@ -540,9 +540,12 @@ export function pessoaRepetida(seats, cadeira, { name, handle } = {}) {
  *
  * Devolve false quando nao ha o que passar: mesa ausente ou ja passada.
  */
-export function passarAMesa(match, agora = Date.now()) {
+export function passarAMesa(match, agora = Date.now(), codigo = null) {
   if (!match || match.passadaEm) return false;
   match.passadaEm = agora;
+  // Passada por codigo, a mesa lembra qual: e com ele que retomar cancela a
+  // passagem na nuvem, e que a home pergunta se o outro aparelho ja pegou.
+  if (codigo) match.passadaCodigo = codigo;
   return true;
 }
 
@@ -556,6 +559,7 @@ export function passarAMesa(match, agora = Date.now()) {
 export function retomarAMesa(match) {
   if (!match || !match.passadaEm) return false;
   delete match.passadaEm;
+  delete match.passadaCodigo;
   return true;
 }
 
@@ -582,6 +586,7 @@ export function receberAMesa(match, agora = Date.now()) {
 
   const recebida = { ...match, redo: [] };
   delete recebida.passadaEm;
+  delete recebida.passadaCodigo;
 
   const ultimo = recebida.events.length
     ? recebida.events[recebida.events.length - 1].ts

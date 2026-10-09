@@ -27,5 +27,6 @@ export { abrirNovidades } from './setup/notas-de-versao.js';
 export { abrirInstalarNoIOS } from './setup/instalar.js';
 export {
   passarMesa, receberMesa, mesaPassadaBanner, receberMesaBotao,
-  continuarMesaBanner, nomeDoArquivo,
+  continuarMesaBanner, nomeDoArquivo, abrirReceberMesa, mostrarCodigo,
+  linkDaMesa,
 } from './setup/passar-mesa.js';

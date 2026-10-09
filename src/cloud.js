@@ -20,6 +20,7 @@
  *   partidas.js    subir, baixar e apagar partida
  *   perfil.js      o nome e o @
  *   convites.js    partida em que alguem diz que voce estava
+ *   mesa-por-codigo.js  passar a mesa a outro aparelho por um codigo curto
  *   iniciar.js     a subida, em ordem
  *
  * Quem importa daqui nao precisa saber dessa divisao, e e de proposito: mexer
@@ -115,3 +116,17 @@ export {
 export {
   iniciar,
 } from './cloud/iniciar.js';
+
+export {
+  ALFABETO_DO_CODIGO,
+  TAMANHO_DO_CODIGO,
+  cancelarMesa,
+  codigoNoTexto,
+  codigoValido,
+  enviarMesa,
+  formatarCodigo,
+  normalizarCodigo,
+  pegarMesa,
+  situacaoDaMesa,
+  verMesa,
+} from './cloud/mesa-por-codigo.js';

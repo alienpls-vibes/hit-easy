@@ -246,3 +246,49 @@
   cursor: pointer;
 }
 .receber-mesa:hover { color: var(--text); border-color: var(--text-dim); }
+
+/* O código da mesa: grande o bastante para ser lido do outro lado da mesa e
+   ditado em voz alta. Monoespaçado para o 2 e o Z não dançarem de largura. */
+.mesa-codigo {
+  margin: 6px 0 2px;
+  padding: 18px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  text-align: center;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  font-size: clamp(2rem, 11vw, 2.8rem);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  -webkit-user-select: all;
+  user-select: all;
+}
+.mesa-codigo-situacao {
+  margin: 4px 2px 0;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+.mesa-codigo-situacao.is-done { color: var(--text); font-weight: 500; }
+.mesa-codigo-pronto { margin-top: 8px; }
+
+.mesa-codigo-campo {
+  width: 100%;
+  height: 62px;
+  padding: 0 16px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  outline: none;
+  text-align: center;
+  text-transform: uppercase;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  /* 16px ou mais: abaixo disso o Safari do iPhone dá zoom ao focar. */
+  font-size: 1.6rem;
+  letter-spacing: 0.14em;
+  transition: border-color var(--fast);
+}
+.mesa-codigo-campo:focus { border-color: var(--text-dim); }
+.mesa-codigo-campo::placeholder { color: var(--text-dim); opacity: 0.5; }
+.mesa-codigo-erro { margin: 6px 2px 0; min-height: 1.2em; font-size: 0.8rem; color: var(--danger); }
+.mesa-codigo-erro:empty { display: none; }

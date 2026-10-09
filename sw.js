@@ -122,6 +122,7 @@ const ASSETS = [
   './src/cloud/estado.js',
   './src/cloud/http.js',
   './src/cloud/iniciar.js',
+  './src/cloud/mesa-por-codigo.js',
   './src/cloud/partidas.js',
   './src/cloud/perfil.js',
   './src/cloud/regras.js',

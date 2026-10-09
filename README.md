@@ -610,6 +610,45 @@ O arquivo é recusado com motivo — ilegível, não é uma mesa, veio de versã
 nova, mesa incompleta — porque são quatro erros diferentes e merecem quatro
 respostas diferentes.
 
+### Por código, desde a 1.9
+
+O arquivo falhou no primeiro teste de verdade: mandado pelo WhatsApp, o
+celular de quem recebia não conseguia abrir o `.json`. Agora, com a nuvem
+configurada, passar a mesa **sobe a partida e mostra um código** de seis
+caracteres (`K7M 2QX`). Quem vai continuar toca em *Receber uma mesa* e digita
+o código — ou toca no link que vai junto na mensagem, que abre o app com o
+código já preenchido. Ninguém precisa de conta.
+
+- **Vale 24 horas e uma vez só.** Pegar marca a mesa como recebida; o segundo
+  aparelho que tentar o mesmo código não leva nada. É o mesmo bastão do
+  arquivo: a mesa não é copiada, é passada.
+- **A mesa só sai daqui depois de subir.** Sem rede, ela continua aberta neste
+  aparelho e a tela oferece o arquivo, que funciona offline. O arquivo também
+  continua em *Receber → Tenho um arquivo*.
+- **Ver, confirmar, pegar.** Quem recebe primeiro *vê* a mesa (sem consumir o
+  código), confirma que pode substituir a partida aberta, e só então *pega*.
+  Pegar antes queimaria o código de quem desistisse no meio.
+- **Quem passou vê que chegou.** O painel do código pergunta ao banco a cada
+  3 s e diz "recebida no outro aparelho". O aviso da home mostra o código
+  enquanto ninguém pegou, e retomar **cancela o código** antes; se o outro
+  aparelho já pegou, retomar avisa que vão existir duas cópias vivas.
+- **Preso ao canal**: código do beta não abre em produção.
+- O link abre o app no **navegador**. No iPhone, quem usa o app instalado deve
+  digitar o código dentro dele — o Safari guarda dados separado do app
+  instalado, e a mesa iria parar no lugar errado. Por isso a mensagem leva os
+  dois.
+
+Segurança, já que as funções valem para `anon`: a tabela `mesas_em_transito`
+não tem policy nenhuma, então ninguém a lê pela API — só as funções
+`security definer` respondem, e só a quem tem o código. O código sai de
+`gen_random_uuid()` num alfabeto de 31 caracteres sem os que se confundem
+(0/O, 1/I/L): perto de 900 milhões de combinações para algumas dezenas vivas.
+Mesa acima de 1 MB e mais de 2000 mesas vivas são recusadas, para a chave
+pública não virar depósito.
+
+> **Precisa de migração.** Rode `sql/007-mesa-por-codigo.sql` no Supabase. Sem
+> ela, passar a mesa falha ao subir e cai no arquivo, como antes.
+
 ## Quem já jogou com você não pede de novo
 
 Confiar deixou de ser um passo. Se duas contas já jogaram uma partida juntas e

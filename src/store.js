@@ -9,7 +9,7 @@
 import { chave } from './canal.js';
 import { identityOf } from './stats.js';
 import {
-  partidaValida, juntarDecks, passarAMesa, receberAMesa, retomarAMesa,
+  partidaValida, juntarDecks, passarAMesa, receberAMesa, retomarAMesa, mesaPassada,
 } from './engine.js';
 
 const KEY = chave('mtglc.db.v1');
@@ -530,12 +530,47 @@ export function empacotarMesa(agora = Date.now()) {
   if (!passarAMesa(mesa, agora)) return null;
   save();
 
-  return JSON.stringify({
+  return JSON.stringify(envelope(mesa, agora), null, 2);
+}
+
+function envelope(mesa, agora) {
+  return {
     formato: FORMATO_MESA,
     versao: VERSAO_MESA,
     em: agora,
     partida: mesa,
-  }, null, 2);
+  };
+}
+
+/**
+ * A mesa aberta, no envelope de passar, SEM soltar.
+ *
+ * O caminho por codigo e em dois tempos, ao contrario do arquivo: a mesa sobe,
+ * e so se subiu ela sai daqui (soltarMesa). Soltar antes deixaria a pessoa
+ * sem mesa nenhuma quando a rede falha - e rede ruim e justamente o que mesa
+ * na casa de amigo costuma ter.
+ */
+export function mesaParaEnviar(agora = Date.now()) {
+  const mesa = db.current;
+  if (!partidaValida(mesa) || mesaPassada(mesa)) return null;
+  return envelope(structuredClone(mesa), agora);
+}
+
+/** A mesa subiu com este codigo: sai deste aparelho. */
+export function soltarMesa(codigo, agora = Date.now()) {
+  if (!passarAMesa(db.current, agora, codigo)) return false;
+  save();
+  return true;
+}
+
+/**
+ * Recebe um envelope que veio da nuvem.
+ *
+ * Passa pela MESMA leitura do arquivo: o que desce do banco foi escrito por
+ * um cliente qualquer com a chave publica, e merece a mesma desconfianca.
+ */
+export function lerMesaRecebida(dado) {
+  return lerMesa(JSON.stringify(dado));
 }
 
 /**
