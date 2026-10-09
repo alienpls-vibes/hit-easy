@@ -58,7 +58,8 @@ export const NOVIDADES = [
       {
         tipo: 'mudou',
         texto: 'Todo @ que você já usou continua seu: ao trocar, o antigo não '
-          + 'fica livre para outra pessoa, e quem marcar ele ainda acha você.',
+          + 'fica livre para outra pessoa, e quem marcar ele ainda acha você. '
+          + 'O @ pode mudar uma vez a cada 15 dias.',
       },
       {
         tipo: 'corrigido',

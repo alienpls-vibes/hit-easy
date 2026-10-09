@@ -39,6 +39,8 @@ export {
   normalizarHandle,
   normalizarNome,
   NOME_MAX,
+  HANDLE_TROCA_DIAS,
+  proximaTrocaDoHandle,
   situacaoDoHandle,
   participantesDe,
   pendentes,

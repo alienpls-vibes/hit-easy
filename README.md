@@ -464,8 +464,22 @@ botão de salvar (`situacaoDoHandle` em `regras.js`: `atual`, `livre` ou
 `ocupado`). E trocar o `@` parou de apagar o nome: o upsert mandava
 `display_name: null` junto.
 
-> **Precisa de migração.** Rode `sql/008-handle-reservado-e-nome.sql` no
-> Supabase. Sem ela o nome não grava (a coluna existe, mas a regra de tamanho
+**E só troca a cada 15 dias** (`sql/009`). Com todo `@` reservado para sempre,
+trocar sem limite viraria um jeito de acumular nomes — dez trocas numa tarde
+reservariam dez `@` —, e um `@` que muda toda semana não serve para os amigos
+acharem ninguém. O relógio começa na **escolha**, não só na troca: escolher e
+trocar no dia seguinte é exatamente o caso que a regra impede, e a tela avisa
+antes de salvar. Quem já tinha `@` antes da regra não tem data e pode trocar.
+
+A data (`profiles.handle_trocado_em`) é do servidor: a policy deixa a pessoa
+editar a própria linha inteira, então o gatilho reescreve essa coluna em
+**toda** gravação do perfil, e não só quando o `@` muda — senão bastaria um
+PATCH com uma data antiga antes de trocar. A recusa sai com o código próprio
+`HE015` e a data liberada no `details`; a linha do `@` já mostra "próxima troca
+em …" e não abre a tela de trocar dentro do prazo.
+
+> **Precisa de migração.** Rode `sql/008-handle-reservado-e-nome.sql` e depois
+> `sql/009-handle-a-cada-15-dias.sql` no Supabase. Sem ela o nome não grava (a coluna existe, mas a regra de tamanho
 > não) e o `@` antigo continua podendo ser pego por outra conta.
 
 ## Os decks seguem a conta

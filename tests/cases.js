@@ -47,6 +47,7 @@ import {
   enviarPartida, enviarParticipantes, salvarMeusDecks, conta,
   confiarEm, deixarDeConfiar, convitesPendentes,
   situacaoDoHandle, normalizarNome, NOME_MAX, salvarHandle, salvarNome,
+  proximaTrocaDoHandle, HANDLE_TROCA_DIAS,
 } from '../src/cloud.js';
 import { handleBlock } from '../src/views/setup/handle.js';
 import { accountBlock } from '../src/views/setup/conta.js';
@@ -5335,6 +5336,62 @@ export const cases = [
       eq(textOf(recado), t('handle.yours', { handle: '@alex' }), 'o próprio @ apareceu como livre');
       const usar = findAll(document.body, 'btn').filter((b) => textOf(b) === t('handle.useThis')).pop();
       ok(usar.disabled, 'deixou salvar o @ que já é seu');
+    } finally {
+      globalThis.fetch = fetchReal;
+      conta.sessao = sessaoReal;
+      conta.perfil = perfilReal;
+      closeSheet();
+    }
+    return undefined;
+  }],
+  ['o @ só troca a cada 15 dias', () => {
+    const dia = 24 * 60 * 60 * 1000;
+    const agora = Date.parse('2026-10-09T12:00:00Z');
+    const em = (dias) => new Date(agora - dias * dia).toISOString();
+
+    eq(HANDLE_TROCA_DIAS, 15);
+    eq(proximaTrocaDoHandle({ handle: 'alex', handle_trocado_em: null }, agora), null,
+      'quem já tinha @ antes da regra pode trocar');
+    eq(proximaTrocaDoHandle({ handle: 'alex', handle_trocado_em: em(3) }, agora), agora + 12 * dia,
+      'trocou há 3 dias: libera em 12');
+    eq(proximaTrocaDoHandle({ handle: 'alex', handle_trocado_em: em(15) }, agora), null,
+      'no 15º dia já pode');
+    eq(proximaTrocaDoHandle({ handle: 'alex', handle_trocado_em: em(16) }, agora), null);
+    eq(proximaTrocaDoHandle(null, agora), null, 'sem perfil, nada a esperar');
+    eq(proximaTrocaDoHandle({ handle: null, handle_trocado_em: em(1) }, agora), null,
+      'sem @, escolher o primeiro não espera');
+  }],
+
+  ['trocar cedo demais diz quando libera', async () => {
+    if (!simulated) return 'skip';
+    const fetchReal = globalThis.fetch;
+    const sessaoReal = conta.sessao;
+    const perfilReal = conta.perfil;
+    const dia = 24 * 60 * 60 * 1000;
+    const trocou = new Date(Date.now() - 2 * dia).toISOString();
+    const liberado = new Date(Date.parse(trocou) + 15 * dia).toISOString();
+    conta.sessao = { user: { id: 'eu', email: 'eu@x.com' }, access_token: 'x', expires_at: Math.floor(Date.now() / 1000) + 3600 };
+    conta.perfil = { id: 'eu', handle: 'alex', display_name: null, handle_trocado_em: trocou };
+    globalThis.fetch = () => Promise.resolve({
+      ok: false, status: 400,
+      json: () => Promise.resolve({ code: 'HE015', message: 'handle troca cedo', details: liberado }),
+    });
+    try {
+      // O banco recusa com HE015 e a data no details: o app lê as duas coisas.
+      let erro = null;
+      try { await salvarHandle('alexandre', null); } catch (e) { erro = e; }
+      ok(erro, 'a troca recusada passou');
+      eq(erro.message, 'handle cedo');
+      eq(erro.liberado, Date.parse(liberado), 'a data liberada se perdeu');
+
+      // A linha do @ já diz quando libera, e tocar não abre a tela de trocar.
+      document.body.childNodes.length = 0;
+      const linhaDoHandle = handleBlock();
+      ok(!linhaDoHandle._sub.hidden, 'a linha não diz quando libera');
+      ok(textOf(linhaDoHandle._sub).length > 0);
+      eq(linhaDoHandle._valor, null, 'ainda oferece "Trocar"');
+      fire(linhaDoHandle, 'click');
+      eq(findAll(document.body, 'search-input').length, 0, 'abriu a tela de trocar dentro do prazo');
     } finally {
       globalThis.fetch = fetchReal;
       conta.sessao = sessaoReal;

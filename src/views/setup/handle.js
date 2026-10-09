@@ -8,7 +8,10 @@
 import { el, clear, openFlow, closeSheet, toast } from '../../ui.js';
 import { t } from '../../i18n.js';
 import * as cloud from '../../cloud.js';
-import { handleValido, exibirHandle, normalizarHandle } from '../../cloud.js';
+import {
+  handleValido, exibirHandle, normalizarHandle, proximaTrocaDoHandle, HANDLE_TROCA_DIAS,
+} from '../../cloud.js';
+import { formatDate } from '../../stats.js';
 import { linha } from './linhas.js';
 
 /**
@@ -35,6 +38,18 @@ export function handleBlock(api, aoMudar) {
     // quebra a marcacao que os outros ja tinham guardado. Trocar continua
     // possivel, mas por uma porta separada, que confere se o nome esta livre
     // antes de deixar salvar - e avisa do custo la dentro.
+    // Trocou ha menos de 15 dias: a linha diz quando libera, e tocar explica
+    // em vez de abrir uma tela que so terminaria em recusa.
+    const liberado = proximaTrocaDoHandle(perfil);
+    if (liberado) {
+      return linha({
+        rotulo: exibirHandle(perfil.handle),
+        sub: t('account.handleNextChange', { data: formatDate(liberado) }),
+        classe: 'account-handle-fixo',
+        aoTocar: () => toast(t('account.handleTooSoon', { data: formatDate(liberado) })),
+      });
+    }
+
     return linha({
       rotulo: exibirHandle(perfil.handle),
       valor: t('account.handleChange'),
@@ -140,7 +155,14 @@ function trocarHandleStep(api, aoMudar) {
           usar.disabled = false;
           // O 409 do banco e a unica resposta confiavel: alguem pode ter pegado
           // o nome entre a conferencia e o salvamento.
-          toast(String(err && err.message) === 'handle ocupado'
+          const motivo = String(err && err.message);
+          if (motivo === 'handle cedo') {
+            toast(err.liberado
+              ? t('account.handleTooSoon', { data: formatDate(err.liberado) })
+              : t('account.handleCooldown', { n: HANDLE_TROCA_DIAS }));
+            return;
+          }
+          toast(motivo === 'handle ocupado'
             ? t('account.handleTaken')
             : t('account.failed'));
         }
@@ -154,7 +176,14 @@ function trocarHandleStep(api, aoMudar) {
       ]));
       pane.append(recado);
       pane.append(usar);
-      pane.append(el('p', { class: 'account-note', text: t('account.handleWarn') }));
+      // Antes de salvar, e nao depois: escolher ja comeca a contar os 15 dias.
+      pane.append(el('p', {
+        class: 'account-note',
+        text: t('account.handleCooldown', { n: HANDLE_TROCA_DIAS }),
+      }));
+      if (perfil && perfil.handle) {
+        pane.append(el('p', { class: 'account-note', text: t('account.handleWarn') }));
+      }
     },
   };
 }

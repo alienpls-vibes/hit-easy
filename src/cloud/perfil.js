@@ -52,11 +52,22 @@ export async function salvarHandle(handle, nome) {
       : { id: dono.id, handle: h }),
   });
   if (res.status === 409) throw new Error('handle ocupado');
-  if (!res.ok) throw new Error('servidor respondeu ' + res.status);
+  if (!res.ok) {
+    // HE015: trocou ha menos de 15 dias (sql/009). O banco manda a data
+    // liberada no `details`, para a tela dizer quando - e nao so "nao deu".
+    let corpo = null;
+    try { corpo = await res.json(); } catch { /* sem corpo legivel */ }
+    if (corpo && corpo.code === 'HE015') {
+      const erro = new Error('handle cedo');
+      erro.liberado = Date.parse(corpo.details) || null;
+      throw erro;
+    }
+    throw new Error('servidor respondeu ' + res.status);
+  }
   const linhas = await res.json();
   conta.perfil = Array.isArray(linhas) && linhas.length
     ? linhas[0]
-    : { id: dono.id, handle: h };
+    : { id: dono.id, handle: h, handle_trocado_em: new Date().toISOString() };
   avisar();
   return conta.perfil;
 }

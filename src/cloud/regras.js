@@ -204,6 +204,25 @@ export function situacaoDoHandle(pedido, achado, meuId) {
   return normalizarHandle(achado.handle) === normalizarHandle(pedido) ? 'atual' : 'livre';
 }
 
+/** De quantos em quantos dias o @ pode mudar. A regra vale no banco (sql/009). */
+export const HANDLE_TROCA_DIAS = 15;
+const DIA_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Quando este perfil pode trocar de @ de novo: o instante, ou null se ja pode.
+ *
+ * Copia da regra do banco so para a tela avisar antes - quem decide e o
+ * gatilho. Perfil sem data (quem ja tinha @ antes da regra) pode trocar.
+ */
+export function proximaTrocaDoHandle(perfil, agora = Date.now()) {
+  const desde = perfil && perfil.handle && perfil.handle_trocado_em
+    ? Date.parse(perfil.handle_trocado_em)
+    : NaN;
+  if (!Number.isFinite(desde)) return null;
+  const liberado = desde + HANDLE_TROCA_DIAS * DIA_MS;
+  return agora < liberado ? liberado : null;
+}
+
 /** O tamanho que cabe no painel de um jogador na mesa - o mesmo do nome digitado. */
 export const NOME_MAX = 18;
 
