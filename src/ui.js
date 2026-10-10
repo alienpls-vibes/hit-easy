@@ -1,4 +1,4 @@
-/** Utilitarios de DOM. Pequenos de proposito - a app nao precisa de framework. */
+/** DOM utilities. Small on purpose - the app does not need a framework. */
 
 import { t } from './i18n.js';
 import { colorHex } from './colors.js';
@@ -8,7 +8,7 @@ export function el(tag, props = {}, children = []) {
   for (const [k, v] of Object.entries(props)) {
     if (v === null || v === undefined || v === false) continue;
     if (k === 'class') node.className = v;
-    else if (k === 'style' && typeof v === 'object') aplicarEstilo(node, v);
+    else if (k === 'style' && typeof v === 'object') applyStyle(node, v);
     else if (k === 'dataset') Object.assign(node.dataset, v);
     else if (k === 'html') node.innerHTML = v;
     else if (k === 'text') node.textContent = v;
@@ -24,32 +24,34 @@ export function el(tag, props = {}, children = []) {
 }
 
 /**
- * Aplica estilos inline.
+ * Applies inline styles.
  *
- * Custom properties (--algo) EXIGEM setProperty: atribuir por indice
- * (`style['--x'] = v`) nao registra nada no navegador, so cria uma propriedade
- * solta no objeto. O app inteiro passa a identidade de cor do deck assim, e
- * por muito tempo isso caiu em silencio no --accent da raiz - o branco
- * translucido -, apagando a cor de todo painel, cartao e bolinha de mana.
+ * Custom properties (--something) REQUIRE setProperty: assigning by index
+ * (`style['--x'] = v`) registers nothing in the browser, it only creates a
+ * loose property on the object. The whole app passes the deck's color identity
+ * this way, and for a long time it silently fell through to the root --accent
+ * - the translucent white - wiping the color off every panel, card and mana
+ * dot.
  */
-function aplicarEstilo(node, estilos) {
-  for (const [prop, valor] of Object.entries(estilos)) {
-    if (valor === null || valor === undefined) continue;
-    if (prop.startsWith('--')) node.style.setProperty(prop, valor);
-    else node.style[prop] = valor;
+function applyStyle(node, styles) {
+  for (const [prop, value] of Object.entries(styles)) {
+    if (value === null || value === undefined) continue;
+    if (prop.startsWith('--')) node.style.setProperty(prop, value);
+    else node.style[prop] = value;
   }
 }
 
 
 /**
- * A marca do app: os cinco pips de mana em anel, os mesmos do icone instalado.
+ * The app mark: the five mana pips in a ring, the same as the installed icon.
  *
- * Era um quadradinho com gradiente WUBRG - ilegivel em 14px, porque cinco cores
- * espremidas num degrade viram uma mancha parda. Em circulos separados cada cor
- * continua se lendo, e a forma repete a do icone da tela de inicio, o que faz o
- * app parecer a mesma coisa dentro e fora.
+ * It used to be a small square with a WUBRG gradient - unreadable at 14px,
+ * because five colors squeezed into a gradient become a brownish smudge. In
+ * separate circles each color still reads, and the shape repeats the home
+ * screen icon, which makes the app look like the same thing inside and out.
  *
- * Desenhado com as cores vivas do tema atual, entao acompanha claro e escuro.
+ * Drawn with the vivid colors of the current theme, so it follows light and
+ * dark.
  */
 export function brandMark() {
   const NS = 'http://www.w3.org/2000/svg';
@@ -58,13 +60,13 @@ export function brandMark() {
   svg.setAttribute('class', 'brand-mark');
   svg.setAttribute('aria-hidden', 'true');
 
-  ['W', 'U', 'B', 'R', 'G'].forEach((cor, i) => {
+  ['W', 'U', 'B', 'R', 'G'].forEach((color, i) => {
     const ang = -Math.PI / 2 + i * ((2 * Math.PI) / 5);
     const c = document.createElementNS(NS, 'circle');
     c.setAttribute('cx', (12 + 7.4 * Math.cos(ang)).toFixed(2));
     c.setAttribute('cy', (12 + 7.4 * Math.sin(ang)).toFixed(2));
     c.setAttribute('r', '3.5');
-    c.setAttribute('fill', colorHex(cor));
+    c.setAttribute('fill', colorHex(color));
     svg.append(c);
   });
   return svg;
@@ -76,7 +78,7 @@ export function clear(node) {
 }
 
 export function icon(name) {
-  // Glifos desenhados a mao em SVG: nenhuma dependencia de fonte de icones.
+  // Glyphs hand-drawn in SVG: no dependency on an icon font.
   const paths = {
     undo: 'M9 5 4 10l5 5M4 10h8a5 5 0 0 1 0 10h-1',
     redo: 'M11 5l5 5-5 5M16 10H8a5 5 0 0 0 0 10h1',
@@ -111,31 +113,32 @@ export function icon(name) {
 
 let hapticsOn = true;
 
-/** Liga/desliga o retorno tatil de todo o app de uma vez. */
+/** Turns haptic feedback on/off for the whole app at once. */
 export function setHaptics(on) {
   hapticsOn = on !== false;
 }
 
-/** Feedback tatil curto. Silencioso onde nao ha suporte ou onde foi desligado. */
+/** Short haptic feedback. Silent where unsupported or turned off. */
 export function buzz(ms = 8) {
   if (!hapticsOn) return;
   try {
     if (navigator.vibrate) navigator.vibrate(ms);
   } catch {
-    /* ignora */
+    /* ignore */
   }
 }
 
 /**
- * Fechar tocando fora, sem cair no clique fantasma.
+ * Closing by tapping outside, without falling for the ghost click.
  *
- * Num celular, o toque que ABRE um painel ainda dispara um `click` logo depois,
- * e esse clique cai na cobertura que acabou de ser montada - que entenderia
- * "tocou fora" e fecharia na hora. No desktop isso nao acontece, entao o bug
- * so aparece no aparelho.
+ * On a phone, the tap that OPENS a panel still fires a `click` right after,
+ * and that click lands on the backdrop that was just mounted - which would
+ * read it as "tapped outside" and close at once. On desktop this does not
+ * happen, so the bug only shows on the device.
  *
- * A regra aqui e simples: so fecha se o dedo DESCEU na cobertura. O clique
- * fantasma vem sem pointerdown proprio, e por isso e ignorado.
+ * The rule here is simple: it only closes if the finger went DOWN on the
+ * backdrop. The ghost click comes without its own pointerdown, so it is
+ * ignored.
  */
 export function dismissOnBackdrop(scrim, close) {
   let armed = false;
@@ -144,150 +147,155 @@ export function dismissOnBackdrop(scrim, close) {
     armed = e.target === scrim;
   });
   scrim.addEventListener('click', (e) => {
-    const fechar = armed && e.target === scrim;
+    const shouldClose = armed && e.target === scrim;
     armed = false;
-    if (fechar) close();
+    if (shouldClose) close();
   });
 }
 
 /**
- * Quanto da tela o teclado do celular tomou.
+ * How much of the screen the phone keyboard took.
  *
- * `layout` tem de ser a altura do viewport de LAYOUT - a mesma referencia
- * contra a qual `position: fixed` e `100%` resolvem. A leitura certa dela e
- * `documentElement.clientHeight`.
+ * `layout` has to be the height of the LAYOUT viewport - the same reference
+ * that `position: fixed` and `100%` resolve against. The right reading of it
+ * is `documentElement.clientHeight`.
  *
- * `window.innerHeight` NAO serve, e era o defeito: em navegador onde ele
- * acompanha o viewport VISUAL, a conta virava
+ * `window.innerHeight` does NOT work, and that was the defect: in browsers
+ * where it follows the VISUAL viewport, the math became
  *
- *     innerHeight - visivel - deslocamento  ==  visivel - visivel - 0  ==  0
+ *     innerHeight - visible - offset  ==  visible - visible - 0  ==  0
  *
- * isto e, --kb zero, cobertura do tamanho inteiro e painel colado na borda de
- * baixo - atras do teclado. Quem procurava um @ digitava sem ver.
+ * that is, --kb zero, a full-size backdrop and the panel stuck to the bottom
+ * edge - behind the keyboard. Whoever searched for an @ typed blind.
  *
- * A conta: a regiao visivel vai de `deslocamento` a `deslocamento + visivel`.
- * Um elemento fixo com `bottom: B` tem a base em `layout - B`. Para a base
- * cair no fim da regiao visivel, B = layout - visivel - deslocamento.
+ * The math: the visible region goes from `offset` to `offset + visible`. A
+ * fixed element with `bottom: B` has its base at `layout - B`. For the base to
+ * land at the end of the visible region, B = layout - visible - offset.
  */
-export function alturaDoTeclado(layout, visivel, deslocamento, temCampo) {
-  // Teclado so existe com campo de texto focado, e sem esta condicao a conta
-  // acusava teclado onde nao havia: a barra de URL do celular tambem encolhe o
-  // viewport visivel, e a diferenca saia como uns 60px de "teclado" - todo
-  // painel subia um pedaco, sem motivo.
-  if (temCampo === false) return 0;
+export function keyboardHeight(layout, visible, offset, hasField) {
+  // A keyboard only exists with a focused text field, and without this
+  // condition the math reported a keyboard where there was none: the phone's
+  // URL bar also shrinks the visual viewport, and the difference came out as
+  // some 60px of "keyboard" - every panel went up a bit, for no reason.
+  if (hasField === false) return 0;
 
   const l = Number(layout) || 0;
-  const v = Number(visivel) || 0;
-  const d = Number(deslocamento) || 0;
+  const v = Number(visible) || 0;
+  const d = Number(offset) || 0;
   if (!l || !v) return 0;
   return Math.max(0, Math.round(l - v - d));
 }
 
-/** Ha um campo de texto focado? E a unica situacao em que ha teclado. */
-function campoDeTextoFocado() {
-  const alvo = typeof document !== 'undefined' && document.activeElement;
-  if (!alvo) return false;
-  return alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA';
+/** Is a text field focused? It is the only situation in which there is a keyboard. */
+function textFieldFocused() {
+  const target = typeof document !== 'undefined' && document.activeElement;
+  if (!target) return false;
+  return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
 }
 
 /**
- * Garante que o campo focado esteja visivel DENTRO do painel.
+ * Makes sure the focused field is visible INSIDE the panel.
  *
- * Complemento de --kb, nao substituto: --kb tira o painel de tras do teclado, e
- * isto resolve o painel alto cujo campo fica no fim. A ordem importa - rolar
- * antes de o painel subir mede a geometria errada, e e por isso que quem chama
- * isto e a propria mudanca de viewport, e nao um temporizador apos o foco.
+ * A complement to --kb, not a replacement: --kb takes the panel out from
+ * behind the keyboard, and this handles the tall panel whose field is at the
+ * end. Order matters - scrolling before the panel goes up measures the wrong
+ * geometry, and that is why what calls this is the viewport change itself,
+ * not a timer after focus.
  *
- * `position: fixed` nao tem ancestral rolavel, entao rolar NUNCA resolveria um
- * painel inteiro atras do teclado. Essa parte e do --kb.
+ * `position: fixed` has no scrollable ancestor, so scrolling would NEVER fix a
+ * whole panel behind the keyboard. That part belongs to --kb.
  */
-function revelarCampoFocado() {
-  const campo = document.activeElement;
-  if (!campo || !campo.closest || !campo.getBoundingClientRect) return;
-  if (campo.tagName !== 'INPUT' && campo.tagName !== 'TEXTAREA') return;
-  if (!campo.closest('.sheet')) return;
+function revealFocusedField() {
+  const field = document.activeElement;
+  if (!field || !field.closest || !field.getBoundingClientRect) return;
+  if (field.tagName !== 'INPUT' && field.tagName !== 'TEXTAREA') return;
+  if (!field.closest('.sheet')) return;
 
   const vv = window.visualViewport;
   if (!vv) return;
-  const caixa = campo.getBoundingClientRect();
-  const topoVisivel = vv.offsetTop;
-  const fundoVisivel = vv.offsetTop + vv.height;
-  // Ja visivel com uma folga: mexer agora seria um salto sem motivo.
-  if (caixa.top >= topoVisivel && caixa.bottom <= fundoVisivel - 4) return;
-  if (campo.scrollIntoView) {
-    campo.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  const box = field.getBoundingClientRect();
+  const visibleTop = vv.offsetTop;
+  const visibleBottom = vv.offsetTop + vv.height;
+  // Already visible with some room: moving now would be a pointless jump.
+  if (box.top >= visibleTop && box.bottom <= visibleBottom - 4) return;
+  if (field.scrollIntoView) {
+    field.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 }
 
 /**
- * Teclado do celular: o painel precisa subir junto.
+ * Phone keyboard: the panel has to go up with it.
  *
- * O painel e fixo na borda de baixo, e o teclado cobre justamente essa faixa -
- * entao o campo de texto some atras dele. `visualViewport` diz quanta tela o
- * teclado tomou; a cobertura encolhe na mesma medida e o painel sobe sozinho.
+ * The panel is fixed to the bottom edge, and the keyboard covers exactly that
+ * strip - so the text field disappears behind it. `visualViewport` says how
+ * much screen the keyboard took; the backdrop shrinks by the same amount and
+ * the panel goes up on its own.
  *
- * Vale para TODO campo em painel: busca de comandante, nome de jogador, numero
- * da votacao secreta e busca de @ - todos passam pelo mesmo painel.
+ * It applies to EVERY field in a panel: commander search, player name, the
+ * secret vote number and the @ search - they all go through the same panel.
  *
- * Faz tudo sem tocar no layout da pagina, e isso e requisito e nao detalhe: as
- * telas do app sao `height: 100%` em cadeia (html, #app, .stats), e mexer no
- * viewport de LAYOUT durante a rolagem re-layouta a cadeia e mexe na ancora de
- * scroll. Foi por isso que `interactive-widget=resizes-content` saiu do meta.
+ * It does everything without touching the page layout, and that is a
+ * requirement, not a detail: the app screens are `height: 100%` in a chain
+ * (html, #app, .stats), and changing the LAYOUT viewport while scrolling
+ * re-lays out the chain and moves the scroll anchor. That is why
+ * `interactive-widget=resizes-content` left the meta tag.
  */
-function acompanharTeclado() {
+function followKeyboard() {
   const vv = window.visualViewport;
   if (!vv) return;
-  const ajustar = () => {
+  const adjust = () => {
     const layout = document.documentElement.clientHeight || window.innerHeight;
-    const tomado = alturaDoTeclado(
-      layout, vv.height, vv.offsetTop, campoDeTextoFocado(),
+    const taken = keyboardHeight(
+      layout, vv.height, vv.offsetTop, textFieldFocused(),
     );
-    document.documentElement.style.setProperty('--kb', tomado + 'px');
-    revelarCampoFocado();
+    document.documentElement.style.setProperty('--kb', taken + 'px');
+    revealFocusedField();
   };
-  vv.addEventListener('resize', ajustar);
-  vv.addEventListener('scroll', ajustar);
-  ajustar();
+  vv.addEventListener('resize', adjust);
+  vv.addEventListener('scroll', adjust);
+  adjust();
 }
 
-if (typeof window !== 'undefined' && window.visualViewport) acompanharTeclado();
+if (typeof window !== 'undefined' && window.visualViewport) followKeyboard();
 
 let sheetHost = null;
 const sheetWatchers = new Set();
 
 const SLIDE_MS = 320;
 
-/** Ha um painel aberto agora? */
+/** Is a panel open right now? */
 export function isSheetOpen() {
   return sheetHost !== null;
 }
 
 /**
- * Avisa quando um painel abre ou fecha.
+ * Signals when a panel opens or closes.
  *
- * Serve para quem redesenha a tela por baixo: girar o aparelho remonta a mesa,
- * e remontar chama destroy(), que fecharia o painel aberto - no meio de uma
- * votacao, por exemplo. Quem escuta aqui adia o redesenho ate o painel sair.
+ * It serves whoever redraws the screen underneath: rotating the device
+ * remounts the table, and remounting calls destroy(), which would close the
+ * open panel - in the middle of a vote, for example. Whoever listens here
+ * postpones the redraw until the panel leaves.
  */
 export function onSheetChange(fn) {
   sheetWatchers.add(fn);
   return () => sheetWatchers.delete(fn);
 }
 
-function avisarPaineis() {
+function notifySheetWatchers() {
   sheetWatchers.forEach((fn) => fn(isSheetOpen()));
 }
 
 /**
- * Painel inferior em varias telas, deslizando de lado.
+ * A bottom panel with several screens, sliding sideways.
  *
- * Cada passo e { title, subtitle, build(pane, api) }, e o build recebe uma api
- * com next / back / close / remeasure. As telas ficam empilhadas de verdade -
- * a anterior continua montada atras -, entao voltar nao perde o que ja estava
- * na tela nem refaz busca nenhuma.
+ * Each step is { title, subtitle, build(pane, api) }, and build receives an api
+ * with next / back / close / remeasure. The screens are really stacked - the
+ * previous one stays mounted behind - so going back does not lose what was on
+ * screen nor redo any search.
  *
- * A altura do painel acompanha a tela ativa via ResizeObserver: a lista de
- * comandantes cresce e encolhe conforme a busca, e o painel precisa seguir.
+ * The panel height follows the active screen through a ResizeObserver: the
+ * commander list grows and shrinks with the search, and the panel has to
+ * follow.
  */
 export function openFlow(firstStep, opts = {}) {
   closeSheet();
@@ -319,12 +327,13 @@ export function openFlow(firstStep, opts = {}) {
   }, [sheet]);
   dismissOnBackdrop(sheetHost, closeSheet);
 
-  // Rede para o caso em que focar nao mexe no viewport (teclado fisico, ou
-  // campo que ja cabia): ai `resize` nao dispara e a conferencia de --kb nao
-  // roda. Quando o teclado sobe, quem manda e revelarCampoFocado chamado pela
-  // mudanca de viewport - que mede depois de o painel ja ter subido.
+  // Safety net for when focusing does not move the viewport (physical
+  // keyboard, or a field that already fit): then `resize` does not fire and
+  // the --kb check does not run. When the keyboard goes up, what rules is
+  // revealFocusedField called by the viewport change - which measures after
+  // the panel has already gone up.
   sheetHost.addEventListener('focusin', () => {
-    setTimeout(revelarCampoFocado, 300);
+    setTimeout(revealFocusedField, 300);
   });
 
   const top = () => stack[stack.length - 1];
@@ -345,18 +354,18 @@ export function openFlow(firstStep, opts = {}) {
     titleEl.textContent = step.title || '';
     subEl.textContent = step.subtitle || '';
     subEl.hidden = !step.subtitle;
-    backBtn.hidden = !podeVoltar();
+    backBtn.hidden = !canGoBack();
   };
 
-  // Um passo pode proibir voltar. No voto secreto isso nao e detalhe: voltar
-  // uma tela mostraria o voto de quem passou o aparelho.
-  const podeVoltar = () => stack.length > 1 && !top().step.noBack;
+  // A step can forbid going back. In the secret vote this is no detail: going
+  // back one screen would show the vote of whoever handed over the device.
+  const canGoBack = () => stack.length > 1 && !top().step.noBack;
 
   const api = {
     close: closeSheet,
     remeasure: measure,
     depth: () => stack.length,
-    canGoBack: () => podeVoltar(),
+    canGoBack: () => canGoBack(),
 
     next(step) {
       const prev = top();
@@ -368,9 +377,9 @@ export function openFlow(firstStep, opts = {}) {
       watch(pane);
 
       if (!prev) {
-        // Primeira tela: entra ja posicionada, sem deslizar de lado nem animar
-        // a altura a partir de zero. Tirar `is-next` aqui e obrigatorio - ela
-        // carrega opacity:0 e pointer-events:none.
+        // First screen: comes in already in place, without sliding sideways or
+        // animating the height from zero. Removing `is-next` here is mandatory
+        // - it carries opacity:0 and pointer-events:none.
         pane.classList.remove('is-next');
         track.style.transition = 'none';
         measure();
@@ -385,15 +394,15 @@ export function openFlow(firstStep, opts = {}) {
     },
 
     back() {
-      if (!podeVoltar()) { if (stack.length < 2) closeSheet(); return; }
-      const saindo = stack.pop();
-      const volta = top();
-      volta.pane.classList.remove('is-past');
-      saindo.pane.classList.add('is-next');
+      if (!canGoBack()) { if (stack.length < 2) closeSheet(); return; }
+      const leaving = stack.pop();
+      const returning = top();
+      returning.pane.classList.remove('is-past');
+      leaving.pane.classList.add('is-next');
       paintHead();
-      watch(volta.pane);
+      watch(returning.pane);
       measure();
-      setTimeout(() => saindo.pane.remove(), SLIDE_MS);
+      setTimeout(() => leaving.pane.remove(), SLIDE_MS);
     },
   };
 
@@ -406,15 +415,16 @@ export function openFlow(firstStep, opts = {}) {
   api.next(firstStep);
   bindSwipeBack(track, api);
   requestAnimationFrame(() => sheetHost && sheetHost.classList.add('is-open'));
-  avisarPaineis();
+  notifySheetWatchers();
   return api;
 }
 
 /**
- * Arrastar para a direita volta uma tela.
+ * Dragging to the right goes back one screen.
  *
- * Só engata com intencao horizontal clara (o dobro de x sobre y), senao rouba
- * a rolagem da lista de comandantes. Campos de texto ficam de fora.
+ * It only engages with a clear horizontal intent (twice as much x as y),
+ * otherwise it steals the scrolling of the commander list. Text fields are
+ * left out.
  */
 function bindSwipeBack(track, api) {
   let start = null;
@@ -431,7 +441,7 @@ function bindSwipeBack(track, api) {
     const dy = e.clientY - start.y;
 
     if (!start.engaged) {
-      if (Math.abs(dy) > Math.abs(dx)) { start = null; return; } // e rolagem
+      if (Math.abs(dy) > Math.abs(dx)) { start = null; return; } // it is a scroll
       if (dx < 12 || Math.abs(dx) < Math.abs(dy) * 2) return;
       start.engaged = true;
       track.classList.add('is-swiping');
@@ -457,7 +467,7 @@ function bindSwipeBack(track, api) {
   });
 }
 
-/** Painel de uma tela so - a forma curta do openFlow. */
+/** A single-screen panel - the short form of openFlow. */
 export function openSheet({ title, subtitle, build, onClose, centered }) {
   openFlow({ title, subtitle, build: (pane) => build(pane, closeSheet) }, { onClose, centered });
   return closeSheet;
@@ -470,7 +480,7 @@ export function closeSheet() {
   node.classList.remove('is-open');
   if (node._onClose) node._onClose();
   setTimeout(() => node.remove(), 200);
-  avisarPaineis();
+  notifySheetWatchers();
 }
 
 document.addEventListener('keydown', (e) => {
@@ -479,7 +489,7 @@ document.addEventListener('keydown', (e) => {
 
 let toastTimer = null;
 
-/** Aviso efemero com acao opcional - o caminho principal do desfazer. */
+/** A short-lived notice with an optional action - the main path for undo. */
 export function toast(message, action) {
   let host = document.querySelector('.toast');
   if (host) host.remove();
@@ -502,7 +512,7 @@ export function toast(message, action) {
   }, action ? 4200 : 2200);
 }
 
-/** Confirmacao para acoes destrutivas. Resolve com true/false. */
+/** Confirmation for destructive actions. Resolves with true/false. */
 export function confirmAction({ title, message, confirmLabel, danger = true }) {
   return new Promise((resolve) => {
     let settled = false;

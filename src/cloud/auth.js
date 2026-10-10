@@ -1,280 +1,282 @@
 /**
- * Entrar e sair: link magico, senha, login social e o retorno pela URL.
+ * Signing in and out: magic link, password, social login and the return
+ * through the URL.
  *
- * O login por link volta de FORA do app - a pessoa sai para o e-mail e
- * retorna por um endereco com a sessao no fragmento -, entao capturarRetorno()
- * roda na subida e nao em resposta a um toque.
+ * The magic link comes back from OUTSIDE the app - the person goes to their
+ * email and returns through an address with the session in the fragment - so
+ * captureReturn() runs at startup and not in response to a tap.
  */
 
 import { cloudEnabled } from '../config.js';
-import { carregarAssinatura } from './assinatura.js';
+import { loadSubscription } from './subscription.js';
 import {
-  conta, currentUser, esquecerSessao, gravarSessao, state,
-} from './estado.js';
-import { cabecalhosAnonimos, guardarDoServidor, pedir, url } from './http.js';
-import { carregarPerfil } from './perfil.js';
+  account, currentUser, forgetSession, saveSession, state,
+} from './account.js';
+import { anonymousHeaders, storeFromServer, request, url } from './http.js';
+import { loadProfile } from './profile.js';
 
 /**
- * Para onde o login deve voltar.
+ * Where the sign-in should come back to.
  *
- * Sem o fragmento: se a pessoa pedir um segundo link estando numa URL que ainda
- * carrega `#access_token=...`, esse token viajaria dentro do e-mail. Sem a query
- * tambem, porque o endereco precisa bater com a lista de Redirect URLs do
- * Supabase - qualquer sobra faz o servidor recusar e cair no Site URL.
+ * Without the fragment: if the person asks for a second link while on a URL
+ * that still carries `#access_token=...`, that token would travel inside the
+ * email. Without the query too, because the address has to match Supabase's
+ * Redirect URLs list - anything extra makes the server refuse and fall back to
+ * the Site URL.
  */
-export function urlDeRetorno(loc = location) {
+export function returnUrl(loc = location) {
   return loc.origin + loc.pathname;
 }
 
 /**
- * Como o pedido de link magico vai para a rede.
+ * How the magic link request goes over the network.
  *
- * Separado da chamada para poder ser conferido por teste. O detalhe que importa:
- * `redirect_to` e QUERY, nao corpo. O SDK do Supabase aceita
- * `options.emailRedirectTo` e traduz para esta query; a API REST crua nao traduz
- * nada - ela ignora o campo desconhecido calada e manda o link para o Site URL
- * do projeto. Foi exatamente esse engano que fez o primeiro login real cair em
- * localhost:3000.
+ * Separate from the call so it can be checked by a test. The detail that
+ * matters: `redirect_to` is a QUERY parameter, not body. The Supabase SDK
+ * accepts `options.emailRedirectTo` and translates it into this query; the raw
+ * REST API translates nothing - it silently ignores the unknown field and
+ * sends the link to the project's Site URL. That exact mistake is what made
+ * the first real sign-in land on localhost:3000.
  */
-export function pedidoDeLink(email, redirecionar) {
+export function magicLinkRequest(email, redirectTo) {
   return {
-    caminho: '/auth/v1/otp?redirect_to=' + encodeURIComponent(redirecionar),
-    corpo: { email: String(email || '').trim(), create_user: true },
+    path: '/auth/v1/otp?redirect_to=' + encodeURIComponent(redirectTo),
+    body: { email: String(email || '').trim(), create_user: true },
   };
 }
 
-/** Manda o link magico para o e-mail. */
-export async function enviarLink(email, redirecionar = urlDeRetorno()) {
-  const { caminho, corpo } = pedidoDeLink(email, redirecionar);
-  await pedir(caminho, { method: 'POST', body: JSON.stringify(corpo) });
+/** Sends the magic link to the email. */
+export async function sendMagicLink(email, redirectTo = returnUrl()) {
+  const { path, body } = magicLinkRequest(email, redirectTo);
+  await request(path, { method: 'POST', body: JSON.stringify(body) });
 }
 
-/** Leva para o Google/Apple e volta com a sessao na URL. */
-export function entrarCom(provedor, redirecionar = urlDeRetorno()) {
-  const alvo = url('/auth/v1/authorize')
-    + '?provider=' + encodeURIComponent(provedor)
-    + '&redirect_to=' + encodeURIComponent(redirecionar);
-  location.assign(alvo);
+/** Goes to Google/Apple and comes back with the session in the URL. */
+export function signInWith(provider, redirectTo = returnUrl()) {
+  const target = url('/auth/v1/authorize')
+    + '?provider=' + encodeURIComponent(provider)
+    + '&redirect_to=' + encodeURIComponent(redirectTo);
+  location.assign(target);
 }
 
 /**
- * O Supabase devolve a sessao no fragmento da URL (#access_token=...).
- * Fragmento nunca chega ao servidor - por isso o token viaja ali.
+ * Supabase returns the session in the URL fragment (#access_token=...).
+ * A fragment never reaches the server - that is why the token travels there.
  */
-export function capturarRetorno() {
+export function captureReturn() {
   if (!location.hash || location.hash.length < 2) return false;
   const p = new URLSearchParams(location.hash.slice(1));
   const token = p.get('access_token');
   if (!token) return false;
 
-  gravarSessao({
+  saveSession({
     access_token: token,
     refresh_token: p.get('refresh_token'),
     expires_at: Number(p.get('expires_at')) || null,
     user: null,
   });
-  // Limpa a barra de enderecos: token em historico de navegacao e vazamento.
+  // Cleans the address bar: a token in the browsing history is a leak.
   history.replaceState(null, '', location.pathname + location.search);
   return true;
 }
 
-let provedoresAtivos = [];
+let activeProviders = [];
 
-/** Quais logins sociais o servidor aceita. Vazio ate carregarConfig() rodar. */
-export function provedores() {
-  return provedoresAtivos;
+/** Which social logins the server accepts. Empty until loadConfig() runs. */
+export function providers() {
+  return activeProviders;
 }
 
 /**
- * Pergunta ao servidor o que esta ligado.
+ * Asks the server what is turned on.
  *
- * Sem isso a tela mostraria "Entrar com Google" mesmo com o provedor desligado,
- * e o toque levaria a uma pagina de erro do Supabase - pior que nao ter botao.
+ * Without this the screen would show "Sign in with Google" even with the
+ * provider turned off, and the tap would lead to a Supabase error page - worse
+ * than having no button.
  */
-export async function carregarConfig() {
+export async function loadConfig() {
   if (!cloudEnabled()) return [];
   try {
-    const cfg = await pedir('/auth/v1/settings');
-    provedoresAtivos = Object.entries(cfg.external || {})
-      .filter(([nome, ligado]) => ligado && nome !== 'email')
-      .map(([nome]) => nome);
+    const cfg = await request('/auth/v1/settings');
+    activeProviders = Object.entries(cfg.external || {})
+      .filter(([name, enabled]) => enabled && name !== 'email')
+      .map(([name]) => name);
   } catch {
-    provedoresAtivos = [];
+    activeProviders = [];
   }
-  return provedoresAtivos;
+  return activeProviders;
 }
 
-export async function carregarUsuario() {
-  if (!conta.sessao) return null;
-  const user = await pedir('/auth/v1/user');
-  gravarSessao({ ...conta.sessao, user });
+export async function loadUser() {
+  if (!account.session) return null;
+  const user = await request('/auth/v1/user');
+  saveSession({ ...account.session, user });
   return user;
 }
 
-export async function sair() {
+export async function signOut() {
   try {
-    await pedir('/auth/v1/logout', { method: 'POST' });
+    await request('/auth/v1/logout', { method: 'POST' });
   } catch {
-    /* servidor fora do ar nao pode impedir alguem de sair */
+    /* a server that is down cannot stop someone from signing out */
   }
-  esquecerSessao();
+  forgetSession();
 }
 
-/**
- * O e-mail e o link magico continuam existindo - e o caminho de quem esqueceu
- * a senha, e o unico que nao depende de lembrar de nada. Mas ele nao pode ser
- * o caminho de TODO dia: abrir a caixa de entrada para entrar no proprio
- * aparelho e atrito demais, e num aparelho emprestado e pior ainda.
+/*
+ * The email and the magic link still exist - they are the path for whoever
+ * forgot the password, and the only one that does not depend on remembering
+ * anything. But it cannot be the EVERYDAY path: opening the inbox to sign in
+ * on your own device is too much friction, and on a borrowed device it is
+ * even worse.
  */
 
-async function pedirToken(caminho, corpo) {
-  const res = await fetch(url(caminho), {
+async function requestToken(path, body) {
+  const res = await fetch(url(path), {
     method: 'POST',
-    headers: cabecalhosAnonimos(),
-    body: JSON.stringify(corpo),
+    headers: anonymousHeaders(),
+    body: JSON.stringify(body),
   });
   const d = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const e = new Error(d.error_description || d.msg || d.message || 'falhou');
-    e.codigo = d.error_code || d.error || res.status;
+    const e = new Error(d.error_description || d.msg || d.message || 'failed');
+    e.code = d.error_code || d.error || res.status;
     throw e;
   }
   return d;
 }
 
-export async function entrarComSenha(email, senha) {
-  const d = await pedirToken('/auth/v1/token?grant_type=password', {
+export async function signInWithPassword(email, password) {
+  const d = await requestToken('/auth/v1/token?grant_type=password', {
     email: String(email || '').trim(),
-    password: String(senha || ''),
+    password: String(password || ''),
   });
-  guardarDoServidor(d);
+  storeFromServer(d);
   try {
-    await carregarUsuario();
-    // Entrou COM senha, logo tem senha. Cobre quem ja tinha uma antes de este
-    // campo existir, sem precisar que a pessoa defina de novo.
-    if (!temSenha()) await marcarQueTemSenha();
-    await carregarPerfil();
-    await carregarAssinatura();
-  } catch { /* entrou; o resto chega depois */ }
+    await loadUser();
+    // Signed in WITH a password, so there is a password. Covers whoever
+    // already had one before this field existed, without them having to set
+    // it again.
+    if (!hasPassword()) await markHasPassword();
+    await loadProfile();
+    await loadSubscription();
+  } catch { /* signed in; the rest arrives later */ }
   return state();
 }
 
 /**
- * Cria a conta ja com senha.
+ * Did the account already exist?
  *
- * Se o projeto exigir confirmacao de e-mail, o servidor NAO devolve sessao -
- * devolve so o usuario. Nesse caso quem chama precisa dizer "confira sua
- * caixa", e nao fingir que entrou.
+ * With email confirmation on, GoTrue does NOT say "that email already has an
+ * account" - it would be answering whether an address exists to anyone who
+ * asked, which would turn sign-up into an email checker. Instead it returns a
+ * decoy user, with EMPTY `identities`. That empty array is the only signal,
+ * and it is the documented one.
+ *
+ * Without reading it, the app said "check your inbox" to someone who already
+ * had an account - and the person waited for an email that would not come, or
+ * came and was useless.
  */
-/**
- * A conta ja existia?
- *
- * Com confirmacao de e-mail ligada, o GoTrue NAO diz "esse e-mail ja tem conta"
- * - responderia se um endereco existe ou nao para qualquer um que perguntasse,
- * o que transformaria o cadastro num verificador de e-mails. Em vez disso ele
- * devolve um usuario de fachada, com `identities` VAZIO. E esse array vazio o
- * unico sinal, e e o sinal documentado.
- *
- * Sem ler isso, o app dizia "confira sua caixa de entrada" para quem ja tinha
- * conta - e a pessoa ficava esperando um e-mail que nao ia chegar, ou chegava e
- * nao servia para nada.
- */
-export function jaTinhaConta(resposta) {
-  if (!resposta || resposta.access_token) return false;
-  return Array.isArray(resposta.identities) && resposta.identities.length === 0;
+export function accountAlreadyExisted(response) {
+  if (!response || response.access_token) return false;
+  return Array.isArray(response.identities) && response.identities.length === 0;
 }
 
-export async function criarConta(email, senha) {
-  const d = await pedirToken('/auth/v1/signup', {
+/**
+ * Creates the account already with a password.
+ *
+ * If the project requires email confirmation, the server does NOT return a
+ * session - only the user. In that case the caller has to say "check your
+ * inbox", and not pretend it signed in.
+ */
+export async function createAccount(email, password) {
+  const d = await requestToken('/auth/v1/signup', {
     email: String(email || '').trim(),
-    password: String(senha || ''),
+    password: String(password || ''),
   });
 
   if (d.access_token) {
-    guardarDoServidor(d);
-    try { await carregarUsuario(); await carregarAssinatura(); } catch { /* depois */ }
-    return { entrou: true, estado: state() };
+    storeFromServer(d);
+    try { await loadUser(); await loadSubscription(); } catch { /* later */ }
+    return { signedIn: true, state: state() };
   }
 
-  // Sem confirmacao de e-mail ligada, o servidor recusa com user_already_exists
-  // e nem chegamos aqui. Com ela ligada, o sinal e o `identities` vazio.
-  if (jaTinhaConta(d)) {
-    const e = new Error('conta ja existe');
-    e.codigo = 'user_already_exists';
+  // Without email confirmation on, the server refuses with user_already_exists
+  // and we never get here. With it on, the signal is the empty `identities`.
+  if (accountAlreadyExisted(d)) {
+    const e = new Error('account already exists');
+    e.code = 'user_already_exists';
     throw e;
   }
 
-  return { entrou: false, estado: state() };
+  return { signedIn: false, state: state() };
 }
 
 /**
- * Define (ou troca) a senha de quem ja esta dentro.
+ * Does this account already have a password?
  *
- * E o passo que fecha o problema: quem chegou por link magico define uma senha
- * uma vez e nunca mais precisa de e-mail - em nenhum aparelho.
+ * GoTrue does not say: the email identity exists both for whoever came in by
+ * magic link and for whoever has a password. So the app itself writes it down,
+ * in `user_metadata`, which travels with the account and arrives the same on
+ * any device - unlike a mark stored on this disk.
  */
-/**
- * Esta conta ja tem senha?
- *
- * O GoTrue nao conta isso: a identidade de e-mail existe tanto para quem entrou
- * por link magico quanto para quem tem senha. Entao o proprio app anota, em
- * `user_metadata`, que viaja com a conta e chega igual em qualquer aparelho -
- * ao contrario de uma marca guardada no disco daqui.
- */
-export function temSenha() {
+export function hasPassword() {
   const u = currentUser();
   return Boolean(u && u.user_metadata && u.user_metadata.has_password);
 }
 
-async function marcarQueTemSenha() {
+async function markHasPassword() {
   try {
-    const u = await pedir('/auth/v1/user', {
+    const u = await request('/auth/v1/user', {
       method: 'PUT',
       body: JSON.stringify({ data: { has_password: true } }),
     });
-    if (u && u.id) gravarSessao({ ...conta.sessao, user: u });
+    if (u && u.id) saveSession({ ...account.session, user: u });
   } catch {
-    /* a senha ja foi definida; a anotacao tenta de novo na proxima */
+    /* the password is already set; the note tries again next time */
   }
 }
 
 /**
- * Define a primeira senha.
+ * Sets the first password.
  *
- * Senha e marca vao no MESMO pedido, de proposito. Em duas chamadas o segundo
- * pedido pode falhar - rede caiu, token venceu - e a conta fica num estado
- * mentiroso: tem senha, mas o app acha que nao, e continua oferecendo "salvar
- * senha" para sempre. Uma chamada so nao tem esse meio-termo.
+ * This is the step that closes the problem: whoever arrived by magic link sets
+ * a password once and never needs email again - on any device.
+ *
+ * Password and mark go in the SAME request, on purpose. In two calls the second
+ * request can fail - network dropped, token expired - and the account ends up
+ * in a lying state: it has a password, but the app thinks it does not, and
+ * keeps offering "save password" forever. A single call has no middle ground.
  */
-export async function definirSenha(senha) {
-  if (!conta.sessao) throw new Error('sem sessao');
-  const u = await pedir('/auth/v1/user', {
+export async function setPassword(password) {
+  if (!account.session) throw new Error('no session');
+  const u = await request('/auth/v1/user', {
     method: 'PUT',
     body: JSON.stringify({
-      password: String(senha || ''),
+      password: String(password || ''),
       data: { has_password: true },
     }),
   });
-  // A resposta ja e o usuario atualizado: guardar aqui evita uma ida a rede so
-  // para descobrir o que o servidor acabou de contar.
-  if (u && u.id) gravarSessao({ ...conta.sessao, user: u });
-  else await carregarUsuario();
+  // The response already is the updated user: storing it here avoids a trip
+  // to the network just to find out what the server has just said.
+  if (u && u.id) saveSession({ ...account.session, user: u });
+  else await loadUser();
 }
 
 /**
- * Pede a troca de senha por e-mail.
+ * Requests a password change by email.
  *
- * Trocar senha nao pode ser tao facil quanto defini-la pela primeira vez:
- * quem senta num aparelho ja logado - e um contador de vida de mesa vive
- * emprestado - poderia trocar a senha da pessoa e tomar a conta. O e-mail e o
- * que prova que quem pede e o dono.
+ * Changing the password cannot be as easy as setting it the first time:
+ * whoever sits at an already signed-in device - and a table life counter lives
+ * on loan - could change the person's password and take the account. The
+ * email is what proves whoever asks is the owner.
  *
- * `redirect_to` vai na QUERY, como em todo endpoint do GoTrue. No corpo ele e
- * ignorado em silencio e o link cai no Site URL do projeto - foi assim que o
- * primeiro login real foi parar em localhost:3000.
+ * `redirect_to` goes in the QUERY, as in every GoTrue endpoint. In the body it
+ * is silently ignored and the link lands on the project's Site URL - that is
+ * how the first real sign-in ended up on localhost:3000.
  */
-export async function pedirTrocaDeSenha(email, redirecionar = urlDeRetorno()) {
-  await pedir('/auth/v1/recover?redirect_to=' + encodeURIComponent(redirecionar), {
+export async function requestPasswordReset(email, redirectTo = returnUrl()) {
+  await request('/auth/v1/recover?redirect_to=' + encodeURIComponent(redirectTo), {
     method: 'POST',
     body: JSON.stringify({ email: String(email || '').trim() }),
   });

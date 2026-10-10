@@ -2,1145 +2,1407 @@
 
 **commander made simple**
 
-Contador de vida para mesas de Commander, com estatísticas amarradas ao deck.
-PWA instalável, funciona offline, sem build e sem dependências — só módulos ES
-nativos.
+Life counter for Commander tables, with statistics tied to the deck.
+Installable PWA, works offline, no build and no dependencies — only native ES
+modules.
 
-## Rodar
+## Running
 
 ```bash
-python servir.py
+python serve.py
 ```
 
-Abre em `http://localhost:8000/`. Módulos ES não carregam por duplo clique
-(`file://` é bloqueado por CORS), então o servidor é necessário mesmo local.
+Opens at `http://localhost:8000/`. ES modules do not load on double click
+(`file://` is blocked by CORS), so the server is needed even locally.
 
-O servidor é de **pilha dupla (IPv6 + IPv4)** e com uma thread por conexão, e
-isso não é detalhe. No Windows `localhost` resolve para `::1` antes de
-`127.0.0.1`; escutando só em IPv4, o navegador tenta IPv6, espera ~2 s o timeout
-e só então cai no IPv4 — **a cada arquivo**. Com ~20 módulos, meio minuto por
-recarga. Medido: 38,5 s para carregar tudo antes, 0,22 s depois.
+The server is **dual-stack (IPv6 + IPv4)** with one thread per connection, and
+that is not a detail. On Windows `localhost` resolves to `::1` before
+`127.0.0.1`; listening only on IPv4, the browser tries IPv6, waits ~2 s for the
+timeout and only then falls back to IPv4 — **for every file**. With ~20 modules,
+half a minute per reload. Measured: 38.5 s to load everything before, 0.22 s
+after.
 
-Se a porta já estiver ocupada, o script **recusa subir** e diz como resolver.
-Isso é de propósito: no Windows, `SO_REUSEADDR` não significa "reaproveite a
-porta em TIME_WAIT" como no Linux — ele deixa **dois** processos escutarem a
-mesma porta, e o sistema entrega a conexão a qualquer um dos dois. Com um
-servidor antigo travado, o novo sobe "com sucesso", o navegador cai no morto e a
-página nunca carrega.
+If the port is already taken, the script **refuses to start** and says how to
+fix it. That is on purpose: on Windows, `SO_REUSEADDR` does not mean "reuse the
+port in TIME_WAIT" as on Linux — it lets **two** processes listen on the same
+port, and the system hands the connection to either of them. With an old server
+stuck, the new one starts "successfully", the browser lands on the dead one and
+the page never loads.
 
-O IP da rede **muda** quando a máquina troca de Wi-Fi ou renova o DHCP. Se o
-celular parou de abrir, rode `python servir.py` de novo e use o IP que ele
-imprime.
+The network IP **changes** when the machine switches Wi-Fi or renews DHCP. If
+the phone stopped opening it, run `python serve.py` again and use the IP it
+prints.
 
-O script também imprime o IP da máquina na rede, para abrir do celular.
-Pelo IP o app funciona, mas **não instala como PWA**: navegador só registra
-service worker em `https://` ou `localhost`. Para instalar de verdade no
-celular, publique a pasta em qualquer host estático (GitHub Pages, Netlify,
-Vercel) — não há passo de build, é subir os arquivos.
+The script also prints the machine's network IP, to open it from the phone.
+Through the IP the app works, but it **does not install as a PWA**: browsers
+only register a service worker on `https://` or `localhost`. To really install
+it on the phone, publish the folder on any static host (GitHub Pages, Netlify,
+Vercel) — there is no build step, it is just uploading the files.
 
-## O número da versão
+## The version number
 
-**Ele só anda quando sai publicação em produção.** Uma ida ao beta não gasta um
-número: `main` e `beta` ficam no mesmo número até a promoção, e o que se acumula
-no beta entra numa entrada só de `src/novidades.js`.
+**It only moves when a production release ships.** A trip to beta does not
+spend a number: `main` and `beta` stay on the same number until the promotion,
+and whatever piles up in beta goes into a single entry of
+`src/release-notes.js`.
 
-Isto não é cosmético. Um número por ida ao beta produz um histórico de versões
-que ninguém usou, e as notas ficam picadas em entradas de um item — quem abre a
-tela de novidades depois de atualizar lê cinco cabeçalhos para entender uma
-mudança.
+This is not cosmetic. One number per trip to beta produces a version history
+nobody used, and the notes get chopped into one-item entries — whoever opens the
+what's-new screen after updating reads five headers to understand one change.
 
-**O que o bump fazia tecnicamente**, e por que não é necessário: `VERSION`
-compõe o nome do cache do service worker (`hiteasy-beta-shell-<versão>`), então
-trocá-lo força um cache novo e vazio. Mas o `fetch` é *stale-while-revalidate* —
-responde do cache e revalida por trás, gravando o que vier. O beta chega aos
-testadores na segunda abertura sem bump nenhum; o bump só antecipava isso em uma
-abertura.
+**What the bump did technically**, and why it is not needed: `VERSION` makes up
+the service worker cache name (`hiteasy-beta-shell-<version>`), so changing it
+forces a new, empty cache. But `fetch` is *stale-while-revalidate* — it answers
+from the cache and revalidates behind, storing whatever comes. Beta reaches the
+testers on the second open with no bump at all; the bump only brought that
+forward by one open.
 
-**O que se perderia sem compensar:** saber qual código está no aparelho. Com a
-versão parada, a tela de configurações diria a mesma coisa antes e depois da
-publicação. Por isso o CI escreve `build.json` em `/beta/` com o SHA curto do
-commit, e a linha de versão mostra `1.7.0 · beta · 3a6915f`. O service worker
-deixa esse arquivo passar direto para a rede: servi-lo do cache responderia com
-o build anterior, que é a única resposta inútil.
+**What would be lost without compensating:** knowing which code is on the
+device. With the version frozen, the settings screen would say the same thing
+before and after publishing. That is why CI writes `build.json` into `/beta/`
+with the short commit SHA, and the version line shows `1.7.0 · beta · 3a6915f`.
+The service worker lets that file go straight to the network: serving it from
+the cache would answer with the previous build, which is the only useless
+answer.
 
-Em produção não há carimbo, e é de propósito: lá o número já responde, porque é
-exatamente onde ele muda.
+In production there is no stamp, on purpose: there the number already answers,
+because that is exactly where it changes.
 
-### Na hora de promover
+### When promoting
 
-1. O número sobe uma vez, em `src/version.js` **e** em `sw.js` — `npm test`
-   recusa se divergirem.
-2. A entrada correspondente existe em `src/novidades.js` — `npm test` também
-   recusa sem ela.
-3. Qual dígito: `novo` ou `mudou` nas notas sobe o do meio; só `corrigido` sobe
-   o último.
+1. The number goes up once, in `src/version.js` **and** in `sw.js` — `npm test`
+   refuses if they diverge.
+2. The matching entry exists in `src/release-notes.js` — `npm test` also
+   refuses without it.
+3. Which digit: `new` or `changed` in the notes bumps the middle one; only
+   `fixed` bumps the last one.
 
-## Publicar
+## Publishing
 
-O app é estático — sem build, sem servidor, sem banco. Publicar é copiar a pasta
-para qualquer hospedagem de arquivos. **Todos os caminhos são relativos**, então
-ele funciona tanto na raiz de um domínio quanto numa subpasta
-(`usuario.github.io/hit-easy/`), que é como as hospedagens gratuitas servem.
+The app is static — no build, no server, no database. Publishing is copying the
+folder to any file host. **Every path is relative**, so it works both at the
+root of a domain and in a subfolder (`user.github.io/hit-easy/`), which is how
+free hosts serve it.
 
-**HTTPS não é opcional:** service worker e instalação como app só funcionam em
-`https://` ou `localhost`. Toda opção abaixo já dá HTTPS.
+**HTTPS is not optional:** service workers and installing as an app only work
+on `https://` or `localhost`. Every option below already gives HTTPS.
 
-### GitHub Pages (recomendado)
+### GitHub Pages (recommended)
 
 ```bash
 git init -b main
 git add .
 git commit -m "Hit Easy"
-git remote add origin https://github.com/SEU-USUARIO/hit-easy.git
+git remote add origin https://github.com/YOUR-USER/hit-easy.git
 git push -u origin main
 ```
 
-Depois, no repositório: **Settings → Pages → Source: Deploy from a branch →
-`main` / `(root)`**. Em cerca de um minuto o app está em
-`https://SEU-USUARIO.github.io/hit-easy/`.
+Then, in the repository: **Settings → Pages → Source: Deploy from a branch →
+`main` / `(root)`**. In about a minute the app is at
+`https://YOUR-USER.github.io/hit-easy/`.
 
-Publicar de novo depois de mudar algo é `git add . && git commit -m "..." &&
-git push` — o Pages atualiza sozinho.
+Publishing again after changing something is `git add . && git commit -m "..."
+&& git push` — Pages updates by itself.
 
-### Alternativa sem git
+### Alternative without git
 
-Netlify, Cloudflare Pages e Vercel aceitam arrastar a pasta pelo site e
-devolvem uma URL HTTPS na hora. Bom para testar rápido; para manter, o git
-compensa por causa do histórico.
+Netlify, Cloudflare Pages and Vercel accept dragging the folder onto the site
+and give back an HTTPS URL right away. Good for a quick test; to maintain it,
+git pays off because of the history.
 
-### O que os dados NÃO fazem
+### What the data does NOT do
 
-Cada aparelho guarda o histórico no próprio navegador (`localStorage`). Publicar
-deixa o **app** disponível em todo lugar, mas **as partidas não se sincronizam**
-entre celular, tablet e computador — cada um tem as suas.
+Each device keeps the history in its own browser (`localStorage`). Publishing
+makes the **app** available everywhere, but **matches do not sync** between
+phone, tablet and computer — each one has its own.
 
-Para levar dados de um para o outro, use **Estatísticas → menu → Exportar JSON**
-e **Importar JSON** no destino (a importação junta com o histórico existente, sem
-duplicar). Sincronização de verdade exigiria um servidor com contas e banco, o
-que muda a natureza do projeto e deixa de ser gratuito.
+To carry data from one to another, use **Statistics → menu → Export JSON** and
+**Import JSON** on the destination (the import merges with the existing history,
+without duplicating). Real sync would require a server with accounts and a
+database, which changes the nature of the project and stops being free.
 
-## Como se usa
+## How it is used
 
-**Montar a mesa.** Vida inicial, de 2 a 6 jogadores, e um comandante por
-assento.
+**Setting up the table.** Starting life, from 2 to 6 players, and one commander
+per seat.
 
-Tocar no nome abre um fluxo de duas telas que desliza de lado: primeiro **quem
-joga** — a lista de quem já jogou neste aparelho, ou um nome novo — e, escolhido
-o jogador, direto para **o deck dele**. Quem já está sentado vai para o fim da
-lista, sob o rótulo *Já estão na mesa*: a lista existe para achar quem ainda
-**não** sentou, e nomes inclicáveis no meio do caminho atrapalham a mira. Ali o seletor mostra primeiro os decks
-que aquela pessoa já levou, depois os demais usados no aparelho, e só então a
-busca na Scryfall. Na prática a galera repete deck, então quase sempre a escolha
-está na primeira linha, e isso funciona sem internet. A seta no topo (ou
-arrastar a tela para a direita) volta um passo.
+Tapping the name opens a two-screen flow that slides sideways: first **who
+plays** — the list of whoever has already played on this device, or a new name
+— and, once the player is chosen, straight to **their deck**. Whoever is already
+seated goes to the end of the list, under the label *Already at the table*: the
+list exists to find who has **not** sat down yet, and unclickable names in the
+way spoil the aim. There the picker first shows the decks that person has
+already brought, then the others used on the device, and only then the Scryfall
+search. In practice people repeat decks, so the choice is almost always on the
+first row, and that works without internet. The arrow at the top (or dragging
+the screen to the right) goes back one step.
 
-Arrastar pela alça reordena os jogadores, e **a ordem da lista é a ordem dos
-turnos** — o número no canto de cada cartão mostra a posição.
+Dragging by the handle reorders the players, and **the list order is the turn
+order** — the number in the corner of each card shows the position.
 
-Quem tem parceiro adiciona o segundo. A partida só começa com todo assento
-preenchido, porque é o comandante que amarra a estatística ao deck.
+Whoever has a partner adds the second one. The match only starts with every seat
+filled, because the commander is what ties the statistic to the deck.
 
-**Antes de começar.** O botão abre uma última tela com duas escolhas:
+**Before starting.** The button opens one last screen with two choices:
 
-- **quem abre a partida** — qualquer jogador, ou *Sortear*, que é o padrão
-  porque é assim que a mesa decide de verdade (o sorteio roda no Começar, então
-  dá resultado novo a cada vez);
-- **o layout da mesa**, quando há mais de um arranjo possível — só em mesas de
-  3 e de 5, onde não existe disposição óbvia. A miniatura mostra o arranjo com a
-  ordem dos turnos numerada.
+- **who opens the match** — any player, or *Random*, which is the default
+  because that is how the table really decides (the draw runs on Start, so it
+  gives a new result every time);
+- **the table layout**, when there is more than one possible arrangement — only
+  for tables of 3 and 5, where there is no obvious arrangement. The thumbnail
+  shows the arrangement with the turn order numbered.
 
-Cada cartão traz uma **miniatura da mesa com a cadeira daquele jogador acesa**.
-A ordem da lista já diz a ordem dos turnos; a miniatura diz o *lugar* — que é o
-que falta quando são 5 ou 6 pessoas em volta.
+Each card carries a **thumbnail of the table with that player's seat lit**. The
+list order already says the turn order; the thumbnail says the *place* — which
+is what is missing when there are 5 or 6 people around.
 
-Quem abre não precisa ser o primeiro da lista: a mesa física é uma coisa, quem
-ganhou o dado é outra. A volta da mesa fecha ao voltar em quem começou — e
-continua fechando certo mesmo depois que essa pessoa é eliminada.
+Whoever opens does not need to be the first on the list: the physical table is
+one thing, whoever won the die roll is another. The table's round closes when it
+gets back to whoever started — and keeps closing correctly even after that
+person is eliminated.
 
-**Jogar.** O painel inteiro é área de gesto, e a **duração** do toque decide o
-que ele é:
+**Playing.** The whole panel is a gesture area, and the **duration** of the
+touch decides what it is:
 
-| gesto | o que faz |
+| gesture | what it does |
 |---|---|
-| toque rápido na borda esquerda | tira 1 de vida, sem autor |
-| toque rápido na borda direita | põe 1 de vida |
-| **segurar na borda** | tira ou põe repetidamente, acelerando |
-| toque rápido no centro | abre o painel do jogador |
-| **duplo toque no centro** | ação em área: dano em todos, ou dreno |
-| **segurar no centro, ou arrastar** | arma o ataque — a única saída é causar dano |
+| quick tap on the left edge | takes 1 life, no author |
+| quick tap on the right edge | adds 1 life |
+| **hold on the edge** | takes or adds repeatedly, accelerating |
+| quick tap in the center | opens the player's panel |
+| **double tap in the center** | area action: damage to all players, only to opponents, or drain |
+| **hold in the center, or drag** | arms the attack — the only way out is dealing damage |
 
-Nas bordas, segurar repete — mesma gramática do marcador de mana, onde segurar
-também repete. Começa depois de 380 ms, em passos de 110 ms, e acelera para
-55 ms depois de oito passos: quem vai de 40 a 12 não devia precisar de vinte e
-oito toques. Abaixo desses 380 ms nada mudou — um toque lento continua valendo
-exatamente 1.
+On the edges, holding repeats — the same grammar as the mana counter, where
+holding also repeats. It starts after 380 ms, in 110 ms steps, and speeds up to
+55 ms after eight steps: whoever goes from 40 to 12 should not need twenty-eight
+taps. Below those 380 ms nothing changed — a slow tap is still worth exactly 1.
 
-Por isso **segurar parado na borda não arma mais o ataque**. Arrastar da borda
-arma (a direção do gesto é a declaração de autoria, e ela continua ali), e
-segurar no centro arma — nenhum ataque ficou inalcançável, só mudou de onde se
-começa segurando parado.
+That is why **holding still on the edge no longer arms the attack**. Dragging
+from the edge arms it, as long as the finger starts moving before the repeat
+begins — then no life point moves along the way; once the repeat has applied a
+step, the gesture is already a life adjustment and no longer becomes an attack.
+(The direction of the gesture is the declaration of authorship, and it is still
+there.) And holding in the center arms it — no attack became unreachable, only
+where you start holding still changed.
 
-Segurar aplica enquanto o dedo está em cima, e isso reabre uma porta que o
-desenho anterior tinha fechado: antes nada era aplicado ao encostar — a vida só
-mudava quando o dedo **soltava** —, e o dedo que demora na borda não tirava
-vida junto. O que mantém o erro barato é a coalescência que já existia: a
-seguradinha inteira entra como **um** evento, então um toque em *desfazer* volta
-os vinte e oito pontos de uma vez, e não um por um. O número no painel mostra o
-resultado antes de o evento existir, senão segurar pareceria travado.
+Holding applies while the finger is down, and that reopens a door the previous
+design had closed: before, nothing was applied on touch — life only changed when
+the finger **lifted** —, and a finger lingering on the edge did not take life
+along. What keeps the mistake cheap is the coalescing that already existed: the
+whole hold goes in as **one** event, so one tap on *undo* brings back the
+twenty-eight points at once, not one by one. The number on the panel shows the
+result before the event exists, otherwise holding would look frozen.
 
-Toques rápidos seguidos se juntam num evento só depois de ~0,9s — sete toques
-viram uma linha no histórico, não sete. O círculo central mostra o turno e passa
-a vez; ao lado ficam desfazer e menu. Ele é grande de propósito: passar o turno
-é a ação mais repetida da partida, muitas vezes com a mão ocupada.
+Quick taps in a row merge into a single event after ~0.9s — seven taps become
+one line in the history, not seven. The central circle shows the turn and passes
+it; next to it are undo and menu. It is big on purpose: passing the turn is the
+most repeated action of the match, often with a busy hand.
 
-**Pausar.** No menu da partida. Enquanto pausada, a mesa fica coberta e não
-aceita toque — uma pausa que deixa mexer no placar com o relógio parado não é
-pausa. O tempo parado **não entra em lugar nenhum**: sai da duração da partida e
-do tempo de turno de quem estava jogando. Ida ao banheiro não vira "o turno mais
-longo da noite" na estatística.
+**Pausing.** In the match menu. While paused, the table is covered and does not
+accept touches — a pause that lets you change the score with the clock stopped
+is not a pause. The stopped time **goes nowhere**: it leaves the match duration
+and the turn time of whoever was playing. A trip to the bathroom does not become
+"the longest turn of the night" in the statistics.
 
-**E o relógio para sozinho quando ninguém está na mesa.** Sair para as
-estatísticas ou para a home, trocar de app, bloquear o celular, fechar o app —
-tudo isso para a contagem, e voltar retoma. Sem pedir, e sem a cobertura da
-pausa manual: pausa que ninguém pediu não deve exigir que alguém a desfaça.
+**And the clock stops by itself when nobody is at the table.** Leaving for the
+statistics or the home screen, switching apps, locking the phone, closing the
+app — all of that stops the count, and coming back resumes it. Without asking,
+and without the manual pause's cover: a pause nobody asked for should not
+require someone to undo it.
 
-Antes a duração era tempo de **parede** (`agora − startedAt − pausas`), então
-fechar o app por oito horas somava oito horas à partida — e, ao passar a vez,
-ao turno de quem estava jogando.
+Before, the duration was **wall** time (`now − startedAt − pauses`), so closing
+the app for eight hours added eight hours to the match — and, when passing the
+turn, to the turn of whoever was playing.
 
-O período fora da mesa é guardado **ao lado** do log, não dentro dele, como o
-mana já faz. Dois motivos, e os dois são sobre não estragar o que funciona:
-`undo` tira o último evento qualquer que seja, então uma pausa automática
-viraria o alvo do "desfazer" ao voltar; e `timeline()` desenha `pause` e
-`resume`, então cada olhada nas estatísticas acrescentaria duas linhas ao
-histórico daquela partida.
+The time away from the table is stored **next to** the log, not inside it, as
+mana already is. Two reasons, and both are about not breaking what works:
+`undo` removes the last event whatever it is, so an automatic pause would become
+the target of "undo" on coming back; and `timeline()` draws `pause` and
+`resume`, so every look at the statistics would add two lines to that match's
+history.
 
-A concessão é que `replay` passa a ler um campo que não é evento — o log
-sozinho deixa de determinar o tempo de turno. O **placar** continua saindo só
-do log: nenhuma vida, contador ou colocação depende disso.
+The concession is that `replay` now reads a field that is not an event — the
+log alone no longer determines turn time. The **score** still comes only from
+the log: no life, counter or placement depends on it.
 
-Fechar o app é melhor esforço: usa `pagehide`, e um encerramento forçado pelo
-sistema pode não disparar nada. Nesse caso aquele tempo conta — não há evento
-que o navegador garanta. Mas o período fica gravado **aberto**, então se o
-`pagehide` rodar, o arranque seguinte fecha a conta e desconta tudo.
+Closing the app is best effort: it uses `pagehide`, and a shutdown forced by the
+system may fire nothing. In that case that time counts — there is no event the
+browser guarantees. But the period is recorded **open**, so if `pagehide` runs,
+the next start closes the account and discounts all of it.
 
-## Marcador de mana
+## Mana counter
 
-No menu da partida. Uma peça por cor (WUBRG + incolor), e cada uma é um painel
-de vida em miniatura: metade esquerda tira, metade direita põe, segurar repete.
-Mesma gramática da mesa, nada novo para aprender.
+In the match menu. One piece per color (WUBRG + colorless), and each one is a
+miniature life panel: left half takes, right half adds, holding repeats. Same
+grammar as the table, nothing new to learn.
 
-A mesa também segura para repetir, nas bordas do painel, então a gramática é
-a mesma nos dois sentidos.
+The table also holds to repeat, on the panel edges, so the grammar is the same
+both ways.
 
-**Zera ao passar a vez** — é mana flutuante, não recurso permanente. Enquanto
-houver mana marcada, aparece um **atalho no núcleo central**, ao lado do menu,
-mostrando o total. Ele faz dois trabalhos: lembra que sobrou mana antes de
-passar a vez, e leva direto ao contador — que é o caminho de ida e volta o tempo
-todo quando se gasta parte da mana, resolve a magia e volta para acertar o
-resto. Some sozinho quando o pote esvazia.
+**It resets when passing the turn** — it is floating mana, not a permanent
+resource. While there is mana marked, a **shortcut on the central hub** shows
+up, next to the menu, showing the total. It does two jobs: it reminds you there
+is mana left before passing the turn, and it takes you straight to the counter —
+which is the round trip you make all the time when you spend part of the mana,
+resolve the spell and come back to settle the rest. It disappears by itself when
+the pool empties.
 
-Não entra no log de eventos, e isso é decisão e não esquecimento: mana é
-efêmera e não diz nada sobre a partida depois. Cada toque viraria uma linha no
-histórico e sujaria as estatísticas para sempre. Fica guardada junto da partida,
-fora dos eventos, então sobrevive a recarregar o navegador no meio do turno —
-mas `replay` a ignora por completo, e o placar continua saindo só do log.
+It does not go into the event log, and that is a decision, not an oversight:
+mana is ephemeral and says nothing about the match afterwards. Every tap would
+become a line in the history and dirty the statistics forever. It is stored
+alongside the match, outside the events, so it survives reloading the browser
+mid-turn — but `replay` ignores it completely, and the score still comes only
+from the log.
 
-## Ações em área
+## Area actions
 
-Duplo toque no centro do painel de quem vai agir (ou o botão *Dano em todos ·
-Dreno*, dentro do painel dele). Dois modos:
+Double tap in the center of the panel of whoever will act (or the *Area damage ·
+Drain* button, inside their panel). Three modes, because cards speak in three
+ways:
 
-- **Dano em todos** — cada oponente vivo perde N.
-- **Dreno** — cada oponente perde N e quem drenou ganha vida. As cartas usam
-  duas leituras diferentes, então as duas estão ali: ganhar **o total** tirado
-  (o caso Gray Merchant) ou ganhar **o mesmo tanto** que cada um perdeu.
+- **Everyone** — each living player loses N, **including whoever cast it**
+  (Earthquake, Pestilence). Dying from your own damage credits the elimination to
+  nobody, and the damage a person takes from themselves counts as damage taken,
+  not dealt.
+- **Opponents** — each living opponent loses N. It is the default.
+- **Drain** — each opponent loses N and whoever drained gains life. Cards use
+  two different readings, so both are there: gain **the total** taken (the Gray
+  Merchant case) or gain **the same amount** each one lost.
 
-**Orientação da votação.** No celular ela pede a tela **em pé** — o aparelho sai
-do meio da mesa e vai para a mão de cada um. Em tablet e computador o pedido é
-ignorado de propósito (girar um tablet apoiado seria pior) e o painel aparece
-**centralizado**, em vez de colado na borda de baixo. Ao fechar, a mesa volta a
-pedir paisagem.
+**Vote orientation.** On a phone it asks for the screen **upright** — the device
+leaves the middle of the table and goes into each person's hand. On tablet and
+computer the request is ignored on purpose (rotating a tablet lying on the
+table would be worse) and the panel shows up **centered**, instead of stuck to
+the bottom edge. On closing, the table asks for landscape again.
 
-Girar a tela remonta a mesa, e remontar fecharia o painel aberto — então, com
-uma votação em curso, o redesenho **espera** ela terminar.
+Rotating the screen rebuilds the table, and rebuilding would close the open
+panel — so, with a vote in progress, the redraw **waits** for it to finish.
 
-Vira **um** evento `sweep`, não um por alvo. Assim desfazer volta o dreno
-inteiro num toque, e a linha do tempo conta a jogada como ela aconteceu — uma
-coisa só — em vez de três linhas soltas. O evento guarda a lista de quem foi
-atingido, então as estatísticas não precisam reconstruir quem estava vivo
-naquele instante, e o histórico continua legível anos depois.
+It becomes **one** `sweep` event, not one per target. That way undo brings back
+the whole drain in one tap, and the timeline tells the play as it happened — a
+single thing — instead of three loose lines. The event stores the list of who
+was hit, so the statistics do not need to rebuild who was alive at that
+instant, and the history stays readable years later.
 
-**A volta da mesa é horária**, vista de cima — que é o mesmo que passar a vez
-para o vizinho da esquerda, já que todo mundo olha para o centro. Isso é dado
-puro em `src/seating.js` e tem teste: o ângulo de cada assento em relação ao
-centro precisa sempre crescer, e a volta fechar em exatamente 360°.
+**The table's round is clockwise**, seen from above — which is the same as
+passing the turn to the neighbor on the left, since everyone faces the center.
+This is pure data in `src/seating.js` and has a test: the angle of each seat
+relative to the center must always grow, and the round must close at exactly
+360°.
 
-Eliminação é automática — vida ≤ 0, 21 de dano de um mesmo comandante ou 10 de
-veneno. Sobrando um vivo, aparece o cartaz de vitória.
+**Player 1 sits at the top left**, with the device lying flat — that is where
+reading starts, and where whoever set up the table looks for the first on the
+list. With 2, 3 and 5 players the landscape table is the default. Up to 1.8 the
+round started at the bottom left; a match opened before the change does not have
+the `assentos: 'topo'` mark and keeps being drawn in the old order
+(`LEGACY_SEATS` in `seating.js`), otherwise updating the app mid-game would move
+everyone around.
 
-**Ver os dados.** Winrate por deck e por jogador, dano causado e recebido, cura,
-eliminações, turnos, colocação média, tempo por turno. Quem já passou por uma
-votação secreta ganha também um bloco **Escolhas em votações** — quantas vezes
-escolheu Silence e quantas escolheu Snitch, por exemplo. Ele só aparece para
-quem participou: um bloco vazio em todo cartão seria ruído, e a maioria dos
-decks nunca encostou numa carta dessas. As escolhas ficam agrupadas por
-pergunta, então "Silence" do Prisoner's Dilemma não se mistura com "Sim" de um
-voto qualquer. Cada partida guarda a
-linha do tempo completa. Exporta e importa JSON.
+Elimination is automatic — life ≤ 0, 21 damage from the same commander or 10
+poison. With one left alive, the victory banner shows up.
 
-**Configurações** (engrenagem na home): tema, vibração, manter a tela acesa,
-tela cheia na partida, reexibir a dica do arraste e **instalar o app**. Vida inicial e disposição da
-mesa ficam de fora daqui de propósito — mudam a cada jogo, então vivem na home
-e na tela de antes de começar.
+**Seeing the data.** Win rate per deck and per player, damage dealt and taken,
+healing, eliminations, turns, average placement, time per turn. Whoever has gone
+through a secret vote also gets a **Choices in votes** block — how many times
+they chose Silence and how many chose Snitch, for example. It only shows up for
+whoever took part: an empty block on every card would be noise, and most decks
+never touched one of those cards. The choices are grouped by question, so
+"Silence" from Prisoner's Dilemma does not mix with "Sim" from some random vote.
+Each match keeps the full timeline. Exports and imports JSON.
 
-## Motivo da vitória
+**Settings** (gear on the home screen), in groups in the style of the phone's
+settings — a short title and a card of rows:
 
-Ao declarar um vencedor na mão (menu da partida), o app pergunta **como** ele
-venceu: combate, comandante, combo, veneno, deck vazio, vitória alternativa,
-concessão da mesa ou outro. O motivo é opcional — a mesa nem sempre concorda no
-rótulo, e uma tela que não deixa sair seria pior que um dado faltando.
+- **Account** — a single row (the `@`, the subscription, invites waiting), that
+  opens its own screen with @, sync, password, subscription and sign out. Before,
+  it came whole at the top and pushed language and theme to the end of the
+  scroll;
+- **Appearance** — language and theme;
+- **At the table** — vibration, screen on and lock to landscape (this one
+  disappears on iPhone, where Safari locks nothing);
+- **App** — install or update (one row that changes depending on the device),
+  what's new, see the damage tip again and privacy.
 
-Vitória por último vivo **não** passa por aí e não inventa causa nenhuma, então
-o bloco *Como venceu* só aparece para quem tem motivo registrado.
+Text only where it changes the decision: "vibration" needs no caption; locking
+to landscape needs to warn that it goes full screen. The pieces live in
+`src/views/setup/rows.js`. Starting life and table layout stay out of here on
+purpose — they change every game, so they live on the home screen and on the
+before-starting screen.
 
-## Quem é quem
+## Win reason
 
-O nome é como a mesa chama alguém **naquele dia**. Não é quem a pessoa é. Quem
-tem conta é identificado pelo **@**, que é o único rótulo que significa a mesma
-coisa em todo aparelho — e é ele que aparece nas estatísticas, na seleção de
-jogador e em toda tela. O nome digitado fica guardado na cadeira e reaparece no
-detalhe da partida, como *registrado como Alexandre*.
+When declaring a winner by hand (match menu), the app asks **how** they won:
+combat, commander, combo, poison, empty deck, alternate win, table concession or
+other. The reason is optional — the table does not always agree on the label,
+and a screen that does not let you leave would be worse than a missing data
+point.
 
-**A lista de seleção é de pessoas, não de nomes.** Com os nomes crus, quem foi
-cadastrado como "Alex" numa quinta e "Alexandre" na outra aparecia duas vezes,
-cada linha com metade dos decks — e escolher uma ou outra decidia, sem avisar,
-em qual metade a partida de hoje ia cair.
+A last-one-standing win does **not** go through there and invents no cause, so
+the *How they won* block only shows up for whoever has a recorded reason.
 
-### O caso de dois aparelhos
+## Who is who
 
-O cenário que o desenho existe para resolver: dois aparelhos registraram a mesma
-pessoa **sem** conta, cada um digitando um nome, e a associação vem depois.
+The name is what the table calls someone **that day**. It is not who the person
+is. Whoever has an account is identified by the **@**, which is the only label
+that means the same thing on every device — and it is the one that shows up in
+the statistics, in player selection and on every screen. The typed name stays
+stored on the seat and shows up again in the match detail, as *recorded as
+Alexandre*.
 
-Associar reescreve o **histórico inteiro**, não a cadeira que você estava
-olhando: o `@` é gravado em toda partida local onde aquela pessoa aparece, e as
-que já estavam na nuvem são reenviadas. A associação passa a estar no **dado**,
-e não num mapa que só existe naquele aparelho — é isso que a faz viajar.
+**The selection list is of people, not names.** With raw names, whoever was
+registered as "Alex" one Thursday and "Alexandre" the next showed up twice, each
+row with half the decks — and picking one or the other decided, without warning,
+which half today's match would fall into.
 
-Do outro lado, ao baixar uma partida cuja cadeira tem nome **e** `@`, o aparelho
-aprende sozinho que aquele nome é aquela conta, e as partidas **próprias** dele
-convergem sem ninguém marcar nada de novo. Não há tabela nova para isso: o dado
-já viajava, só não estava sendo lido.
+### The two-device case
 
-Duas regras protegem esse aprendizado:
+The scenario the design exists to solve: two devices registered the same person
+**without** an account, each typing a name, and the link comes later.
 
-- **Só de partida sua, ou de anfitrião que você confiou.** Aprender de qualquer
-  partida deixaria um anfitrião qualquer batizar gente no seu aparelho: bastaria
-  sentar uma cadeira chamada "Alexandre" com o `@` dele para o seu histórico do
-  Alexandre passar a somar na conta errada. É a mesma lista de confiança que já
-  decide o aceite automático de convite.
-- **O que chega nunca sobrescreve o que você decidiu.** Duas pessoas diferentes
-  podem ter o mesmo nome em mesas diferentes. Divergência não se resolve
-  adivinhando: fica como está, e você marca na mão se quiser.
+Linking rewrites the **whole history**, not the seat you were looking at: the
+`@` is written into every local match where that person shows up, and the ones
+already in the cloud are uploaded again. The link now lives in the **data**, and
+not in a map that only exists on that device — that is what makes it travel.
 
-Quando os aparelhos digitaram nomes **diferentes**, ainda é preciso dizer uma
-vez por nome — o app não adivinha que "Alex" é "Alexandre" por semelhança de
-texto, porque isso erraria com dois irmãos na mesma mesa. O conserto é feito
-onde o problema aparece: na aba de **Jogadores** você vê duas linhas que são a
-mesma pessoa e usa *Ligar a uma conta* ali. A partir do segundo nome, o app já
-junta os dois — e alcança até as partidas que chegarem do outro aparelho
-**depois** disso.
+On the other side, when downloading a match whose seat has a name **and** an
+`@`, the device learns by itself that the name is that account, and its **own**
+matches converge without anyone tagging anything again. There is no new table
+for this: the data already traveled, it just was not being read.
 
-### O que ele se recusa a fazer
+Two rules protect this learning:
 
-Três recusas, e cada uma evita um estrago diferente:
+- **Only from your own match, or from a host you trusted.** Learning from any
+  match would let any host name people on your device: it would be enough to seat
+  a chair called "Alexandre" with their own `@` for your Alexandre history to
+  start adding up on the wrong account. It is the same trust list that already
+  decides the invite auto-accept.
+- **What arrives never overwrites what you decided.** Two different people can
+  have the same name at different tables. A divergence is not solved by guessing:
+  it stays as it is, and you tag it by hand if you want.
 
-| situação | o que faz |
+When the devices typed **different** names, you still need to say it once per
+name — the app does not guess that "Alex" is "Alexandre" by text similarity,
+because that would get it wrong with two siblings at the same table. The fix is
+made where the problem shows up: on the **Players** tab you see two rows that are
+the same person and use *Link to an account* there. From the second name on, the
+app already merges both — and even reaches the matches that arrive from the other
+device **afterwards**.
+
+### What it refuses to do
+
+Three refusals, and each one avoids a different kind of damage:
+
+| situation | what it does |
 |---|---|
-| a cadeira já tem outro `@` | não sobrescreve — decisão anterior manda |
-| esse `@` já está em outra cadeira daquela mesa | não grava: poria a mesma pessoa duas vezes na mesma partida, e a estatística somaria o dano dela contra si |
-| dois nomes do conjunto sentados na **mesma** mesa | não escolhe no chute; deixa a partida de fora e reporta |
-
-Atribuir não é o mesmo que **convidar**. Gravar o `@` numa cadeira é uma
-reivindicação do anfitrião; a partida só entra no histórico daquela pessoa
-quando ela aceita. Ninguém pode ser autor do registro alheio — ver
-`sql/002-participantes.sql`.
-
-## Duas famílias de cor
-
-O app usa cor em dois eixos diferentes, e misturá-los confundia:
-
-- **identidade do comandante (WUBRG)** — identifica o *deck*. Vale na mesa e na
-  aba de Decks.
-- **cor por jogador** — identifica a *pessoa*. Vale nas abas de Jogadores e
-  Rivalidades, onde o que se quer rastrear é quem, não com quê. O mesmo jogador
-  troca de comandante e continua sendo ele — e, com conta vinculada, troca de
-  nome e continua sendo ele também (ver *Quem é quem*).
-
-A aba de **Partidas** fica sem cor nenhuma: a lista de colocações e a data já
-dizem o que ela precisa dizer, e cor em cima disso virava enfeite.
-
-A cor de cada pessoa vem da posição dela numa fila ordenada por **primeira
-aparição no histórico**, espalhada pelo círculo cromático com o ângulo áureo
-(137,5°) — assim cada nova cor cai no maior vão que sobrou e nunca se agrupam.
-A ordem é por primeira aparição, e não alfabética, porque cadastrar uma "Ana"
-mudaria a cor de todo mundo depois dela, e o ponto da cor é justamente
-reconhecer a mesma pessoa entre partidas.
-
-## O voltar do aparelho
-
-Nas estatísticas, o voltar do sistema volta **dentro** do app. Antes fechava:
-o app não tinha histórico de navegação nenhum — nenhum `pushState`, nenhum
-`popstate` —, então o gesto não encontrava entrada para consumir, e PWA em tela
-cheia sai. Justamente na tela onde o gesto é o mais natural.
-
-Uma entrada é empilhada ao entrar nas estatísticas e consumida ao sair, **pela
-flecha ou pelo gesto**. Os dois levam ao mesmo lugar, de propósito: duas coisas
-na mesma tela que se chamam "voltar" não podem discordar. Na prática isso é a
-home, que é de onde se abre as estatísticas; vindo da mesa, volta para a mesa.
-
-**Painel aberto tem prioridade:** o voltar fecha o painel e devolve a entrada,
-em vez de navegar por trás dele. Era o pior efeito possível do recurso — sair da
-tela deixando a folha de pé sobre a tela nova.
-
-A home continua sendo a base: dali o voltar sai do app, que é o que se espera.
-E a mesa segue como era — não há entrada empilhada nela, e trocar isso mereceria
-decisão própria, porque "voltar" numa partida em andamento não tem destino óbvio.
-
-## Os decks seguem a conta
-
-A lista de decks de alguém é **derivada** do histórico local — nada é guardado
-à parte, e é o que evita uma segunda verdade sobre o que a pessoa joga. Mas num
-aparelho novo esse histórico está vazio: quem acabou de entrar na conta não
-achava o próprio deck e tinha de buscar na Scryfall o comandante que o app já
-conhece.
-
-Agora os decks de **quem está logado** vão para o perfil dele no servidor, e
-voltam no próximo aparelho. No seletor eles se juntam aos do histórico local,
-sem repetir, do mais recente para o mais antigo.
-
-**Só os seus.** A policy do banco deixa cada um escrever apenas a própria linha
-de perfil, então o anfitrião registra os decks dos amigos no aparelho dele mas
-não pode gravá-los no perfil deles. É a mesma regra que impede alguém de ser
-autor do registro alheio — ver `sql/002-participantes.sql`.
-
-**E são privados.** A busca por `@` seleciona explicitamente id, handle e
-display_name: acrescentar `decks` ali transformaria a confirmação de um `@` numa
-devassa do que a pessoa joga.
-
-Sobe só quando o **conjunto** muda. `lastUsed` muda a cada partida, então
-comparar as listas inteiras faria toda sincronização escrever no perfil para
-dizer a mesma coisa.
-
-> **Precisa de migração.** Rode `sql/004-decks-da-conta.sql` no Supabase. Sem
-> ela o servidor recusa a escrita, o app trata como "fica para a próxima" e
-> segue funcionando com os decks do histórico local — como era antes. Nada
-> quebra, mas o recurso fica dormente.
-
-## Ordenar as listas
-
-Decks e Jogadores saíam sempre na mesma ordem: taxa de vitória, partidas no
-empate. É uma ordem boa, e não responde "quem joga mais" nem "quem bate mais".
-
-Agora as duas abas têm um seletor. As opções saem de `src/stats/ordenar.js`,
-onde cada regra carrega o campo, a direção e a chave de tradução juntos — os
-três no mesmo lugar é o que impede a tela dizer "melhor colocação" e ordenar do
-pior para o melhor, porque colocação é a única que sobe: primeiro lugar é 1,
-então o melhor é o **menor**.
-
-O desempate é sempre a relevância, e não a ordem em que a agregação devolveu.
-Com `partidas`, metade do grupo empata em duas; sem desempate explícito a lista
-saía na ordem de inserção do `Map`, que muda quando se apaga uma partida antiga
-— e a pessoa veria a lista se reorganizar sozinha sem aquele número ter mudado.
-
-**Taxa de vitória tem a armadilha de sempre.** Um deck de uma partida ganha
-aparece na frente de um de dez com oito vitórias. Não há mínimo de partidas: é
-o que a pessoa pediu ao escolher taxa, e a contagem de partidas está no cartão
-ao lado do número. O teste registra essa ordem como proposital, para ninguém a
-"corrigir" depois achando que é defeito.
-
-Ordena **depois** de filtrar. Ordenar antes gastaria a comparação em linhas que
-a tela não vai mostrar, e o topo da lista seria o topo do grupo inteiro em vez
-do topo do que está na tela.
-
-## As notas mostram o que entrou
-
-A tela de novidades abria o histórico inteiro. As três linhas novas ficavam
-embaixo de nove versões já lidas, e o que se aprende com isso é a fechar a tela
-sem ler.
-
-Agora o recorte padrão é a diferença desde a versão em que o app estava. Isso
-exigiu guardar de onde a pessoa veio: `versaoVista` é sobrescrita no arranque,
-antes de qualquer tela abrir, então a única referência já tinha sido apagada
-quando o menu precisava dela. `versaoAnterior` só é gravada quando a versão
-mudou — reabrir o app na mesma versão não pode zerar o recorte.
-
-Três situações, nessa ordem: veio de uma versão anterior, mostra a diferença;
-instalou agora, mostra só as notas desta versão; esta versão não tem notas, cai
-no histórico (é rede de segurança, porque `npm test` não deixa publicar sem).
-
-O histórico continua a um toque, no fim da lista. Esconder não é o mesmo que
-apagar, e quem foi procurar a mudança de três versões atrás precisa achá-la.
-
-`anunciarVersao()` tem nome e é exportada porque era um IIFE que rodava no
-import: acontecia uma vez, antes de qualquer teste, e apagar a linha da versão
-anterior passava pela suite inteira sem uma falha. O teste de mutação foi quem
-contou.
-
-## O botão de atualizar mostra que está atualizando
-
-`atualizarApp()` consulta a rede e depois espera o worker novo assumir de
-verdade — até dez segundos. O botão só ficava desabilitado, e um botão que
-escurece e fica parado é indistinguível de um botão que não funcionou. Foi
-exatamente a dúvida que surgiu em uso: "o botão fez algo?".
-
-Agora o rótulo troca por um girador e "Atualizando…", e volta se não houver
-versão nova. O girador entra **antes** da espera, não depois: o retorno tem de
-ser imediato, senão não responde a pergunta que ele existe para responder.
-
-Quem pede menos movimento recebe um pulso em vez de um giro. Zerar a animação
-deixaria um anel parado, que é indistinguível de um botão travado — o oposto do
-que isto existe para dizer.
-
-Uma falha na atualização devolve o botão ao estado normal. Sem isso o girador
-giraria para sempre, e a pessoa ficaria olhando uma espera que já acabou.
-
-## Passar a mesa para outro aparelho
-
-O caso é concreto: a bateria do celular que conta a vida está acabando no meio
-da partida, e alguém da mesa tem um aparelho com carga. A partida troca de mãos
-sem acabar.
-
-**Por arquivo, e não pela nuvem.** Não exige conta de ninguém, não exige
-assinatura e funciona sem rede — que importa, porque mesa na casa de amigo tem
-wi-fi ruim e o celular que está morrendo não é hora de depender de upload. A
-partida vira um arquivo, vai por WhatsApp ou AirDrop, e o outro aparelho recebe.
-
-O event sourcing faz a transferência ser quase nada: a partida **é** a lista de
-eventos dela, então mandar a lista é mandar o jogo. Não há estado parcial.
-
-### O bastão
-
-O trabalho de verdade não é transportar. É que depois da passagem existem duas
-cópias com o mesmo id, e o envio usa `ignore-duplicates`: a primeira que subir
-vence e a outra some calada. Se o aparelho antigo voltasse a jogar e subisse a
-metade abandonada, seria ela que ficaria.
-
-Por isso a mesa não é copiada, é passada. `empacotarMesa()` carimba e empacota
-no mesmo ato — empacotar sem soltar deixaria as duas vivas.
-
-**E o carimbo não é cobrado por um `if`.** A primeira versão tinha a guarda no
-roteador, e o teste de mutação apagou aquela linha com a suíte inteira passando
-— a mesma classe de defeito que já mordeu este projeto, a função certa
-existindo e ninguém consultando. Agora a invariante está no acesso:
-`getCurrent()` devolve `null` para mesa passada. Todo caminho que já tratava
-"não há mesa aberta" trata este caso de graça, sem nenhum deles conhecer o
-conceito. Quem precisa da mesa passada — a home, para avisar — pede
-`mesaGuardada()`.
-
-Retomar existe para quando a passagem não deu certo, e é uma ação com
-confirmação: duas cópias vivas é justamente o que a passagem evita.
-
-### O relógio
-
-Os eventos carregam o `ts` do aparelho que os gravou. Se o relógio de quem
-recebe estiver atrasado, o próximo evento nasce **antes** do anterior — e
-`elapsedOf` e `advanceTurn` subtraem instantes, então tempo andando para trás
-vira duração negativa em cima da mesa.
-
-`receberAMesa()` mede o atraso e guarda o desvio na própria partida; `push()`
-passa a usar `agoraDaMesa()`. O acerto só olha para frente: relógio adiantado
-não ganha correção, porque empurrá-lo inflaria a duração. O minuto de folga
-impede que dois relógios quase iguais empatem no mesmo milissegundo.
-
-### Três defeitos que só o uso encontrou
-
-**Receber só valia depois de recarregar a página.** A mesa era instalada e a
-tela continuava na home: `onRefresh` redesenha a rota atual, e a rota inicial é
-a única que olha para `getCurrent()` sozinha. Ação que muda qual é a partida de
-agora tem de levar a tela junto.
-
-**Retomar deixava a pessoa presa.** A mesa voltava a valer e não havia como
-entrar nela — o menu da mesa, onde mora passar, ficava inalcançável. A home
-ganhou `continuarMesaBanner`: se existe partida aberta, dá para entrar. Ele
-normalmente não aparece, porque o app abre direto na mesa quando há partida;
-existe para que qualquer caminho futuro que crie esse estado não prenda ninguém.
-
-**O arquivo tinha nome fixo**, então duas mesas na pasta de downloads viravam
-`mesa-hit-easy (1).json` e ninguém sabia qual era qual. Agora leva o id da
-partida, filtrado para o que todo sistema de arquivos aceita.
-
-### Por que a suíte não pegou
-
-Os dois primeiros escaparam a onze mutações, e não por falta de teste: por
-**impossibilidade** de teste. Os dois caminhos passam por `await confirmAction`,
-e o runner era síncrono — nada depois de um `await` podia ser observado, então
-aquelas linhas eram inalcançáveis.
-
-`runAll()` agora devolve promessa e espera cada caso, um por vez (os casos
-compartilham `document` e `store`; dois em paralelo se pisariam). Casos
-síncronos seguem síncronos. O stub ganhou `click()`, que faltava e fazia
-`campo.click()` — código que roda em produção — explodir no teste.
-
-Com isso as duas mutações passaram a ser pegas, e o caminho de receber tem teste
-de ponta a ponta: toque, arquivo, confirmação, mesa instalada e aberta.
-
-### O arquivo leva uma mesa
-
-O exportador de backup manda o banco inteiro. Usá-lo aqui entregaria ao amigo
-todo o histórico de partidas de quem passou, os `@` que o aparelho conhece e as
-preferências. É o erro mais fácil de cometer e o mais caro, e há um teste que
-falha se o histórico vazar para dentro do arquivo.
-
-O arquivo é recusado com motivo — ilegível, não é uma mesa, veio de versão mais
-nova, mesa incompleta — porque são quatro erros diferentes e merecem quatro
-respostas diferentes.
-
-## Quem já jogou com você não pede de novo
-
-Confiar deixou de ser um passo. Se duas contas já jogaram uma partida juntas e
-aquela foi aceita, as próximas entram sozinhas — em qualquer direção, porque
-jogar junto é simétrico e quem registra a mesa muda de semana para semana.
-
-A decisão é do servidor, no gatilho `preparar_participante`, e não do app: o
-cliente de quem recebe pode estar fechado por dias. Decidir no servidor faz o
-convite nascer aceito; decidir no cliente faria a pessoa ver "1 convite
-esperando" que some sozinho quando ela abrir o app.
-
-**Aceita só conta como prova.** Uma cadeira marcada com o meu `@` que eu nunca
-aceitei não diz que jogamos: diz que alguém digitou o meu `@`. Aceitar é o
-único ato que veio de mim.
-
-Preso ao canal: uma mesa de teste não cria confiança que vale na vida real.
-
-### Poder dizer não
-
-Esta é a parte que não dá para esquecer. Com o aceite derivado do histórico,
-jogar uma única vez com um estranho num torneio passaria a valer para sempre, e
-apagar a linha de confiança não desfaria nada — a regra se refaz a partir das
-partidas.
-
-Por isso `trusted_hosts.confia` em vez de só presença: a linha com `false` é o
-"não aceite mais nada desta pessoa", e vence qualquer histórico. `deixarDeConfiar`
-grava essa recusa em vez de apagar a linha, e o convite ganhou "nunca aceitar
-desta pessoa" como ação discreta ao lado de recusar.
-
-> **Precisa de migração.** Rode `sql/006-ja-jogamos-juntos.sql` no Supabase. Sem
-> ela nada quebra — o aceite automático continua só para quem foi confiado na
-> mão, como antes —, mas o recurso fica dormente.
-
-## Rivalidades
-
-Aba própria nas estatísticas. Cada linha é um **par de jogadores**, com o dano
-que cada um causou ao outro, eliminações, dano de comandante e veneno — e uma
-barra mostrando o desequilíbrio, que responde "quem persegue quem" de relance.
-
-Nada disso precisou ser gravado: desde que o dano virou direcional, cada evento
-já carrega quem causou e quem levou. A agregação só lê o mesmo log de outro
-ângulo — por par, em vez de por pessoa. Dano **sem autor** (vida paga) não cria
-rivalidade com ninguém, e ação em área conta para todos os alvos.
-
-## Ocultar decks e jogadores
-
-Botão no canto de cada cartão de deck ou jogador. Ele tira a **linha** das
-listas — não os dados: as partidas continuam inteiras, a linha do tempo segue
-contando tudo, e o dano que essa pessoa causou continua somando para quem levou.
-Dá para trazer de volta em *Estatísticas → menu → Ocultos*.
-
-É por isso que ocultar e apagar são coisas separadas: apagar uma partida
-(também disponível, no detalhe dela) muda o histórico de verdade.
-
-## O beta não escreve na base de verdade
-
-Produção e beta moram na mesma origem, e isso já era resolvido para o DISCO:
-`chave()`, em [src/canal.js](src/canal.js), põe sufixo `.beta` em tudo que vai
-para o localStorage.
-
-A nuvem não sabia o que era canal. Uma partida jogada no beta subia para a mesma
-tabela `matches`, e o app de produção a baixava como real: partida de teste no
-histórico, nas estatísticas, na média de dano, na taxa de vitória de um deck.
-
-Pior que ruído. `aprenderQuemEQuem` aprende apelidos do que baixa, e uma cadeira
-de teste marcada com o `@` de um amigo virava convite para a pessoa real — o
-canal de teste escrevendo na vida de terceiros.
-
-Agora toda escrita leva a coluna `canal` e toda leitura filtra por ela. São as
-duas pontas da mesma regra, e falhar numa anula a outra: carimbar sem filtrar
-deixa produção baixando o que o beta subiu; filtrar sem carimbar faz o beta
-subir com o padrão `'producao'` e envenenar a base.
-
-O mesmo vale para `profiles.decks`, que a 1.6.0 criou: beta escreve em
-`decks_beta`. Sem isso, uma mesa de teste com comandantes inventados entraria no
-seletor de deck do app de verdade, desfazendo o recurso que existe justamente
-para o seletor conhecer os decks da pessoa.
-
-**O canal não é fronteira de segurança, é separação de dados.** As policies
-decidem por dono, e o canal não muda quem é dono de quê. Quem quiser ver as
-próprias partidas de beta consultando o banco na mão consegue — são dela. O que
-a coluna garante é que o app nunca mistura os dois sozinho.
-
-Por uma coluna, e não por um projeto Supabase separado: a conta, a assinatura e
-os `@` precisam ser os mesmos nos dois canais. Com dois projetos, testar o login
-seria testar outro login, e a pessoa teria de criar conta de novo para
-experimentar o beta. Ninguém testa assim.
-
-> **Precisa de migração.** Rode `sql/005-canal.sql` no Supabase. Até lá o app
-> novo pede `canal=eq.producao` a uma tabela sem essa coluna, e o PostgREST
-> recusa com 400 — a sincronização falha inteira e o app fica só local. Nada se
-> perde, mas nada sobe nem desce.
-
-### O que as subidas carimbam
-
-A cobertura dessa separação quase ficou pela metade: os testes verificavam
-`toRow` e `colunaDeDecks`, que são puras e recebem o canal pronto, e nada
-passava pelo ponto onde `canal()` é de fato chamado. Trocar essa chamada por
-`'producao'` dentro de `enviarPartida` passava pela suíte inteira — a mutação
-que significa, em uma linha, "o beta envenena a base de verdade". O teste de
-mutação foi quem contou; o caso de ponta a ponta captura o `fetch` e lê o corpo
-que sai.
-
-## O ícone
-
-Três arquivos em `icons/`, e a mesma arte nos três: os cinco pips WUBRG sobre
-fundo quase preto. É a mesma marca que o cabeçalho da home desenha em
-`brandMark()`, e as duas precisam continuar sendo a mesma coisa — são separadas
-no código e uma só para quem olha.
-
-O `icon-maskable.png` é um círculo com o conteúdo puxado para dentro. O Android
-não mostra o PNG: recorta na forma que o lançador usa, círculo, squircle ou
-quadrado arredondado, e o que estiver fora do círculo central de 80% pode ser
-cortado.
-
-**Ele tem um defeito conhecido:** é um círculo sobre transparência, com 94% dos
-pixels de borda translúcidos. Em lançador de máscara circular ninguém vê; em
-máscara quadrada os cantos ficam vazados mostrando o papel de parede. Consertar
-isso é tornar a imagem opaca de borda a borda, sem mexer no desenho.
-
-### A guarda
-
-`conferirIcones()`, em [tools/check-syntax.js](tools/check-syntax.js), exige que
-todo ícone referenciado exista e que todo PNG em `icons/` seja referenciado.
-
-Três arquivos apontam para os ícones — `manifest.webmanifest`, `index.html` e a
-lista `ASSETS` de `sw.js` — e errar um não quebrava teste nenhum. Cada um falha
-de um jeito diferente: o manifest com caminho morto só aparece na hora de
-instalar, no aparelho de outra pessoa; `cache.addAll()` rejeita **tudo** se um
-único pedido falhar, então um caminho morto na lista derruba o app inteiro
-offline; e no `index.html` a aba fica sem favicon.
-
-### O que já foi testado e desfeito
-
-Uma identidade de gradiente com a silhueta de uma mesa chegou a ir para o beta e
-voltou. Vale registrar o que a medição disse, para a tentativa não se repetir às
-cegas:
-
-- **Pesava 444 KB contra 19 KB.** Gradiente suave é o pior caso do PNG. Paleta
-  de 256 cores cortaria 79% e bandeia visivelmente; recomprimir não ganha nada.
-- **A silhueta não lia a 16 e 32px** — vira um borrão escuro no meio do
-  colorido, e é aí que vive o favicon da aba.
-- **Na marca do cabeçalho, o gradiente some.** Rasterizando a 14, 26 e 52px nos
-  dois temas, abaixo de 26px ele vira mancha escura que desaparece no fundo.
-  Este projeto já tinha passado por isso: a marca foi um quadradinho com
-  degradê, borrava no pequeno, e virou cinco pips por causa disso.
-
-Fica também o método, que serve para qualquer arte nova: medir a zona segura do
-maskable, a opacidade das bordas, o peso e a legibilidade nos tamanhos reais —
-e não só olhar o arquivo grande.
-
-## Instalar
-
-Configurações → *Instalar*. Quando o navegador oferece instalação, um botão de
-download também aparece no topo da home.
-
-A instalação só é oferecida em `https://` ou `localhost`, com manifest e service
-worker — **pelo IP da rede não aparece**, e é por isso que a tela explica o
-motivo em vez de esconder a opção. No iPhone e iPad o Safari não deixa o app
-pedir isso sozinho: lá é *Compartilhar → Adicionar à Tela de Início*, e a tela
-diz exatamente isso.
-
-## Idiomas
-
-Português, inglês, espanhol e alemão, num campo de seleção em Configurações —
-quatro nomes de idioma não cabem lado a lado no celular, e o `<select>` nativo
-ainda abre o seletor que o aparelho já usa em todo lugar. Trocar redesenha a
-home **e reabre o painel** no idioma novo; sem isso ele ficaria em português até
-ser fechado na mão. Datas e horas seguem o
-locale do idioma escolhido; o padrão vem do navegador.
-
-Os textos vivem num dicionário plano, uma língua por arquivo em `src/i18n/`
-(`pt.js`, `en.js`, `es.js`, `de.js`), e três testes o protegem:
-as quatro línguas têm **exatamente** as mesmas chaves, nenhuma tradução perde
-uma variável de interpolação (`{name} venceu` sem o `{name}` viraria uma frase
-sem sujeito) e nenhum texto está vazio. Um quarto teste desenha a home e a mesa
-nos quatro idiomas, porque o dicionário estar completo não impede um `t()`
-escrito errado dentro de uma tela.
-
-Chave faltando cai no português em vez de mostrar a chave crua ao usuário.
-
-## Orientação e tema
-
-A home é feita para o aparelho **em pé**: é onde se configura a partida, numa
-lista vertical de jogadores. A mesa é feita para **deitado**, que é como ela
-fica no meio do grupo — com 5 ou 6 jogadores a grade 2×3 do retrato vira 3×2 na
-paisagem, senão os painéis ficam altos e estreitos e o número de vida não cabe.
-Cada disposição carrega as duas formas, e as duas são testadas.
-
-O cartaz de vitória também troca de forma: empilhado (arte em cima) em pé, e
-**deitado** (arte à esquerda, conteúdo à direita) em tela baixa — com o celular
-deitado sobram ~390px de altura e a versão empilhada não cabia. Se ainda assim
-não couber, ele rola inteiro em vez de cortar o topo.
-
-Campos de texto em painel sobem junto com o **teclado do celular**: o painel é
-fixo na borda de baixo, que é justamente onde o teclado aparece. Vale para
-todos — busca de comandante, nome de jogador, busca de `@` e o número da
-votação secreta.
-
-`visualViewport` diz quanto o teclado tomou, a cobertura encolhe na mesma
-medida e o painel sobe. A conta é `layout − visível − deslocamento`, porque um
-elemento fixo com `bottom: B` tem a base em `layout − B`.
-
-**Sem tocar no layout da página, e isso é requisito.** `interactive-widget=`
-`resizes-content` no meta viewport resolveria o Android sem JS, e chegou a
-entrar — mas ele faz o viewport de **layout** mudar, e as telas deste app são
-`height: 100%` em cadeia (`html`, `#app`, `.stats`). Mudar o layout durante a
-rolagem re-layouta a cadeia e mexe na âncora de scroll: a lista de
-estatísticas rolava e voltava ao topo. Saiu, e a conta de `--kb` já resolvia os
-dois sistemas sozinha — o meta era cinto e suspensório.
-
-**`--kb` só vale com campo de texto focado**, porque teclado só existe aí. Sem
-essa condição a conta acusava teclado onde não havia: a barra de URL do celular
-também encolhe o viewport visível, e a diferença saía como uns 60px de
-"teclado" empurrando todo painel para cima.
-
-O `layout` dessa conta tem de ser `documentElement.clientHeight` — a mesma
-referência contra a qual `position: fixed` e `100%` resolvem. Com
-`window.innerHeight` ela **quebrava**, e de um jeito que não dava erro: em
-navegador onde `innerHeight` acompanha o viewport visual, a conta virava
-`visível − visível − 0`, ou seja zero. Cobertura do tamanho inteiro, painel
-colado na borda de baixo, atrás do teclado — quem procurava um `@` digitava sem
-ver. Há teste para exatamente esse navegador (`simularTeclado` em
-`tests/dom-stub.js`), porque a aritmética estava certa e o defeito era a
-referência: um teste da função pura passaria sem provar nada.
-
-Rolar **não** conserta isso, e vale saber por quê: o painel é `position: fixed`
-e não tem ancestral rolável, então `scrollIntoView` não tem o que mover quando
-o painel inteiro está atrás do teclado. Ele continua existindo, para o caso
-diferente do painel alto cujo campo fica no fim — e roda quando o viewport
-muda, não num temporizador após o foco, senão mediria a tela antes de o painel
-ter subido.
-
-Nenhuma das telas *quebra* na orientação errada: a home vira duas colunas
-quando deitada, com a lista de jogadores rolando sozinha, e a mesa encolhe
-rótulos e o hub quando está em pé. Bloquear seria pior — o navegador só permite
-travar a orientação em tela cheia, e o Safari do iPhone **nem isso**. Por isso a
-opção "tela cheia e girar" tenta, falha em silêncio onde não dá, e uma dica
-discreta sugere virar o aparelho.
-
-O tema tem três modos: sistema (padrão), claro e escuro. Toda cor da interface
-sai de tokens em `:root` — nenhum componente sabe em que tema está. A paleta
-WUBRG também troca: no claro os tons **escurecem**, porque um branco cremoso
-sobre fundo claro simplesmente some, e o acento é o único sinal da identidade do
-deck. Um script inline no `index.html` aplica o tema antes da primeira pintura,
-para não haver lampejo da cor errada.
-
-## Dano é direcional
-
-Arrastar do painel de quem bate até o painel de quem apanha. A direção do gesto
-**é** a declaração de autoria — nada é inferido. Enquanto o dedo está na mesa,
-uma seta na cor do deck do atacante liga os dois painéis e o alvo acende.
-
-Ao soltar, abre o teclado do dano: quanto foi. Os atalhos (1, 2, 3, 5, 7)
-confirmam no mesmo toque, então o caso comum fecha em dois gestos. O teclado
-gira junto com o assento de quem atacou, porque é ele que está mexendo.
-
-**A vida do alvo conta até o novo valor** quando a tela fecha, em vez de pular.
-Vale para os quatro casos que vêm de um painel: dano por arraste, dano em
-todos, dreno (que faz os oponentes descerem e quem drenou subir) e cura. Sem
-isso o número trocava de uma vez e nada dizia que algo tinha acontecido — e é
-justamente quando o dano foi grande que isso importa.
-
-Passo a passo pelos inteiros, porque vida *é* inteira: não há meia vida para
-interpolar. A duração total é fixa, então tirar 28 conta rápido e tirar 2 conta
-devagar; o passo tem um mínimo para que a mudança pequena ainda seja vista, em
-vez de piscar. A cor marca a direção enquanto anda, porque de longe, no meio da
-mesa, o número sozinho não diz se subiu ou caiu antes de parar.
-
-**A borda do painel e os botões −/+ não contam**, de propósito: ali o número já
-anda a cada toque, e contar por cima brigaria com o "segurar repete". Quem pede
-a contagem é o painel, uma vez — não o redesenho, sempre.
-
-Quem pediu `prefers-reduced-motion` recebe o número de uma vez. A regra de CSS
-global zera transição e animação, mas não alcança uma contagem feita em
-JavaScript: ela se recusa sozinha, e há teste para isso.
-
-Três modos, todos direcionais pelo mesmo gesto:
-
-- **Dano** — tira vida, creditado ao atacante;
-- **Comandante** — também tira vida, e ainda soma no contador de 21 daquele
-  comandante específico (se o atacante tem parceiro, você escolhe qual);
-- **Veneno** — soma contadores rumo aos 10.
-
-**As bordas do painel não são dano.** Elas mexem na vida sem autor, que é
-exatamente o caso de quem paga a própria vida: fetchland, Necropotence, custo de
-habilidade. Por isso as estatísticas separam **dano levado** (tem autor) de
-**vida paga** (não tem) — somar os dois num número só esconderia a diferença
-entre um deck que apanha e um deck que se queima sozinho.
-
-Correções continuam no painel do jogador (toque no centro): ajuste fino de vida,
-contadores de comandante por adversário, veneno e desistir.
-
-## Como está organizado
-
-Event sourcing: a partida **é** a lista de eventos, e o estado visível é sempre
-`replay(match)`. Daí saem de graça o desfazer, as estatísticas exatas e a
-garantia de que o placar nunca diverge do histórico.
-
-**Uma pasta por subsistema, com um arquivo de porta.** Quando um assunto passa
-de umas poucas centenas de linhas, ele vira pasta — e o arquivo com o nome dele
-continua existindo, agora só reexportando o que é público. Assim `src/cloud.js`
-segue sendo o que os outros módulos importam, enquanto por dentro são nove
-arquivos; dividir as peças de outro jeito amanhã não toca em quem depende
-delas. A porta também **documenta a fronteira**: `src/views/setup.js` tem três
-linhas de `export`, e são exatamente os três nomes que a tela inteira expõe.
-
-Depois da divisão, o maior módulo de comportamento em `src/` tem 449 linhas
-(`ui.js`), e o maior de uma tela tem 386 (`views/table/votacao.js`). Os quatro
-dicionários de idioma ficaram em ~470 cada, e ficam: são ~460 chaves por língua,
-e quebrar um dicionário por assunto espalharia a mesma tradução por seis
-arquivos. **Não há ciclo de import** em lugar nenhum — `npm run check` avisa se
-um aparecer.
+| the seat already has another `@` | does not overwrite — the earlier decision rules |
+| that `@` is already on another seat of that table | does not write: it would put the same person twice in the same match, and the statistics would add up their damage against themselves |
+| two names of the set seated at the **same** table | does not guess; leaves the match out and reports it |
+
+Assigning is not the same as **inviting**. Writing the `@` on a seat is a claim
+by the host; the match only goes into that person's history when they accept.
+Nobody can author someone else's record — see `sql/002-participants.sql`.
+
+## Two color families
+
+The app uses color on two different axes, and mixing them was confusing:
+
+- **commander identity (WUBRG)** — identifies the *deck*. Applies at the table
+  and on the Decks tab.
+- **color per player** — identifies the *person*. Applies on the Players and
+  Rivalries tabs, where what you want to track is who, not with what. The same
+  player switches commanders and is still them — and, with a linked account,
+  switches names and is still them too (see *Who is who*).
+
+The **Matches** tab has no color at all: the list of placements and the date
+already say what it needs to say, and color on top of that would be decoration.
+
+Each person's color comes from their position in a queue ordered by **first
+appearance in the history**, spread around the color wheel with the golden angle
+(137.5°) — that way each new color lands in the largest gap left and they never
+cluster. The order is by first appearance, and not alphabetical, because
+registering an "Ana" would change the color of everyone after her, and the point
+of the color is precisely recognizing the same person across matches.
+
+## The device's back button
+
+In the statistics, the system back goes back **inside** the app. Before, it
+closed it: the app had no navigation history at all — no `pushState`, no
+`popstate` —, so the gesture found no entry to consume, and a full-screen PWA
+exits. Precisely on the screen where the gesture is most natural.
+
+An entry is pushed when entering the statistics and consumed when leaving, **by
+the arrow or by the gesture**. Both lead to the same place, on purpose: two
+things on the same screen called "back" cannot disagree. In practice that is the
+home screen, which is where the statistics are opened from; coming from the
+table, it goes back to the table.
+
+**An open panel has priority:** back closes the panel and gives the entry back,
+instead of navigating behind it. That was the worst possible effect of the
+feature — leaving the screen with the sheet still standing over the new screen.
+
+The home screen is still the base: from there back exits the app, which is what
+is expected. And the table stays as it was — there is no entry pushed on it, and
+changing that would deserve its own decision, because "back" in a match in
+progress has no obvious destination.
+
+## The @ belongs to whoever took it; the name is free
+
+Two different things, which used to get confused:
+
+- **The `@`** is the identity — how friends find and tag the person. Lowercase
+  only, letters, digits and `_`, so `@Alex` and `@alex` are never two people.
+- **The match name** (`profiles.display_name`) is how the person shows up on the
+  seat when someone tags them. Free in form — "Alê", "Dr. Strange", "MARIA",
+  emoji —, capped only in length (18, what fits on the table panel). Without a
+  name, the table uses the `@`. It lives in Settings → Account.
+
+**Every `@` an account has ever used stays theirs, forever.** The unique index
+on `profiles.handle` only protected the `@` in use *now*: changing released the
+old one, and another account could take it — and with it the invites of whoever
+still tagged the old `@`, precisely the people who trusted that name. Now
+`handles_usados` keeps each `@` with its owner, and the `guardar_handle` trigger
+refuses (with 23505, which PostgREST returns as 409 and the app already
+understands as "taken") any `@` that already belonged to another account. The
+person can change and go back to an old one; nobody else takes any of them.
+Deleting the account releases its `@`s.
+
+And the old `@` still finds the person: `buscar_handle` and the invite trigger
+resolve through `dono_do_handle`, which looks at the current one and then the
+old ones, and the search returns the current `@` — the seat starts being tagged
+with it.
+
+Checking your own `@` now says "it is already your @" instead of "it is free",
+with no save button (`handleStatus` in `rules.js`: `current`, `free` or
+`taken`). And changing the `@` stopped erasing the name: the upsert used to send
+`display_name: null` along.
+
+**And it only changes every 15 days** (`sql/009`). With every `@` reserved
+forever, changing without a limit would become a way to hoard names — ten
+changes in an afternoon would reserve ten `@`s —, and an `@` that changes every
+week does not help friends find anyone. The clock starts on the **choice**, not
+only on the change: choosing and changing the next day is exactly the case the
+rule prevents, and the screen warns before saving. Whoever already had an `@`
+before the rule has no date and can change.
+
+The date (`profiles.handle_trocado_em`) belongs to the server: the policy lets
+the person edit their whole row, so the trigger rewrites that column on
+**every** profile write, and not only when the `@` changes — otherwise a PATCH
+with an old date before changing would be enough. The refusal comes out with
+its own code `HE015` and the unlock date in `details`; the `@` row already shows
+"next change on …" and does not open the change screen within the waiting
+period.
+
+**Changing @ does not split anyone in the statistics.** The history **is not
+rewritten**: each match keeps the `@` the seat had that day — it is the record
+of what happened, and a match recorded by another host does not even belong to
+whoever changed. Consolidation happens on read. The device keeps an
+`@old → @current` map (`handlesAtuais` in the local database), and `identityOf`
+goes through it (`currentHandle`, which follows the chain of whoever changed
+several times): statistics, rivalries, colors, the people list and "hide" start
+seeing a single person, called by today's `@`.
+
+The map travels inside the `aliases` object, under a `Symbol` key, and not as a
+new parameter — every place that computes identity already receives `aliases`,
+and one more parameter forgotten in one of them would split the person again.
+
+The map learns in two ways:
+
+- **your own `@`**, at the moment of the change;
+- **friends who changed**, on sync: the app sends the history's `@`s to
+  `handles_atuais` (`sql/010`), which returns only the ones that changed — in
+  batch, only for whoever is signed in, the same thing `buscar_handle` already
+  reveals.
+
+When it learns a change, the device also fixes what it keeps under the old `@`:
+remembered names start pointing to the current one, and whoever was hidden stays
+hidden.
+
+**The chosen name shows up everywhere the person does.** Setting it in
+Settings → Account used to change only one thing: the seat name when someone
+found you by searching your `@`. The statistics kept showing the `@`, a person
+picked from the device's list kept the typed name, and an open match kept the
+name it started with. Now the device keeps a second map, `current @ → chosen
+name` (`displayNames` in the local database), travelling inside `aliases` under
+the `DISPLAY_NAMES` symbol, like the handle map:
+
+- **statistics** — `labelOf` shows the chosen name instead of the `@` (the
+  identity underneath is still the `@`); inside a match, `seatName` uses it for
+  the winner and the timeline;
+- **the table** — `seat.name` is what the panel, the victory card, the votes
+  and the toasts read, so the seats are renamed instead: when picking a person,
+  when reusing the previous table, when starting a match, and — for the open
+  match — the moment a name is learned (`learnDisplayNames` reports it, and the
+  app redraws the table). A seat reused from the previous table carries only
+  the typed name; renaming it also writes its `@`, or it would lose the account
+  it was recognized by. Finished matches are never rewritten.
+
+**The @ only where it is typed.** The player picker ("Played here") calls
+every person by name - the chosen one, or the most recent the table used, with
+the other names under it - and never by `@`. The `@` shows up on the "Find by
+@" screen, where it is what gets typed; that screen also lists the accounts
+already tagged on this device (`taggedAccounts()`), filtered as you type by `@`
+or by name, so a weekly friend is one tap away without typing the whole `@` or
+going to the network. Whoever is already at the table is left out.
+
+The names are learned from three places: your own profile, on every account
+change (loading, saving the name); the account found by searching an `@`; and
+friends, on sync, through `perfis_por_handle` (`sql/011`), which answers the
+current `@` and the chosen name of every `@` in the history, in batch. Without
+011 the sync falls back to `handles_atuais` (010) and only the `@` changes are
+learned.
+
+> **Needs a migration.** Run in Supabase, in this order:
+> `sql/008-reserved-handle-and-name.sql` (without it, the old `@` can be taken
+> by another account and the name has no length rule),
+> `sql/009-handle-every-15-days.sql` (without it, the `@` changes at any time),
+> `sql/010-current-handles.sql` (without it, consolidation works for your own
+> `@`, but not for friends who changed) and `sql/011-profiles-by-handle.sql`
+> (without it, friends' chosen names are not learned on sync - yours and the
+> ones found by search still are).
+
+## Decks follow the account
+
+Someone's deck list is **derived** from the local history — nothing is stored
+separately, and that is what avoids a second truth about what the person plays.
+But on a new device that history is empty: whoever had just signed in did not
+find their own deck and had to search Scryfall for the commander the app already
+knows.
+
+Now the decks of **whoever is signed in** go to their profile on the server, and
+come back on the next device. In the picker they join the ones from the local
+history, without repeating, from most recent to oldest.
+
+**Only yours.** The database policy lets each person write only their own
+profile row, so the host records friends' decks on their device but cannot write
+them into their profiles. It is the same rule that prevents someone from
+authoring someone else's record — see `sql/002-participants.sql`.
+
+**And they are private.** The `@` search explicitly selects id, handle and
+display_name: adding `decks` there would turn confirming an `@` into a dig
+through what the person plays.
+
+It only uploads when the **set** changes. `lastUsed` changes every match, so
+comparing the whole lists would make every sync write to the profile to say the
+same thing.
+
+> **Needs a migration.** Run `sql/004-account-decks.sql` in Supabase. Without it
+> the server refuses the write, the app treats it as "next time" and keeps
+> working with the decks from the local history — as it was before. Nothing
+> breaks, but the feature stays dormant.
+
+## Sorting the lists
+
+Decks and Players always came out in the same order: win rate, matches as the
+tiebreak. It is a good order, and it does not answer "who plays the most" nor
+"who hits the hardest".
+
+Now both tabs have a picker. The options come from `src/stats/sort.js`, where
+each rule carries the field, the direction and the translation key together —
+the three in the same place is what prevents the screen from saying "best
+placement" and sorting from worst to best, because placement is the only one
+that goes up: first place is 1, so the best is the **lowest**.
+
+The tiebreak is always relevance, and not the order the aggregation returned.
+With `matches`, half the group ties at two; without an explicit tiebreak the list
+came out in the `Map` insertion order, which changes when an old match is
+deleted — and the person would see the list rearrange itself without that number
+having changed.
+
+**Win rate has the usual trap.** A deck with one match won shows up ahead of one
+with ten and eight wins. There is no minimum number of matches: it is what the
+person asked for when choosing win rate, and the match count is on the card next
+to the number. The test records this order as intentional, so nobody "fixes" it
+later thinking it is a defect.
+
+It sorts **after** filtering. Sorting before would spend the comparison on rows
+the screen will not show, and the top of the list would be the top of the whole
+group instead of the top of what is on screen.
+
+## The notes show what came in
+
+The what's-new screen used to open the whole history. The three new lines sat
+below nine versions already read, and what you learn from that is to close the
+screen without reading.
+
+Now the default cut is the difference since the version the app was on. That
+required storing where the person came from: `versaoVista` is overwritten at
+startup, before any screen opens, so the only reference had already been erased
+when the menu needed it. `versaoAnterior` is only written when the version
+changed — reopening the app on the same version cannot reset the cut.
+
+Three situations, in this order: came from an earlier version, show the
+difference; just installed, show only this version's notes; this version has no
+notes, fall back to the history (it is a safety net, because `npm test` does not
+let it publish without them).
+
+The history is still one tap away, at the end of the list. Hiding is not the
+same as deleting, and whoever went looking for the change from three versions
+ago needs to find it.
+
+`announceVersion()` is named and exported because it used to be an IIFE that ran
+on import: it happened once, before any test, and deleting the line for the
+previous version went through the whole suite without a failure. The mutation
+test is what told.
+
+## The update button shows that it is updating
+
+`updateApp()` checks the network and then waits for the new worker to really
+take over — up to ten seconds. The button was only disabled, and a button that
+dims and stays still is indistinguishable from a button that did not work. That
+was exactly the doubt that came up in use: "did the button do anything?".
+
+Now the label swaps for a spinner and "Updating…", and comes back if there is no
+new version. The spinner goes in **before** the wait, not after: the feedback
+has to be immediate, otherwise it does not answer the question it exists to
+answer.
+
+Whoever asks for less motion gets a pulse instead of a spin. Removing the
+animation would leave a still ring, which is indistinguishable from a stuck
+button — the opposite of what this exists to say.
+
+A failed update puts the button back in its normal state. Without that the
+spinner would spin forever, and the person would be staring at a wait that
+already ended.
+
+## Passing the table to another device
+
+The case is concrete: the battery of the phone keeping the life count is running
+out mid-match, and someone at the table has a charged device. The match changes
+hands without ending.
+
+**By file, not through the cloud.** It requires nobody's account, no
+subscription, and works without network — which matters, because a table at a
+friend's house has bad wi-fi and the dying phone is no time to depend on an
+upload. The match becomes a file, goes through WhatsApp or AirDrop, and the
+other device receives it.
+
+Event sourcing makes the transfer almost nothing: the match **is** its event
+list, so sending the list is sending the game. There is no partial state.
+
+### The baton
+
+The real work is not transporting. It is that after the hand-off there are two
+copies with the same id, and the upload uses `ignore-duplicates`: the first one
+to go up wins and the other quietly vanishes. If the old device went back to
+playing and uploaded the abandoned half, that would be the one that stayed.
+
+That is why the table is not copied, it is passed. `packTable()` stamps and
+packs in the same act — packing without releasing would leave both alive.
+
+**And the stamp is not enforced by an `if`.** The first version had the guard in
+the router, and the mutation test deleted that line with the whole suite passing
+— the same class of defect that already bit this project, the right function
+existing and nobody consulting it. Now the invariant lives in the accessor:
+`getCurrent()` returns `null` for a handed-off table. Every path that already
+handled "there is no open table" handles this case for free, without any of them
+knowing the concept. Whoever needs the handed-off table — the home screen, to
+warn — asks for `storedTable()`.
+
+Taking back exists for when the hand-off did not work, and it is an action with
+confirmation: two live copies is precisely what the hand-off avoids.
+
+### The clock
+
+Events carry the `ts` of the device that recorded them. If the receiver's clock
+is behind, the next event is born **before** the previous one — and `elapsedOf`
+and `advanceTurn` subtract instants, so time running backwards becomes a
+negative duration on the table.
+
+`receiveTable()` measures the lag and stores the offset in the match itself;
+`push()` starts using `tableNow()`. The correction only looks forward: a clock
+that is ahead gets no correction, because pushing it would inflate the duration.
+The one-minute slack prevents two nearly equal clocks from tying on the same
+millisecond.
+
+### Three defects only real use found
+
+**Receiving only took effect after reloading the page.** The table was installed
+and the screen stayed on the home screen: `onRefresh` redraws the current route,
+and the initial route is the only one that looks at `getCurrent()` by itself. An
+action that changes which match is the current one has to take the screen along.
+
+**Taking back left the person stuck.** The table was valid again and there was no
+way to get into it — the table menu, where passing lives, was unreachable. The
+home screen got `resumeTableBanner`: if there is an open match, you can get in.
+It normally does not show up, because the app opens straight on the table when
+there is a match; it exists so that any future path that creates this state does
+not trap anyone.
+
+**The file had a fixed name**, so two tables in the downloads folder became
+`mesa-hit-easy (1).json` and nobody knew which was which. Now it carries the
+match id, filtered to what every file system accepts.
+
+### Why the suite did not catch it
+
+The first two escaped eleven mutations, and not for lack of tests: for the
+**impossibility** of testing. Both paths go through `await confirmAction`, and
+the runner was synchronous — nothing after an `await` could be observed, so
+those lines were unreachable.
+
+`runAll()` now returns a promise and awaits each case, one at a time (the cases
+share `document` and `store`; two in parallel would step on each other).
+Synchronous cases stay synchronous. The stub got `click()`, which was missing
+and made `field.click()` — code that runs in production — blow up in the test.
+
+With that both mutations started being caught, and the receive path has an
+end-to-end test: tap, file, confirmation, table installed and open.
+
+### The file carries one table
+
+The backup exporter sends the whole database. Using it here would hand the
+friend the entire match history of whoever passed, the `@`s the device knows and
+the preferences. It is the easiest mistake to make and the most expensive one,
+and there is a test that fails if the history leaks into the file.
+
+The file is refused with a reason — unreadable, not a table, came from a newer
+version, incomplete table — because they are four different errors and deserve
+four different answers.
+
+### By code, since 1.9
+
+The file failed the first real test: sent through WhatsApp, the receiver's phone
+could not open the `.json`. Now, with the cloud configured, passing the table
+**uploads the match and shows a code** of six characters (`K7M 2QX`). Whoever
+is going to continue taps *Receive a table* and types the code — or taps the
+link that goes along in the message, which opens the app with the code already
+filled in. Nobody needs an account.
+
+- **Valid for 24 hours and only once.** Taking marks the table as received; the
+  second device that tries the same code takes nothing. It is the same baton as
+  the file: the table is not copied, it is passed.
+- **The table only leaves here after uploading.** Without network, it stays open
+  on this device and the screen offers the file, which works offline. The file is
+  also still in *Receive → I have a file*.
+- **View, confirm, take.** Whoever receives first *views* the table (without
+  consuming the code), confirms it can replace the open match, and only then
+  *takes* it. Taking first would burn the code of whoever gave up midway.
+- **Whoever passed sees that it arrived.** The code panel asks the database
+  every 3 s and says "received on the other device". The home notice shows the
+  code while nobody has taken it, and taking back **cancels the code** first; if
+  the other device already took it, taking back warns that there will be two
+  live copies.
+- **Bound to the channel**: a beta code does not open in production.
+- The link opens the app in the **browser**. On iPhone, whoever uses the
+  installed app should type the code inside it — Safari stores data separately
+  from the installed app, and the table would end up in the wrong place. That is
+  why the message carries both.
+
+Security, since the functions are granted to `anon`: the `mesas_em_transito`
+table has no policy at all, so nobody reads it through the API — only the
+`security definer` functions answer, and only to whoever has the code. The code
+comes from `gen_random_uuid()` in a 31-character alphabet without the ones that
+get mixed up (0/O, 1/I/L): close to 900 million combinations for a few dozen
+alive. A table over 1 MB and more than 2000 live tables are refused, so the
+public key does not become a storage bin.
+
+> **Needs a migration.** Run `sql/007-table-by-code.sql` in Supabase. Without
+> it, passing the table fails on upload and falls back to the file, as before.
+
+## Whoever already played with you does not ask again
+
+Trusting stopped being a step. If two accounts already played a match together
+and it was accepted, the next ones come in by themselves — in either direction,
+because playing together is symmetric and who records the table changes from
+week to week.
+
+The decision belongs to the server, in the `preparar_participante` trigger, and
+not to the app: the receiving client may be closed for days. Deciding on the
+server makes the invite be born accepted; deciding on the client would make the
+person see "1 invite waiting" that vanishes by itself when they open the app.
+
+**Only accepted counts as proof.** A seat tagged with my `@` that I never
+accepted does not say we played: it says someone typed my `@`. Accepting is the
+only act that came from me.
+
+Bound to the channel: a test table does not create trust that counts in real
+life.
+
+### Being able to say no
+
+This is the part that cannot be forgotten. With the accept derived from history,
+playing a single time with a stranger at a tournament would count forever, and
+deleting the trust row would undo nothing — the rule rebuilds itself from the
+matches.
+
+That is why `trusted_hosts.confia` instead of mere presence: the row with
+`false` is the "do not accept anything else from this person", and it beats any
+history. `untrustHost` writes that refusal instead of deleting the row, and the
+invite got "never accept from this person" as a low-key action next to decline.
+
+> **Needs a migration.** Run `sql/006-played-together.sql` in Supabase. Without
+> it nothing breaks — auto-accept stays only for whoever was trusted by hand, as
+> before —, but the feature stays dormant.
+
+## Rivalries
+
+Its own tab in the statistics. Each row is a **pair of players**, with the damage
+each one dealt to the other, eliminations, commander damage and poison — and a
+bar showing the imbalance, which answers "who hunts whom" at a glance.
+
+None of this needed to be recorded: since damage became directional, each event
+already carries who dealt it and who took it. The aggregation just reads the
+same log from another angle — per pair, instead of per person. Damage **with no
+author** (paid life) creates no rivalry with anyone, and an area action counts
+for every target.
+
+## Hiding decks and players
+
+A button in the corner of each deck or player card. It removes the **row** from
+the lists — not the data: the matches stay whole, the timeline keeps counting
+everything, and the damage that person dealt keeps adding up for whoever took
+it. It can be brought back in *Statistics → menu → Hidden*.
+
+That is why hiding and deleting are separate things: deleting a match (also
+available, in its detail) really changes the history.
+
+## Beta does not write to the real data
+
+Production and beta live on the same origin, and that was already solved for the
+DISK: `storageKey()`, in [src/channel.js](src/channel.js), adds a `.beta` suffix
+to everything that goes to localStorage.
+
+The cloud did not know what a channel was. A match played in beta went up to the
+same `matches` table, and the production app downloaded it as real: a test match
+in the history, in the statistics, in the average damage, in a deck's win rate.
+
+Worse than noise. `learnWhoIsWho` learns aliases from what it downloads, and a
+test seat tagged with a friend's `@` became an invite for the real person — the
+test channel writing into third parties' lives.
+
+Now every write carries the `canal` column and every read filters by it. They
+are the two ends of the same rule, and failing on one cancels the other: stamping
+without filtering leaves production downloading what beta uploaded; filtering
+without stamping makes beta upload with the `'producao'` default and poison the
+database.
+
+The same goes for `profiles.decks`, which 1.6.0 created: beta writes to
+`decks_beta`. Without that, a test table with made-up commanders would get into
+the deck picker of the real app, undoing the feature that exists precisely so the
+picker knows the person's decks.
+
+**The channel is not a security boundary, it is data separation.** The policies
+decide by owner, and the channel does not change who owns what. Whoever wants to
+see their own beta matches by querying the database by hand can — they are
+theirs. What the column guarantees is that the app never mixes the two by itself.
+
+Through a column, and not a separate Supabase project: the account, the
+subscription and the `@`s need to be the same on both channels. With two
+projects, testing sign-in would be testing another sign-in, and the person would
+have to create an account again to try beta. Nobody tests like that.
+
+> **Needs a migration.** Run `sql/005-channel.sql` in Supabase. Until then the
+> new app asks for `canal=eq.producao` from a table without that column, and
+> PostgREST refuses with 400 — the whole sync fails and the app stays local only.
+> Nothing is lost, but nothing goes up or down.
+
+### What the uploads stamp
+
+Coverage of this separation almost stayed at half: the tests checked `toRow` and
+`decksColumn`, which are pure and receive the channel ready-made, and nothing
+went through the point where `channel()` is actually called. Swapping that call
+for `'producao'` inside `uploadMatch` passed the whole suite — the mutation that
+means, in one line, "beta poisons the real database". The mutation test is what
+told; the end-to-end case captures `fetch` and reads the body that goes out.
+
+## The icon
+
+Three files in `icons/`, and the same art in all three: the five WUBRG pips on an
+almost black background. It is the same mark the home header draws in
+`brandMark()`, and the two need to keep being the same thing — they are separate
+in the code and one and the same to whoever looks.
+
+`icon-maskable.png` is a circle with the content pulled inward. Android does not
+show the PNG: it crops it to the shape the launcher uses, circle, squircle or
+rounded square, and whatever is outside the central 80% circle may be cut.
+
+**It has a known defect:** it is a circle on transparency, with 94% of the edge
+pixels translucent. On a circular-mask launcher nobody sees it; on a square mask
+the corners are hollow, showing the wallpaper. Fixing it means making the image
+opaque from edge to edge, without touching the drawing.
+
+### The guard
+
+`checkIcons()`, in [tools/check-syntax.js](tools/check-syntax.js), requires every
+referenced icon to exist and every PNG in `icons/` to be referenced.
+
+Three files point to the icons — `manifest.webmanifest`, `index.html` and the
+`ASSETS` list of `sw.js` — and getting one wrong broke no test. Each one fails in
+a different way: a manifest with a dead path only shows up at install time, on
+someone else's device; `cache.addAll()` rejects **everything** if a single
+request fails, so a dead path in the list takes the whole app down offline; and
+in `index.html` the tab is left without a favicon.
+
+### What was already tried and undone
+
+A gradient identity with the silhouette of a table made it to beta and came
+back. It is worth recording what the measurement said, so the attempt is not
+repeated blindly:
+
+- **It weighed 444 KB against 19 KB.** A smooth gradient is the worst case for
+  PNG. A 256-color palette would cut 79% and bands visibly; recompressing gains
+  nothing.
+- **The silhouette did not read at 16 and 32px** — it becomes a dark smudge in
+  the middle of the color, and that is where the tab favicon lives.
+- **In the header mark, the gradient disappears.** Rasterizing at 14, 26 and 52px
+  in both themes, below 26px it becomes a dark blot that vanishes into the
+  background. This project had already been through this: the mark was a little
+  square with a gradient, it blurred when small, and became five pips because of
+  that.
+
+The method also stays, and it works for any new art: measure the maskable safe
+zone, the edge opacity, the weight and the legibility at real sizes — and not
+just look at the big file.
+
+## Installing
+
+Settings → *Install*. When the browser offers installation, a download button
+also shows up at the top of the home screen.
+
+On iPhone and iPad the button shows up **always** (while the app is not
+installed) and opens a step-by-step: Safari → Share (on newer iOS, inside the
+••• button) → *Add to Home Screen* → *Add*. Apple does not let any page ask for
+installation, so that is the most the app can do — and before, the explanation
+was only inside the settings, where nobody found it. The screen recognizes the
+browser: in Chrome and Edge on iPhone it also works, through the address bar's
+share; inside Instagram, Facebook and other apps it does not work at all, and the
+screen says to open it in Safari, with a button to copy the address.
+
+Installation is only offered on `https://` or `localhost`, with a manifest and
+service worker — **through the network IP it does not show up**, and that is why
+the screen explains the reason instead of hiding the option. On iPhone and iPad
+Safari does not let the app ask for it by itself: there it is *Share → Add to
+Home Screen*, and the screen says exactly that.
+
+## Languages
+
+Portuguese, English, Spanish and German, in a select field in Settings — four
+language names do not fit side by side on a phone, and the native `<select>`
+also opens the picker the device already uses everywhere. Switching redraws the
+home screen **and reopens the panel** in the new language; without that it would
+stay in Portuguese until closed by hand. Dates and times follow the chosen
+language's locale; the default comes from the browser.
+
+The texts live in a flat dictionary, one language per file in `src/i18n/`
+(`pt.js`, `en.js`, `es.js`, `de.js`), and three tests protect it: the four
+languages have **exactly** the same keys, no translation loses an interpolation
+variable (`{name} venceu` without the `{name}` would become a sentence with no
+subject) and no text is empty. A fourth test draws the home screen and the table
+in the four languages, because a complete dictionary does not prevent a
+misspelled `t()` inside a screen.
+
+A missing key falls back to Portuguese instead of showing the raw key to the
+user.
+
+## Orientation and theme
+
+The home screen is made for the device **upright**: it is where the match is set
+up, in a vertical list of players. The table is made for **landscape**, which is
+how it sits in the middle of the group — with 5 or 6 players the 2×3 portrait
+grid becomes 3×2 in landscape, otherwise the panels get tall and narrow and the
+life number does not fit. Each arrangement carries both shapes, and both are
+tested.
+
+The victory banner also changes shape: stacked (art on top) upright, and
+**landscape** (art on the left, content on the right) on a short screen — with
+the phone lying down there are ~390px of height left and the stacked version did
+not fit. If it still does not fit, it scrolls whole instead of cutting the top.
+
+Text fields in a panel rise together with the **phone keyboard**: the panel is
+fixed to the bottom edge, which is precisely where the keyboard shows up. It
+applies to all of them — commander search, player name, `@` search and the
+secret vote number.
+
+`visualViewport` says how much the keyboard took, the cover shrinks by the same
+amount and the panel rises. The math is `layout − visible − offset`, because a
+fixed element with `bottom: B` has its base at `layout − B`.
+
+**Without touching the page layout, and that is a requirement.**
+`interactive-widget=` `resizes-content` in the viewport meta would solve Android
+without JS, and it did go in — but it makes the **layout** viewport change, and
+this app's screens are `height: 100%` in a chain (`html`, `#app`, `.stats`).
+Changing the layout during scrolling re-lays out the chain and moves the scroll
+anchor: the statistics list scrolled and jumped back to the top. It came out, and
+the `--kb` math already solved both systems by itself — the meta was belt and
+braces.
+
+**`--kb` only applies with a focused text field**, because a keyboard only
+exists then. Without that condition the math reported a keyboard where there was
+none: the phone's URL bar also shrinks the visual viewport, and the difference
+came out as some 60px of "keyboard" pushing every panel up.
+
+The `layout` in that math has to be `documentElement.clientHeight` — the same
+reference `position: fixed` and `100%` resolve against. With
+`window.innerHeight` it **broke**, and in a way that raised no error: in a
+browser where `innerHeight` follows the visual viewport, the math became
+`visible − visible − 0`, that is, zero. Full-size cover, panel stuck to the
+bottom edge, behind the keyboard — whoever was looking for an `@` typed without
+seeing. There is a test for exactly that browser (`simulateKeyboard` in
+`tests/dom-stub.js`), because the arithmetic was right and the defect was the
+reference: a test of the pure function would pass without proving anything.
+
+Scrolling does **not** fix this, and it is worth knowing why: the panel is
+`position: fixed` and has no scrollable ancestor, so `scrollIntoView` has nothing
+to move when the whole panel is behind the keyboard. It still exists, for the
+different case of a tall panel whose field sits at the end — and it runs when the
+viewport changes, not on a timer after focus, otherwise it would measure the
+screen before the panel had risen.
+
+None of the screens *breaks* in the wrong orientation: the home screen becomes
+two columns when in landscape, with the player list scrolling by itself, and the
+table shrinks labels and the hub when upright. Locking would be worse — the
+browser only allows locking the orientation in full screen, and iPhone Safari
+**not even that**. That is why the "full screen and rotate" option tries, fails
+silently where it cannot, and a discreet tip suggests turning the device.
+
+**Screen on in Safari.** Safari (iPhone and iPad) only grants the screen wake lock
+right after a touch from the person. Asking when coming back to the app, or when
+reopening straight on the table, is refused silently — and the screen started
+turning off by itself mid-match. The request is redone on the first `pointerup`
+on the table without a lock, which also recovers the lock the system releases
+when the phone is locked. (In the app installed from the Home Screen, the lock
+only works from iOS 18.4 on — before that it was a defect in iOS itself.)
+
+**Full screen on iPhone only when installed.** iPhone Safari has no full screen
+for pages, only for video: in a tab, the address bar stays and no code removes
+it. Opened from the Home Screen, the app runs without a bar. That is why the
+table, opened in Safari on an iPhone, shows once per session the notice with the
+shortcut to the installation step-by-step.
+
+**Leaving the app drops the lock.** Android takes the app out of full screen when
+it goes to the background, and the landscape lock falls along with it: on coming
+back, the table showed up upright. The app keeps the last orientation request and
+redoes it on coming back — and, since entering full screen requires a touch from
+the person, redoes it again on the first `pointerup` after coming back. Where the
+lock never works (iPhone, iPad, computer) this does nothing: on the computer the
+mouse turns the attempt off, and on iPad a refusal with full screen already
+active marks the device as unsupported.
+
+The theme has three modes: system (default), light and dark. Every interface
+color comes from tokens in `:root` — no component knows which theme it is in.
+The WUBRG palette also changes: in light mode the tones **darken**, because a
+creamy white on a light background simply disappears, and the accent is the only
+signal of the deck's identity. An inline script in `index.html` applies the theme
+before the first paint, so there is no flash of the wrong color.
+
+## Damage is directional
+
+Drag from the panel of whoever hits to the panel of whoever gets hit. The
+direction of the gesture **is** the declaration of authorship — nothing is
+inferred. While the finger is on the table, an arrow in the attacker's deck color
+links the two panels and the target lights up.
+
+On release, the damage pad opens: how much it was. The shortcuts (1, 2, 3, 5, 7)
+confirm on the same tap, so the common case closes in two gestures. The pad
+rotates along with the seat of whoever attacked, because they are the one
+handling it. The dial starts at **0** — whoever uses + counts from zero anyway —,
+and confirming at 0 just closes, recording nothing.
+
+**Lifelink** is a toggle on the pad: on, whoever dealt the damage gains the same
+life. It applies to damage, commander damage and poison (infect with lifelink
+also heals). It goes in as `gain` in the **same** damage event, and not as a
+separate `life`: undo brings both things back together, and the healing shows up
+in the statistics as healing by whoever attacked.
+
+**The target's life counts up to the new value** when the screen closes, instead
+of jumping. It applies to the four cases that come from a panel: drag damage,
+damage to everyone, drain (which makes the opponents go down and whoever drained
+go up) and healing. Without it the number swapped all at once and nothing said
+something had happened — and it is precisely when the damage was big that this
+matters.
+
+Step by step through the integers, because life *is* an integer: there is no
+half life to interpolate. The total duration is fixed, so taking 28 counts fast
+and taking 2 counts slowly; the step has a minimum so a small change is still
+seen, instead of blinking. The color marks the direction while it moves, because
+from afar, in the middle of the table, the number alone does not say whether it
+went up or down before it stops.
+
+**The panel edge and the −/+ buttons do not count**, on purpose: there the
+number already moves on each tap, and counting on top would fight with "hold
+repeats". Whoever asks for the count is the panel, once — not the redraw, always.
+
+Whoever asked for `prefers-reduced-motion` gets the number at once. The global
+CSS rule zeroes transitions and animations, but does not reach a count done in
+JavaScript: it refuses by itself, and there is a test for that.
+
+Three modes, all directional through the same gesture:
+
+- **Damage** — takes life, credited to the attacker;
+- **Commander** — also takes life, and also adds to the 21 counter of that
+  specific commander (if the attacker has a partner, you choose which);
+- **Poison** — adds counters toward 10.
+
+**The panel edges are not damage.** They change life with no author, which is
+exactly the case of whoever pays their own life: fetchland, Necropotence, ability
+costs. That is why the statistics separate **damage taken** (has an author) from
+**life paid** (does not) — adding both into a single number would hide the
+difference between a deck that gets beaten and a deck that burns itself.
+
+Corrections stay in the player panel (tap in the center): fine life adjustment,
+commander counters per opponent, poison and conceding.
+
+## How it is organized
+
+Event sourcing: the match **is** the event list, and the visible state is always
+`replay(match)`. From that come for free undo, exact statistics and the guarantee
+that the score never diverges from the history.
+
+**One folder per subsystem, with a gateway file.** When a subject grows past a
+few hundred lines, it becomes a folder — and the file with its name keeps
+existing, now only re-exporting what is public. That way `src/cloud.js` is still
+what the other modules import, while inside there are ten files; splitting the
+pieces another way tomorrow does not touch whoever depends on them. The gateway
+also **documents the boundary**: `src/views/setup.js` has three `export` lines,
+and they are exactly the three names the whole screen exposes.
+
+After the split, the largest behavior module in `src/` had 449 lines (`ui.js`),
+and the largest screen module had 386 (`views/table/vote.js`). The four language
+dictionaries stayed at ~470 each, and they stay: there are ~460 keys per
+language, and breaking a dictionary up by subject would scatter the same
+translation across six files. **There is no import cycle** anywhere — `npm run
+check` warns if one shows up.
 
 ```
-index.html            página
-tests.html            autoteste no navegador
-servir.py             servidor local
-sw.js                 cache offline — lista explícita, conferida por npm test
-package.json          só para o Node rodar os testes — zero dependências
+index.html            page
+tests.html            in-browser self-test
+serve.py              local server
+sw.js                 offline cache — explicit list, checked by npm test
+package.json          only so Node runs the tests — zero dependencies
 src/
-  app.js              rota e gravação
-  engine.js           eventos, replay, eliminação, colocação   ← núcleo
-  stats.js            porta — 25 nomes
+  app.js              routing and saving
+  engine.js           events, replay, elimination, placement   ← core
+  stats.js            gateway — 25 names
   stats/
-    agregar.js        o histórico virando número por deck e por jogador
-    partida.js        uma partida só: resumo, linha do tempo, dano total
-    rivalidades.js    o mesmo log lido por par de jogadores
-    votacoes.js       escolhas em votação, agrupadas por pergunta
-    ordenar.js        por qual número a lista se ordena, e em que direção
-    cores.js          a cor de cada pessoa (ângulo áureo, por 1ª aparição)
-    formatar.js       número e data como cada idioma escreve
-  store.js            localStorage, histórico, backup
-  scryfall.js         busca de comandantes + cache
-  colors.js           paleta de identidade WUBRG (clara e escura)
-  seating.js          disposição dos assentos, em pé e deitada — dado puro
-  theme.js            claro/escuro/sistema
-  ui.js               helpers de DOM, sheet, toast
-  vote.js             votação secreta
-  install.js          instalação como PWA
-  orientation.js      em pé / deitado
-  sync.js             fila de subida para a nuvem
-  canal.js            produção ou beta
-  novidades.js        notas de versão (dado)
+    aggregate.js      the history turned into numbers per deck and per player
+    match.js          a single match: summary, timeline, total damage
+    rivalries.js      the same log read per pair of players
+    votes.js          vote choices, grouped by question
+    sort.js           which number the list sorts by, and in which direction
+    colors.js         each person's color (golden angle, by first appearance)
+    format.js         numbers and dates as each language writes them
+  store.js            localStorage, history, backup
+  scryfall.js         commander search + cache
+  colors.js           WUBRG identity palette (light and dark)
+  seating.js          seat arrangement, upright and landscape — pure data
+  theme.js            light/dark/system
+  ui.js               DOM helpers, sheet, toast
+  vote.js             secret vote
+  install.js          installing as a PWA
+  orientation.js      upright / landscape
+  sync.js             upload queue to the cloud
+  channel.js          production or beta
+  release-notes.js    release notes (data)
+  version.js          the version number
 
-  i18n.js             porta — 9 nomes
+  i18n.js             gateway — 9 names
   i18n/
-    pt.js en.js es.js de.js    uma língua por arquivo (~460 chaves cada)
-    dicionarios.js             quais línguas existem, e onde moram
-    traduzir.js                a mecânica do t() e a interpolação
-    ordinal.js                 1º, 1st, 1. — uma regra por língua
+    pt.js en.js es.js de.js    one language per file (~460 keys each)
+    dictionaries.js            which languages exist, and where they live
+    translate.js               the mechanics of t() and interpolation
+    ordinal.js                 1º, 1st, 1. — one rule per language
 
-  cloud.js            porta — 59 nomes
-  cloud/              camadas que só olham para baixo
-    regras.js         função pura — a parte que os testes alcançam sem rede
-    estado.js         o que se lembra de quem entrou
-    http.js           um pedido, com renovação de token em volta
-    auth.js           entrar e sair
-    assinatura.js     se a assinatura vale
-    partidas.js       subir, baixar e apagar partida
-    perfil.js         o nome e o @
-    convites.js       partida em que alguém diz que você estava
-    iniciar.js        a subida, em ordem
+  cloud.js            gateway — 59 names
+  cloud/              layers that only look down
+    rules.js          pure functions — the part tests reach without network
+    account.js        what is remembered about who signed in
+    http.js           one request, with token renewal around it
+    auth.js           sign in and sign out
+    subscription.js   whether the subscription is valid
+    matches.js        upload, download and delete matches
+    profile.js        the name and the @
+    invites.js        matches in which someone says you were there
+    table-by-code.js  passing the table by code
+    boot.js           startup, in order
 
   views/
-    setup.js          porta — 3 nomes
-    setup/            um arquivo por elemento da home
-      rascunho.js            a mesa sendo montada
-      home.js                a tela em si
-      cartao-jogador.js      o cartão de um assento, e o arraste
-      escolher-jogador.js    quem senta aqui
-      escolher-deck.js       qual deck ele leva
-      antes-de-comecar.js    quem abre, e o layout da mesa
-      configuracoes.js       as preferências do app
-      instalar.js            o bloco de instalação
-      conta.js               entrar, criar conta, assinatura
-      handle.js              o próprio @
-      convites.js            partidas esperando por você
-      sincronizacao.js       o que subiu e o que falta
-      notas-de-versao.js     o que mudou nesta versão
+    setup.js          gateway — 3 names
+    setup/            one file per element of the home screen
+      draft.js               the table being set up
+      home.js                the screen itself
+      seat-card.js           the card of a seat, and the drag
+      pick-player.js         who sits here
+      pick-deck.js           which deck they bring
+      pre-game.js            who opens, and the table layout
+      settings.js            the app preferences
+      rows.js                the rows the settings are built from
+      install.js             the installation block
+      account.js             sign in, create account, subscription
+      handle.js              your own @
+      invites.js             matches waiting for you
+      sync.js                what went up and what is missing
+      pass-table.js          passing the table to another device
+      release-notes.js       what changed in this version
 
-    table.js          porta — 1 nome
+    table.js          gateway — 1 name
     table/
-      contexto.js     o que todas as peças compartilham
-      mesa.js         monta a tela e liga as peças
-      constantes.js   as medidas do gesto, e as cores de mana
-      pecas.js        rótulo/número, a linha com − e +, o "segurar repete"
-      estado.js       quem muda a partida: apply, desfazer, vez, pausa
-      pintar.js       desenhar a mesa a partir do estado
-      gestos.js       a duração do toque decide o que ele é
-      dano.js         a seta direcional e o teclado do dano
-      area.js         dano em todos, e dreno
-      mana.js         o marcador de mana
-      votacao.js      votação secreta, de mão em mão
-      jogador.js      o painel de um jogador
-      hub.js          o núcleo central, e a cobertura da pausa
-      menu.js         o menu da partida
-      vitoria.js      quem ganhou, como ganhou, e o cartaz
+      context.js      what all the pieces share
+      table.js        builds the screen and wires the pieces
+      constants.js    the gesture measures, and the mana colors
+      widgets.js      label/number, the row with − and +, "hold repeats"
+      state.js        whoever changes the match: apply, undo, turn, pause
+      paint.js        drawing the table from the state
+      gestures.js     the duration of the touch decides what it is
+      damage.js       the directional arrow and the damage pad
+      sweep.js        damage to everyone, and drain
+      mana.js         the mana counter
+      vote.js         secret vote, from hand to hand
+      player.js       a player's panel
+      hub.js          the central hub, and the pause cover
+      menu.js         the match menu
+      victory.js      who won, how they won, and the banner
 
-    stats.js          porta — 2 nomes
+    stats.js          gateway — 2 names
     stats/
-      tela.js         as abas, e qual está aberta
-      pecas.js        as peças pequenas que várias abas reúsam
-      deck.js         o cartão de um deck (cor pela identidade WUBRG)
-      jogador.js      o cartão de um jogador (cor pela pessoa)
-      rivalidades.js  o par de jogadores, e quem persegue quem
-      partida.js      o cartão de uma partida e a linha do tempo
-      vitoria.js      como as vitórias foram ganhas
-      votacoes.js     escolhas em votações secretas
-      backup.js       exportar e importar JSON
-      marcar-conta.js ligar alguém a uma conta (e juntar o histórico)
-      paywall.js      o que se vê sem assinatura
+      screen.js       the tabs, and which one is open
+      widgets.js      the small pieces several tabs reuse
+      deck.js         a deck card (color by WUBRG identity)
+      player.js       a player card (color by person)
+      rivalries.js    the pair of players, and who hunts whom
+      match.js        a match card and the timeline
+      win-reasons.js  how the wins were won
+      votes.js        choices in secret votes
+      backup.js       export and import JSON
+      link-account.js link someone to an account (and merge the history)
+      paywall.js      what you see without a subscription
 
-  styles.css          entrada — só @import, e **essa ordem é a cascata**
-  estilos/            20 folhas, uma por área (tokens, home, mesa, dano,
-                      núcleo, painel, stats, mana, votação, conta...)
+  styles.css          entry point — only @import, and **that order is the cascade**
+  styles/             20 sheets, one per area (tokens, home, table, damage,
+                      core, panel, stats, mana, vote, account...)
 tests/
-  cases.js            casos do motor, sem DOM — fonte única
-  dom-stub.js         DOM mínimo para testar os painéis fora do navegador
-  run-node.js         runner de terminal
+  cases.js            engine cases, no DOM — single source
+  dom-stub.js         minimal DOM to test the panels outside the browser
+  run-node.js         terminal runner
 tools/
-  make_icons.py       gera os ícones do PWA
-  check-syntax.js     node --check, versão, @, RLS, instalação e cache do SW
-  check_modules.py    imports, exports, reexports, delimitadores e cascata CSS
+  make_icons.py       generates the PWA icons
+  check-syntax.js     node --check, version, @, RLS, install and SW cache
+  check_modules.py    imports, exports, re-exports, delimiters and CSS cascade
+sql/                  Supabase migrations, run in numeric order (see docs/cloud.md)
+docs/                 cloud setup and the publishing channels
 ```
 
-`engine.js` e todo o `stats/` não tocam no DOM. Se um dia isso virar React ou
-React Native, eles vão junto sem alteração — e é também por isso que são a parte
-que os testes alcançam inteira.
+`engine.js` and all of `stats/` do not touch the DOM. If one day this becomes
+React or React Native, they go along unchanged — and that is also why they are
+the part the tests reach entirely.
 
-### A ordem dos @import é a cascata
+### The order of the @imports is the cascade
 
-`src/styles.css` não tem regra nenhuma: são vinte `@import`, e cada um é uma
-faixa **contígua** da folha antiga, na mesma sequência em que estava. Trocar
-duas de lugar muda quem vence um empate de especificidade, e o sintoma é visual
-e silencioso. As últimas folhas são ajustes que nasceram depois e sobrepõem as
-de cima de propósito — subi-las na lista as faria perder para o que vinham
-corrigir.
+`src/styles.css` has no rule at all: it is twenty `@import`s, and each one is a
+**contiguous** slice of the old sheet, in the same sequence it was in. Swapping
+two of them changes who wins a specificity tie, and the symptom is visual and
+silent. The last sheets are adjustments born later that override the ones above
+on purpose — moving them up the list would make them lose to what they came to
+fix.
 
-`npm run check` segue esses `@import` e confere a cascata **entre** folhas, não
-só dentro de cada uma.
+`npm run check` follows those `@import`s and checks the cascade **across**
+sheets, not only within each one.
 
-### A mesa: de closure a contexto
+### The table: from closure to context
 
-`src/views/table.js` era o caso difícil, e vale saber por quê. As outras
-divisões foram mudança de endereço: pegar uma declaração de topo e mover de
-arquivo. Aqui não havia declarações de topo — `renderTable()` era **uma função**
-de ~1500 linhas, com 39 funções aninhadas que compartilhavam um closure de 22
-valores (`state`, `tiles`, `fx`, `hub`, `gesture`, `pauseTimer`…).
+`src/views/table.js` was the hard case, and it is worth knowing why. The other
+splits were a change of address: take a top-level declaration and move it to
+another file. Here there were no top-level declarations — `renderTable()` was
+**one function** of ~1500 lines, with 39 nested functions sharing a closure of
+22 values (`state`, `tiles`, `fx`, `hub`, `gesture`, `pauseTimer`…).
 
-Closure é cômodo enquanto é um arquivo, e intratável depois: qualquer peça que
-saia dele perde tudo de uma vez, e nada avisa — o código compila, os testes
-passam, e um gesto para de responder sem erro no console.
+A closure is convenient while it is one file, and intractable afterwards: any
+piece that leaves it loses everything at once, and nothing warns — the code
+compiles, the tests pass, and a gesture stops responding with no error in the
+console.
 
-Então o que era invisível passou a estar escrito. `contexto.js` devolve um
-objeto `mesa`, cada peça o recebe, e as peças se penduram nele:
+So what was invisible became written down. `context.js` returns a `table`
+object, each piece receives it, and the pieces hang themselves on it:
 
 ```js
-const mesa = criarContexto(root, ctx);
-Object.assign(mesa, criarEstado(mesa), criarGestos(mesa), criarDano(mesa), …);
+const table = createContext(root, ctx);
+Object.assign(table, createState(table), createGestures(table), createDamage(table), …);
 ```
 
-Daí `gestos.js` chama `mesa.openDamagePad()`, que chama `mesa.apply()`, que
-chama `mesa.sync()` — **sem que nenhum dos quatro arquivos importe outro**. Zero
-ciclos de import, e cada peça abre sozinha.
+So `gestures.js` calls `table.openDamagePad()`, which calls `table.apply()`,
+which calls `table.sync()` — **without any of the four files importing another**.
+Zero import cycles, and each piece opens on its own.
 
-Objeto, e não variáveis exportadas, porque `let` exportado é somente leitura de
-fora: `mesa.state = …` precisa funcionar de sete arquivos diferentes, e
-atribuir a uma *propriedade* é legal onde atribuir ao *binding* é `TypeError`.
+An object, and not exported variables, because an exported `let` is read-only
+from outside: `table.state = …` needs to work from seven different files, and
+assigning to a *property* is legal where assigning to the *binding* is a
+`TypeError`.
 
-Dois nomes locais tiveram de ser renomeados antes, porque repetiam nomes do
-escopo de cima e a reescrita os atingiria: a grade das peças de mana virou
-`gradeMana`, e a raiz do painel em `buildTile` virou `painel` (a chave devolvida
-segue sendo `root`, então `tile.root` não mudou).
+Two local names had to be renamed first, because they repeated names from the
+outer scope and the rewrite would hit them: the grid of mana pieces became
+`manaGrid`, and the panel root in `buildTile` became `panel` (the returned key is
+still `root`, so `tile.root` did not change).
 
-**O que os testes não alcançam continua não alcançando.** Toque curto contra
-toque segurado, arraste, alvo, o deslize entre telas — isso só o dedo verifica.
-Os testes de montagem cobrem a mesa subindo nos quatro idiomas e nas duas
-orientações, e é o que existe. Antes de publicar, vale jogar uma partida.
+**What the tests do not reach still does not reach.** Short touch versus held
+touch, drag, target, the slide between screens — only a finger verifies that.
+The build tests cover the table coming up in the four languages and in both
+orientations, and that is what there is. Before publishing, it is worth playing a
+match.
 
-## Quando algo quebra
+## When something breaks
 
-Se o app não conseguir subir, aparece uma **tela de erro** com a mensagem e o
-stack — não uma tela preta. Ela traz dois botões: recarregar, e limpar o cache
-do service worker e recarregar (o histórico de partidas não é tocado). Existe
-porque no celular não há console para abrir, e uma tela escura vazia não diz
-nada a ninguém.
+If the app cannot start, an **error screen** shows up with the message and the
+stack — not a black screen. It has two buttons: reload, and clear the service
+worker cache and reload (the match history is not touched). It exists because on
+a phone there is no console to open, and an empty dark screen tells nobody
+anything.
 
-## Verificação
+## Verification
 
 ```bash
-npm test         # node --check em todo módulo, depois os 84 casos
-npm run check    # imports, exports, delimitadores, CSS e colisões de cascata
+npm test         # node --check on every module, then the test cases
+npm run check    # imports, exports, delimiters, CSS and cascade collisions
 ```
 
-`npm test` roda `node --check` em cada módulo antes dos testes. Os casos só
-exercitam engine, stats e seating — o resto depende de DOM —, mas a checagem de
-sintaxe alcança a interface inteira, que é onde mora o erro mais bobo num
-projeto sem build.
+`npm test` runs `node --check` on each module before the tests. The cases only
+exercise engine, stats and seating — the rest depends on the DOM —, but the
+syntax check reaches the whole interface, which is where the silliest error lives
+in a project without a build.
 
-Os casos vivem em `tests/cases.js` e não tocam no DOM, então rodam nos dois
-lugares a partir da mesma fonte: no terminal com `npm test`, e no navegador em
-`http://localhost:8000/tests.html`. Um teste que só passa num dos dois não vale
-muito.
+The cases live in `tests/cases.js` and do not touch the DOM, so they run in both
+places from the same source: in the terminal with `npm test`, and in the browser
+at `http://localhost:8000/tests.html`. A test that only passes in one of the two
+is not worth much.
 
-Cobrem replay, desfazer, eliminação por veneno e por 21 de comandante (incluindo
-o caso de dois comandantes diferentes que **não** somam), ordem de turno pulando
-mortos, colocação final, atribuição de dano, a separação entre vida paga e dano
-levado, agregação de um mesmo deck em várias partidas, determinismo do replay,
-o sentido horário de **toda variante** de mesa em pé e deitada, a contagem de
-voltas quando a partida abre por um jogador que não é o primeiro assento, as
-ações em área (dano, dreno, crédito de eliminação, desfazer atômico) e a pausa
-saindo da duração e do tempo de turno.
+They cover replay, undo, elimination by poison and by 21 commander damage
+(including the case of two different commanders that do **not** add up), turn
+order skipping the dead, final placement, damage attribution, the separation
+between life paid and damage taken, aggregation of the same deck across several
+matches, replay determinism, the clockwise direction of **every variant** of the
+table upright and landscape, the round count when the match opens with a player
+who is not the first seat, area actions (damage, drain, elimination credit,
+atomic undo) and the pause leaving the duration and the turn time.
 
-Quatro casos rodam sobre um DOM simulado mínimo (`tests/dom-stub.js`): a máquina
-de estados dos painéis deslizantes e a **montagem** da mesa e da home. Os dois
-grupos nasceram de regressões reais — um painel cuja primeira tela abria
-invisível, e um `let` declarado depois do primeiro uso que derrubava a mesa
-inteira e deixava a tela preta. Nos dois casos a sintaxe estava válida, os
-imports certos e todos os outros testes verdes. No navegador esses quatro
-aparecem como pulados.
+Four cases run on a minimal simulated DOM (`tests/dom-stub.js`): the state
+machine of the sliding panels and the **build** of the table and the home screen.
+Both groups were born from real regressions — a panel whose first screen opened
+invisible, and a `let` declared after its first use that took down the whole table
+and left the screen black. In both cases the syntax was valid, the imports right
+and all the other tests green. In the browser those four show up as skipped.
 
-Três casos cobrem o **segurar na borda**, com o relógio trocado por um
-controlado (os casos rodam síncronos, então esperar de verdade não é opção): a
-cadência e a aceleração, o soltar que não pode cobrar um passo por cima do que a
-repetição já aplicou, e a seguradinha inteira virando um evento só. O último
-importa mais do que parece — sem ele, *desfazer* voltaria ponto por ponto.
+Three cases cover **holding on the edge**, with the clock swapped for a
+controlled one (the cases run synchronously, so really waiting is not an option):
+the cadence and the acceleration, the release that cannot charge a step on top of
+what the repeat already applied, and the whole hold becoming a single event. The
+last one matters more than it seems — without it, *undo* would go back point by
+point.
 
-O que os testes **não** alcançam: o resto do gesto, e a aparência. Toque curto
-contra toque segurado no centro, arraste, alvo, o deslize entre telas e como o
-tema claro fica de fato — isso só o dedo e o olho verificam.
+What the tests do **not** reach: the rest of the gesture, and the look. Short
+touch versus held touch in the center, drag, target, the slide between screens
+and how the light theme really looks — only the finger and the eye verify that.
 
-`npm run check` também avisa quando duas classes usadas **no mesmo elemento**
-definem a mesma propriedade CSS — empate que só a ordem do arquivo resolve.
-Nem todo aviso é defeito (modificador depois da base é o padrão certo), mas foi
-assim que a home quebrou uma vez: `class: 'seat-spot layout-mini'`, as duas
-definindo `width`, e a genérica estava 950 linhas abaixo.
+`npm run check` also warns when two classes used **on the same element** define
+the same CSS property — a tie only the file order resolves. Not every warning is
+a defect (a modifier after the base is the right pattern), but that is how the
+home screen broke once: `class: 'seat-spot layout-mini'`, both defining `width`,
+and the generic one was 950 lines below.
 
-**O `package.json` não traz dependência nenhuma** — ele existe só para o Node
-tratar os `.js` como módulos ES ao rodar os testes. Não há `npm install`, não há
-build: o app continua sendo arquivos estáticos servidos direto.
+**`package.json` brings no dependency at all** — it exists only so Node treats
+the `.js` files as ES modules when running the tests. There is no `npm install`,
+there is no build: the app is still static files served directly.
 
-## Dados
+## Data
 
-Tudo fica em `localStorage`, neste aparelho. Não há servidor e nada é enviado
-para lugar nenhum — a única chamada externa é a busca de cartas na Scryfall.
-Limpar os dados do site apaga o histórico, então use o **Exportar JSON** em
-Estatísticas → menu para guardar backup.
+Everything stays in `localStorage`, on this device. There is no server and
+nothing is sent anywhere — the only external call is the card search on
+Scryfall. Clearing the site data erases the history, so use **Export JSON** in
+Statistics → menu to keep a backup.

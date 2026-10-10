@@ -1,0 +1,34 @@
+/* ==========================================================================
+   Wide screens (computer in landscape).
+   ========================================================================== */
+
+@media (min-width: 1024px) and (orientation: landscape) {
+  .setup {
+    max-width: 1080px;
+    grid-template-columns: minmax(240px, 320px) 1fr;
+    column-gap: 40px;
+  }
+  /* A single column, but with limited width: in two columns the reorder
+     drag would lose its reference (it measures the vertical distance between
+     the cards), and cards stretched over 700px would be empty in the middle. */
+  .seat-list { max-width: 620px; }
+
+  .stats { max-width: 1080px; }
+  .stats-summary { grid-template-columns: repeat(4, 1fr); max-width: 640px; }
+  .stats-panel {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 12px;
+  }
+  /* Matches look better in a single column: the list of placings is long. */
+  .stats-panel .card.is-match { grid-column: 1 / -1; }
+  .stat-grid { grid-template-columns: repeat(4, 1fr); }
+  .tabs { max-width: 520px; }
+}
+
+@media (min-width: 1400px) and (orientation: landscape) {
+  .setup { max-width: 1240px; }
+  .stats { max-width: 1280px; }
+  .stats-panel { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

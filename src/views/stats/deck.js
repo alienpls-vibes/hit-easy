@@ -1,9 +1,9 @@
 /**
- * O cartao de um deck.
+ * A deck's card.
  *
- * Cor pela identidade do comandante (WUBRG): aqui o que se rastreia e o DECK.
- * A cor por pessoa vale nas abas de Jogadores e Rivalidades, que rastreiam
- * quem - o mesmo jogador troca de comandante e continua sendo ele.
+ * Colored by the commander's identity (WUBRG): what is tracked here is the
+ * DECK. Color by person applies on the Players and Rivals tabs, which track
+ * who - the same player switches commanders and is still themselves.
  */
 
 import { el } from '../../ui.js';
@@ -12,11 +12,11 @@ import { pct } from '../../stats.js';
 import { deckNameOf } from '../../engine.js';
 import * as store from '../../store.js';
 import { t } from '../../i18n.js';
-import { hideButton, statGrid, winBar } from './pecas.js';
-import { winReasonBlock } from './vitoria.js';
-import { voteBlock } from './votacoes.js';
+import { hideButton, statGrid, winBar } from './widgets.js';
+import { winReasonBlock } from './win-reasons.js';
+import { voteBlock } from './votes.js';
 
-export function deckCard(row, recarregar) {
+export function deckCard(row, reload) {
   const commander = row.commanders && row.commanders[0];
   const colors = commander ? commander.colors : [];
   const accent = accentOf(colors);
@@ -41,7 +41,7 @@ export function deckCard(row, recarregar) {
         el('span', { class: 'winrate-value', text: pct(row.winrate) }),
         el('span', { class: 'winrate-label', text: row.wins + 'V' }),
       ]),
-      hideButton('deck', row, recarregar),
+      hideButton('deck', row, reload),
     ]),
     winBar(row.winrate),
     statGrid(row),
@@ -50,13 +50,13 @@ export function deckCard(row, recarregar) {
   ]);
 }
 
-/** Nome legivel de um deck oculto, procurado no historico pela chave. */
-export function nomeDoDeck(chave) {
+/** Readable name of a hidden deck, looked up in the history by its key. */
+export function deckNameByKey(key) {
   for (const match of store.getDB().history || []) {
     for (const seat of match.seats || []) {
       const k = (seat.commanders || []).map((c) => c.oracleId).sort().join('+');
-      if (k === chave) return deckNameOf(seat.commanders);
+      if (k === key) return deckNameOf(seat.commanders);
     }
   }
-  return chave;
+  return key;
 }

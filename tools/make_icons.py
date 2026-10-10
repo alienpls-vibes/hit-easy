@@ -1,10 +1,11 @@
 """
-Gera os icones do PWA sem dependencias externas (so zlib/struct da stdlib).
+Generates the PWA icons with no external dependencies (only stdlib zlib/struct).
 
-Desenho: fundo quase preto e cinco pips WUBRG em anel - le como "Magic" mesmo
-a 48px, e mantem a mesma linguagem do brand-mark que aparece no app.
+Design: a near-black background and five WUBRG pips in a ring - it reads as
+"Magic" even at 48px, and keeps the same language as the brand mark shown in
+the app.
 
-Uso:  python tools/make_icons.py
+Usage:  python tools/make_icons.py
 """
 
 import math
@@ -22,15 +23,15 @@ PIPS = [
     (217, 96, 76),    # R
     (79, 169, 124),   # G
 ]
-SS = 4  # supersampling: desenha grande e reduz, o que da o antialias
+SS = 4  # supersampling: draws big and scales down, which gives the antialiasing
 
 
 def write_png(path, width, height, rgba):
-    """Escreve um PNG RGBA de 8 bits. rgba e uma bytearray de w*h*4."""
+    """Writes an 8-bit RGBA PNG. rgba is a bytearray of w*h*4."""
     raw = bytearray()
     stride = width * 4
     for y in range(height):
-        raw.append(0)  # filtro "None" por linha
+        raw.append(0)  # "None" filter per row
         raw.extend(rgba[y * stride:(y + 1) * stride])
 
     def chunk(tag, data):
@@ -59,7 +60,7 @@ def render(size, corner_ratio, ring_ratio, pip_ratio):
     ring = ring_ratio * big
     pip_r = pip_ratio * big
 
-    # Centros dos pips: um anel comecando no topo.
+    # Pip centers: a ring starting at the top.
     centers = []
     for i in range(5):
         angle = -math.pi / 2 + i * (2 * math.pi / 5)
@@ -67,7 +68,7 @@ def render(size, corner_ratio, ring_ratio, pip_ratio):
 
     for y in range(big):
         for x in range(big):
-            # Recorte de canto arredondado (corner_ratio 0.5 vira circulo).
+            # Rounded-corner clip (corner_ratio 0.5 becomes a circle).
             dx = max(radius - x, x - (big - radius), 0.0)
             dy = max(radius - y, y - (big - radius), 0.0)
             if dx * dx + dy * dy > radius * radius:
@@ -86,7 +87,7 @@ def render(size, corner_ratio, ring_ratio, pip_ratio):
             buf[o + 2] = color[2]
             buf[o + 3] = 255
 
-    # Downsample por media de blocos SS x SS.
+    # Downsample by averaging SS x SS blocks.
     out = bytearray(size * size * 4)
     n = SS * SS
     for y in range(size):
@@ -112,15 +113,15 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
 
     jobs = [
-        # (arquivo, tamanho, canto, raio do anel, raio do pip)
+        # (file, size, corner, ring radius, pip radius)
         ("icon-192.png", 192, 0.22, 0.26, 0.088),
         ("icon-512.png", 512, 0.22, 0.26, 0.088),
-        # Maskable: fundo ate a borda e conteudo dentro da zona segura (~60%).
+        # Maskable: background to the edge and content inside the safe zone (~60%).
         ("icon-maskable.png", 512, 0.5, 0.19, 0.065),
     ]
     for name, size, corner, ring, pip in jobs:
         write_png(OUT / name, size, size, render(size, corner, ring, pip))
-        print("gerado:", name, f"({size}x{size})")
+        print("generated:", name, f"({size}x{size})")
 
 
 if __name__ == "__main__":

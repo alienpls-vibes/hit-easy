@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hit Easy — autoteste</title>
+<title>Hit Easy — self-test</title>
 <style>
   :root { color-scheme: dark; }
   body {
@@ -33,13 +33,13 @@
 </head>
 <body>
 <main>
-  <h1>Autoteste do motor</h1>
+  <h1>Engine self-test</h1>
   <p class="sub">
-    Mesmos casos que <code>npm test</code> roda no terminal — a fonte é
-    <code>tests/cases.js</code>. Abra pelo servidor (<code>python servir.py</code>),
-    não por duplo clique: módulos ES exigem <code>http://</code>.
+    The same cases <code>npm test</code> runs in the terminal — the source is
+    <code>tests/cases.js</code>. Open it through the server (<code>python serve.py</code>),
+    not by double-clicking: ES modules require <code>http://</code>.
   </p>
-  <div id="summary">executando…</div>
+  <div id="summary">running…</div>
   <ol id="results"></ol>
 </main>
 
@@ -58,7 +58,7 @@ for (const r of results) {
   mark.textContent = r.skipped ? '–' : r.ok ? '✓' : '✕';
 
   const text = document.createElement('span');
-  text.textContent = r.name + (r.skipped ? ' — precisa do DOM simulado (rode npm test)' : '');
+  text.textContent = r.name + (r.skipped ? ' — needs the simulated DOM (run npm test)' : '');
   if (!r.ok) {
     const why = document.createElement('span');
     why.className = 'why';
@@ -75,9 +75,9 @@ const skipped = results.filter((r) => r.skipped).length;
 const box = document.getElementById('summary');
 box.className = failed ? 'fail' : 'pass';
 box.textContent = failed
-  ? failed + ' de ' + results.length + ' testes falharam'
-  : (results.length - skipped) + ' testes, todos passaram'
-    + (skipped ? ' · ' + skipped + ' pulado(s) aqui' : '');
+  ? failed + ' of ' + results.length + ' tests failed'
+  : (results.length - skipped) + ' tests, all passed'
+    + (skipped ? ' · ' + skipped + ' skipped here' : '');
 </script>
 </body>
 </html>

@@ -1,32 +1,45 @@
 /**
- * Motor da partida - event sourcing puro.
+ * Match engine - pure event sourcing.
  *
- * Nada de estado mutavel espalhado: a partida E a lista de eventos, e o estado
- * visivel e sempre `replay(match)`. Isso da tres coisas de graca:
- *   1. desfazer/refazer = tirar/por o ultimo evento e reprocessar;
- *   2. estatisticas exatas, porque o historico e a fonte da verdade;
- *   3. nenhuma chance de o placar divergir do log.
+ * No mutable state scattered around: the match IS the list of events, and the
+ * visible state is always `replay(match)`. That gives three things for free:
+ *   1. undo/redo = remove/put back the last event and reprocess;
+ *   2. exact statistics, because the history is the source of truth;
+ *   3. no chance of the scoreboard diverging from the log.
  *
- * `sourceId` nunca e adivinhado: ou o gesto declarou a direcao (arrastar do
- * causador ate o alvo), ou fica null. Vida perdida sem origem e vida paga pelo
- * proprio jogador - fetchland, Necropotence, custo de habilidade -, que e coisa
- * diferente de dano levado e conta separado nas estatisticas.
+ * `sourceId` is never guessed: either the gesture declared the direction
+ * (dragging from the dealer to the target), or it stays null. Life lost with
+ * no source is life paid by the player themselves - fetchland, Necropotence,
+ * ability costs - which is a different thing from damage taken and counts
+ * separately in the statistics.
  *
- * Eventos (todos com id, ts, turn, activeSeatId):
- *   life    { targetId, delta, sourceId }          delta negativo = perda
- *   cmd     { targetId, sourceId, cmdKey, delta }  dano de comandante (tambem tira vida)
- *   poison  { targetId, delta, sourceId }
- *   sweep   { sourceId, amount, gain, targets }    atinge varios de uma vez
- *   turn    {}                                     passa a vez
- *   pause   {} / resume {}                         relogio parado
- *   vote    { question, kind, options, ballots }  votacao secreta (so registro)
+ * Events (all with id, ts, turn, activeSeatId):
+ *   life    { targetId, delta, sourceId, gain? }          negative delta = loss
+ *   cmd     { targetId, sourceId, cmdKey, delta, gain? }  commander damage (also takes life)
+ *   poison  { targetId, delta, sourceId, gain? }
+ *   sweep   { sourceId, amount, gain, targets }           hits several at once
+ *
+ * `gain` is lifelink: how much life the dealer gained IN THE SAME event.
+ * Together, and not as a separate `life` event, so that undo reverts both at
+ * once - and so that the healing does not look, in the statistics, like life
+ * that came out of nowhere. In sweep it always existed: it is the drain.
+ *
+ * The targets of a sweep may include whoever fired it ("damage to every
+ * player"). Dying from your own sweep does not credit the kill to anyone.
+ *   turn    {}                                     passes the turn
+ *   pause   {} / resume {}                         clock stopped
+ *   vote    { question, kind, options, ballots }  secret vote (record only)
  *   concede { targetId }
- *   win     { targetId, reason }                   vitoria declarada na mao
+ *   win     { targetId, reason }                   winner declared by hand
  *
- * `sweep` guarda a lista de alvos em vez de recalcular "quem estava vivo": o
- * evento descreve exatamente o que fez, entao desfazer e um evento so, as
- * estatisticas nao precisam reconstruir estado, e o historico continua legivel
- * anos depois.
+ * `sweep` stores the list of targets instead of recomputing "who was alive":
+ * the event describes exactly what it did, so undo is a single event, the
+ * statistics do not need to rebuild state, and the history stays readable
+ * years later.
+ *
+ * Several match fields have Portuguese names (`assentos`, `ausenteDesde`,
+ * `ausencias`, `passadaEm`, `passadaCodigo`, `desvioDeRelogio`). They are
+ * stored on devices, in backups and in the cloud, so they keep those names.
  */
 
 import { t } from './i18n.js';
@@ -41,38 +54,38 @@ export function uid(prefix = 'id') {
   return prefix + '_' + Date.now().toString(36) + '_' + seq.toString(36);
 }
 
-/** Chave estavel de um comandante - parceiros contam separado no dano de comandante. */
+/** Stable key of a commander - partners count separately for commander damage. */
 export function cmdKeyOf(seatId, commander) {
   return seatId + ':' + commander.oracleId;
 }
 
-/** Chave do deck: combinacao de comandantes, independente da ordem. */
 /**
- * Junta listas de decks sem repetir, do mais recente para o mais antigo.
+ * Merges lists of decks without repeats, from most recent to oldest.
  *
- * Mesmo deck em duas listas fica com a data mais nova: a lista local sabe
- * quando a pessoa levou aquele deck NESTE aparelho, e a da conta sabe quando
- * levou em qualquer um. A mais recente e a que responde "qual deck ele anda
- * jogando".
+ * The same deck in two lists keeps the newest date: the local list knows when
+ * the person brought that deck ON THIS device, and the account's list knows
+ * when they brought it on any device. The most recent one answers "which deck
+ * have they been playing".
  */
-export function juntarDecks(...listas) {
-  const porChave = new Map();
+export function mergeDecks(...lists) {
+  const byKey = new Map();
 
-  for (const lista of listas) {
-    for (const deck of lista || []) {
-      const chave = deckKeyOf(deck && deck.commanders);
-      if (!chave) continue;
-      const atual = porChave.get(chave);
-      if (!atual || (deck.lastUsed || 0) > (atual.lastUsed || 0)) {
-        porChave.set(chave, deck);
+  for (const list of lists) {
+    for (const deck of list || []) {
+      const key = deckKeyOf(deck && deck.commanders);
+      if (!key) continue;
+      const current = byKey.get(key);
+      if (!current || (deck.lastUsed || 0) > (current.lastUsed || 0)) {
+        byKey.set(key, deck);
       }
     }
   }
 
-  return [...porChave.values()]
+  return [...byKey.values()]
     .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
 }
 
+/** Deck key: the combination of commanders, regardless of order. */
 export function deckKeyOf(commanders) {
   return (commanders || []).map((c) => c.oracleId).sort().join('+');
 }
@@ -86,12 +99,12 @@ export function createMatch(seats, startingLife = DEFAULT_LIFE, options = {}) {
     id: s.id || uid('seat'),
     name: s.name,
     commanders: s.commanders.map((c) => ({ ...c })),
-    // A conta vinculada faz parte do assento, nao da tela de montagem.
+    // The linked account is part of the seat, not of the setup screen.
     //
-    // Sem estes dois campos aqui, o @ escolhido na mesa morria no rascunho: a
-    // partida gravada nao sabia de conta nenhuma, participantesDe() nunca
-    // achava uma cadeira para convidar, e a estatistica so tinha o nome
-    // digitado - que e exatamente o que nao identifica ninguem.
+    // Without these two fields here, the @ chosen at the table died in the
+    // draft: the saved match knew nothing about any account, participantsOf()
+    // never found a seat to invite, and the statistics only had the typed
+    // name - which is exactly what does not identify anyone.
     handle: s.handle || null,
     userId: s.userId || null,
   }));
@@ -103,18 +116,22 @@ export function createMatch(seats, startingLife = DEFAULT_LIFE, options = {}) {
     endedAt: null,
     startingLife,
     seats: built,
-    // Quem abre a partida. Nao e necessariamente o primeiro assento: a mesa
-    // fisica e uma coisa, quem ganhou o dado e outra.
+    // Who opens the match. Not necessarily the first seat: the physical
+    // table is one thing, who won the die roll is another.
     firstSeatId: first ? first.id : built[0] && built[0].id,
     layoutId: options.layoutId || null,
+    // Player 1 sits at the top left. A match without this mark started before
+    // that, and its table keeps the old order - see seating.js. Stored value:
+    // the field name and 'topo' stay as they are.
+    assentos: 'topo',
     events: [],
     redo: [],
   };
 }
 
 /**
- * Reconstroi o estado completo a partir do log.
- * Funcao pura: mesmo match, mesmo resultado, sempre.
+ * Rebuilds the full state from the log.
+ * Pure function: same match, same result, always.
  */
 export function replay(match) {
   const order = match.seats.map((s) => s.id);
@@ -126,7 +143,7 @@ export function replay(match) {
       commanders: seat.commanders,
       life: match.startingLife,
       poison: 0,
-      cmd: {}, // dano de comandante RECEBIDO, por cmdKey de origem
+      cmd: {}, // commander damage RECEIVED, by source cmdKey
       conceded: false,
       dead: false,
       elim: null, // { turn, ts, byId, place }
@@ -137,24 +154,24 @@ export function replay(match) {
 
   const firstIdx = Math.max(0, order.indexOf(match.firstSeatId));
   let turn = 1;
-  // `turn` conta VOLTAS da mesa; este conta turnos de JOGADOR.
+  // `turn` counts ROUNDS of the table; this one counts PLAYER turns.
   //
-  // Para a classificacao a diferenca importa: morrer no meu turno e morrer no
-  // turno do vizinho sao coisas distintas, e a volta e grossa demais para
-  // separa-las. Serve so para saber quem caiu junto com quem.
-  let turnoAtual = 0;
+  // For the standings the difference matters: dying on my turn and dying on
+  // my neighbor's turn are different things, and the round is too coarse to
+  // tell them apart. It only serves to know who fell together with whom.
+  let playerTurn = 0;
   let activeIdx = firstIdx;
   let turnStart = match.startedAt;
   const elimOrder = [];
   let declaredWinner = null;
 
-  // Relogio parado: o tempo entre pause e resume nao conta em lugar nenhum.
+  // Stopped clock: the time between pause and resume counts nowhere.
   let paused = false;
   let pauseStart = 0;
-  let pausedTotal = 0;  // da partida inteira
-  let pausedInTurn = 0; // desde o inicio do turno atual
+  let pausedTotal = 0;  // over the whole match
+  let pausedInTurn = 0; // since the start of the current turn
 
-  /** Fecha a conta da pausa em aberto ate `ts`, sem encerra-la. */
+  /** Settles the open pause up to `ts`, without closing it. */
   const settlePause = (ts) => {
     if (!paused) return;
     const d = Math.max(0, ts - pauseStart);
@@ -173,12 +190,13 @@ export function replay(match) {
 
       if (shouldBeDead && !p.dead) {
         p.dead = true;
-        // So creditamos a morte a quem causou o evento que a provocou - e um
-        // sweep mata todos os seus alvos em nome de quem o disparou.
-        const atingido = ev
+        // We only credit the death to whoever caused the event that brought
+        // it about - and a sweep kills all of its targets on behalf of
+        // whoever fired it.
+        const hit = ev
           && (ev.targetId === id || (ev.targets && ev.targets.includes(id)));
-        const byId = atingido ? ev.sourceId || null : null;
-        p.elim = { turn, seq: turnoAtual, ts: ev ? ev.ts : Date.now(), byId, place: 0 };
+        const byId = hit && ev.sourceId !== id ? ev.sourceId || null : null;
+        p.elim = { turn, seq: playerTurn, ts: ev ? ev.ts : Date.now(), byId, place: 0 };
         elimOrder.push(id);
       } else if (!shouldBeDead && p.dead) {
         p.dead = false;
@@ -195,13 +213,13 @@ export function replay(match) {
   const advanceTurn = (ev) => {
     const current = players[order[activeIdx]];
     if (current) {
-      // Tempo do turno desconta o que a mesa passou pausada dentro dele, e
-      // tambem o que ninguem estava na mesa - senao bloquear o celular no meio
-      // de um turno faria dele o mais longo da noite.
-      const foraNoTurno = ausenteEntre(match, turnStart, ev.ts);
+      // Turn time discounts what the table spent paused within it, and also
+      // the time nobody was at the table - otherwise locking the phone in the
+      // middle of a turn would make it the longest of the night.
+      const awayInTurn = awayBetween(match, turnStart, ev.ts);
       current.timeOnTurn += Math.max(
         0,
-        ev.ts - turnStart - pausedInTurn - foraNoTurno,
+        ev.ts - turnStart - pausedInTurn - awayInTurn,
       );
       current.turnsTaken += 1;
     }
@@ -211,30 +229,31 @@ export function replay(match) {
     const aliveNow = order.filter((id) => !players[id].dead);
     if (aliveNow.length === 0) return;
 
-    // Anda ate o proximo assento vivo. A volta da mesa fecha quando o caminho
-    // CRUZA o assento que abriu a partida - inclusive se ele ja morreu, senao
-    // a contagem de turnos escorregaria com o primeiro jogador eliminado.
+    // Walks to the next living seat. The round closes when the path CROSSES
+    // the seat that opened the match - even if it is already dead, otherwise
+    // the turn count would slip with the first eliminated player.
     let next = activeIdx;
-    let novaVolta = false;
+    let newRound = false;
     for (let i = 1; i <= order.length; i += 1) {
       const cand = (activeIdx + i) % order.length;
-      if (cand === firstIdx) novaVolta = true;
+      if (cand === firstIdx) newRound = true;
       if (!players[order[cand]].dead) {
         next = cand;
         break;
       }
     }
-    if (novaVolta) turn += 1;
-    turnoAtual += 1;
+    if (newRound) turn += 1;
+    playerTurn += 1;
     activeIdx = next;
   };
 
   for (const ev of match.events) {
-    settlePause(ev.ts); // qualquer evento fecha a conta da pausa ate aqui
+    settlePause(ev.ts); // any event settles the pause up to here
     const p = players[ev.targetId];
     switch (ev.type) {
       case 'life':
         if (p) p.life += ev.delta;
+        if (ev.gain && players[ev.sourceId]) players[ev.sourceId].life += ev.gain;
         break;
       case 'sweep':
         for (const id of ev.targets || []) {
@@ -251,11 +270,13 @@ export function replay(match) {
       case 'cmd':
         if (p) {
           p.cmd[ev.cmdKey] = Math.max(0, (p.cmd[ev.cmdKey] || 0) + ev.delta);
-          p.life -= ev.delta; // dano de comandante tambem sai da vida
+          p.life -= ev.delta; // commander damage also comes out of life
         }
+        if (ev.gain && players[ev.sourceId]) players[ev.sourceId].life += ev.gain;
         break;
       case 'poison':
         if (p) p.poison = Math.max(0, p.poison + ev.delta);
+        if (ev.gain && players[ev.sourceId]) players[ev.sourceId].life += ev.gain;
         break;
       case 'turn':
         advanceTurn(ev);
@@ -272,7 +293,7 @@ export function replay(match) {
     settleDeaths(ev);
   }
 
-  // Se o assento ativo morreu, a vez pertence ao proximo vivo.
+  // If the active seat died, the turn belongs to the next living one.
   if (players[order[activeIdx]] && players[order[activeIdx]].dead) {
     let nextAlive = -1;
     for (let i = activeIdx + 1; i < order.length; i += 1) {
@@ -287,7 +308,7 @@ export function replay(match) {
   if (!winnerId && order.length > 1 && alive.length === 1) winnerId = alive[0];
 
   const lastTs = match.events.length ? match.events[match.events.length - 1].ts : match.startedAt;
-  settlePause(lastTs); // pausa ainda aberta conta ate o ultimo evento do log
+  settlePause(lastTs); // a pause still open counts up to the last event in the log
 
   return {
     players,
@@ -303,93 +324,94 @@ export function replay(match) {
     endedAt: winnerId ? lastTs : null,
     startedAt: match.startedAt,
     paused,
-    // `pausedSince` deixa a UI mostrar a pausa correndo sem que replay deixe de
-    // ser puro: o relogio de agora e conta de quem desenha, nao do motor.
+    // `pausedSince` lets the UI show the pause running without replay ceasing
+    // to be pure: the current clock is the drawer's business, not the engine's.
     pausedSince: paused ? pauseStart : null,
     pausedTotal,
   };
 }
 
-/** Tempo de partida ja descontado o que ficou pausado, inclusive agora. */
 /**
- * Abre um periodo de ausencia: ninguem esta na mesa a partir de agora.
+ * Opens an away period: nobody is at the table from now on.
  *
- * Nao abre se o relogio JA esta parado - com pausa manual em curso o tempo
- * nao conta de qualquer jeito, e abrir aqui descontaria o mesmo periodo duas
- * vezes. Nem se a partida terminou, que e quando o relogio deixa de andar.
+ * It does not open if the clock is ALREADY stopped - with a manual pause in
+ * progress the time does not count anyway, and opening here would discount
+ * the same period twice. Nor if the match is over, which is when the clock
+ * stops moving.
  *
- * Devolve se abriu, para quem chama saber se precisa gravar.
+ * Returns whether it opened, so the caller knows whether to save.
  */
-export function sairDaMesa(match, agora = Date.now()) {
+export function leaveTable(match, now = Date.now()) {
   if (!match || match.ausenteDesde) return false;
   const st = replay(match);
   if (st.paused || st.finished) return false;
-  match.ausenteDesde = agora;
+  match.ausenteDesde = now;
   return true;
 }
 
-/** Fecha o periodo aberto, se houver. Devolve se fechou. */
-export function voltarAMesa(match, agora = Date.now()) {
+/** Closes the open period, if any. Returns whether it closed. */
+export function returnToTable(match, now = Date.now()) {
   if (!match || !match.ausenteDesde) return false;
-  const de = match.ausenteDesde;
+  const from = match.ausenteDesde;
   match.ausenteDesde = null;
-  if (agora > de) match.ausencias = [...(match.ausencias || []), [de, agora]];
+  if (now > from) match.ausencias = [...(match.ausencias || []), [from, now]];
   return true;
 }
 
 /**
- * Quanto tempo de ausencia cai dentro de [de, ate].
+ * How much away time falls inside [from, to].
  *
- * Por sobreposicao, e nao por total, porque o tempo de turno precisa descontar
- * so o que aconteceu DENTRO daquele turno. O periodo ainda aberto conta ate
- * `ate`, que e o agora de quem perguntou.
+ * By overlap, not by total, because turn time must discount only what
+ * happened INSIDE that turn. The period still open counts up to `to`, which is
+ * the "now" of whoever asked.
  */
-export function ausenteEntre(match, de, ate) {
-  const faixas = [...((match && match.ausencias) || [])];
-  if (match && match.ausenteDesde) faixas.push([match.ausenteDesde, ate]);
+export function awayBetween(match, from, to) {
+  const ranges = [...((match && match.ausencias) || [])];
+  if (match && match.ausenteDesde) ranges.push([match.ausenteDesde, to]);
 
   let total = 0;
-  for (const [a, b] of faixas) {
-    total += Math.max(0, Math.min(b, ate) - Math.max(a, de));
+  for (const [a, b] of ranges) {
+    total += Math.max(0, Math.min(b, to) - Math.max(a, from));
   }
   return total;
 }
 
+/** Match time with what was paused already discounted, including right now. */
 export function elapsedOf(match, state, now = Date.now()) {
   const st = state || replay(match);
-  const fim = st.endedAt || now;
-  const pausaCorrendo = st.paused && !st.endedAt ? Math.max(0, now - st.pausedSince) : 0;
-  // A ausencia e recortada em [startedAt, fim]: depois do fim o relogio nao
-  // anda mais, entao sair da mesa com a partida encerrada nao pode encurtar o
-  // que ela durou.
-  const fora = ausenteEntre(match, match.startedAt, fim);
+  const end = st.endedAt || now;
+  const runningPause = st.paused && !st.endedAt ? Math.max(0, now - st.pausedSince) : 0;
+  // The away time is clipped to [startedAt, end]: after the end the clock no
+  // longer moves, so leaving the table with the match over cannot shorten how
+  // long it lasted.
+  const away = awayBetween(match, match.startedAt, end);
   return Math.max(
     0,
-    fim - match.startedAt - st.pausedTotal - pausaCorrendo - fora,
+    end - match.startedAt - st.pausedTotal - runningPause - away,
   );
 }
 
-/** Anexa um evento, carimbando turno/assento ativo do momento. */
 /**
- * Que horas sao, para esta mesa.
+ * What time it is, for this table.
  *
- * O relogio do aparelho mais o desvio que a mesa carrega. Vale zero no caso
- * normal; so e diferente de zero numa mesa que veio de outro aparelho cujo
- * relogio estava adiantado.
+ * The device clock plus the offset the table carries. It is zero in the
+ * normal case; it is only non-zero on a table that came from another device
+ * whose clock was ahead.
  *
- * Existe porque evento com `ts` anterior ao do evento anterior quebra a conta
- * de duracao: `elapsedOf` e `advanceTurn` subtraem instantes, e tempo andando
- * para tras vira numero negativo em cima da mesa.
+ * It exists because an event with a `ts` earlier than the previous event
+ * breaks the duration math: `elapsedOf` and `advanceTurn` subtract instants,
+ * and time running backwards turns into a negative number on the table.
  */
-export function agoraDaMesa(match, agora = Date.now()) {
-  return agora + ((match && match.desvioDeRelogio) || 0);
+export function tableNow(match, now = Date.now()) {
+  return now + ((match && match.desvioDeRelogio) || 0);
 }
 
+/** Appends an event, stamping the turn/active seat of the moment. */
 export function push(match, partial) {
   const state = replay(match);
   const ev = {
     id: uid('ev'),
-    ts: agoraDaMesa(match),
+    ts: tableNow(match),
     turn: state.turn,
     activeSeatId: state.activeSeatId,
     sourceId: null,
@@ -423,50 +445,50 @@ export function canRedo(match) {
   return Boolean(match.redo && match.redo.length);
 }
 
-/** Colocacao final: 1o e o vencedor, depois a ordem inversa de eliminacao. */
 /**
- * A classificacao da mesa, com empate por turno.
+ * The table's standings, with ties by turn.
  *
- * Quem morre no MESMO turno cai junto. Se alguem elimina os tres oponentes de
- * uma vez, nao ha nada que separe esses tres - eles nao se sobreviveram, e a
- * ordem em que o motor processou os eventos e um detalhe interno que nao
- * significa nada na mesa. Desempatar por ali seria inventar um resultado.
+ * Whoever dies on the SAME turn falls together. If someone eliminates all
+ * three opponents at once, there is nothing that separates those three - they
+ * did not outlive each other, and the order in which the engine processed the
+ * events is an internal detail that means nothing at the table. Breaking the
+ * tie there would be inventing a result.
  *
- * O grupo empatado recebe a PIOR colocacao que ele ocupa: tres mortos juntos
- * numa mesa de quatro ficam todos em 4o, e nao em 2o. E o que a mesa entende
- * por "ficamos todos em ultimo" - dizer que dois deles foram 2o e 3o daria a
- * eles um lugar que ninguem conquistou.
+ * The tied group gets the WORST placing it occupies: three dying together at a
+ * table of four all end up 4th, not 2nd. That is what the table understands by
+ * "we all came last" - saying two of them were 2nd and 3rd would give them a
+ * place nobody earned.
  *
- * A ordem geral: vencedor, depois quem ficou vivo sem vencer, depois os mortos
- * do turno mais recente para o mais antigo.
+ * Overall order: winner, then whoever stayed alive without winning, then the
+ * dead from the most recent turn to the oldest.
  */
 export function standings(match, state) {
   const st = state || replay(match);
 
-  // Quanto mais alto, melhor colocado.
-  const peso = (id) => {
+  // The higher, the better placed.
+  const weight = (id) => {
     if (id === st.winnerId) return Infinity;
     const e = st.players[id] && st.players[id].elim;
-    return e ? (e.seq || 0) : Number.MAX_SAFE_INTEGER; // vivo fica acima de morto
+    return e ? (e.seq || 0) : Number.MAX_SAFE_INTEGER; // alive ranks above dead
   };
 
-  // Quem empata com quem. Vencedor nunca empata; vivos sem vitoria empatam
-  // entre si; mortos empatam com quem caiu no mesmo turno de jogador.
-  const grupo = (id) => {
-    if (id === st.winnerId) return 'vencedor';
+  // Who ties with whom. The winner never ties; the living who did not win tie
+  // among themselves; the dead tie with whoever fell on the same player turn.
+  const group = (id) => {
+    if (id === st.winnerId) return 'winner';
     const e = st.players[id] && st.players[id].elim;
-    return e ? 'turno:' + (e.seq || 0) : 'vivo';
+    return e ? 'turn:' + (e.seq || 0) : 'alive';
   };
 
-  const ranked = [...st.order].sort((a, b) => peso(b) - peso(a));
+  const ranked = [...st.order].sort((a, b) => weight(b) - weight(a));
 
   const out = [];
   let i = 0;
   while (i < ranked.length) {
-    const g = grupo(ranked[i]);
+    const g = group(ranked[i]);
     let j = i;
-    while (j < ranked.length && grupo(ranked[j]) === g) j += 1;
-    // Posicoes i+1 ate j; o grupo inteiro leva a ultima delas.
+    while (j < ranked.length && group(ranked[j]) === g) j += 1;
+    // Positions i+1 to j; the whole group takes the last of them.
     for (let k = i; k < j; k += 1) out.push({ seatId: ranked[k], place: j });
     i = j;
   }
@@ -474,112 +496,123 @@ export function standings(match, state) {
 }
 
 /**
- * Esta pessoa ja esta em outra cadeira?
+ * Is this person already in another seat?
  *
- * Regra da partida, nao da tela: uma mesa com alguem duplicado estraga tudo que
- * vem depois - dano contra si mesma, rivalidade consigo, e uma classificacao
- * que nao corresponde ao que aconteceu.
+ * A match rule, not a screen rule: a table with someone duplicated spoils
+ * everything that comes after - damage against yourself, a rivalry with
+ * yourself, and standings that do not match what happened.
  *
- * Confere as duas identidades, porque sao dois caminhos diferentes de chegar na
- * mesma pessoa: o nome digitado e a conta vinculada. Havia so meia trava - a
- * lista de jogadores salvos desabilitava quem ja estava sentado, mas digitar o
- * mesmo nome na mao passava, e a mesma CONTA em duas cadeiras nao era conferida
- * em lugar nenhum.
+ * It checks both identities, because they are two different ways of reaching
+ * the same person: the typed name and the linked account. There used to be
+ * only half a lock - the saved players list disabled whoever was already
+ * seated, but typing the same name by hand got through, and the same ACCOUNT
+ * in two seats was not checked anywhere.
+ *
+ * Returns 'account', 'name' or null.
  */
-export function pessoaRepetida(seats, cadeira, { name, handle } = {}) {
-  const outros = (seats || []).filter((s) => s && s !== cadeira);
+export function duplicatePerson(seats, seat, { name, handle } = {}) {
+  const others = (seats || []).filter((s) => s && s !== seat);
 
   const h = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
-  if (h && outros.some((s) => String(s.handle || '').trim().replace(/^@+/, '').toLowerCase() === h)) {
-    return 'conta';
+  if (h && others.some((s) => String(s.handle || '').trim().replace(/^@+/, '').toLowerCase() === h)) {
+    return 'account';
   }
 
   const n = String(name || '').trim().toLowerCase();
-  if (n && outros.some((s) => String(s.name || '').trim().toLowerCase() === n)) {
-    return 'nome';
+  if (n && others.some((s) => String(s.name || '').trim().toLowerCase() === n)) {
+    return 'name';
   }
 
   return null;
 }
 
 /**
- * Isto parece mesmo uma partida?
+ * Hands the table off: this device stops being in charge of it.
  *
- * Tudo que vem de fora do motor - da nuvem, de um arquivo importado, de um
- * localStorage que alguem editou - precisa passar por aqui antes de entrar no
- * historico. Uma linha malformada nao fica quieta num canto: replay() e as
- * estatisticas assumem a forma, e a primeira que faltar derruba a TELA INTEIRA.
- * Foi o que aconteceu - uma linha de teste com `payload: {t:1}` esquecida no
- * banco deixou a aba de estatisticas preta.
+ * It stamps, and that is all. The stamp is the baton: while it exists, the
+ * table is a record to look at, not a game to continue. It does not delete the
+ * match on purpose - if the handoff fails (the file never arrived, the friend
+ * gave up), the game has to be here to be taken back.
  *
- * Confere so o esqueleto, nao o conteudo. Nao cabe aqui julgar se os eventos
- * fazem sentido: replay() e determinístico e aguenta log estranho. O que ele
- * nao aguenta e a ausencia das listas.
+ * Returns false when there is nothing to hand off: no table, or already
+ * handed off.
  */
-/**
- * Passa a mesa adiante: este aparelho deixa de mandar nela.
- *
- * Carimba e so. O carimbo e o bastao: enquanto ele existir, a mesa e um
- * registro para consultar, nao um jogo para continuar. Nao apaga a partida de
- * proposito - se a passagem falhar (o arquivo nao chegou, o amigo desistiu),
- * o jogo precisa estar aqui para ser retomado.
- *
- * Devolve false quando nao ha o que passar: mesa ausente ou ja passada.
- */
-export function passarAMesa(match, agora = Date.now()) {
+export function handOffTable(match, now = Date.now(), code = null) {
   if (!match || match.passadaEm) return false;
-  match.passadaEm = agora;
+  match.passadaEm = now;
+  // Handed off by code, the table remembers which one: with it, taking back
+  // cancels the handoff in the cloud, and the home screen asks whether the
+  // other device has picked it up yet.
+  if (code) match.passadaCodigo = code;
   return true;
 }
 
 /**
- * Desfaz a passagem, quando ela nao deu certo.
+ * Undoes the handoff, when it did not work out.
  *
- * E a unica porta de volta, e e deliberadamente uma ACAO - duas copias vivas
- * da mesma partida e exatamente o que a passagem evita, entao retomar tem de
- * ser alguem decidindo, nunca o app achando que deve.
+ * It is the only way back, and it is deliberately an ACTION - two live copies
+ * of the same match is exactly what the handoff prevents, so taking back has
+ * to be someone deciding, never the app thinking it should.
  */
-export function retomarAMesa(match) {
+export function reclaimTable(match) {
   if (!match || !match.passadaEm) return false;
   delete match.passadaEm;
+  delete match.passadaCodigo;
   return true;
 }
 
-/** A mesa esta nas maos de outro aparelho? */
-export function mesaPassada(match) {
+/** Is the table in another device's hands? */
+export function isHandedOff(match) {
   return Boolean(match && match.passadaEm);
 }
 
 /**
- * Prepara a mesa que chegou de outro aparelho.
+ * Prepares a table that arrived from another device.
  *
- * Tira o carimbo de passada - ela chegou para ser jogada - e acerta o relogio.
+ * Removes the handed-off stamp - it arrived to be played - and fixes the clock.
  *
- * O acerto so olha para frente: se o relogio daqui ja esta depois do ultimo
- * evento, nao ha nada a fazer. O desvio existe para o caso contrario, em que
- * continuar a jogar produziria eventos anteriores aos que ja aconteceram.
+ * The fix only looks forward: if the clock here is already past the last
+ * event, there is nothing to do. The offset exists for the opposite case, in
+ * which carrying on would produce events earlier than the ones that already
+ * happened.
  *
- * O minuto de folga nao e superstiicao: sem ele, dois aparelhos com relogios
- * praticamente iguais ficariam empatados no mesmo milissegundo, e o primeiro
- * evento novo nasceria com o mesmo `ts` do ultimo antigo.
+ * The one-minute margin is not superstition: without it, two devices with
+ * practically equal clocks would tie on the same millisecond, and the first
+ * new event would be born with the same `ts` as the last old one.
  */
-export function receberAMesa(match, agora = Date.now()) {
-  if (!partidaValida(match)) return null;
+export function receiveTable(match, now = Date.now()) {
+  if (!isValidMatch(match)) return null;
 
-  const recebida = { ...match, redo: [] };
-  delete recebida.passadaEm;
+  const received = { ...match, redo: [] };
+  delete received.passadaEm;
+  delete received.passadaCodigo;
 
-  const ultimo = recebida.events.length
-    ? recebida.events[recebida.events.length - 1].ts
-    : recebida.startedAt;
+  const last = received.events.length
+    ? received.events[received.events.length - 1].ts
+    : received.startedAt;
 
-  const atraso = (ultimo || 0) - agora;
-  recebida.desvioDeRelogio = atraso > 0 ? atraso + 60000 : 0;
+  const lag = (last || 0) - now;
+  received.desvioDeRelogio = lag > 0 ? lag + 60000 : 0;
 
-  return recebida;
+  return received;
 }
 
-export function partidaValida(m) {
+/**
+ * Does this really look like a match?
+ *
+ * Everything that comes from outside the engine - from the cloud, from an
+ * imported file, from a localStorage someone edited - must pass through here
+ * before entering the history. A malformed row does not sit quietly in a
+ * corner: replay() and the statistics assume the shape, and the first missing
+ * piece takes down the WHOLE SCREEN. That is what happened - a test row with
+ * `payload: {t:1}` left behind in the database turned the statistics tab
+ * black.
+ *
+ * It checks only the skeleton, not the content. It is not this function's job
+ * to judge whether the events make sense: replay() is deterministic and copes
+ * with an odd log. What it cannot cope with is missing lists.
+ */
+export function isValidMatch(m) {
   return Boolean(m)
     && typeof m.id === 'string' && m.id.length > 0
     && Array.isArray(m.seats) && m.seats.length > 0

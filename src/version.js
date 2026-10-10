@@ -1,12 +1,12 @@
 /**
- * A versao do aplicativo.
+ * The app version.
  *
- * Serve para duas coisas: aparecer nas configuracoes (para quem relata um
- * problema conseguir dizer QUAL app quebrou) e nomear os caches do service
- * worker - subir a versao invalida o cache antigo, que e exatamente o que se
- * quer quando ha codigo novo.
+ * It serves two purposes: showing up in the settings (so whoever reports a
+ * problem can say WHICH app broke) and naming the service worker caches -
+ * bumping the version invalidates the old cache, which is exactly what you
+ * want when there is new code.
  *
- * sw.js repete este numero na mao, porque worker nao importa modulo. Ha uma
- * verificacao automatica cruzando os dois em tools/check-syntax.js.
+ * sw.js repeats this number by hand, because a worker does not import modules.
+ * An automatic check in tools/check-syntax.js compares the two.
  */
-export const APP_VERSION = '1.8.0';
+export const APP_VERSION = '1.9.0';

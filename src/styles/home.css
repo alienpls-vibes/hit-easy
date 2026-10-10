@@ -1,0 +1,299 @@
+/* ==========================================================================
+   The home screen: setting up the table.
+
+   Made for the device standing up, which is where the match is configured.
+   Lying down it becomes two columns, with the player list scrolling on its
+   own.
+   ========================================================================== */
+
+.setup {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: max(20px, env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.setup-head { display: flex; align-items: center; justify-content: space-between; }
+.head-actions { display: flex; gap: 2px; align-items: center; }
+
+/* It only exists when the app can be installed, so it can draw attention. */
+.icon-btn.is-install {
+  color: var(--text);
+  background: var(--surface-strong);
+}
+.icon-btn.is-install:hover { background: var(--press); }
+
+.brand { display: flex; align-items: center; gap: 12px; }
+/* The five mana pips in a ring — the same shape as the installed icon, so
+   the app looks like the same thing inside and out. A gradient with five
+   colors at 14px becomes a smudge; separate circles stay readable. */
+.brand-mark {
+  width: 26px; height: 26px;
+  flex: none;
+  display: block;
+}
+.brand-words { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.brand-text {
+  font-size: 1.02rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text);
+  line-height: 1.1;
+}
+/* The tagline stays lowercase and widely spaced: it signs without competing. */
+.brand-tag {
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.field-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+
+.seat-list { display: flex; flex-direction: column; gap: 10px; }
+
+.hint { font-size: 0.66rem; color: var(--text-dim); letter-spacing: 0.04em; }
+
+.seat-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  transition: border-color var(--fast), transform var(--fast), box-shadow var(--fast);
+}
+.seat-card:focus-within { border-color: var(--accent); }
+
+/* ---------- reorder ---------- */
+
+.seat-grip {
+  display: grid; place-items: center;
+  width: 26px; height: 42px;
+  flex: none;
+  color: var(--text-dim);
+  opacity: 0.45;
+  cursor: grab;
+  touch-action: none; /* the gesture is ours, not the page scroll's */
+  transition: opacity var(--fast);
+}
+.seat-grip:hover { opacity: 0.9; }
+.seat-grip:active { cursor: grabbing; }
+.seat-grip .icon { width: 16px; height: 16px; }
+
+/* Where the person is going to sit, in the real table arrangement. The list
+   order already says the turn order; this says the CHAIR — which is what is
+   missing with 5 or 6. */
+.seat-spot {
+  /* A complete rule on purpose: reusing .layout-mini looked economical, but
+     it is defined MUCH later in the file and its `width: 100%` beat the 34px
+     here by cascade order — the thumbnail swelled and burst the card. Same
+     specificity, whoever comes later wins. */
+  display: grid;
+  gap: 2px;
+  width: 34px;
+  aspect-ratio: 4 / 3;
+  flex: none;
+}
+.seat-spot .layout-cell {
+  background: var(--surface-strong);
+  border-color: transparent;
+  font-size: 0.5rem;
+}
+.seat-spot .layout-cell.is-here {
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 700;
+}
+
+.seat-list.is-reordering .seat-card { transition: transform 180ms var(--ease); }
+.seat-card.is-dragging {
+  z-index: 5;
+  transition: none;
+  border-color: var(--accent);
+  box-shadow: 0 14px 34px -12px var(--shadow);
+  background: var(--bg-lift);
+}
+.seat-list.is-reordering .seat-add { opacity: 0.3; }
+
+.seat-art {
+  width: 58px; height: 58px;
+  flex: none;
+  border-radius: 12px;
+  background-size: cover;
+  background-position: center 28%;
+  border: 1px solid var(--line);
+  display: grid; place-items: center;
+  color: var(--text-dim);
+  transition: transform var(--fast);
+}
+.seat-art:active { transform: scale(0.96); }
+.seat-art.is-empty { background: var(--surface); border-style: dashed; }
+
+.seat-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+
+.seat-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  font-size: 1.02rem;
+  font-weight: 500;
+  text-align: left;
+  max-width: 100%;
+}
+.seat-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seat-name-caret {
+  display: grid; place-items: center;
+  color: var(--text-dim);
+  opacity: 0.7;
+  flex: none;
+  transition: transform var(--fast), opacity var(--fast);
+}
+.seat-name-caret .icon { width: 14px; height: 14px; }
+.seat-name:hover .seat-name-caret { opacity: 1; transform: translateX(2px); }
+
+.seat-deck {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text-mid);
+  text-align: left;
+}
+.seat-deck.is-empty { color: var(--text-dim); font-style: italic; }
+.seat-deck-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seat-pips { font-size: 0.7rem; letter-spacing: 0.14em; flex: none; }
+
+.seat-partner {
+  align-self: flex-start;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  padding: 2px 0;
+}
+.seat-partner:hover { color: var(--text-mid); }
+
+.seat-remove {
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  color: var(--text-dim);
+  flex: none;
+  transition: color var(--fast), background var(--fast);
+}
+.seat-remove:hover { color: var(--danger); background: rgba(226, 97, 74, 0.1); }
+.seat-remove .icon { width: 15px; height: 15px; }
+
+.seat-add {
+  height: 56px;
+  border-radius: var(--r-md);
+  border: 1px dashed var(--line);
+  color: var(--text-dim);
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  font-size: 0.88rem;
+  transition: all var(--fast);
+}
+.seat-add:hover { color: var(--text-mid); border-color: var(--line); background: var(--surface); }
+
+.setup-foot { margin-top: auto; padding-top: 10px; }
+
+/* Signature: present, never competing. It sits below the main button, at
+   the smallest size that still reads. */
+.signature {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  color: var(--text-dim);
+  opacity: 0.75;
+}
+
+/* ---------- passing the table ---------- */
+
+/* The notice that the table left here. Same weight as the invites banner:
+   it is information that explains an absence, and whoever comes back to the
+   home screen without understanding why the game vanished needs to find it
+   without looking. */
+.handed-off {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-soft);
+  background: var(--surface);
+}
+.handed-off-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.handed-off-acts { display: flex; gap: 8px; }
+.handed-off-acts .btn { flex: 1 1 0; }
+
+/* Receiving sits at the foot, discreet: it is rare, and whoever needs it
+   already knows they need it. */
+.receive-table {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+.receive-table:hover { color: var(--text); border-color: var(--text-dim); }
+
+/* The table code: big enough to be read from the other side of the table
+   and dictated out loud. Monospaced so the 2 and the Z do not dance in
+   width. */
+.table-code {
+  margin: 6px 0 2px;
+  padding: 18px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  text-align: center;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  font-size: clamp(2rem, 11vw, 2.8rem);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  -webkit-user-select: all;
+  user-select: all;
+}
+.table-code-status {
+  margin: 4px 2px 0;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+.table-code-status.is-done { color: var(--text); font-weight: 500; }
+.table-code-done { margin-top: 8px; }
+
+.table-code-field {
+  width: 100%;
+  height: 62px;
+  padding: 0 16px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  outline: none;
+  text-align: center;
+  text-transform: uppercase;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  /* 16px or more: below that iPhone Safari zooms in on focus. */
+  font-size: 1.6rem;
+  letter-spacing: 0.14em;
+  transition: border-color var(--fast);
+}
+.table-code-field:focus { border-color: var(--text-dim); }
+.table-code-field::placeholder { color: var(--text-dim); opacity: 0.5; }
+.table-code-error { margin: 6px 2px 0; min-height: 1.2em; font-size: 0.8rem; color: var(--danger); }
+.table-code-error:empty { display: none; }

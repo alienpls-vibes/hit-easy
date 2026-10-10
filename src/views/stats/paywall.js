@@ -1,8 +1,9 @@
 /**
- * O portao: o que se ve sem assinatura.
+ * The gate: what is seen without a subscription.
  *
- * Convite aparece mesmo sem assinar, de proposito. Quem nao assina precisa
- * poder ver que ha partidas esperando, senao nunca soube que existiam.
+ * Invites show up even without subscribing, on purpose. A non-subscriber needs
+ * to be able to see that matches are waiting, otherwise they would never know
+ * they existed.
  */
 
 import { el, clear, icon, toast } from '../../ui.js';
@@ -12,42 +13,43 @@ import { cloudEnabled } from '../../config.js';
 import { t } from '../../i18n.js';
 
 /**
- * A tela de quem ainda nao tem acesso.
+ * The screen of someone who has no access yet.
  *
- * Ela conta quantas partidas ja estao guardadas de proposito. Nao e enfeite: e
- * a diferenca entre "pague para usar" e "o que e seu esta aqui, esperando".
- * Continuar jogando e continuar gravando nunca foi bloqueado - so a leitura do
- * historico e.
+ * It counts how many matches are already stored, on purpose. It is not
+ * decoration: it is the difference between "pay to use" and "what is yours is
+ * here, waiting". Playing on and saving on were never blocked - only reading
+ * the history is.
  *
- * O botao de conferir de novo existe porque a liberacao acontece FORA do app,
- * na mao. Sem ele, a pessoa liberada teria de fechar e abrir o aplicativo para
- * a assinatura ser relida, sem nenhuma pista de que era isso que faltava.
+ * The check-again button exists because unlocking happens OUTSIDE the app, by
+ * hand. Without it, the unlocked person would have to close and open the app
+ * for the subscription to be read again, with no clue that this was what was
+ * missing.
  */
-export function renderPaywall(root, { onBack, onUnlock, verificando = false }) {
+export function renderPaywall(root, { onBack, onUnlock, checking = false }) {
   clear(root);
-  const quantas = (store.getDB().history || []).length;
-  const repintar = () => (onUnlock ? onUnlock() : null);
-  const estado = cloud.state();
+  const count = (store.getDB().history || []).length;
+  const repaint = () => (onUnlock ? onUnlock() : null);
+  const state = cloud.state();
 
-  const conferir = el('button', { class: 'btn ghost block' }, [t('paywall.recheck')]);
-  conferir.addEventListener('click', async () => {
-    conferir.disabled = true;
-    conferir.textContent = t('paywall.checking');
+  const recheck = el('button', { class: 'btn ghost block' }, [t('paywall.recheck')]);
+  recheck.addEventListener('click', async () => {
+    recheck.disabled = true;
+    recheck.textContent = t('paywall.checking');
     try {
-      await cloud.carregarAssinatura();
+      await cloud.loadSubscription();
     } catch {
-      /* sem rede: o estado continua o que era */
+      /* no network: the state stays what it was */
     }
-    if (cloud.podeVerEstatisticas(cloudEnabled(), cloud.state())) { repintar(); return; }
-    conferir.disabled = false;
-    conferir.textContent = t('paywall.recheck');
+    if (cloud.canSeeStats(cloudEnabled(), cloud.state())) { repaint(); return; }
+    recheck.disabled = false;
+    recheck.textContent = t('paywall.recheck');
     toast(t('paywall.stillLocked'));
   });
 
-  // Ainda perguntando ao servidor: nao da para NEGAR o que ainda nao se sabe.
-  // Antes o app tratava "nao perguntei" como "nao tem", e a tela de bloqueio
-  // piscava na cara de quem assina toda vez que o app subia.
-  if (verificando) {
+  // Still asking the server: what is not known yet cannot be DENIED. The app
+  // used to treat "have not asked" as "does not have it", and the lock screen
+  // flashed in the face of subscribers every time the app started.
+  if (checking) {
     root.append(el('div', { class: 'stats' }, [
       el('header', { class: 'stats-head' }, [
         el('button', {
@@ -64,21 +66,21 @@ export function renderPaywall(root, { onBack, onUnlock, verificando = false }) {
     return;
   }
 
-  const corpo = el('div', { class: 'paywall' }, [
+  const body = el('div', { class: 'paywall' }, [
     el('h2', { class: 'paywall-title', text: t('paywall.title') }),
     el('p', { class: 'paywall-body', text: t('paywall.body') }),
-    quantas
+    count
       ? el('p', {
         class: 'paywall-count',
-        text: quantas === 1 ? t('paywall.savedOne') : t('paywall.savedCount', { n: quantas }),
+        text: count === 1 ? t('paywall.savedOne') : t('paywall.savedCount', { n: count }),
       })
       : null,
-    estado === 'deslogado'
+    state === 'signed-out'
       ? el('button', {
         class: 'btn primary block',
         onClick: () => { toast(t('paywall.signInHint')); if (onBack) onBack(); },
       }, [t('paywall.signInFirst')])
-      : conferir,
+      : recheck,
     el('p', { class: 'account-note', text: t('paywall.earlyAccess') }),
   ]);
 
@@ -91,6 +93,6 @@ export function renderPaywall(root, { onBack, onUnlock, verificando = false }) {
       }, [icon('arrow')]),
       el('h1', { class: 'stats-title', text: t('stats.title') }),
     ]),
-    corpo,
+    body,
   ]));
 }

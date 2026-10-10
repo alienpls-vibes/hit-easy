@@ -1,357 +1,398 @@
 /**
- * Levar as partidas para a nuvem, e trazer de volta.
+ * Taking the matches to the cloud, and bringing them back.
  *
- * O desenho em uma frase: o aparelho continua tendo tudo, e a nuvem passa a ter
- * tudo tambem. Nao apagamos o historico local depois de subir.
+ * The design in one sentence: the device keeps having everything, and the
+ * cloud gets to have everything too. We do not delete the local history after
+ * uploading.
  *
- * Poderiamos apagar - a paywall ja bloqueia a leitura das estatisticas mesmo
- * offline, entao guardar a copia local nao abre porta nenhuma. Mas apagar dados
- * de alguem para provar um ponto que ja esta provado troca risco por nada: um
- * defeito na sincronizacao viraria perda permanente, e nao ha desfazer.
+ * We could delete it - the paywall already blocks reading the statistics even
+ * offline, so keeping the local copy opens no door. But deleting someone's
+ * data to prove a point that is already proven trades risk for nothing: a
+ * sync defect would become permanent loss, and there is no undo.
  *
- * A fila de reenvio nao existe como estrutura separada. Ela e derivada: partida
- * que esta aqui e nao esta marcada como enviada e, por definicao, partida que
- * falta subir. Uma fila de verdade poderia divergir do historico; esta nao tem
- * como.
+ * The resend queue does not exist as a separate structure. It is derived: a
+ * match that is here and is not marked as uploaded is, by definition, a match
+ * that still needs to go up. A real queue could diverge from the history; this
+ * one cannot.
  *
- * Quem NAO assina consegue subir (o banco permite inserir sem assinatura, de
- * proposito) mas nao consegue baixar - a leitura devolve lista vazia. Por isso
- * o que ja subiu e anotado no aparelho: sem essa anotacao, quem nao assina
- * reenviaria o historico inteiro a cada abertura, para sempre.
+ * Non-subscribers CAN upload (the database allows inserting without a
+ * subscription, on purpose) but cannot download - the read returns an empty
+ * list. That is why what already went up is noted on the device: without that
+ * note, a non-subscriber would resend the whole history on every open,
+ * forever.
  */
 
 import * as store from './store.js';
 import * as cloud from './cloud.js';
 import { cloudEnabled } from './config.js';
-import { canal } from './canal.js';
+import { channel } from './channel.js';
 import { deckKeyOf } from './engine.js';
 
 /* ------------------------------------------------------------------ */
-/* Decisoes puras                                                      */
+/* Pure decisions                                                      */
 /* ------------------------------------------------------------------ */
 
 /**
- * O que falta subir.
+ * What still needs to go up.
  *
- * Descarta o que ja foi enviado por este aparelho E o que o servidor ja tem -
- * a segunda parte cobre o aparelho novo que baixou tudo e nao precisa devolver
- * nada.
+ * Discards what this device already uploaded AND what the server already has -
+ * the second part covers the new device that downloaded everything and does
+ * not need to send anything back.
  */
-export function aSubir(locais, enviadas, idsRemotos) {
-  const ja = new Set([...(enviadas || []), ...(idsRemotos || [])]);
-  return (locais || []).filter((m) => m && m.id && !ja.has(m.id));
+export function toUpload(local, uploaded, remoteIds) {
+  const done = new Set([...(uploaded || []), ...(remoteIds || [])]);
+  return (local || []).filter((m) => m && m.id && !done.has(m.id));
 }
 
-/** O que a nuvem tem e este aparelho ainda nao. */
-export function aBaixar(locais, remotas) {
-  const aqui = new Set((locais || []).map((m) => m && m.id).filter(Boolean));
-  return (remotas || []).filter((m) => m && m.id && !aqui.has(m.id));
+/** What the cloud has and this device does not yet. */
+export function toDownload(local, remote) {
+  const here = new Set((local || []).map((m) => m && m.id).filter(Boolean));
+  return (remote || []).filter((m) => m && m.id && !here.has(m.id));
 }
 
 /**
- * O que apagar daqui porque sumiu de la.
+ * What to delete here because it vanished from there.
  *
- * So entra na conta o que este aparelho SABE que subiu: partida que nunca foi
- * para a nuvem nao pode ser julgada pela ausencia dela na nuvem.
+ * Only what this device KNOWS it uploaded counts: a match that never went to
+ * the cloud cannot be judged by its absence from the cloud.
  *
- * `podeConfiar` e a trava que impede um desastre. A leitura da nuvem devolve
- * lista vazia para quem nao assina - identico ao que devolveria se tudo tivesse
- * sido apagado. Confundir os dois casos apagaria o historico inteiro de alguem
- * que so deixou de pagar, e nao ha desfazer.
+ * `canTrust` is the lock that prevents a disaster. The cloud read returns an
+ * empty list for non-subscribers - identical to what it would return if
+ * everything had been deleted. Confusing the two cases would delete the whole
+ * history of someone who just stopped paying, and there is no undo.
  *
- * A segunda trava: lista remota vazia com coisas marcadas como enviadas e
- * suspeito demais para agir. Pode ser assinatura vencida na tolerancia de um
- * dia, pode ser resposta truncada. Na duvida, nao apaga - o pior que acontece
- * e uma partida sobrando num aparelho, e sobrar e recuperavel.
+ * The second lock: an empty remote list with things marked as uploaded is too
+ * suspicious to act on. It could be a subscription expired within the one-day
+ * grace, it could be a truncated answer. When in doubt, do not delete - the
+ * worst that happens is one extra match left on a device, and leftovers are
+ * recoverable.
  */
-export function aApagar(enviadas, idsRemotos, podeConfiar) {
-  if (!podeConfiar) return [];
-  const marcadas = enviadas || [];
-  const remotos = new Set(idsRemotos || []);
-  if (!marcadas.length) return [];
-  if (!remotos.size) return []; // vazio total: suspeito demais
-  return marcadas.filter((id) => !remotos.has(id));
+export function toDelete(uploaded, remoteIds, canTrust) {
+  if (!canTrust) return [];
+  const marked = uploaded || [];
+  const remote = new Set(remoteIds || []);
+  if (!marked.length) return [];
+  if (!remote.size) return []; // completely empty: too suspicious
+  return marked.filter((id) => !remote.has(id));
 }
 
-/** Vale a pena sincronizar agora? */
 /**
- * Quais cadeiras recebem o handle, ao associar uma pessoa a uma conta.
+ * Which seats get the handle, when linking a person to an account.
  *
- * Pura de proposito: e a regra que decide "isto e a mesma pessoa", e uma regra
- * dessas precisa ser conferivel sem localStorage e sem rede.
+ * Pure on purpose: it is the rule that decides "this is the same person", and
+ * a rule like that has to be checkable without localStorage and without a
+ * network.
  *
- * `nomes` sao os nomes (minusculos) que se sabe serem dessa pessoa: o que
- * acabou de ser marcado, mais os que o aparelho ja ligava a esse @.
+ * `names` are the (lowercase) names known to belong to this person: the one
+ * just tagged, plus the ones the device already linked to that @.
  *
- * Tres recusas, e cada uma evita um estrago diferente:
+ * Three refusals, each preventing a different kind of damage:
  *
- *   ja tem outro @    A cadeira foi marcada antes, com outra conta. Nao se
- *                     sobrescreve decisao anterior por causa de um nome igual.
+ *   already has another @   The seat was tagged before, with another account.
+ *                           A previous decision is not overwritten because of
+ *                           an equal name.
  *
- *   o @ ja esta na mesa  Outra cadeira daquela partida ja e essa pessoa.
- *                     Gravar de novo poria a mesma pessoa duas vezes na mesma
- *                     mesa, e a estatistica somaria dano dela contra si.
+ *   the @ is already seated Another seat of that match already is this
+ *                           person. Writing again would put the same person
+ *                           twice at the same table, and the statistics would
+ *                           add up their damage against themselves.
  *
- *   duas candidatas   Dois nomes do conjunto sentados na MESMA mesa. Ou sao
- *                     duas pessoas diferentes, ou um apelido esta errado - e
- *                     nenhum dos dois se resolve adivinhando. A partida fica
- *                     de fora e e reportada.
+ *   two candidates          Two names of the set seated at the SAME table.
+ *                           Either they are two different people, or an alias
+ *                           is wrong - and neither is solved by guessing. The
+ *                           match is left out and reported.
  */
-export function cadeirasParaAssociar(partidas, nomes, handle) {
-  const alvo = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
-  const conjunto = new Set(
-    [...(nomes || [])].map((n) => String(n || '').trim().toLowerCase()).filter(Boolean),
+export function seatsToLink(matches, names, handle) {
+  const target = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
+  const nameSet = new Set(
+    [...(names || [])].map((n) => String(n || '').trim().toLowerCase()).filter(Boolean),
   );
-  const alvos = [];
-  const ambiguas = [];
-  if (!alvo || !conjunto.size) return { alvos, ambiguas };
+  const targets = [];
+  const ambiguous = [];
+  if (!target || !nameSet.size) return { targets, ambiguous };
 
-  for (const match of partidas || []) {
-    const cadeiras = (match && match.seats) || [];
-    const jaNaMesa = cadeiras.some(
-      (s) => String(s.handle || '').trim().replace(/^@+/, '').toLowerCase() === alvo,
+  for (const match of matches || []) {
+    const seats = (match && match.seats) || [];
+    const alreadySeated = seats.some(
+      (s) => String(s.handle || '').trim().replace(/^@+/, '').toLowerCase() === target,
     );
-    if (jaNaMesa) continue;
+    if (alreadySeated) continue;
 
-    const candidatas = cadeiras.filter((s) => {
-      if (String(s.handle || '').trim()) return false; // decisao anterior manda
-      return conjunto.has(String(s.name || '').trim().toLowerCase());
+    const candidates = seats.filter((s) => {
+      if (String(s.handle || '').trim()) return false; // the previous decision wins
+      return nameSet.has(String(s.name || '').trim().toLowerCase());
     });
 
-    if (candidatas.length > 1) { ambiguas.push(match.id); continue; }
-    if (candidatas.length === 1) {
-      alvos.push({ matchId: match.id, seatId: candidatas[0].id });
+    if (candidates.length > 1) { ambiguous.push(match.id); continue; }
+    if (candidates.length === 1) {
+      targets.push({ matchId: match.id, seatId: candidates[0].id });
     }
   }
 
-  return { alvos, ambiguas };
+  return { targets, ambiguous };
 }
 
 /**
- * Apelidos (nome -> @) que da para aprender do que veio da nuvem.
+ * Aliases (name -> @) that can be learned from what came from the cloud.
  *
- * Uma cadeira com nome E handle e, por si, a informacao de que aquele nome e
- * aquela conta. Lendo isso, o aparelho que nunca marcou nada descobre a
- * associacao que o outro fez, e as partidas PROPRIAS dele convergem.
+ * A seat with a name AND a handle is, by itself, the information that that
+ * name is that account. Reading it, the device that never tagged anything
+ * discovers the link the other one made, and its OWN matches converge.
  *
- * O gate e de confianca, e nao e formalidade. Aprender de qualquer partida
- * deixaria um anfitriao qualquer batizar gente no seu aparelho: bastaria
- * sentar uma cadeira chamada "Alexandre" com o @ dele para o seu historico do
- * Alexandre passar a somar na conta errada. Entao: partida sua, ou de
- * anfitriao que voce confiou - a mesma lista que decide o aceite automatico.
+ * The gate is about trust, and it is not a formality. Learning from any match
+ * would let any host name people on your device: seating a chair called
+ * "Alexandre" with their @ would be enough for your history of Alexandre to
+ * start adding up on the wrong account. So: your own match, or one from a host
+ * you trusted - the same list that decides auto-accept.
  *
- * Quem aplica e store.aprenderApelido, que nunca sobrescreve o que este
- * aparelho ja decidiu na mao.
+ * store.learnAlias is what applies them, and it never overwrites what this
+ * device already decided by hand.
  */
-export function apelidosAprendidos(partidas, meuId, confiaveis) {
-  const confio = new Set((confiaveis || []).filter(Boolean));
-  const achados = [];
+export function learnedAliases(matches, myId, trusted) {
+  const trust = new Set((trusted || []).filter(Boolean));
+  const found = [];
 
-  for (const match of partidas || []) {
-    const dono = match && match.owner;
-    if (!dono) continue; // partida sem dono: ninguem por quem responder
-    if (dono !== meuId && !confio.has(dono)) continue;
+  for (const match of matches || []) {
+    const owner = match && match.owner;
+    if (!owner) continue; // a match with no owner: nobody to vouch for it
+    if (owner !== myId && !trust.has(owner)) continue;
 
-    for (const cadeira of (match.seats || [])) {
-      const nome = String(cadeira.name || '').trim();
-      const handle = String(cadeira.handle || '')
+    for (const seat of (match.seats || [])) {
+      const name = String(seat.name || '').trim();
+      const handle = String(seat.handle || '')
         .trim().replace(/^@+/, '').toLowerCase();
-      if (nome && handle) achados.push({ nome, handle });
+      if (name && handle) found.push({ name, handle });
     }
   }
 
-  return achados;
+  return found;
 }
 
 /**
- * Vale a pena escrever os decks no perfil?
+ * Is it worth writing the decks to the profile?
  *
- * So quando o CONJUNTO mudou. `lastUsed` muda a cada partida, entao comparar
- * as listas inteiras faria toda sincronizacao escrever no perfil para dizer a
- * mesma coisa.
+ * Only when the SET changed. `lastUsed` changes with every match, so comparing
+ * the whole lists would make every sync write to the profile to say the same
+ * thing.
  */
-export function decksMudaram(meus, noPerfil) {
-  const chaves = (lista) => (lista || [])
+export function decksChanged(mine, inProfile) {
+  const keys = (list) => (list || [])
     .map((d) => deckKeyOf(d && d.commanders))
     .filter(Boolean)
     .sort()
     .join('|');
-  return chaves(meus) !== chaves(noPerfil);
+  return keys(mine) !== keys(inProfile);
 }
 
-export function podeSincronizar(ligado, estado) {
-  return Boolean(ligado) && estado !== 'desligado' && estado !== 'deslogado';
+/** Is it worth syncing now? */
+export function canSync(enabled, state) {
+  return Boolean(enabled) && state !== 'off' && state !== 'signed-out';
 }
 
 /* ------------------------------------------------------------------ */
-/* Rede                                                                */
+/* Network                                                             */
 /* ------------------------------------------------------------------ */
 
-let rodando = null;
+let running = null;
+
+/** Asks which @s in the history changed, and teaches the device. */
+export async function refreshHandles() {
+  const known = store.allKnownHandles();
+  if (!known.length) return { handles: 0, names: 0, table: false };
+  let found;
+  try {
+    found = await cloud.profilesByHandle(known);
+  } catch {
+    // Database without sql/011 yet: 010 still answers the @ changes.
+    found = { current: await cloud.currentHandles(known), names: {} };
+  }
+  const handles = store.learnCurrentHandles(found.current);
+  const { changed, table } = store.learnDisplayNames(found.names);
+  return { handles, names: changed, table };
+}
 
 /**
- * Uma passada completa: sobe o que falta, baixa o que nao tem.
+ * One complete pass: uploads what is missing, downloads what is not here.
  *
- * Sobe ANTES de baixar. Num aparelho que acabou de entrar numa conta, a ordem
- * inversa poderia trazer o historico da nuvem, mesclar, e so entao subir - e um
- * erro no meio deixaria o aparelho parecendo sincronizado sem estar.
+ * Uploads BEFORE downloading. On a device that just signed into an account,
+ * the reverse order could bring the cloud history, merge, and only then upload
+ * - and an error in the middle would leave the device looking synced without
+ * being so.
  *
- * Erro em uma partida nao interrompe as outras: rede de mesa de bar cai no meio
- * de qualquer coisa, e uma partida que falhou hoje sobe amanha sozinha, porque
- * continua sem a marca de enviada.
+ * An error in one match does not interrupt the others: a bar table's network
+ * drops in the middle of anything, and a match that failed today goes up
+ * tomorrow on its own, because it still lacks the uploaded mark.
  *
- * Uma execucao por vez. O app chama isto no arranque, ao arquivar uma partida e
- * pelo botao das configuracoes - duas ao mesmo tempo subiriam a mesma partida
- * duas vezes e disputariam a escrita do disco.
+ * One run at a time. The app calls this at startup, when archiving a match and
+ * from the settings button - two at the same time would upload the same match
+ * twice and fight over writing to the disk.
  */
-export async function sincronizar({ aoProgresso } = {}) {
-  if (!podeSincronizar(cloudEnabled(), cloud.state())) {
-    return { subiu: 0, baixou: 0, apagou: 0, falhou: 0, pulou: true };
+export async function sync({ onProgress } = {}) {
+  if (!canSync(cloudEnabled(), cloud.state())) {
+    return { uploaded: 0, downloaded: 0, deleted: 0, failed: 0, skipped: true };
   }
-  if (rodando) return rodando;
+  if (running) return running;
 
-  rodando = (async () => {
-    const resumo = { subiu: 0, baixou: 0, apagou: 0, falhou: 0, pulou: false };
-    const avisar = () => { if (aoProgresso) aoProgresso({ ...resumo }); };
+  running = (async () => {
+    const summary = { uploaded: 0, downloaded: 0, deleted: 0, failed: 0, skipped: false };
+    const report = () => { if (onProgress) onProgress({ ...summary }); };
 
-    // 1. Subir. Sem ids remotos ainda: a lista local de enviadas ja evita o
-    //    reenvio, e quem nao assina nem receberia os ids.
-    const pendentes = aSubir(store.getDB().history, store.enviadas(), []);
-    for (const partida of pendentes) {
+    // 1. Upload. No remote ids yet: the local uploaded list already prevents
+    //    resending, and a non-subscriber would not even receive the ids.
+    const pending = toUpload(store.getDB().history, store.uploadedIds(), []);
+    for (const match of pending) {
       try {
-        await cloud.enviarPartida(partida);
-        store.marcarEnviada(partida.id);
-        resumo.subiu += 1;
+        await cloud.uploadMatch(match);
+        store.markUploaded(match.id);
+        summary.uploaded += 1;
       } catch {
-        resumo.falhou += 1; // fica sem marca: tenta de novo na proxima
+        summary.failed += 1; // stays unmarked: tries again next time
       }
-      avisar();
+      report();
     }
 
-    // 2. Baixar. Sem assinatura o servidor devolve lista vazia - nao e erro, e
-    //    o portao funcionando, e nada aqui precisa saber a diferenca.
+    // 2. Download. Without a subscription the server returns an empty list -
+    //    it is not an error, it is the gate working, and nothing here needs to
+    //    know the difference.
     try {
-      const remotas = await cloud.baixarPartidas();
-      const novas = aBaixar(store.getDB().history, remotas);
-      if (novas.length) {
-        store.mesclarPartidas(novas);
-        resumo.baixou = novas.length;
+      const remote = await cloud.downloadMatches();
+      const fresh = toDownload(store.getDB().history, remote);
+      if (fresh.length) {
+        store.mergeMatches(fresh);
+        summary.downloaded = fresh.length;
       }
-      // O que veio de la ja esta la: marcar evita devolver na proxima passada.
-      for (const m of remotas) store.marcarEnviada(m.id);
+      // What came from there is already there: marking it avoids sending it
+      // back on the next pass.
+      for (const m of remote) store.markUploaded(m.id);
 
-      // Os decks da propria conta, nos dois sentidos.
-      await sincronizarMeusDecks();
+      // The account's own decks, in both directions.
+      await syncMyDecks();
 
-      // Aprender quem e quem com o que veio.
+      // Learning who is who from what came in.
       //
-      // Roda sobre TODAS as remotas, e nao so as novas: uma partida que este
-      // aparelho ja tinha pode ter sido marcada no outro DEPOIS, e e
-      // justamente essa a informacao que se quer.
-      await aprenderQuemEQuem(remotas);
+      // Runs over ALL the remote matches, not only the new ones: a match this
+      // device already had may have been tagged on the other one LATER, and
+      // that is precisely the information we want.
+      await learnWhoIsWho(remote);
     } catch {
-      resumo.falhou += 1;
+      summary.failed += 1;
     }
 
-    // 3. Reconciliar exclusoes: o que sumiu da nuvem sai daqui tambem.
+    // 2b. Who changed @. The matches keep the @ the seat had that day; the
+    //     server says which one it is today, and the statistics start seeing a
+    //     single person. Failing here (no network, database without sql/010)
+    //     only postpones the consolidation to the next pass.
+    try {
+      const learned = await refreshHandles();
+      // Someone's chosen name or @ changed: the screens that show people
+      // need a redraw (see the caller in app.js).
+      summary.people = learned.handles + learned.names;
+    } catch {
+      /* next time */
+    }
+
+    // 3. Reconcile deletions: what vanished from the cloud leaves here too.
     //
-    // So para quem consegue LER de verdade. Para quem nao assina o servidor
-    // devolve lista vazia, que e indistinguivel de "apagaram tudo" - e agir
-    // sobre essa ambiguidade destruiria o historico de quem so deixou de pagar.
-    if (cloud.state() === 'assinante') {
+    // Only for whoever can REALLY read. For non-subscribers the server returns
+    // an empty list, which is indistinguishable from "they deleted everything"
+    // - and acting on that ambiguity would destroy the history of someone who
+    // just stopped paying.
+    if (cloud.state() === 'subscriber') {
       try {
-        const { ids, completo } = await cloud.idsRemotos();
-        for (const id of aApagar(store.enviadas(), ids, completo)) {
+        const { ids, complete } = await cloud.remoteIds();
+        for (const id of toDelete(store.uploadedIds(), ids, complete)) {
           store.deleteMatch(id);
-          store.esquecerEnviada(id);
-          resumo.apagou += 1;
+          store.forgetUploaded(id);
+          summary.deleted += 1;
         }
       } catch {
-        resumo.falhou += 1;
+        summary.failed += 1;
       }
     }
 
-    avisar();
-    return resumo;
+    report();
+    return summary;
   })();
 
   try {
-    return await rodando;
+    return await running;
   } finally {
-    rodando = null;
+    running = null;
   }
 }
 
 /**
- * Apagar uma partida daqui E de la.
+ * My decks follow my account.
  *
- * A politica de privacidade promete que apagar nao depende de assinatura, e o
- * banco permite - mas a promessa so vale se o aplicativo de fato pedir. Apagar
- * so no aparelho deixaria a copia da nuvem viva, contradizendo o texto.
+ * Downloads first: on a new device it is the only source, because the local
+ * history is empty. Then uploads what this device saw, already merged with
+ * what came down - the union is what stays in the profile.
  *
- * O local sai primeiro: se a rede falhar, a pessoa ve o resultado que pediu, e
- * a linha da nuvem fica para a proxima tentativa em vez de travar a acao.
+ * Failing here does not take down the sync. The most likely failure is the
+ * column not existing (sql/004-account-decks.sql not run), and in that case
+ * the app carries on as before: decks from the local history.
  */
-/**
- * Aplica os apelidos aprendidos do que veio da nuvem.
- *
- * Falhar ao ler a lista de confianca nao pode derrubar a sincronizacao: sem
- * ela, ainda da para aprender das partidas proprias - que e o caso de quem usa
- * dois aparelhos com a mesma conta, o cenario mais comum de todos.
- */
-/**
- * Meus decks seguem a minha conta.
- *
- * Desce primeiro: num aparelho novo e a unica fonte, porque o historico local
- * esta vazio. Depois sobe o que este aparelho viu, ja junto com o que desceu -
- * a uniao e o que fica no perfil.
- *
- * Falhar aqui nao derruba a sincronizacao. O caso mais provavel de falha e a
- * coluna nao existir (sql/004-decks-da-conta.sql nao rodado), e nesse caso o
- * app segue como antes: decks do historico local.
- */
-async function sincronizarMeusDecks() {
-  const perfil = cloud.meuPerfil();
-  if (!perfil || !perfil.handle) return;
+async function syncMyDecks() {
+  const profile = cloud.myProfile();
+  if (!profile || !profile.handle) return;
 
-  // A coluna do canal deste app: `decks` em producao, `decks_beta` no teste.
-  // Ler a coluna errada misturaria as duas listas no seletor de deck, que e
-  // exatamente o que separar os canais existe para impedir.
-  const coluna = cloud.colunaDeDecks(canal());
-  const noPerfil = perfil[coluna];
+  // This app channel's column: `decks` in production, `decks_beta` in beta.
+  // Reading the wrong column would mix the two lists in the deck picker,
+  // which is exactly what separating the channels exists to prevent.
+  const column = cloud.decksColumn(channel());
+  const inProfile = profile[column];
 
-  if (Array.isArray(noPerfil)) {
-    store.guardarDecksDaConta(perfil.handle, noPerfil);
+  if (Array.isArray(inProfile)) {
+    store.saveAccountDecks(profile.handle, inProfile);
   }
 
-  const meus = store.decksOfPlayer(null, perfil.handle);
-  if (!meus.length) return;
-  if (!decksMudaram(meus, noPerfil)) return;
+  const mine = store.decksOfPlayer(null, profile.handle);
+  if (!mine.length) return;
+  if (!decksChanged(mine, inProfile)) return;
 
   try {
-    await cloud.salvarMeusDecks(meus);
-  } catch { /* coluna ausente ou rede: fica para a proxima passada */ }
+    await cloud.saveMyDecks(mine);
+  } catch { /* missing column or network: next pass */ }
 }
 
-async function aprenderQuemEQuem(remotas) {
-  const eu = cloud.currentUser();
-  let confiaveis = [];
+/**
+ * Applies the aliases learned from what came from the cloud.
+ *
+ * Failing to read the trust list cannot take down the sync: without it, the
+ * device can still learn from its own matches - which is the case of whoever
+ * uses two devices with the same account, the most common scenario of all.
+ */
+async function learnWhoIsWho(remote) {
+  const me = cloud.currentUser();
+  let trusted = [];
   try {
-    confiaveis = await cloud.anfitrioesConfiaveis();
-  } catch { /* segue so com as proprias */ }
+    trusted = await cloud.trustedHosts();
+  } catch { /* carries on with only our own */ }
 
-  const aprendidos = apelidosAprendidos(remotas, eu && eu.id, confiaveis);
-  for (const { nome, handle } of aprendidos) {
-    store.aprenderApelido(nome, handle);
+  const learned = learnedAliases(remote, me && me.id, trusted);
+  for (const { name, handle } of learned) {
+    store.learnAlias(name, handle);
   }
 }
 
-export async function apagarPartida(matchId) {
+/**
+ * Deletes a match here AND there.
+ *
+ * The privacy policy promises that deleting does not depend on a
+ * subscription, and the database allows it - but the promise only holds if the
+ * app actually asks. Deleting only on the device would leave the cloud copy
+ * alive, contradicting the text.
+ *
+ * The local one goes first: if the network fails, the person sees the result
+ * they asked for, and the cloud row waits for the next attempt instead of
+ * blocking the action.
+ */
+export async function deleteMatchEverywhere(matchId) {
   store.deleteMatch(matchId);
-  store.esquecerEnviada(matchId);
-  if (!podeSincronizar(cloudEnabled(), cloud.state())) return false;
+  store.forgetUploaded(matchId);
+  if (!canSync(cloudEnabled(), cloud.state())) return false;
   try {
-    await cloud.apagarPartida(matchId);
+    await cloud.deleteRemoteMatch(matchId);
     return true;
   } catch {
     return false;
@@ -359,116 +400,115 @@ export async function apagarPartida(matchId) {
 }
 
 /**
- * Marcar a conta de alguem numa partida que ja aconteceu.
+ * Links a NAME to an account, and rewrites the whole history.
  *
- * Esquecer de marcar na hora e o caso comum: a mesa esta jogando, ninguem quer
- * mexer em configuracao. Sem isto, a partida ficava perdida para aquela pessoa
- * para sempre, e a unica saida era nao esquecer - o que nao e saida.
+ * It is the heart of attribution. Before, tagging the account wrote the handle
+ * into one seat of one match and the rest of the history leaned on the
+ * device's alias map - which fixed the statistics here and did not travel: on
+ * the other device those matches stayed orphaned, because the map is local and
+ * their payload never got the handle.
  *
- * Duas coisas acontecem, e vale saber qual e qual:
+ * Now the handle is written into EVERY local match where the person shows up,
+ * and the ones already in the cloud are resent. The link moves into the data,
+ * and the data travels - and the other device learns it when downloading (see
+ * learnedAliases).
  *
- *   - o convite E enviado. Essa e a parte que importa: a pessoa recebe a
- *     partida e decide se aceita. Vale mesmo para partidas antigas;
- *   - a marca no CORPO da partida fica so neste aparelho. A tabela de partidas
- *     nao tem politica de update, de proposito - partida encerrada nao se
- *     reescreve, e e isso que faz a estatistica ser confiavel. Abrir excecao
- *     para uma etiqueta abriria para o resto.
+ * It also takes the other names this device already linked to that @: whoever
+ * tagged "Alexandre" yesterday and tags "Alex" today sees both halves join
+ * now, and not only from here on.
+ *
+ * Tagging later is the common case: the table is playing, nobody wants to
+ * fiddle with settings. Two things happen, and it is worth knowing which is
+ * which:
+ *
+ *   - the invite IS sent. That is the part that matters: the person receives
+ *     the match and decides whether to accept. It works even for old matches;
+ *   - the mark in the match BODY stays only on this device for matches that
+ *     are already in the cloud. The matches table has no update policy, on
+ *     purpose - a finished match is not rewritten, and that is what makes the
+ *     statistics trustworthy. Opening an exception for a label would open it
+ *     for the rest.
  */
-/**
- * Associa um NOME a uma conta, e reescreve o historico inteiro.
- *
- * E o coracao da atribuicao. Antes, marcar a conta gravava o handle em uma
- * cadeira de uma partida e o resto do historico se apoiava no mapa de apelidos
- * do aparelho - o que resolvia a estatistica aqui e nao viajava: no outro
- * aparelho aquelas partidas seguiam orfas, porque o mapa e local e o payload
- * delas nunca ganhou o handle.
- *
- * Agora o handle e gravado em TODA partida local onde a pessoa aparece, e as que
- * ja estavam na nuvem sao reenviadas. A associacao passa a estar no dado, e o
- * dado viaja - e o outro aparelho a aprende ao baixar (ver apelidosAprendidos).
- *
- * Pega tambem os outros nomes que este aparelho ja ligava a esse @: quem marcou
- * "Alexandre" ontem e marca "Alex" hoje ve as duas metades se juntarem agora, e
- * nao so daqui para a frente.
- */
-export async function associarConta(nome, perfil) {
-  if (!perfil || !perfil.handle) return { ok: false };
-  const limpo = String(nome || '').trim();
-  if (!limpo) return { ok: false };
+export async function linkAccount(name, profile) {
+  if (!profile || !profile.handle) return { ok: false };
+  const clean = String(name || '').trim();
+  if (!clean) return { ok: false };
 
-  // O aparelho passa a saber que este nome e esta conta. Vem ANTES do backfill
-  // porque e ele que junta os outros nomes que ja apontavam para o mesmo @.
-  store.rememberHandle(limpo, perfil.handle);
+  // The device learns that this name is this account. Comes BEFORE the
+  // backfill because it is what gathers the other names that already pointed
+  // to the same @.
+  store.rememberHandle(clean, profile.handle);
 
-  const nomes = new Set([
-    limpo.toLowerCase(),
-    ...store.nomesDaPessoa(perfil.handle),
+  const names = new Set([
+    clean.toLowerCase(),
+    ...store.namesOfPerson(profile.handle),
   ]);
 
-  // A partida em andamento entra junto: deixa-la de fora gravaria a mesa de
-  // hoje com a identidade velha, e seria a primeira a divergir.
-  const emAndamento = store.getCurrent();
-  const historico = store.partidas();
-  const todas = emAndamento ? [emAndamento, ...historico] : historico;
+  // The match in progress comes along: leaving it out would record today's
+  // table with the old identity, and it would be the first to diverge.
+  const inProgress = store.getCurrent();
+  const history = store.matches();
+  const all = inProgress ? [inProgress, ...history] : history;
 
-  const { alvos, ambiguas } = cadeirasParaAssociar(todas, nomes, perfil.handle);
+  const { targets, ambiguous } = seatsToLink(all, names, profile.handle);
 
-  const alteradas = [];
-  for (const { matchId, seatId } of alvos) {
-    const m = todas.find((x) => x.id === matchId);
-    const cadeira = m && (m.seats || []).find((x) => x.id === seatId);
-    if (!cadeira) continue;
-    cadeira.handle = perfil.handle;
-    cadeira.userId = perfil.id || null;
-    if (emAndamento && m.id === emAndamento.id) store.setCurrent(m);
-    else store.atualizarPartida(m);
-    alteradas.push(m);
+  const changed = [];
+  for (const { matchId, seatId } of targets) {
+    const m = all.find((x) => x.id === matchId);
+    const seat = m && (m.seats || []).find((x) => x.id === seatId);
+    if (!seat) continue;
+    seat.handle = profile.handle;
+    seat.userId = profile.id || null;
+    if (inProgress && m.id === inProgress.id) store.setCurrent(m);
+    else store.updateMatch(m);
+    changed.push(m);
   }
 
-  const resultado = {
+  const result = {
     ok: true,
-    convidou: false,
-    alteradas: alteradas.length,
-    ambiguas: ambiguas.length,
+    invited: false,
+    changed: changed.length,
+    ambiguous: ambiguous.length,
   };
-  if (!podeSincronizar(cloudEnabled(), cloud.state())) return resultado;
+  if (!canSync(cloudEnabled(), cloud.state())) return result;
 
-  // Reenvia o que mudou. `enviarPartida` cobre os dois casos: a partida ja
-  // estar la (ignorada como duplicata) e ainda nao estar. Sem ela existindo,
-  // nao ha a que prender o convite - ha chave estrangeira.
+  // Resends what changed. `uploadMatch` covers both cases: the match already
+  // being there (ignored as a duplicate) and not being there yet. Without it
+  // existing, there is nothing to attach the invite to - there is a foreign
+  // key.
   //
-  // Uma falha por partida nao pode derrubar as outras: o que nao subir agora
-  // continua sem a marca de enviada, e a proxima sincronizacao o pega.
-  let convidou = false;
-  for (const m of alteradas) {
-    if (emAndamento && m.id === emAndamento.id) continue; // mesa nao terminada
+  // One failure per match cannot take down the others: what does not go up
+  // now stays without the uploaded mark, and the next sync picks it up.
+  let invited = false;
+  for (const m of changed) {
+    if (inProgress && m.id === inProgress.id) continue; // table not finished
     try {
-      await cloud.enviarPartida(m);
-      store.marcarEnviada(m.id);
-      convidou = true;
-    } catch { /* fica para a proxima sincronizacao */ }
+      await cloud.uploadMatch(m);
+      store.markUploaded(m.id);
+      invited = true;
+    } catch { /* next sync */ }
   }
 
-  return { ...resultado, convidou };
+  return { ...result, invited };
 }
 
 /**
- * Marcar a conta de uma cadeira, a partir do detalhe de uma partida.
+ * Tags the account of a seat, from a match's details.
  *
- * Confere o que so faz sentido no contexto daquela mesa - a mesma conta nao
- * pode ocupar duas cadeiras - e delega o resto a associarConta, que trata a
- * pessoa e nao a cadeira.
+ * Checks what only makes sense in the context of that table - the same
+ * account cannot take two seats - and delegates the rest to linkAccount, which
+ * handles the person and not the seat.
  */
-export async function marcarJogador(match, seatId, perfil) {
-  if (!match || !perfil || !perfil.handle) return { ok: false };
-  const cadeira = (match.seats || []).find((s) => s.id === seatId);
-  if (!cadeira) return { ok: false };
+export async function tagPlayer(match, seatId, profile) {
+  if (!match || !profile || !profile.handle) return { ok: false };
+  const seat = (match.seats || []).find((s) => s.id === seatId);
+  if (!seat) return { ok: false };
 
-  const pessoaRepetidaAqui = (match.seats || []).some(
-    (s) => s !== cadeira
-      && String(s.handle || '').toLowerCase() === String(perfil.handle).toLowerCase(),
+  const alreadyHere = (match.seats || []).some(
+    (s) => s !== seat
+      && String(s.handle || '').toLowerCase() === String(profile.handle).toLowerCase(),
   );
-  if (pessoaRepetidaAqui) return { ok: false, motivo: 'repetida' };
+  if (alreadyHere) return { ok: false, reason: 'duplicate' };
 
-  return associarConta(cadeira.name, perfil);
+  return linkAccount(seat.name, profile);
 }

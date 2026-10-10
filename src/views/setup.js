@@ -1,30 +1,34 @@
 /**
- * Montagem da mesa - a porta da tela.
+ * Table setup - the entry point of the screen.
  *
- * As pecas vivem em src/views/setup/, uma por elemento da home:
+ * The pieces live in src/views/setup/, one per element of the home screen:
  *
- *   rascunho.js           a mesa sendo montada (vida, assentos, disposicao)
- *   home.js               a tela em si
- *   cartao-jogador.js     o cartao de um assento, e o arraste que reordena
- *   escolher-jogador.js   quem senta aqui
- *   escolher-deck.js      qual deck ele leva
- *   antes-de-comecar.js   quem abre a partida, e o layout da mesa
- *   configuracoes.js      as preferencias do app
- *   instalar.js           o bloco de instalacao
- *   conta.js              entrar, criar conta, assinatura
- *   handle.js             o proprio @
- *   convites.js           partidas em que alguem diz que voce estava
- *   sincronizacao.js      o que subiu e o que falta
- *   notas-de-versao.js    o que mudou nesta versao
+ *   draft.js            the table being set up (life, seats, arrangement)
+ *   home.js             the screen itself
+ *   seat-card.js        a seat's card, and the drag that reorders
+ *   pick-player.js      who sits here
+ *   pick-deck.js        which deck they bring
+ *   pre-game.js         who opens the match, and the table layout
+ *   settings.js         the app preferences
+ *   rows.js             the row and group pieces of the settings
+ *   install.js          the install block
+ *   account.js          signing in, creating an account, subscription
+ *   handle.js           your own @
+ *   invites.js          matches in which someone says you were present
+ *   sync.js             what went up and what is missing
+ *   release-notes.js    what changed in this version
+ *   pass-table.js       passing the table to another device, and receiving one
  *
- * Tres nomes atravessam essa porta, e so eles: e o que app.js conhece da tela
- * inteira. Dividir as pecas de outro jeito amanha nao toca em app.js.
+ * Only what app.js knows about the whole screen goes through this door.
+ * Splitting the pieces differently tomorrow does not touch app.js.
  */
 
 export { renderSetup } from './setup/home.js';
-export { seedDraftFrom } from './setup/rascunho.js';
-export { abrirNovidades } from './setup/notas-de-versao.js';
+export { seedDraftFrom } from './setup/draft.js';
+export { openReleaseNotes } from './setup/release-notes.js';
+export { openIOSInstall } from './setup/install.js';
 export {
-  passarMesa, receberMesa, mesaPassadaBanner, receberMesaBotao,
-  continuarMesaBanner, nomeDoArquivo,
-} from './setup/passar-mesa.js';
+  passTable, receiveTableFile, handedOffBanner, receiveTableButton,
+  resumeTableBanner, tableFileName, openReceiveTable, showCode,
+  tableLink,
+} from './setup/pass-table.js';

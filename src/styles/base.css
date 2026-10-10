@@ -1,0 +1,47 @@
+/* ==========================================================================
+   Base controls: button, field, chip.
+
+   What every screen uses and nobody redefines.
+   ========================================================================== */
+
+/* ---------- base controls ---------- */
+
+.icon-btn {
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  color: var(--text-mid);
+  transition: background var(--fast), color var(--fast);
+}
+.icon-btn:hover { background: var(--surface); color: var(--text); }
+
+.btn {
+  height: 52px;
+  padding: 0 24px;
+  border-radius: var(--r-md);
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition: transform var(--fast), background var(--fast), opacity var(--fast);
+  border: 1px solid transparent;
+}
+.btn:active { transform: scale(0.985); }
+.btn.block { width: 100%; }
+.btn.primary { background: var(--contrast); color: var(--on-contrast); }
+.btn.primary:disabled { background: var(--surface-strong); color: var(--text-dim); cursor: default; }
+.btn.ghost { border-color: var(--line); color: var(--text-mid); }
+.btn.ghost:hover { background: var(--surface); color: var(--text); }
+.btn.danger { color: var(--danger); border-color: rgba(226, 97, 74, 0.35); }
+.btn.danger:hover { background: rgba(226, 97, 74, 0.1); }
+
+.chips { display: flex; gap: 8px; }
+.chip {
+  height: 40px; min-width: 54px;
+  padding: 0 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-soft);
+  color: var(--text-mid);
+  font-variant-numeric: tabular-nums;
+  transition: all var(--fast);
+}
+.chip.is-on { background: var(--contrast); color: var(--on-contrast); border-color: var(--contrast); }

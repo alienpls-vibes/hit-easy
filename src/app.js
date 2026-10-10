@@ -1,125 +1,134 @@
 /**
- * Cola do app: decide qual tela mostrar, mantem a partida gravada e cuida do
- * que e global - tema, orientacao e tela acesa.
+ * The app glue: decides which screen to show, keeps the match saved and takes
+ * care of what is global - theme, orientation and keeping the screen on.
  *
- * Gravamos a cada evento. Se o navegador fechar no meio da mesa, ao reabrir a
- * partida esta exatamente onde parou - inclusive de quem era a vez.
+ * We save on every event. If the browser closes in the middle of the table,
+ * on reopening the match is exactly where it stopped - including whose turn
+ * it was.
  */
 
 import {
   toast, setHaptics, isSheetOpen, onSheetChange, closeSheet,
 } from './ui.js';
 import {
-  renderSetup, seedDraftFrom, abrirNovidades, passarMesa,
+  renderSetup, seedDraftFrom, openReleaseNotes, passTable, openIOSInstall,
+  openReceiveTable,
 } from './views/setup.js';
+import { codeInText } from './cloud.js';
 import { renderTable } from './views/table.js';
 import { renderStats, renderPaywall } from './views/stats.js';
-import { createMatch, sairDaMesa, voltarAMesa } from './engine.js';
+import { createMatch, leaveTable, returnToTable } from './engine.js';
 import { applyTheme, watchTheme } from './theme.js';
 import { t, setLang, detectLang } from './i18n.js';
-import { preferOrientation, isWide } from './orientation.js';
+import {
+  preferOrientation, isWide, resumeOrientation, lockLost,
+} from './orientation.js';
 import { orientOf } from './seating.js';
 import { APP_VERSION } from './version.js';
-import { novidadesDesde } from './novidades.js';
+import { releaseNotesSince } from './release-notes.js';
 import * as store from './store.js';
 import * as cloud from './cloud.js';
-import { podeVerEstatisticas } from './cloud.js';
+import { canSeeStats } from './cloud.js';
 import * as sync from './sync.js';
 import { cloudEnabled } from './config.js';
-import { ehTeste } from './canal.js';
+import { isBeta } from './channel.js';
+import { state as installState } from './install.js';
 
 const root = document.getElementById('app');
 let route = store.getCurrent() ? 'table' : 'setup';
 let previous = 'setup';
-let live = null; // controlador da tela atual, quando ela precisa de limpeza
+let live = null; // controller of the current screen, when it needs cleanup
 
 function settings() {
   return store.getDB().settings;
 }
 
 /**
- * O voltar do aparelho, dentro do app.
+ * The device back button, inside the app.
  *
- * O app nao tinha historico de navegacao nenhum, entao o voltar do Android nao
- * encontrava entrada para consumir e fechava o app - justamente na tela de
- * estatisticas, onde o gesto e o mais natural.
+ * The app had no navigation history at all, so Android's back found no entry
+ * to consume and closed the app - right on the statistics screen, where the
+ * gesture is the most natural.
  *
- * Uma entrada por entrada nas estatisticas, consumida na saida. `consumindo`
- * existe porque sair pela flecha tambem devolve a entrada (`history.back()`),
- * e isso dispara `popstate`: sem a marca, o handler trataria a devolucao como
- * um gesto novo e voltaria duas telas.
+ * One entry per visit to the statistics, consumed on the way out.
+ * `consumingBack` exists because leaving through the arrow also gives the
+ * entry back (`history.back()`), and that fires `popstate`: without the mark,
+ * the handler would treat the give-back as a new gesture and go back two
+ * screens.
  */
-let consumindoVolta = false;
+let consumingBack = false;
 
-function empilharVolta() {
+function pushBackEntry() {
   try {
-    history.pushState({ rota: 'stats' }, '');
-  } catch { /* sem history: o voltar segue como era */ }
+    history.pushState({ route: 'stats' }, '');
+  } catch { /* no history: back works as it used to */ }
 }
 
-/** Para onde o voltar das estatisticas leva - flecha e gesto, o mesmo lugar. */
-function destinoDoVoltar() {
+/** Where back from the statistics leads - arrow and gesture, the same place. */
+function backTarget() {
   return previous === 'stats' ? 'setup' : previous;
 }
 
-/** Sai das estatisticas devolvendo a entrada de historico. */
-function sairDasEstatisticas() {
-  const destino = destinoDoVoltar();
-  consumindoVolta = true;
+/** Leaves the statistics giving the history entry back. */
+function leaveStats() {
+  const target = backTarget();
+  consumingBack = true;
   try {
     history.back();
   } catch {
-    consumindoVolta = false;
+    consumingBack = false;
   }
-  go(destino);
+  go(target);
 }
 
 window.addEventListener('popstate', () => {
-  // Devolucao feita pela flecha: a entrada ja foi contabilizada.
-  if (consumindoVolta) { consumindoVolta = false; return; }
+  // A give-back made by the arrow: the entry was already accounted for.
+  if (consumingBack) { consumingBack = false; return; }
 
-  // Painel aberto tem prioridade: fechar o painel e o que a pessoa quer, e
-  // navegar por tras dele deixaria a folha de pe sobre a tela nova.
+  // An open panel has priority: closing the panel is what the person wants,
+  // and navigating behind it would leave the sheet standing over the new
+  // screen.
   if (isSheetOpen()) {
     closeSheet();
-    empilharVolta();
+    pushBackEntry();
     return;
   }
 
-  // Fora das estatisticas nao ha entrada nossa para consumir, e a home e a
-  // base: dali o voltar sai do app, que e o que se espera.
+  // Outside the statistics there is no entry of ours to consume, and the home
+  // screen is the base: from there back leaves the app, which is what is
+  // expected.
   if (route !== 'stats') return;
-  go(destinoDoVoltar());
+  go(backTarget());
 });
 
 function go(next) {
-  const antes = route;
+  const before = route;
   if (next !== route) previous = route;
   route = next;
-  if (next === 'stats' && antes !== 'stats') empilharVolta();
+  if (next === 'stats' && before !== 'stats') pushBackEntry();
   render();
 }
 
 /**
- * Desenha a rota atual.
+ * Draws the current route.
  *
- * O corpo real esta em desenhar(); esta camada existe so para que um erro numa
- * tela nao deixe o aplicativo PRETO. Tela preta nao diz nada a quem esta
- * usando e nao diz nada a quem vai consertar - e foi exatamente o que uma
- * partida malformada vinda da nuvem produziu.
+ * The real body is in draw(); this layer only exists so that an error in one
+ * screen does not leave the app BLACK. A black screen tells nothing to whoever
+ * is using it and nothing to whoever will fix it - and that is exactly what a
+ * malformed match coming from the cloud produced.
  */
 function render() {
   try {
-    desenhar();
+    draw();
   } catch (err) {
-    telaDeErro(err);
+    errorScreen(err);
   }
 }
 
-function telaDeErro(err) {
+function errorScreen(err) {
   root.innerHTML = '';
-  const caixa = document.createElement('div');
-  caixa.className = 'crash';
+  const box = document.createElement('div');
+  box.className = 'crash';
   const h = document.createElement('h2');
   h.textContent = t('common.error');
   const p = document.createElement('p');
@@ -128,20 +137,20 @@ function telaDeErro(err) {
   b.className = 'btn primary';
   b.textContent = t('common.back');
   b.addEventListener('click', () => go('setup'));
-  caixa.append(h, p, b);
-  root.append(caixa);
+  box.append(h, p, b);
+  root.append(box);
 }
 
-function desenhar() {
+function draw() {
   if (live && live.destroy) live.destroy();
   live = null;
   document.body.dataset.route = route;
 
-  // O relogio da partida so anda com alguem na mesa. Sair para as
-  // estatisticas ou para a home para; voltar retoma, sem a pessoa pedir e sem
-  // a cobertura da pausa manual - pausa que ninguem pediu nao deve exigir que
-  // alguem a desfaca.
-  relogioDaMesa();
+  // The match clock only runs with someone at the table. Going to the
+  // statistics or the home screen stops it; coming back resumes it, without
+  // the person asking and without the manual pause cover - a pause nobody
+  // asked for should not require anyone to undo it.
+  tableClock();
 
   if (route === 'table') {
     const match = store.getCurrent();
@@ -153,10 +162,11 @@ function desenhar() {
       onStats: () => go('stats'),
       onFinish: () => {
         store.archive(match);
-        // A partida acabou de existir: sobe agora, enquanto a pessoa ainda
-        // esta com o aparelho na mao e provavelmente com rede. Falhar aqui nao
-        // perde nada - ela fica sem a marca de enviada e sobe na proxima.
-        sync.sincronizar().catch(() => {});
+        // The match has just come into existence: upload it now, while the
+        // person is still holding the device and probably online. Failing
+        // here loses nothing - it stays without the uploaded mark and goes up
+        // next time.
+        sync.sync().catch(() => {});
         seedDraftFrom(match);
         go('setup');
         toast(t('victory.saved'), { label: t('victory.seeData'), onClick: () => go('stats') });
@@ -166,36 +176,36 @@ function desenhar() {
         go('setup');
         toast(t('victory.discarded'));
       },
-      onPassar: async () => {
-        // A mesa sai daqui no ato de empacotar, entao voltar para a home e
-        // consequencia e nao decisao: a rota acima ja recusaria entrar nela.
-        const foi = await passarMesa();
-        if (foi) { go('setup'); toast(t('pass.done')); }
-      },
+      // The table leaves here in the act of passing, so going back to the
+      // home screen is a consequence and not a decision: the route above would
+      // already refuse to enter it. It goes back BEFORE the code shows -
+      // switching screens closes the panels.
+      onPassTable: () => passTable(() => go('setup')),
     });
     hintRotate();
+    hintIOSFullscreen();
     return;
   }
 
   if (route === 'stats') {
-    // O portao e decisao de ROTA, nao da tela de estatisticas: qual tela
-    // mostrar e pergunta do roteador, e assim a view continua sendo so uma
-    // leitura dos dados - testavel sem conta nem assinatura.
+    // The gate is a ROUTE decision, not the statistics screen's: which screen
+    // to show is the router's question, and this way the view stays just a
+    // reading of the data - testable without an account or subscription.
     //
-    // Isto e a tela. O portao de verdade e o RLS do Postgres: sem assinatura
-    // ele devolve lista vazia, entao burlar este `if` nao entrega partida
-    // nenhuma da nuvem.
-    const voltar = sairDasEstatisticas;
-    if (podeVerEstatisticas(cloudEnabled(), cloud.state())) {
-      renderStats(root, { onBack: voltar });
+    // This is the screen. The real gate is the Postgres RLS: without a
+    // subscription it returns an empty list, so getting around this `if`
+    // hands over no match from the cloud.
+    const back = leaveStats;
+    if (canSeeStats(cloudEnabled(), cloud.state())) {
+      renderStats(root, { onBack: back });
     } else {
       renderPaywall(root, {
-        onBack: voltar,
+        onBack: back,
         onUnlock: () => go('stats'),
-        // Enquanto a assinatura nao voltou do servidor, a resposta e "ainda
-        // nao sei" - e negar o que nao se sabe e o pior jeito de receber quem
-        // paga.
-        verificando: !cloud.assinaturaConhecida(),
+        // While the subscription has not come back from the server, the answer
+        // is "I don't know yet" - and denying what is not known is the worst
+        // way to welcome someone who pays.
+        checking: !cloud.isSubscriptionKnown(),
       });
     }
     return;
@@ -203,14 +213,18 @@ function desenhar() {
 
   renderSetup(root, {
     onStats: () => go('stats'),
-    // Receber uma mesa e retomar uma passada mudam qual e a partida de agora,
-    // entao a tela tem de ir junto. Sem isto a mesa era instalada e a pessoa
-    // continuava na home - so recarregar a pagina a encontrava.
-    onAbrirMesa: () => go('table'),
-    // Trocar o tema muda a paleta WUBRG, que ja foi escrita no style dos
-    // elementos: so um redesenho completo poe todo mundo na cor nova.
+    // Receiving a table and taking back a handed-off one change which match is
+    // current, so the screen has to follow. Without this the table was
+    // installed and the person stayed on the home screen - only reloading the
+    // page found it.
+    onOpenTable: () => go('table'),
+    // Switching the theme changes the WUBRG palette, which was already written
+    // into the elements' style: only a full redraw puts everyone in the new
+    // color.
     onRefresh: () => render(),
     onStart: (draft) => {
+      // Seats tagged with an account start under the name that account chose.
+      store.applyDisplayNames(draft.seats);
       const match = createMatch(draft.seats, draft.startingLife, {
         firstSeatId: draft.firstSeatId,
         layoutId: draft.layoutId,
@@ -222,22 +236,23 @@ function desenhar() {
 }
 
 /* ---------------------------------------------------------------- */
-/* Orientacao                                                        */
+/* Orientation                                                       */
 /* ---------------------------------------------------------------- */
 
 let lastWide = isWide();
 let resizeTimer = null;
-let relayoutPendente = false;
+let relayoutPending = false;
 
 /**
- * A mesa tem uma forma para tela em pe e outra para tela deitada, entao virar
- * o aparelho exige redesenhar. A tela de montagem se vira sozinha no CSS - e
- * bom que seja assim, porque redesenhar ali roubaria o foco de quem digita
- * (o teclado do celular encolhe a altura e ja parece uma virada de tela).
+ * The table has one shape for a standing screen and another for a lying one,
+ * so rotating the device requires redrawing. The setup screen rotates by
+ * itself in CSS - and it is good that it does, because redrawing there would
+ * steal the focus of whoever is typing (the phone keyboard shrinks the height
+ * and already looks like a rotation).
  *
- * Com um painel aberto, o redesenho ESPERA. Remontar a mesa chama destroy(),
- * que fecha o painel - e a votacao pede retrato justamente enquanto esta
- * aberta, entao sem isso ela se fecharia sozinha ao girar a tela.
+ * With a panel open, the redraw WAITS. Remounting the table calls destroy(),
+ * which closes the panel - and the vote asks for portrait precisely while it
+ * is open, so without this it would close by itself when rotating the screen.
  */
 function syncOrientation() {
   const wide = isWide();
@@ -245,7 +260,7 @@ function syncOrientation() {
   if (wide === lastWide) return;
   lastWide = wide;
   if (route !== 'table') return;
-  if (isSheetOpen()) { relayoutPendente = true; return; }
+  if (isSheetOpen()) { relayoutPending = true; return; }
   render();
 }
 
@@ -254,79 +269,147 @@ window.addEventListener('resize', () => {
   resizeTimer = setTimeout(syncOrientation, 120);
 });
 
-onSheetChange((aberto) => {
-  if (aberto || !relayoutPendente) return;
-  relayoutPendente = false;
+onSheetChange((open) => {
+  if (open || !relayoutPending) return;
+  relayoutPending = false;
   if (route === 'table') render();
 });
 
 let rotateHinted = false;
 
-/** Uma dica por sessao, sem bloquear nada: a mesa funciona em pe tambem. */
+/** One hint per session, blocking nothing: the table works standing up too. */
 function hintRotate() {
   if (rotateHinted || isWide()) return;
   rotateHinted = true;
   setTimeout(() => toast(t('table.rotateHint')), 1400);
 }
 
+let fullscreenHinted = false;
+
+/**
+ * On the iPhone, fullscreen only exists with the app installed.
+ *
+ * iPhone Safari does not implement fullscreen for pages - only for video - so
+ * in a tab the address bar stays there and no code removes it. Opened from the
+ * Home Screen, the app runs with no bar at all. The hint shows at the table,
+ * which is where the bar gets in the way, and leads straight to the step by
+ * step.
+ *
+ * After the rotate hint when both apply: one notice replaces the other, and
+ * the rotate one would stay 2s on screen before vanishing.
+ */
+function hintIOSFullscreen() {
+  if (fullscreenHinted || installState().mode !== 'ios') return;
+  fullscreenHinted = true;
+  setTimeout(() => toast(t('table.iosFullscreenHint'), {
+    label: t('table.iosFullscreenAction'),
+    onClick: openIOSInstall,
+  }), isWide() ? 1400 : 4000);
+}
+
 /* ---------------------------------------------------------------- */
-/* Tela acesa                                                        */
+/* Screen kept on                                                    */
 /* ---------------------------------------------------------------- */
 
-// Ninguem quer destravar o celular a cada ataque. Liberado ao sair da mesa.
+// Nobody wants to unlock the phone on every attack. Released when leaving the
+// table.
+//
+// Safari (iPhone and iPad) only grants the lock right after a touch by the
+// person. Asking on returning to the app, or on reopening straight on the
+// table, is silently refused - and the screen started turning off by itself in
+// the middle of the match, with nothing warning. That is why the first touch on
+// the table without a lock asks again (see the `pointerup` below). The system
+// also releases the lock whenever it wants (locking the phone, switching apps),
+// and the same touch recovers it.
 let wakeLock = null;
+let requestingWakeLock = false;
+
+/** Is the table in sight and does the person want the screen on? */
+function wantsScreenOn() {
+  return route === 'table'
+    && settings().keepAwake
+    && document.visibilityState !== 'hidden';
+}
+
 async function keepAwake(on) {
+  if (!('wakeLock' in navigator)) return;
   try {
-    if (on && settings().keepAwake && 'wakeLock' in navigator && !wakeLock) {
-      wakeLock = await navigator.wakeLock.request('screen');
-      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    if (on && settings().keepAwake && !wakeLock && !requestingWakeLock) {
+      requestingWakeLock = true;
+      const lock = await navigator.wakeLock.request('screen');
+      requestingWakeLock = false;
+      // The table may have closed while the request was in flight.
+      if (!wantsScreenOn()) { lock.release(); return; }
+      wakeLock = lock;
+      lock.addEventListener('release', () => {
+        if (wakeLock === lock) wakeLock = null;
+      });
     } else if ((!on || !settings().keepAwake) && wakeLock) {
-      await wakeLock.release();
+      const lock = wakeLock;
       wakeLock = null;
+      await lock.release();
     }
   } catch {
-    /* sem suporte ou negado pelo navegador: segue o jogo */
+    /* unsupported or denied by the browser: the next touch tries again */
+    requestingWakeLock = false;
   }
 }
 
 /**
- * Para ou retoma o relogio, conforme a mesa estar a vista.
+ * Stops or resumes the clock, depending on the table being in sight.
  *
- * Grava sempre que mexeu: o periodo aberto precisa sobreviver ao app fechar,
- * senao o tempo de fora voltaria a contar no proximo arranque.
+ * Saves whenever it changed something: the open period has to survive the app
+ * closing, otherwise the time away would count again on the next startup.
  */
-function relogioDaMesa() {
+function tableClock() {
   const match = store.getCurrent();
   if (!match) return;
 
-  const naMesa = route === 'table'
+  const atTable = route === 'table'
     && (typeof document === 'undefined' || document.visibilityState !== 'hidden');
-  const mexeu = naMesa ? voltarAMesa(match) : sairDaMesa(match);
-  if (mexeu) store.setCurrent(match);
+  const changed = atTable ? returnToTable(match) : leaveTable(match);
+  if (changed) store.setCurrent(match);
 }
 
 document.addEventListener('visibilitychange', () => {
-  // Bloquear o celular ou trocar de app tambem e sair da mesa.
-  relogioDaMesa();
+  // Locking the phone or switching apps is also leaving the table.
+  tableClock();
   if (document.visibilityState === 'visible' && route === 'table') keepAwake(true);
+  // The return tries right away. It usually does not work - fullscreen asks
+  // for a touch - and then the first touch on the table redoes the request.
+  if (document.visibilityState === 'visible') resumeOrientation();
 });
 
-// Fechar o app para o relogio. Melhor esforco: um encerramento forcado pelo
-// sistema pode nao disparar nada, e ai aquele tempo conta - nao ha evento que
-// o navegador garanta.
-window.addEventListener('pagehide', relogioDaMesa);
+/**
+ * Leaving the app drops fullscreen, and with it the landscape lock: the device
+ * came back standing up, in the middle of the match. The browser only allows
+ * entering fullscreen from a touch, so the request is redone on the first
+ * touch after the return - `pointerup`, because that is what counts as the
+ * person's gesture on touch (`pointerdown` only counts with a mouse). Without
+ * a lost lock, it does nothing.
+ */
+document.addEventListener('pointerup', () => {
+  if (lockLost()) resumeOrientation();
+  // The same rule applies to keeping the screen on in Safari - see keepAwake().
+  if (!wakeLock && wantsScreenOn()) keepAwake(true);
+}, true);
+
+// Closing the app stops the clock. Best effort: a shutdown forced by the
+// system may fire nothing, and then that time counts - there is no event the
+// browser guarantees.
+window.addEventListener('pagehide', tableClock);
 
 const observer = new MutationObserver(() => {
-  const naMesa = document.body.dataset.route === 'table';
-  keepAwake(naMesa);
-  // A mesa pede a orientacao que a PESSOA escolheu ao montar o jogo. Antes
-  // pedia paisagem sempre, o que contrariava quem tinha escolhido apoiar o
-  // aparelho em pe entre dois jogadores.
-  preferOrientation(naMesa ? orientacaoDaMesa() : null, naMesa);
+  const atTable = document.body.dataset.route === 'table';
+  keepAwake(atTable);
+  // The table asks for the orientation the PERSON chose when setting up the
+  // game. It used to ask for landscape always, which went against whoever had
+  // chosen to stand the device up between two players.
+  preferOrientation(atTable ? tableOrientation() : null, atTable);
 });
 
-/** A orientacao declarada pela mesa em andamento; paisagem quando nao ha. */
-function orientacaoDaMesa() {
+/** The orientation declared by the match in progress; landscape when there is none. */
+function tableOrientation() {
   try {
     const m = store.getCurrent();
     return (m && orientOf(m.seats.length, m.layoutId)) || 'landscape';
@@ -337,81 +420,119 @@ function orientacaoDaMesa() {
 observer.observe(document.body, { attributes: true, attributeFilter: ['data-route'] });
 
 /* ---------------------------------------------------------------- */
-/* Arranque                                                          */
+/* Startup                                                           */
 /* ---------------------------------------------------------------- */
 
-// Idioma antes de tudo: cada tela le os textos ao ser desenhada.
+// Language before anything: each screen reads its texts when drawn.
 setLang(settings().lang || detectLang());
 applyTheme(settings().theme);
 setHaptics(settings().haptics);
-watchTheme(() => render()); // sistema mudou de claro para escuro (ou o contrario)
+watchTheme(() => render()); // the system switched from light to dark (or the other way)
 syncOrientation();
 
-// Uma versao de teste tem de se anunciar. Sem isso da para passar uma mesa
-// inteira num beta achando que e o app de verdade - e depois procurar no lugar
-// errado a partida que ficou guardada no outro canal.
-if (ehTeste()) {
-  const marca = document.createElement('div');
-  marca.className = 'beta-flag';
-  marca.textContent = 'BETA';
-  document.body.appendChild(marca);
+// A test version has to announce itself. Without that you can play a whole
+// table on beta thinking it is the real app - and later look in the wrong
+// place for the match that stayed stored on the other channel.
+if (isBeta()) {
+  const mark = document.createElement('div');
+  mark.className = 'beta-flag';
+  mark.textContent = 'BETA';
+  document.body.appendChild(mark);
 }
 
 render();
 
 /**
- * Novidades depois de atualizar, uma vez so.
+ * The link of a handed-off table: `?mesa=K7M2QX`.
  *
- * Quem instala agora nao ve nada: mostrar o historico inteiro de mudancas para
- * quem nunca usou o app e ruido antes mesmo do primeiro uso. So quem ja estava
- * aqui e ganhou versao nova tem o que ser avisado.
- *
- * Tem nome e e exportada porque era um IIFE que rodava no import: acontecia
- * uma vez, antes de qualquer teste, e nao havia como exercita-la. Apagar a
- * linha da versao anterior passava por toda a suite sem uma falha.
- *
- * Devolve o que a pessoa ainda nao viu - o arranque decide se abre a tela.
+ * Whoever receives the code over WhatsApp taps the link and lands here, with
+ * receive already open and the code filled in - only confirming is left. The
+ * parameter leaves the bar right away: reloading the page cannot offer again a
+ * table that was already received.
  */
-export function anunciarVersao(agora = APP_VERSION) {
-  const vista = settings().versaoVista || null;
-  store.setSetting('versaoVista', agora);
-  if (!vista || vista === agora) return [];
-
-  // De onde a pessoa veio, para o menu poder mostrar o mesmo recorte depois.
-  // Gravado so quando a versao MUDOU: reabrir o app na mesma versao nao pode
-  // zerar o recorte e fazer as notas virarem o historico inteiro.
-  store.setSetting('versaoAnterior', vista);
-
-  return novidadesDesde(vista);
+export function codeFromLink(search) {
+  try {
+    return codeInText(new URLSearchParams(search || '').get('mesa') || '');
+  } catch {
+    return null;
+  }
 }
 
-const novasDesteArranque = anunciarVersao();
-if (novasDesteArranque.length) {
-  setTimeout(() => abrirNovidades(novasDesteArranque), 700);
+const codeReceivedByLink = codeFromLink(typeof location === 'undefined' ? '' : location.search);
+if (codeReceivedByLink) {
+  try {
+    history.replaceState(history.state, '', location.pathname + location.hash);
+  } catch { /* no history: the parameter stays, and receive refuses the used code */ }
+  // After the release notes (700ms): receiving the table is what the person
+  // came to do, and a panel opened on top of another closes the one below.
+  setTimeout(() => openReceiveTable(() => go('table'), codeReceivedByLink), 900);
 }
 
-// A conta sobe depois da primeira tela: ninguem deve esperar rede para ver o
-// app. Quando o estado chegar, quem depende dele se redesenha.
-cloud.iniciar().then((estado) => {
-  if (estado !== 'desligado') render();
-  // Sincroniza depois de saber quem e a pessoa. Falhar aqui nao atrapalha
-  // nada: o que nao subiu continua sem marca e sobe na proxima abertura.
-  sync.sincronizar().then((r) => {
-    if (r && (r.baixou || r.subiu)) render();
+/**
+ * What's new after updating, only once.
+ *
+ * Whoever installs now sees nothing: showing the whole change history to
+ * someone who never used the app is noise before the first use. Only whoever
+ * was already here and got a new version has something to be told.
+ *
+ * It has a name and is exported because it was an IIFE that ran on import: it
+ * happened once, before any test, and there was no way to exercise it.
+ * Deleting the previous-version line went through the whole suite without a
+ * single failure.
+ *
+ * Returns what the person has not seen yet - the startup decides whether to
+ * open the screen.
+ *
+ * `versaoVista` and `versaoAnterior` are stored settings: do not translate.
+ */
+export function announceVersion(now = APP_VERSION) {
+  const seen = settings().versaoVista || null;
+  store.setSetting('versaoVista', now);
+  if (!seen || seen === now) return [];
+
+  // Where the person came from, so the menu can show the same slice later.
+  // Saved only when the version CHANGED: reopening the app on the same version
+  // cannot reset the slice and turn the notes into the whole history.
+  store.setSetting('versaoAnterior', seen);
+
+  return releaseNotesSince(seen);
+}
+
+const newInThisStartup = announceVersion();
+if (newInThisStartup.length) {
+  setTimeout(() => openReleaseNotes(newInThisStartup), 700);
+}
+
+// The account comes up after the first screen: nobody should wait for the
+// network to see the app. When the state arrives, whoever depends on it
+// redraws.
+cloud.boot().then((state) => {
+  if (state !== 'off') render();
+  // Syncs after knowing who the person is. Failing here gets in the way of
+  // nothing: what did not go up stays unmarked and goes up on the next open.
+  sync.sync().then((r) => {
+    if (r && (r.downloaded || r.uploaded || r.people)) render();
   }).catch(() => {});
 });
 
-// A conta pode mudar depois da primeira tela - a assinatura chega da rede, e o
-// login acontece dentro das configuracoes. Quem esta olhando as estatisticas
-// precisa ver a mudanca sem sair e voltar.
+// The account may change after the first screen - the subscription arrives
+// from the network, and signing in happens inside the settings. Whoever is
+// looking at the statistics needs to see the change without leaving and
+// coming back.
 cloud.onAccountChange(() => {
-  if (route === 'stats') render();
+  // My own chosen name, as soon as the profile says it: the open table, the
+  // statistics and the next seats use it without waiting for a sync.
+  const profile = cloud.myProfile();
+  const learned = profile && profile.handle
+    ? store.learnDisplayNames({ [profile.handle]: profile.display_name || null })
+    : { changed: 0, table: false };
+  if (route === 'stats' || (route === 'table' && learned.table)) render();
 });
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {
-      /* offline continua funcionando pelo cache do navegador */
+      /* offline keeps working through the browser cache */
     });
   });
 }

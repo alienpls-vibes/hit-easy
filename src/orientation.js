@@ -1,28 +1,30 @@
 /**
- * Orientacao da tela.
+ * Screen orientation.
  *
- * A mesa quer o aparelho DEITADO, no meio do grupo. A votacao quer ele EM PE,
- * porque passa de mao em mao e se segura como um celular normal.
+ * The table wants the device LYING DOWN, in the middle of the group. The vote
+ * wants it STANDING UP, because it passes from hand to hand and is held like a
+ * normal phone.
  *
- * O que da para fazer de verdade, e o que nao da:
+ * What can really be done, and what cannot:
  *
- *   - travar orientacao so funciona em tela cheia, e so no Chrome/Android.
- *     O Safari do iPhone nao implementa nem uma coisa nem outra.
- *   - por isso tudo aqui e "pedido", nao ordem: falha em silencio onde nao ha
- *     suporte, e o CSS precisa continuar funcionando na orientacao errada.
+ *   - locking the orientation only works in fullscreen, and only in
+ *     Chrome/Android. iPhone Safari implements neither.
+ *   - that is why everything here is a "request", not an order: it fails
+ *     silently where unsupported, and the CSS must keep working in the wrong
+ *     orientation.
  *
- * Em tablet e computador nao mexemos em nada: a tela e grande o bastante para
- * as duas coisas caberem deitadas, e girar um tablet apoiado seria pior.
+ * On tablets and computers we touch nothing: the screen is large enough for
+ * both things to fit lying down, and rotating a propped tablet would be worse.
  */
 
 import * as store from './store.js';
 
-/** Lado menor da tela. Celular fica abaixo disso em qualquer orientacao. */
-const LADO_PEQUENO = 560;
+/** The short side of the screen. A phone is below this in any orientation. */
+const SMALL_SIDE = 560;
 
 export function isSmallScreen() {
   if (typeof window === 'undefined') return false;
-  return Math.min(window.innerWidth, window.innerHeight) < LADO_PEQUENO;
+  return Math.min(window.innerWidth, window.innerHeight) < SMALL_SIDE;
 }
 
 export function isWide() {
@@ -30,7 +32,7 @@ export function isWide() {
   return window.innerWidth >= window.innerHeight;
 }
 
-function permitido() {
+function allowed() {
   try {
     return store.getDB().settings.autoRotate !== false;
   } catch {
@@ -39,23 +41,42 @@ function permitido() {
 }
 
 /**
- * Pede uma orientacao. `mode` e 'landscape', 'portrait' ou null (soltar).
+ * The last request, so it can be repeated.
  *
- * Entrar em tela cheia e condicao para travar, entao o pedido de paisagem
- * (feito ao abrir a mesa) e quem abre a tela cheia; os demais so trocam a
- * trava, sem sair e entrar de novo - o que piscaria a tela a cada votacao.
+ * Leaving the app drops fullscreen, and the orientation lock goes with it: on
+ * return the device obeys the sensor and the table shows up standing. Nothing
+ * at the table changes route at that moment, so nobody would ask again -
+ * resumeOrientation() is what repeats it, with this record.
  */
-export async function preferOrientation(mode, explicito = false) {
-  if (typeof window === 'undefined') return;
-  if (!permitido()) return;
+let lastRequest = { mode: null, explicit: false };
 
-  // Retrato automatico so faz sentido no celular: num tablet apoiado, girar a
-  // tela sozinho para votar seria mais atrapalho que ajuda.
+/**
+ * Fullscreen came in and even so the lock was refused: this device does not
+ * lock (iPad, computer). Insisting on every tap would only throw the person
+ * back into the fullscreen they just closed.
+ */
+let unsupported = false;
+
+/**
+ * Requests an orientation. `mode` is 'landscape', 'portrait' or null (release).
+ *
+ * Entering fullscreen is a condition for locking, so the landscape request
+ * (made when opening the table) is what opens fullscreen; the others only
+ * switch the lock, without leaving and coming back in - which would flash the
+ * screen on every vote.
+ */
+export async function preferOrientation(mode, explicit = false) {
+  if (typeof window === 'undefined') return;
+  lastRequest = { mode, explicit };
+  if (!allowed()) return;
+
+  // Automatic portrait only makes sense on a phone: on a propped tablet,
+  // rotating the screen by itself to vote would be more hindrance than help.
   //
-  // Mas quando a pessoa ESCOLHEU apoiar o aparelho em pe para esta mesa, isso
-  // vale em qualquer tamanho - inclusive tablet, que e justamente onde uma
-  // mesa de dois ou tres apoiada em pe faz mais sentido.
-  if (mode === 'portrait' && !explicito && !isSmallScreen()) return;
+  // But when the person CHOSE to stand the device up for this table, that
+  // holds at any size - tablets included, which is exactly where a table of
+  // two or three propped upright makes the most sense.
+  if (mode === 'portrait' && !explicit && !isSmallScreen()) return;
 
   try {
     if (mode === null) {
@@ -69,27 +90,28 @@ export async function preferOrientation(mode, explicito = false) {
     }
     if (screen.orientation && screen.orientation.lock) await screen.orientation.lock(mode);
   } catch {
-    /* sem suporte ou negado: o CSS se vira nas duas orientacoes */
+    /* unsupported or denied: the CSS copes in both orientations */
+    if (document.fullscreenElement) unsupported = true;
   }
 }
 
 /**
- * O aparelho esta NO MEIO da mesa, ou de FRENTE para uma pessoa so?
+ * Is the device IN THE MIDDLE of the table, or FACING a single person?
  *
- * Celular e tablet ficam deitados entre os jogadores: cada um olha de um lado,
- * e girar o teclado de dano para o assento de quem ataca e o que faz ele ser
- * legivel. Num computador ninguem senta em volta do monitor - ele fica de pe,
- * de frente para uma pessoa - e ai o mesmo giro entrega a tela de cabeca para
- * baixo, que era o que estava acontecendo.
+ * Phones and tablets lie between the players: each one looks from one side,
+ * and rotating the damage pad toward the seat of whoever attacks is what makes
+ * it readable. At a computer nobody sits around the monitor - it stands up,
+ * facing one person - and then the same rotation shows the screen upside down,
+ * which is what was happening.
  *
- * O sinal e o ponteiro, nao o tamanho da tela: tablet grande em paisagem tem a
- * largura de um notebook, e chutar por pixels erraria nos dois sentidos. Mouse
- * ou trackpad significa alguem sentado de frente. Um notebook com tela sensivel
- * ao toque tambem tem mouse, e tambem nao deve girar - o que da o resultado
- * certo. iPad com teclado e trackpad conta como computador, e ai ele esta mesmo
- * apoiado feito notebook.
+ * The signal is the pointer, not the screen size: a large tablet in landscape
+ * is as wide as a laptop, and guessing by pixels would be wrong both ways. A
+ * mouse or trackpad means someone sitting in front of it. A touchscreen laptop
+ * also has a mouse, and should not rotate either - which gives the right
+ * result. An iPad with keyboard and trackpad counts as a computer, and then it
+ * really is propped like a laptop.
  */
-export function apontadorPreciso(mm) {
+export function hasFinePointer(mm) {
   const media = mm || (typeof window !== 'undefined' && window.matchMedia
     ? window.matchMedia.bind(window)
     : null);
@@ -101,28 +123,57 @@ export function apontadorPreciso(mm) {
   }
 }
 
-/** Decisao pura, para poder ser testada dos dois lados. */
-export function giraComOAssento(temApontadorPreciso) {
-  return !temApontadorPreciso;
+/** Pure decision, so it can be tested both ways. */
+export function rotatesWithSeat(finePointer) {
+  return !finePointer;
 }
 
-/** Os teclados do jogo devem girar para o assento de quem age? */
+/** Should the game pads rotate toward the seat of whoever acts? */
 export function rotatesToSeat() {
-  return giraComOAssento(apontadorPreciso());
+  return rotatesWithSeat(hasFinePointer());
 }
 
 /**
- * Quanto uma coisa da mesa gira, ja no formato que o CSS espera.
+ * How much a table element rotates, already in the format the CSS expects.
  *
- * Vale para o painel de cada jogador E para o teclado de dano: e a mesma regra
- * e o mesmo motivo. Deitado na mesa, cada painel aponta para o dono; num
- * monitor de pe, quem esta "do outro lado" nao existe - ha uma pessoa so
- * olhando, e metade da tela ficava de cabeca para baixo.
+ * It applies to each player's panel AND to the damage pad: same rule, same
+ * reason. Lying on the table, each panel points to its owner; on an upright
+ * monitor, the one "on the other side" does not exist - there is a single
+ * person looking, and half the screen ended up upside down.
  *
- * Existe como funcao para que o teste alcance a decisao inteira - inclusive o
- * sufixo, que e a parte que quebra em silencio: `transform: rotate(0)` sem
- * unidade e invalido, e a regra toda seria descartada pelo navegador.
+ * It exists as a function so the test reaches the whole decision - including
+ * the suffix, which is the part that breaks silently: `transform: rotate(0)`
+ * without a unit is invalid, and the browser would discard the whole rule.
  */
-export function grausNaMesa(graus, temApontadorPreciso) {
-  return (giraComOAssento(temApontadorPreciso) ? (graus || 0) : 0) + 'deg';
+export function tableRotation(degrees, finePointer) {
+  return (rotatesWithSeat(finePointer) ? (degrees || 0) : 0) + 'deg';
+}
+
+/**
+ * Did the lock drop, so it needs to be requested again?
+ *
+ * Only when there is a lock request in force and fullscreen is no longer
+ * active - fullscreen is the condition for the lock to exist.
+ */
+export function lockLost() {
+  if (typeof document === 'undefined') return false;
+  return Boolean(lastRequest.mode)
+    && !unsupported
+    && allowed()
+    // Mouse or trackpad: nobody rotates a computer, and asking for fullscreen
+    // on every click would fight whoever just left it.
+    && !hasFinePointer()
+    && !document.fullscreenElement;
+}
+
+/**
+ * Requests the last orientation again.
+ *
+ * Entering fullscreen requires a recent tap by the person, so calling this
+ * when returning to the app usually fails; what guarantees it is the first tap
+ * after the return, which calls this again (see app.js).
+ */
+export function resumeOrientation() {
+  if (!lockLost()) return Promise.resolve();
+  return preferOrientation(lastRequest.mode, lastRequest.explicit);
 }

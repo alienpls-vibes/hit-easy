@@ -1,0 +1,117 @@
+# Publishes two channels on the same GitHub Pages site.
+#
+#   main  ->  /hit-easy/        production, what the table uses
+#   beta  ->  /hit-easy/beta/   beta, what you approve first
+#
+# The site is rebuilt whole on every run, always from both branches. An
+# incremental deploy would give a state that depends on the order things were
+# published in - and one day beta would delete production without anyone
+# understanding why.
+#
+# A failing test does not publish. Since production is already live, blocking
+# the deploy never takes anything down: at worst the table keeps the previous
+# version.
+
+name: Publish
+
+on:
+  push:
+    branches: [main, beta]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The raw output of the step can only be read with a token. Repeating its
+      # end in an `::error::` makes the reason show up in the run annotation,
+      # which is public - the difference between "exit code 1" and knowing what
+      # broke.
+      - name: npm test
+        run: |
+          set +e
+          output=$(npm test 2>&1)
+          code=$?
+          echo "$output"
+          if [ $code -ne 0 ]; then
+            summary=$(echo "$output" | grep -viE '^\s*$' | tail -25 | tr '\n' '%')
+            echo "::error::npm test failed (code $code): $summary"
+          fi
+          exit $code
+
+  publish:
+    name: Publish
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Production (main) at the root
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: site
+
+      - name: Does the beta branch exist?
+        id: hasbeta
+        run: |
+          if git ls-remote --exit-code --heads "$REPO" beta >/dev/null 2>&1; then
+            echo "yes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "yes=false" >> "$GITHUB_OUTPUT"
+            echo "No beta branch: the site goes out with production only."
+          fi
+        env:
+          REPO: ${{ github.server_url }}/${{ github.repository }}
+
+      - name: Beta at /beta/
+        if: steps.hasbeta.outputs.yes == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: beta
+          path: site/beta
+
+      # Which beta commit is live.
+      #
+      # The app version does not move with every push to beta - it only
+      # changes when there is a production release - so without this stamp
+      # there would be no way to know whether the device already got the new
+      # code. It has to run BEFORE deleting .git, which is where the SHA comes
+      # from.
+      #
+      # The JSON fields ("build", "quando") are read by src/install.js on
+      # whichever branch is live, so they keep their names.
+      - name: Stamp the beta build
+        if: steps.hasbeta.outputs.yes == 'true'
+        run: |
+          SHA=$(git -C site/beta rev-parse --short HEAD)
+          WHEN=$(git -C site/beta log -1 --format=%cI)
+          printf '{"build":"%s","quando":"%s"}\n' "$SHA" "$WHEN" \
+            > site/beta/build.json
+          cat site/beta/build.json
+
+      - name: Remove git metadata
+        run: rm -rf site/.git site/beta/.git
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

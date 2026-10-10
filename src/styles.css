@@ -1,39 +1,40 @@
 /* ==========================================================================
    Hit Easy — commander made simple
-   Sistema visual — a entrada
+   Visual system — the entry point
 
-   Numerais enormes em peso leve, tipografia de rótulo em caixa alta com muito
-   tracking, fios de 1px e cor usada só como assinatura da identidade do deck.
+   Huge numerals in a light weight, uppercase label typography with lots of
+   tracking, 1px hairlines and color used only as the signature of the deck's
+   identity.
 
-   ESTA ORDEM É A CASCATA. Cada @import abaixo é uma faixa contígua da folha
-   antiga, na mesma sequência em que estava — trocar duas de lugar muda quem
-   vence um empate de especificidade, e o sintoma é visual e silencioso.
+   THIS ORDER IS THE CASCADE. Each @import below is a contiguous slice of the
+   old sheet, in the same sequence it had — swapping two changes who wins a
+   specificity tie, and the symptom is visual and silent.
 
-   As últimas folhas são ajustes que nasceram depois e sobrepõem as de cima de
-   propósito. Elas precisam continuar por último: subi-las na lista as faria
-   perder para o que vinham corrigir.
+   The last sheets are adjustments born later that override the ones above on
+   purpose. They have to stay last: moving them up the list would make them
+   lose to what they came to fix.
 
-   `npm run check` segue estes @import e avisa quando duas classes usadas no
-   mesmo elemento definem a mesma propriedade — inclusive entre folhas.
+   `npm run check` follows these @imports and warns when two classes used on
+   the same element define the same property — across sheets too.
    ========================================================================== */
 
-@import './estilos/tokens.css';
-@import './estilos/base.css';
-@import './estilos/home.css';
-@import './estilos/mesa.css';
-@import './estilos/dano.css';
-@import './estilos/nucleo.css';
-@import './estilos/vitoria.css';
-@import './estilos/painel.css';
-@import './estilos/configuracoes.css';
-@import './estilos/stats.css';
-@import './estilos/tela.css';
-@import './estilos/erro.css';
-@import './estilos/votacao.css';
-@import './estilos/mana.css';
-@import './estilos/vitoria-tela-baixa.css';
-@import './estilos/stats-votacoes.css';
-@import './estilos/ocultar-rivalidades.css';
-@import './estilos/motivos-de-vitoria.css';
-@import './estilos/telas-largas.css';
-@import './estilos/conta.css';
+@import './styles/tokens.css';
+@import './styles/base.css';
+@import './styles/home.css';
+@import './styles/table.css';
+@import './styles/damage.css';
+@import './styles/core.css';
+@import './styles/victory.css';
+@import './styles/panel.css';
+@import './styles/settings.css';
+@import './styles/stats.css';
+@import './styles/screen.css';
+@import './styles/error.css';
+@import './styles/vote.css';
+@import './styles/mana.css';
+@import './styles/victory-short-screens.css';
+@import './styles/stats-votes.css';
+@import './styles/hide-rivalries.css';
+@import './styles/win-reasons.css';
+@import './styles/wide-screens.css';
+@import './styles/account.css';

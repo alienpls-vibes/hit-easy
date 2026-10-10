@@ -1,0 +1,54 @@
+/* ==========================================================================
+   Vote choices, on the statistics card.
+   ========================================================================== */
+
+.vote-history {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vote-history-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--text-dim);
+}
+.vote-history-count {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--text-mid);
+  font-size: 0.56rem;
+  line-height: 16px;
+  text-align: center;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.vote-history-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.78rem;
+}
+.vote-history-q {
+  color: var(--text-mid);
+  min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.vote-history-a {
+  color: var(--text);
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A slightly bigger mana dot: the letter has to be readable inside it. */
+.mana-pip { width: 22px; height: 22px; font-size: 0.66rem; }

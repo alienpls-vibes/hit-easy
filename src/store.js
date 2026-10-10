@@ -1,58 +1,73 @@
 /**
- * Persistencia local (localStorage) + notificacao de mudanca.
+ * Local persistence (localStorage) + change notification.
  *
- * Guardamos a partida em andamento separada do historico: fechar o navegador
- * no meio de um jogo nao pode custar a mesa. Toda gravacao e sincrona e barata
- * porque o volume e pequeno (algumas centenas de eventos por partida).
+ * We keep the match in progress apart from the history: closing the browser
+ * in the middle of a game cannot cost the table. Every write is synchronous
+ * and cheap because the volume is small (a few hundred events per match).
+ *
+ * STORED NAMES. Everything in `EMPTY` below is written to the device, exported
+ * in backups and read back by older versions of the app. Several fields have
+ * Portuguese names (`enviadas`, `decksDeConta`, `handlesAtuais`,
+ * `versaoVista`, `versaoAnterior`) and the theme values are Portuguese
+ * ('sistema', 'claro', 'escuro'). Those names are data, not code: renaming
+ * them would make every existing device lose that data. Keep them.
  */
 
-import { chave } from './canal.js';
-import { identityOf } from './stats.js';
+import { storageKey } from './channel.js';
 import {
-  partidaValida, juntarDecks, passarAMesa, receberAMesa, retomarAMesa,
+  identityOf, CURRENT_HANDLES, currentHandle, DISPLAY_NAMES, displayNameOf,
+} from './stats.js';
+import {
+  isValidMatch, mergeDecks, handOffTable, receiveTable, reclaimTable, isHandedOff,
 } from './engine.js';
 
-const KEY = chave('mtglc.db.v1');
+const KEY = storageKey('mtglc.db.v1');
 
 const EMPTY = {
   version: 1,
   current: null,
   history: [],
-  // Ids de partidas que ja foram para a nuvem.
+  // Ids of matches that have already gone to the cloud.
   //
-  // Existe porque quem nao assina CONSEGUE subir mas nao consegue baixar: sem
-  // esta anotacao, a cada abertura o aparelho acharia que a nuvem esta vazia e
-  // reenviaria o historico inteiro, para sempre.
+  // It exists because non-subscribers CAN upload but cannot download: without
+  // this note, on every open the device would think the cloud was empty and
+  // resend the whole history, forever.
   enviadas: [],
-  commanders: {}, // oracleId -> commander (reuso offline)
+  commanders: {}, // oracleId -> commander (offline reuse)
   playerNames: [],
-  // Nome de jogador -> @ da conta dele. Grupo de Commander joga toda
-  // semana com a mesma gente: digitar o @ de novo a cada mesa seria o
-  // tipo de atrito que faz o recurso nao ser usado.
+  // Player name -> their account's @. A Commander group plays every week with
+  // the same people: typing the @ again at every table would be the kind of
+  // friction that makes a feature go unused.
   playerHandles: {},
-  // @ -> decks que seguem aquela conta, vindos do perfil no servidor.
+  // @ -> decks that follow that account, from the profile on the server.
   //
-  // So a propria conta escreve a propria lista (ver sql/004-decks-da-conta),
-  // entao isto e cache de uma coisa so: os decks de quem esta logado. Serve ao
-  // aparelho novo, onde o historico local esta vazio.
+  // Only the account itself writes its own list (see
+  // sql/004-account-decks.sql), so this caches one thing only: the decks of
+  // whoever is signed in. It serves the new device, where the local history
+  // is empty.
   decksDeConta: {},
-  // Escondidos das estatisticas, e so delas: as partidas continuam
-  // inteiras, com todos os eventos e a linha do tempo completa.
+  // Hidden from the statistics, and only from them: the matches stay whole,
+  // with every event and the complete timeline.
   hiddenDecks: [],
   hiddenPlayers: [],
+  // Old @ -> current @, for whoever changed @. See currentHandle in stats.
+  handlesAtuais: {},
+  // Current @ -> the name that account chose for matches. See learnDisplayNames.
+  displayNames: {},
   settings: {
     startingLife: 40,
-    lang: null,           // null = seguir o navegador
-    theme: 'sistema',     // 'sistema' | 'claro' | 'escuro'
+    lang: null,           // null = follow the browser
+    theme: 'sistema',     // 'sistema' | 'claro' | 'escuro' (system | light | dark)
     haptics: true,
     keepAwake: true,
-    autoRotate: true,     // tenta tela cheia + travar deitado na partida
+    autoRotate: true,     // tries fullscreen + locking landscape during the match
     dragHintSeen: false,
-    versaoVista: null,
-    // De qual versao a pessoa veio na ultima atualizacao.
+    versaoVista: null,    // last version whose release notes were seen
+    // Which version the person came from on the last update.
     //
-    // Separada de `versaoVista` porque esta e sobrescrita no arranque: sem a
-    // anterior, abrir as notas pelo menu nao teria como dizer o que entrou.
+    // Separate from `versaoVista` because that one is overwritten at startup:
+    // without the previous one, opening the notes from the menu would have no
+    // way to tell what came in.
     versaoAnterior: null,
   },
 };
@@ -65,22 +80,22 @@ function read() {
     const raw = localStorage.getItem(KEY);
     if (!raw) return structuredClone(EMPTY);
     const parsed = JSON.parse(raw);
-    // settings entra por merge raso, e nao por substituicao: quem ja usava o
-    // app antes de uma preferencia existir precisa herdar o padrao dela.
+    // settings come in through a shallow merge, not a replacement: whoever
+    // used the app before a preference existed must inherit its default.
     return {
       ...structuredClone(EMPTY),
       ...parsed,
       settings: { ...EMPTY.settings, ...(parsed.settings || {}) },
-      // Cura o que ja entrou.
+      // Heals what already got in.
       //
-      // Filtrar a porta de entrada protege daqui para a frente, mas nao limpa o
-      // aparelho de quem ja sincronizou antes do conserto - e um registro sem
-      // seats derruba a tela toda vez que ela abre. Descartar aqui e seguro
-      // porque uma partida sem assentos nem eventos nao tem nada a perder: ela
-      // ja nao pode ser lida por ninguem.
-      history: (parsed.history || []).filter(partidaValida),
-      // Ocultos passam a ser chaveados por IDENTIDADE (ver migrarOcultos).
-      hiddenPlayers: migrarOcultos(parsed.hiddenPlayers, parsed.playerHandles),
+      // Filtering the entry door protects from here on, but does not clean the
+      // device of whoever synced before the fix - and a record without seats
+      // takes the screen down every time it opens. Discarding here is safe
+      // because a match with no seats or events has nothing to lose: nobody
+      // can read it anymore.
+      history: (parsed.history || []).filter(isValidMatch),
+      // Hidden players become keyed by IDENTITY (see migrateHidden).
+      hiddenPlayers: migrateHidden(parsed.hiddenPlayers, parsed.playerHandles),
     };
   } catch {
     return structuredClone(EMPTY);
@@ -88,33 +103,33 @@ function read() {
 }
 
 /**
- * Ocultos passam a ser chaveados por identidade, e nao pelo nome mostrado.
+ * Hidden players become keyed by identity, not by the displayed name.
  *
- * A tela ocultava o rotulo, que era o nome digitado. Quando a pessoa ganhava
- * conta a identidade dela virava `@handle`, a chave deixava de casar e a linha
- * reaparecia - o "ocultar" se desfazia sozinho, sem ninguem pedir.
+ * The screen hid the label, which was the typed name. When the person got an
+ * account their identity became `@handle`, the key stopped matching and the
+ * row came back - "hide" undid itself, without anyone asking.
  *
- * Reescreve uma vez, na leitura. Para quem nao tem conta a identidade JA e o
- * nome em minusculas, entao a esmagadora maioria das entradas antigas
- * atravessa sem mudar.
+ * Rewrites once, on read. For whoever has no account the identity ALREADY is
+ * the lowercase name, so the vast majority of old entries pass through
+ * unchanged.
  */
-function migrarOcultos(ocultos, apelidos) {
-  const vistos = new Set();
-  for (const entrada of ocultos || []) {
-    const nome = String(entrada || '').trim().toLowerCase();
-    if (!nome) continue;
-    if (nome.startsWith('@')) { vistos.add(nome); continue; }
-    const handle = apelidos && apelidos[nome];
-    vistos.add(handle ? '@' + String(handle).toLowerCase() : nome);
+function migrateHidden(hidden, aliases) {
+  const seen = new Set();
+  for (const entry of hidden || []) {
+    const name = String(entry || '').trim().toLowerCase();
+    if (!name) continue;
+    if (name.startsWith('@')) { seen.add(name); continue; }
+    const handle = aliases && aliases[name];
+    seen.add(handle ? '@' + String(handle).toLowerCase() : name);
   }
-  return [...vistos];
+  return [...seen];
 }
 
 export function save() {
   try {
     localStorage.setItem(KEY, JSON.stringify(db));
   } catch (err) {
-    console.warn('Falha ao gravar dados locais', err);
+    console.warn('Failed to save local data', err);
   }
   listeners.forEach((fn) => fn(db));
 }
@@ -129,30 +144,31 @@ export function getDB() {
 }
 
 /**
- * A mesa que da para jogar agora.
+ * The table that can be played right now.
  *
- * Mesa passada para outro aparelho NAO conta, e e por isso que este null
- * existe: o bastao precisava ser cobrado, e cobra-lo com um `if` no roteador
- * punha a regra numa linha que alguem pode apagar sem nada quebrar - o teste
- * de mutacao apagou e a suite inteira passou.
+ * A table handed off to another device does NOT count, and that is why this
+ * null exists: the baton had to be enforced, and enforcing it with an `if` in
+ * the router put the rule on a line someone could delete without anything
+ * breaking - the mutation test deleted it and the whole suite passed.
  *
- * Assim todo caminho que ja tratava "nao ha mesa aberta" trata este caso de
- * graca, sem nenhum deles precisar conhecer o conceito. Quem quer a mesa
- * passada - a home, para avisar - pede por `mesaGuardada()`.
+ * This way every path that already handled "there is no open table" handles
+ * this case for free, without any of them needing to know the concept.
+ * Whoever wants the handed-off table - the home screen, to warn about it -
+ * asks through `storedTable()`.
  */
 export function getCurrent() {
   return db.current && db.current.passadaEm ? null : db.current;
 }
 
 /**
- * A mesa que esta aqui, passada ou nao.
+ * The table that is here, handed off or not.
  *
- * So a home usa, para o aviso e para o retomar. Separada de `getCurrent()`
- * porque pedir "a mesa de agora" e pedir "a mesa que esta guardada aqui" sao
- * perguntas diferentes, e misturar as duas foi o que exigiu a guarda no
- * roteador.
+ * Only the home screen uses it, for the warning and for taking it back.
+ * Separate from `getCurrent()` because asking for "the table right now" and
+ * asking for "the table stored here" are different questions, and mixing the
+ * two is what required the guard in the router.
  */
-export function mesaGuardada() {
+export function storedTable() {
   return db.current;
 }
 
@@ -166,7 +182,7 @@ export function clearCurrent() {
   save();
 }
 
-/** Move a partida para o historico e libera o slot da mesa. */
+/** Moves the match to the history and frees the table slot. */
 export function archive(match) {
   const already = db.history.findIndex((m) => m.id === match.id);
   const record = { ...match, redo: [] };
@@ -177,24 +193,24 @@ export function archive(match) {
 }
 
 /**
- * O historico, so com o que tem forma de partida.
+ * The history, with only what has the shape of a match.
  *
- * A porta de ENTRADA ja filtra e a leitura do disco tambem cura o que passou
- * antes. Esta e a terceira camada, e ela existe porque as duas primeiras cobrem
- * caminhos conhecidos: um registro quebrado por um caminho que ainda nao existe
- * derrubaria a tela inteira, e tela preta nao diz nada a ninguem. Quem LE o
- * historico para desenhar deve usar isto.
+ * The ENTRY door already filters and reading from disk also heals what got
+ * through before. This is the third layer, and it exists because the first two
+ * cover known paths: a broken record through a path that does not exist yet
+ * would take the whole screen down, and a black screen tells nobody anything.
+ * Whoever READS the history to draw it should use this.
  */
-export function partidas() {
-  return (db.history || []).filter(partidaValida);
+export function matches() {
+  return (db.history || []).filter(isValidMatch);
 }
 
-/** Ids ja enviados para a nuvem. */
-export function enviadas() {
+/** Ids already uploaded to the cloud. */
+export function uploadedIds() {
   return [...(db.enviadas || [])];
 }
 
-export function marcarEnviada(matchId) {
+export function markUploaded(matchId) {
   if (!matchId) return;
   if (!db.enviadas) db.enviadas = [];
   if (!db.enviadas.includes(matchId)) {
@@ -203,45 +219,46 @@ export function marcarEnviada(matchId) {
   }
 }
 
-/** Apagou a partida: a marca tambem sai, senao ela nunca mais subiria. */
-export function esquecerEnviada(matchId) {
+/** The match was deleted: the mark goes too, otherwise it would never upload again. */
+export function forgetUploaded(matchId) {
   if (!db.enviadas || !db.enviadas.includes(matchId)) return;
   db.enviadas = db.enviadas.filter((x) => x !== matchId);
   save();
 }
 
 /**
- * Junta partidas vindas da nuvem ao historico daqui.
+ * Merges matches coming from the cloud into the local history.
  *
- * Por id, e sem sobrescrever o que ja existe: partida encerrada e imutavel, e
- * a copia local pode ter algo que a remota nao tem se algum envio falhou pela
- * metade. Na duvida, o que ja esta aqui manda.
+ * By id, and without overwriting what already exists: a finished match is
+ * immutable, and the local copy may have something the remote one does not if
+ * some upload failed halfway. When in doubt, what is already here wins.
  */
-export function mesclarPartidas(lista) {
-  const aqui = new Set(db.history.map((m) => m && m.id));
-  // Descarta o que nao tem forma de partida. O historico e lido por replay() e
-  // pelas estatisticas, que assumem seats e events - uma linha quebrada aqui
-  // dentro nao fica quieta, derruba a tela.
-  const novas = (lista || []).filter((m) => partidaValida(m) && !aqui.has(m.id));
-  if (!novas.length) return 0;
-  db.history = [...db.history, ...novas]
+export function mergeMatches(list) {
+  const here = new Set(db.history.map((m) => m && m.id));
+  // Discards what does not have the shape of a match. The history is read by
+  // replay() and by the statistics, which assume seats and events - a broken
+  // row in here does not sit quietly, it takes the screen down.
+  const fresh = (list || []).filter((m) => isValidMatch(m) && !here.has(m.id));
+  if (!fresh.length) return 0;
+  db.history = [...db.history, ...fresh]
     .sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
   save();
-  return novas.length;
+  return fresh.length;
 }
 
 /**
- * Grava de volta uma partida do historico, sem mexer na partida em andamento.
+ * Writes back a match from the history, without touching the match in
+ * progress.
  *
- * archive() serve para ENCERRAR - ele zera `current` como parte do trabalho.
- * Usar archive para editar um registro antigo apagaria a mesa que esta
- * acontecendo agora, o que seria um estrago silencioso e absurdo.
+ * archive() is for FINISHING - it clears `current` as part of the job. Using
+ * archive to edit an old record would wipe the table happening right now,
+ * which would be silent and absurd damage.
  */
-export function atualizarPartida(match) {
-  if (!partidaValida(match)) return false;
-  const onde = db.history.findIndex((m) => m.id === match.id);
-  if (onde < 0) return false;
-  db.history[onde] = match;
+export function updateMatch(match) {
+  if (!isValidMatch(match)) return false;
+  const at = db.history.findIndex((m) => m.id === match.id);
+  if (at < 0) return false;
+  db.history[at] = match;
   save();
   return true;
 }
@@ -257,7 +274,7 @@ export function rememberCommander(commander) {
   save();
 }
 
-/** Comandantes ja usados, do mais recente para o mais antigo. */
+/** Commanders already used, from most recent to oldest. */
 export function recentCommanders(limit = 24) {
   return Object.values(db.commanders)
     .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))
@@ -271,26 +288,26 @@ export function rememberPlayer(name) {
   save();
 }
 
-/** Guarda a que conta um nome de jogador corresponde. */
+/** Remembers which account a player name corresponds to. */
 export function rememberHandle(name, handle) {
-  const nome = String(name || '').trim();
+  const clean = String(name || '').trim();
   const h = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
-  if (!nome) return;
+  if (!clean) return;
   if (!db.playerHandles) db.playerHandles = {};
-  if (h) db.playerHandles[nome.toLowerCase()] = h;
-  else delete db.playerHandles[nome.toLowerCase()];
+  if (h) db.playerHandles[clean.toLowerCase()] = h;
+  else delete db.playerHandles[clean.toLowerCase()];
   save();
 }
 
-/** O @ ja conhecido deste jogador, se houver. */
+/** This player's known @, if any. */
 export function handleOf(name) {
-  const nome = String(name || '').trim().toLowerCase();
-  return (db.playerHandles && db.playerHandles[nome]) || '';
+  const clean = String(name || '').trim().toLowerCase();
+  return (db.playerHandles && db.playerHandles[clean]) || '';
 }
 
 export function forgetPlayer(name) {
-  // O @ acompanha o nome: esquecer pela metade deixaria a conta de outra
-  // pessoa presa a um jogador que ja nao existe mais na lista.
+  // The @ goes with the name: forgetting halfway would leave someone else's
+  // account attached to a player who is no longer on the list.
   if (db.playerHandles) delete db.playerHandles[String(name || '').trim().toLowerCase()];
   const clean = String(name || '').trim();
   db.playerNames = db.playerNames.filter((n) => n !== clean);
@@ -298,19 +315,12 @@ export function forgetPlayer(name) {
 }
 
 /**
- * Decks que este jogador ja levou, do mais recente para o mais antigo.
+ * Stores the decks that came from that account's profile.
  *
- * Derivado do historico em vez de guardado a parte: o que ele jogou ja esta
- * escrito nas partidas salvas, e duplicar isso so criaria uma segunda verdade
- * para sair de sincronia depois.
+ * By handle, and not in a single list: signing in with another account on the
+ * same device cannot mix two people's decks.
  */
-/**
- * Guarda os decks que vieram do perfil daquela conta.
- *
- * Por handle, e nao numa lista so: entrar com outra conta no mesmo aparelho
- * nao pode misturar os decks de duas pessoas.
- */
-export function guardarDecksDaConta(handle, decks) {
+export function saveAccountDecks(handle, decks) {
   const h = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
   if (!h || !Array.isArray(decks)) return;
   if (!db.decksDeConta) db.decksDeConta = {};
@@ -320,41 +330,190 @@ export function guardarDecksDaConta(handle, decks) {
   save();
 }
 
-/** Os decks que seguem aquela conta, do que este aparelho ja baixou. */
-export function decksDaConta(handle) {
+/** The decks that follow that account, from what this device already downloaded. */
+export function accountDecks(handle) {
   const h = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
   return (db.decksDeConta && db.decksDeConta[h]) || [];
 }
 
-/** Nome (minusculo) -> handle, do que este aparelho ja viu. */
+/** Name (lowercase) -> handle, from what this device has already seen. */
 export function knownHandles() {
-  return { ...(db.playerHandles || {}) };
+  const aliases = { ...(db.playerHandles || {}) };
+  aliases[CURRENT_HANDLES] = { ...(db.handlesAtuais || {}) };
+  aliases[DISPLAY_NAMES] = { ...(db.displayNames || {}) };
+  return aliases;
+}
+
+/** The longest seat name - what fits on a player's panel at the table. */
+const SEAT_NAME_MAX = 18;
+
+/**
+ * The name a seat should carry: the chosen name of its account, when known.
+ *
+ * Seats without an account, or whose account has no chosen name, keep the
+ * name typed for them.
+ */
+export function nameForSeat(seat) {
+  if (!seat) return '';
+  // By identity, not only by `seat.handle`: a seat reused from the previous
+  // table carries just the typed name, and the account is known through the
+  // name -> @ the device remembers.
+  const identity = identityOf(seat, knownHandles());
+  if (!identity.startsWith('@')) return seat.name;
+  const chosen = displayNameOf(identity.slice(1), knownHandles());
+  return chosen ? [...chosen].slice(0, SEAT_NAME_MAX).join('') : seat.name;
 }
 
 /**
- * Guarda um apelido APRENDIDO, sem sobrescrever o que este aparelho decidiu.
+ * Puts the chosen names on these seats (mutates them). Returns how many changed.
  *
- * Diferente de rememberHandle, que e a pessoa marcando na mao. Este entra pelo
- * que chega da nuvem, e ai a regra e outra: uma partida baixada pode dizer que
- * "Alexandre" e @alex, mas se este aparelho ja tem "Alexandre" apontando para
- * outra conta, quem decide e quem esta aqui. Divergencia nao se resolve
- * adivinhando - fica como esta, e a pessoa marca na mao se quiser.
- *
- * Devolve se, no fim, o nome aponta para esse handle.
+ * Used where seats are about to be seen at the table: picking a person,
+ * reusing the previous table, starting a match.
  */
-export function aprenderApelido(name, handle) {
-  const nome = String(name || '').trim().toLowerCase();
+export function applyDisplayNames(seats) {
+  let changed = 0;
+  for (const seat of seats || []) {
+    const name = nameForSeat(seat);
+    if (!name || name === seat.name) continue;
+    // The account came from the typed name: once the name changes, the seat
+    // has to carry the @ itself, or it would lose the account it just got.
+    if (!seat.handle) {
+      const identity = identityOf(seat, knownHandles());
+      if (identity.startsWith('@')) seat.handle = identity.slice(1);
+    }
+    seat.name = name;
+    changed += 1;
+  }
+  return changed;
+}
+
+/**
+ * Learns the names accounts chose for matches: `{ handle: name | null }`.
+ *
+ * The statistics read the map on the fly (labelOf, seatName). The OPEN match
+ * is different: the table, the victory card and the votes read `seat.name`,
+ * so its seats are renamed here - otherwise someone who chose "Alê" would
+ * still be "Alex" on the panel until the next match. Finished matches are not
+ * touched: they record the name the table used that day.
+ *
+ * `null` forgets the name (the person went back to using the @). Returns
+ * `{ changed, table }`: how many names changed, and whether the open match
+ * changed - the caller redraws the table only then.
+ */
+export function learnDisplayNames(pairs) {
+  const clean = (h) => String(h || '').trim().replace(/^@+/, '').toLowerCase();
+  const map = { ...(db.displayNames || {}) };
+  let changed = 0;
+  for (const [raw, name] of Object.entries(pairs || {})) {
+    const h = clean(raw);
+    if (!h) continue;
+    const value = String(name || '').trim();
+    if (value) {
+      if (map[h] === value) continue;
+      map[h] = value;
+    } else {
+      if (!(h in map)) continue;
+      delete map[h];
+    }
+    changed += 1;
+  }
+  if (!changed) return { changed: 0, table: false };
+
+  db.displayNames = map;
+  const table = db.current && !db.current.passadaEm
+    ? applyDisplayNames(db.current.seats) > 0
+    : false;
+  save();
+  return { changed, table };
+}
+
+/**
+ * Learns that these @s changed: `{ old: current }`.
+ *
+ * Besides the map the statistics read, it fixes what this device STORES with
+ * the old @ - otherwise the next seat tagged through a remembered name would
+ * come out with the old @, and hiding someone before the change would stop
+ * working after it:
+ *
+ *   - the aliases (name -> @) start pointing to the current one;
+ *   - whoever was hidden as @old stays hidden as @current.
+ *
+ * Returns how many entries changed. Only saves if something changed.
+ */
+export function learnCurrentHandles(pairs) {
+  const clean = (h) => String(h || '').trim().replace(/^@+/, '').toLowerCase();
+  const map = { ...(db.handlesAtuais || {}) };
+  let changed = 0;
+
+  for (const [oldRaw, currentRaw] of Object.entries(pairs || {})) {
+    const old = clean(oldRaw);
+    const current = clean(currentRaw);
+    if (!old || !current || old === current || map[old] === current) continue;
+    // Whoever switched back to an old @: that @ is no longer "old".
+    delete map[current];
+    map[old] = current;
+    // Whatever pointed to the old one now points straight to the current one.
+    for (const k of Object.keys(map)) if (map[k] === old) map[k] = current;
+    changed += 1;
+  }
+  if (!changed) return 0;
+
+  db.handlesAtuais = map;
+  const currentOf = (h) => {
+    let x = clean(h);
+    for (let i = 0; i < 10 && map[x]; i += 1) x = map[x];
+    return x;
+  };
+  const aliases = db.playerHandles || {};
+  for (const name of Object.keys(aliases)) {
+    if (aliases[name]) aliases[name] = currentOf(aliases[name]);
+  }
+  db.hiddenPlayers = [...new Set((db.hiddenPlayers || []).map((k) => (
+    k.startsWith('@') ? '@' + currentOf(k) : k
+  )))];
+  save();
+  return changed;
+}
+
+/** Every @ that shows up on this device - to ask the server which ones changed. */
+export function allKnownHandles() {
+  const clean = (h) => String(h || '').trim().replace(/^@+/, '').toLowerCase();
+  const all = new Set();
+  for (const m of db.history || []) {
+    for (const s of m.seats || []) if (s && s.handle) all.add(clean(s.handle));
+  }
+  for (const s of (db.current && db.current.seats) || []) if (s && s.handle) all.add(clean(s.handle));
+  for (const h of Object.values(db.playerHandles || {})) if (h) all.add(clean(h));
+  for (const k of db.hiddenPlayers || []) if (k.startsWith('@')) all.add(clean(k));
+  all.delete('');
+  return [...all];
+}
+
+/**
+ * Stores a LEARNED alias, without overwriting what this device decided.
+ *
+ * Different from rememberHandle, which is the person tagging by hand. This one
+ * comes in through what arrives from the cloud, and then the rule is
+ * different: a downloaded match may say "Alexandre" is @alex, but if this
+ * device already has "Alexandre" pointing to another account, whoever is here
+ * decides. A disagreement is not resolved by guessing - it stays as it is,
+ * and the person tags by hand if they want.
+ *
+ * Returns whether, in the end, the name points to that handle.
+ */
+export function learnAlias(name, handle) {
+  const clean = String(name || '').trim().toLowerCase();
   const h = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
-  if (!nome || !h) return false;
+  if (!clean || !h) return false;
   if (!db.playerHandles) db.playerHandles = {};
 
-  const atual = db.playerHandles[nome];
-  if (atual) return atual === h;
+  const current = db.playerHandles[clean];
+  if (current) return current === h;
 
-  db.playerHandles[nome] = h;
-  // Aprender a conta de alguem que este aparelho nunca digitou tambem o
-  // acrescenta a lista de selecao: e uma pessoa que a mesa ja conhece.
-  if (!db.playerNames.some((n) => String(n).trim().toLowerCase() === nome)) {
+  db.playerHandles[clean] = h;
+  // Learning the account of someone this device never typed also adds them to
+  // the picker list: it is a person the table already knows.
+  if (!db.playerNames.some((n) => String(n).trim().toLowerCase() === clean)) {
     db.playerNames = [...db.playerNames, name].slice(0, 30);
   }
   save();
@@ -362,99 +521,128 @@ export function aprenderApelido(name, handle) {
 }
 
 /**
- * As PESSOAS que este aparelho conhece - uma linha por pessoa, nao por nome.
+ * The PEOPLE this device knows - one row per person, not per name.
  *
- * A lista de selecao mostrava `playerNames` cru, entao quem foi digitado como
- * "Alex" numa quinta e "Alexandre" na outra aparecia duas vezes, cada uma com
- * metade dos decks. Aqui os nomes que apontam para a mesma conta se juntam, e
- * a linha passa a se chamar pelo @.
+ * The picker list showed raw `playerNames`, so whoever was typed as "Alex" one
+ * Thursday and "Alexandre" the next showed up twice, each with half the decks.
+ * Here the names that point to the same account are merged, and the row is
+ * called by the @.
  *
- * A ordem de `playerNames` (mais recente primeiro) e preservada: a pessoa
- * herda a posicao do nome mais recente dela.
+ * The order of `playerNames` (most recent first) is preserved: the person
+ * inherits the position of their most recent name.
+ *
+ * Each entry is `{ key, handle, label, names }`.
  */
-export function pessoasConhecidas() {
-  const apelidos = db.playerHandles || {};
-  const porChave = new Map();
+export function knownPeople() {
+  const aliases = knownHandles(); // with the map of changed @s, like the statistics
+  const byKey = new Map();
 
-  for (const nome of db.playerNames) {
-    const limpo = String(nome || '').trim();
-    if (!limpo) continue;
-    // Mesma regra de chave da estatistica, e de proposito: se as duas
-    // divergirem, a lista de selecao e a lista de jogadores falam de pessoas
-    // diferentes com o mesmo nome na tela.
-    const chave = identityOf({ name: limpo }, apelidos);
-    if (!porChave.has(chave)) {
-      const handle = chave.startsWith('@') ? chave.slice(1) : '';
-      porChave.set(chave, {
-        chave,
+  for (const name of db.playerNames) {
+    const clean = String(name || '').trim();
+    if (!clean) continue;
+    // Same key rule as the statistics, on purpose: if the two diverge, the
+    // picker list and the player list talk about different people with the
+    // same name on screen.
+    const key = identityOf({ name: clean }, aliases);
+    if (!byKey.has(key)) {
+      const handle = key.startsWith('@') ? key.slice(1) : '';
+      byKey.set(key, {
+        key,
         handle,
-        label: handle ? '@' + handle : limpo,
-        nomes: [],
+        // By name, not by @: the @ belongs to the search screen, where it is
+        // what gets typed. Here the person is someone the table already
+        // knows - under the name they chose, or else the most recent name the
+        // table used for them (playerNames is newest first).
+        label: (handle && displayNameOf(handle, aliases)) || clean,
+        names: [],
       });
     }
-    porChave.get(chave).nomes.push(limpo);
+    byKey.get(key).names.push(clean);
   }
 
-  return [...porChave.values()];
+  return [...byKey.values()];
 }
 
-/** Os nomes que este aparelho ja ligou a esta conta. */
-export function nomesDaPessoa(handle) {
+/**
+ * The accounts this device has already tagged, for the @ search screen.
+ *
+ * Each entry is `{ handle, name }`: the current @ and the name to show next to
+ * it (the chosen one, or the most recent the table used). Picking from here
+ * skips typing the @ and the trip to the server.
+ */
+export function taggedAccounts() {
+  return knownPeople()
+    .filter((p) => p.handle)
+    .map((p) => ({ handle: p.handle, name: p.label }));
+}
+
+/** The names this device has already linked to this account. */
+export function namesOfPerson(handle) {
   const h = String(handle || '').trim().replace(/^@+/, '').toLowerCase();
   if (!h) return [];
-  const apelidos = db.playerHandles || {};
-  return Object.keys(apelidos).filter((nome) => apelidos[nome] === h);
+  const aliases = db.playerHandles || {};
+  const withMap = knownHandles();
+  const current = currentHandle(h, withMap);
+  return Object.keys(aliases).filter((name) => currentHandle(aliases[name], withMap) === current);
 }
 
 /**
- * Esquece a PESSOA, e nao um dos nomes dela.
+ * Forgets the PERSON, not one of their names.
  *
- * Esquecer so um nome deixaria a mesma pessoa meio na lista: o @ continuaria
- * conhecido pelos outros nomes, e a linha voltaria na proxima abertura.
+ * Forgetting just one name would leave the same person half on the list: the
+ * @ would still be known through the other names, and the row would come back
+ * on the next open.
  */
-export function esquecerPessoa(chave) {
-  const alvo = String(chave || '').trim().toLowerCase();
-  const pessoa = pessoasConhecidas().find((x) => x.chave === alvo);
-  for (const nome of (pessoa ? pessoa.nomes : [alvo])) forgetPlayer(nome);
+export function forgetPerson(key) {
+  const target = String(key || '').trim().toLowerCase();
+  const person = knownPeople().find((x) => x.key === target);
+  for (const name of (person ? person.names : [target])) forgetPlayer(name);
 }
 
 /**
- * Os decks desta PESSOA, nao deste nome.
+ * The decks of this PERSON, not of this name.
  *
- * Com conta vinculada, os comandantes seguem a conta: quem foi cadastrado como
- * "Alex" numa quinta e "Alexandre" na outra continua vendo os proprios decks,
- * porque a busca e pela identidade e nao pelo texto que alguem digitou.
+ * Decks this player has brought, from most recent to oldest. Derived from the
+ * history instead of stored separately: what they played is already written in
+ * the saved matches, and duplicating it would only create a second truth to
+ * fall out of sync later.
+ *
+ * With a linked account, the commanders follow the account: whoever was added
+ * as "Alex" one Thursday and "Alexandre" the next keeps seeing their own
+ * decks, because the lookup is by identity and not by the text someone typed.
  */
 export function decksOfPlayer(name, handle) {
-  const apelidos = db.playerHandles || {};
-  const key = identityOf({ name, handle }, apelidos);
+  const aliases = knownHandles(); // with the map of changed @s, like the statistics
+  const key = identityOf({ name, handle }, aliases);
   if (!key || key === '?') return [];
 
-  const locais = [];
-  for (const match of db.history) { // historico ja vem do mais recente
+  const local = [];
+  for (const match of db.history) { // history already comes most recent first
     for (const seat of match.seats || []) {
-      if (identityOf(seat, apelidos) !== key) continue;
+      if (identityOf(seat, aliases) !== key) continue;
       if (!(seat.commanders || []).length) continue;
-      locais.push({ commanders: seat.commanders, lastUsed: match.startedAt });
+      local.push({ commanders: seat.commanders, lastUsed: match.startedAt });
     }
   }
 
-  // Com conta, os decks que seguem a conta entram junto. Num aparelho novo o
-  // historico local esta vazio, e sem isto a pessoa nao acha o proprio deck -
-  // tendo de buscar na Scryfall o comandante que o app ja conhece.
-  const daConta = key.startsWith('@') ? decksDaConta(key.slice(1)) : [];
-  return juntarDecks(locais, daConta);
+  // With an account, the decks that follow the account come along. On a new
+  // device the local history is empty, and without this the person cannot
+  // find their own deck - having to search Scryfall for a commander the app
+  // already knows.
+  const fromAccount = key.startsWith('@') ? accountDecks(key.slice(1)) : [];
+  return mergeDecks(local, fromAccount);
 }
 
 /**
- * Some com um deck ou jogador das estatisticas.
+ * Removes a deck or player from the statistics.
  *
- * NAO apaga partida nenhuma: o historico continua igual, a linha do tempo
- * continua contando o que aconteceu, e o dano que essa pessoa causou continua
- * somando nas estatisticas de quem levou. So a LINHA dela deixa de aparecer -
- * e da para trazer de volta a qualquer momento.
+ * It does NOT delete any match: the history stays the same, the timeline keeps
+ * telling what happened, and the damage this person dealt keeps adding up in
+ * the statistics of whoever took it. Only their ROW stops showing - and it can
+ * be brought back at any time.
  *
- * E por isso que isto vive aqui, e nao em deleteMatch: sao coisas diferentes.
+ * That is why this lives here, and not in deleteMatch: they are different
+ * things.
  */
 export function hideDeck(deckKey) {
   if (!deckKey || db.hiddenDecks.includes(deckKey)) return;
@@ -463,15 +651,15 @@ export function hideDeck(deckKey) {
 }
 
 /**
- * Oculta uma pessoa das listas. Recebe a IDENTIDADE, nao o rotulo.
+ * Hides a person from the lists. Takes the IDENTITY, not the label.
  *
- * Com o rotulo, ocultar se desfazia sozinho: a pessoa ganhava conta, o rotulo
- * virava @alex, a chave guardada continuava "alexandre" e a linha reaparecia.
+ * With the label, hiding undid itself: the person got an account, the label
+ * became @alex, the stored key was still "alexandre" and the row came back.
  */
-export function hidePlayer(identidade) {
-  const chave = String(identidade || '').trim().toLowerCase();
-  if (!chave || db.hiddenPlayers.includes(chave)) return;
-  db.hiddenPlayers.push(chave);
+export function hidePlayer(identity) {
+  const key = String(identity || '').trim().toLowerCase();
+  if (!key || db.hiddenPlayers.includes(key)) return;
+  db.hiddenPlayers.push(key);
   save();
 }
 
@@ -480,9 +668,9 @@ export function unhideDeck(deckKey) {
   save();
 }
 
-export function unhidePlayer(identidade) {
-  const chave = String(identidade || '').trim().toLowerCase();
-  db.hiddenPlayers = db.hiddenPlayers.filter((k) => k !== chave);
+export function unhidePlayer(identity) {
+  const key = String(identity || '').trim().toLowerCase();
+  db.hiddenPlayers = db.hiddenPlayers.filter((k) => k !== key);
   save();
 }
 
@@ -490,8 +678,8 @@ export function isDeckHidden(deckKey) {
   return db.hiddenDecks.includes(deckKey);
 }
 
-export function isPlayerHidden(identidade) {
-  return db.hiddenPlayers.includes(String(identidade || '').trim().toLowerCase());
+export function isPlayerHidden(identity) {
+  return db.hiddenPlayers.includes(String(identity || '').trim().toLowerCase());
 }
 
 export function hiddenCount() {
@@ -504,82 +692,124 @@ export function setSetting(key, value) {
 }
 
 /**
- * O que identifica um arquivo de mesa passada.
+ * What identifies a handed-off table file.
  *
- * A versao e para o dia em que o formato mudar: um aparelho velho recebendo
- * arquivo novo precisa dizer "atualize o app", e nao abrir pela metade.
+ * The version is for the day the format changes: an old device receiving a new
+ * file needs to say "update the app", not open it halfway.
+ *
+ * The envelope is shared between devices that may run different versions, so
+ * its field names (`formato`, `versao`, `em`, `partida`) and the format string
+ * stay exactly as they are.
  */
-export const FORMATO_MESA = 'hit-easy/mesa';
-export const VERSAO_MESA = 1;
+export const TABLE_FORMAT = 'hit-easy/mesa';
+export const TABLE_FORMAT_VERSION = 1;
 
 /**
- * Empacota a mesa de agora para outro aparelho.
+ * Packs the current table for another device.
  *
- * SO a mesa. O exportador de backup manda o banco inteiro, e usa-lo aqui
- * entregaria ao amigo todo o historico de partidas, os @ que este aparelho
- * conhece e as preferencias de quem passou. Passar a mesa e passar uma mesa.
+ * ONLY the table. The backup exporter sends the whole database, and using it
+ * here would hand the friend the whole match history, the @s this device
+ * knows and the preferences of whoever passed it. Passing the table is passing
+ * a table.
  *
- * Carimba a partida como passada no mesmo ato: empacotar sem soltar deixaria
- * duas copias vivas da mesma partida, que e o unico jeito de perder dados
- * aqui - o envio usa ignore-duplicates, entao a primeira que subir vence e a
- * outra some sem avisar.
+ * Stamps the match as handed off in the same act: packing without letting go
+ * would leave two live copies of the same match, which is the only way to lose
+ * data here - the upload uses ignore-duplicates, so the first one up wins and
+ * the other vanishes without warning.
  */
-export function empacotarMesa(agora = Date.now()) {
-  const mesa = db.current;  // guardada: passar a mesa ja passada e recusado abaixo
-  if (!partidaValida(mesa)) return null;
-  if (!passarAMesa(mesa, agora)) return null;
+export function packTable(now = Date.now()) {
+  const table = db.current;  // stored: handing off a table already handed off is refused below
+  if (!isValidMatch(table)) return null;
+  if (!handOffTable(table, now)) return null;
   save();
 
-  return JSON.stringify({
-    formato: FORMATO_MESA,
-    versao: VERSAO_MESA,
-    em: agora,
-    partida: mesa,
-  }, null, 2);
+  return JSON.stringify(envelope(table, now), null, 2);
+}
+
+function envelope(table, now) {
+  return {
+    formato: TABLE_FORMAT,
+    versao: TABLE_FORMAT_VERSION,
+    em: now,
+    partida: table,
+  };
 }
 
 /**
- * Le um arquivo de mesa, sem instalar nada.
+ * The open table, in the handoff envelope, WITHOUT letting go.
  *
- * Separado de `instalarMesa` de proposito: a tela precisa saber de quem e a
- * mesa e quantos turnos tem ANTES de perguntar se pode substituir a partida
- * que estiver aberta aqui.
- *
- * Lanca com motivo legivel - um arquivo que nao e deste app, um backup
- * inteiro escolhido por engano, ou uma versao de formato que este app nao
- * entende sao tres erros diferentes e merecem tres respostas diferentes.
+ * The code path happens in two steps, unlike the file: the table goes up, and
+ * only if it went up does it leave here (releaseTable). Letting go first
+ * would leave the person with no table at all when the network fails - and a
+ * bad network is exactly what a table at a friend's house tends to have.
  */
-export function lerMesa(texto) {
-  let dado;
+export function tableToSend(now = Date.now()) {
+  const table = db.current;
+  if (!isValidMatch(table) || isHandedOff(table)) return null;
+  return envelope(structuredClone(table), now);
+}
+
+/** The table went up with this code: it leaves this device. */
+export function releaseTable(code, now = Date.now()) {
+  if (!handOffTable(db.current, now, code)) return false;
+  save();
+  return true;
+}
+
+/**
+ * Receives an envelope that came from the cloud.
+ *
+ * Goes through the SAME reading as the file: what comes down from the
+ * database was written by any client holding the public key, and deserves the
+ * same distrust.
+ */
+export function readReceivedTable(data) {
+  return readTable(JSON.stringify(data));
+}
+
+/**
+ * Reads a table file, without installing anything.
+ *
+ * Separate from `installTable` on purpose: the screen needs to know whose
+ * table it is and how many turns it has BEFORE asking whether it can replace
+ * the match open here.
+ *
+ * Throws with a readable reason - a file that is not from this app, a whole
+ * backup picked by mistake, or a format version this app does not understand
+ * are three different errors and deserve three different answers.
+ */
+export function readTable(text) {
+  let data;
   try {
-    dado = JSON.parse(texto);
+    data = JSON.parse(text);
   } catch {
-    throw new Error('ilegivel');
+    throw new Error('unreadable');
   }
-  if (!dado || dado.formato !== FORMATO_MESA) throw new Error('nao-e-mesa');
-  if (Number(dado.versao) > VERSAO_MESA) throw new Error('versao-nova');
-  if (!partidaValida(dado.partida)) throw new Error('mesa-invalida');
-  return dado;
+  if (!data || data.formato !== TABLE_FORMAT) throw new Error('not-a-table');
+  if (Number(data.versao) > TABLE_FORMAT_VERSION) throw new Error('newer-version');
+  if (!isValidMatch(data.partida)) throw new Error('invalid-table');
+  return data;
 }
 
 /**
- * Instala a mesa recebida como a partida deste aparelho.
+ * Installs the received table as this device's match.
  *
- * A que estiver aberta aqui e perdida, e quem chama ja confirmou isso - por
- * isso a confirmacao mora na tela e nao aqui: uma funcao que pergunta nao da
- * para testar, e uma que decide sozinha engole a mesa de alguem.
+ * Whatever is open here is lost, and the caller has already confirmed that -
+ * that is why the confirmation lives on the screen and not here: a function
+ * that asks cannot be tested, and one that decides on its own swallows
+ * someone's table.
  */
-export function instalarMesa(dado, agora = Date.now()) {
-  const recebida = receberAMesa(dado.partida, agora);
-  if (!recebida) return null;
-  db.current = recebida;
+export function installTable(data, now = Date.now()) {
+  const received = receiveTable(data.partida, now);
+  if (!received) return null;
+  db.current = received;
   save();
-  return recebida;
+  return received;
 }
 
-/** Desfaz a passagem: a mesa volta a valer neste aparelho. */
-export function retomarMesa() {
-  if (!retomarAMesa(db.current)) return false;
+/** Undoes the handoff: the table is valid on this device again. */
+export function takeTableBack() {
+  if (!reclaimTable(db.current)) return false;
   save();
   return true;
 }
@@ -588,14 +818,14 @@ export function exportJSON() {
   return JSON.stringify(db, null, 2);
 }
 
-/** Importa um backup. Faz merge do historico por id, sem duplicar partidas. */
+/** Imports a backup. Merges the history by id, without duplicating matches. */
 export function importJSON(text) {
   const incoming = JSON.parse(text);
-  if (!incoming || typeof incoming !== 'object') throw new Error('Arquivo invalido');
+  if (!incoming || typeof incoming !== 'object') throw new Error('Invalid file');
 
   const byId = new Map();
   for (const m of [...(db.history || []), ...(incoming.history || [])]) {
-    if (partidaValida(m)) byId.set(m.id, m);
+    if (isValidMatch(m)) byId.set(m.id, m);
   }
   db = {
     ...structuredClone(EMPTY),

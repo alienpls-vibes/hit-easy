@@ -1,111 +1,112 @@
 /**
- * A conversa com o servidor: um pedido, e a renovacao de token em volta dele.
+ * The conversation with the server: one request, and token renewal around it.
  *
- * Toda chamada do app passa por `pedir()`, e e ele que resolve token vencido
- * sem a pessoa perceber - renovando antes quando falta pouco, e uma vez mais
- * ao levar 401. Quem chama nunca trata token.
+ * Every app call goes through `request()`, and it is what handles an expired
+ * token without the person noticing - refreshing ahead when little time is
+ * left, and once more on a 401. Callers never deal with tokens.
  */
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config.js';
-import { conta, esquecerSessao, gravarSessao } from './estado.js';
-import { precisaRenovar } from './regras.js';
+import { account, forgetSession, saveSession } from './account.js';
+import { needsRefresh } from './rules.js';
 
-export function url(caminho) {
-  return SUPABASE_URL.replace(/\/+$/, '') + caminho;
+export function url(path) {
+  return SUPABASE_URL.replace(/\/+$/, '') + path;
 }
 
-export function cabecalhos(extra = {}) {
+export function headers(extra = {}) {
   return {
     apikey: SUPABASE_ANON_KEY,
     Authorization: 'Bearer '
-      + ((conta.sessao && conta.sessao.access_token) || SUPABASE_ANON_KEY),
+      + ((account.session && account.session.access_token) || SUPABASE_ANON_KEY),
     'Content-Type': 'application/json',
     ...extra,
   };
 }
 
-/** Cabecalhos de quem ainda nao tem sessao (ou cuja sessao venceu). */
-export function cabecalhosAnonimos() {
+/** Headers for someone who has no session yet (or whose session expired). */
+export function anonymousHeaders() {
   return { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' };
 }
 
-export async function pedir(caminho, opcoes = {}, jaRenovou = false) {
-  // Renova ANTES quando o token esta para vencer: e mais barato que descobrir
-  // pelo 401 e refazer o pedido.
-  if (!jaRenovou && precisaRenovar(conta.sessao)) {
-    try { await renovarSessao(); } catch { /* o 401 abaixo resolve */ }
+export async function request(path, options = {}, alreadyRefreshed = false) {
+  // Refreshes AHEAD when the token is about to expire: it is cheaper than
+  // finding out from the 401 and redoing the request.
+  if (!alreadyRefreshed && needsRefresh(account.session)) {
+    try { await refreshSession(); } catch { /* the 401 below takes care of it */ }
   }
 
-  const res = await fetch(url(caminho), { ...opcoes, headers: cabecalhos(opcoes.headers) });
+  const res = await fetch(url(path), { ...options, headers: headers(options.headers) });
 
   if (res.status === 401 || res.status === 403) {
-    // Uma tentativa de renovar e refazer. Sem isto, um token vencido no meio
-    // de uma sincronizacao derrubava a sessao inteira - e a pessoa voltava a
-    // pedir e-mail por causa de um segundo de atraso.
-    if (!jaRenovou && conta.sessao && conta.sessao.refresh_token) {
+    // One attempt to refresh and redo. Without this, an expired token in the
+    // middle of a sync took down the whole session - and the person went back
+    // to asking for an email because of a one-second delay.
+    if (!alreadyRefreshed && account.session && account.session.refresh_token) {
       try {
-        await renovarSessao();
-        return await pedir(caminho, opcoes, true);
-      } catch { /* o refresh tambem morreu: cai fora abaixo */ }
+        await refreshSession();
+        return await request(path, options, true);
+      } catch { /* the refresh died too: give up below */ }
     }
-    esquecerSessao(); // agora sim: nao ha como continuar sem login
-    throw new Error('nao autorizado');
+    forgetSession(); // now for real: there is no way to go on without signing in
+    throw new Error('unauthorized');
   }
 
-  if (!res.ok) throw new Error('servidor respondeu ' + res.status);
+  if (!res.ok) throw new Error('server responded ' + res.status);
   return res.status === 204 ? null : res.json();
 }
 
-/** Guarda o que o GoTrue devolve num login ou numa renovacao. */
-export function guardarDoServidor(d) {
-  gravarSessao({
+/** Stores what GoTrue returns on a sign-in or a refresh. */
+export function storeFromServer(d) {
+  saveSession({
     access_token: d.access_token,
-    // O Supabase gira o refresh_token a cada uso; perder o novo seria perder
-    // a sessao na renovacao seguinte.
+    // Supabase rotates the refresh_token on every use; losing the new one
+    // would mean losing the session on the next refresh.
     refresh_token: d.refresh_token
-      || (conta.sessao && conta.sessao.refresh_token) || null,
+      || (account.session && account.session.refresh_token) || null,
     expires_at: d.expires_at
       || Math.floor(Date.now() / 1000) + (Number(d.expires_in) || 3600),
-    user: d.user || (conta.sessao && conta.sessao.user) || null,
+    user: d.user || (account.session && account.session.user) || null,
   });
-  return conta.sessao;
+  return account.session;
 }
 
-let renovando = null;
+let refreshing = null;
 
 /**
- * Troca o refresh_token por um access_token novo.
+ * Trades the refresh_token for a new access_token.
  *
- * Uma renovacao por vez: varias chamadas simultaneas (o app carrega perfil,
- * assinatura e convites juntos) usariam o mesmo refresh_token, e como o
- * Supabase o gira a cada uso, a segunda chegaria com um token ja gasto e
- * derrubaria a sessao. Todas esperam a mesma promessa.
+ * One refresh at a time: several simultaneous calls (the app loads profile,
+ * subscription and invites together) would use the same refresh_token, and
+ * since Supabase rotates it on every use, the second would arrive with an
+ * already spent token and take the session down. They all await the same
+ * promise.
  *
- * Vai com cabecalho anonimo de proposito: mandar o Bearer vencido aqui e
- * pedir para o servidor recusar antes de olhar o refresh_token.
+ * It goes with anonymous headers on purpose: sending the expired Bearer here
+ * is asking the server to refuse before it even looks at the refresh_token.
  */
-export async function renovarSessao() {
-  if (!conta.sessao || !conta.sessao.refresh_token) {
-    throw new Error('sem refresh');
+export async function refreshSession() {
+  if (!account.session || !account.session.refresh_token) {
+    throw new Error('no refresh token');
   }
-  if (renovando) return renovando;
+  if (refreshing) return refreshing;
 
-  renovando = (async () => {
+  refreshing = (async () => {
     const res = await fetch(url('/auth/v1/token?grant_type=refresh_token'), {
       method: 'POST',
-      headers: cabecalhosAnonimos(),
-      body: JSON.stringify({ refresh_token: conta.sessao.refresh_token }),
+      headers: anonymousHeaders(),
+      body: JSON.stringify({ refresh_token: account.session.refresh_token }),
     });
     if (!res.ok) {
-      esquecerSessao();
-      throw new Error('sessao expirada');
+      forgetSession();
+      throw new Error('session expired');
     }
-    return guardarDoServidor(await res.json());
+    return storeFromServer(await res.json());
   })();
 
   try {
-    return await renovando;
+    return await refreshing;
   } finally {
-    renovando = null;
+    refreshing = null;
   }
 }

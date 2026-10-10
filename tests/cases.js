@@ -1,171 +1,188 @@
 /**
- * Casos de teste do motor - fonte unica.
+ * Test cases - single source.
  *
- * Nao toca no DOM de proposito: os mesmos casos rodam no Node
- * (`npm test`) e no navegador (`tests.html`). Um teste que so passa num
- * dos dois nao vale muito.
+ * It does not need the DOM on purpose: the same cases run in Node
+ * (`npm test`) and in the browser (`tests.html`). A test that only passes in
+ * one of the two is not worth much.
  */
 
-// Primeiro de todos: instala o DOM simulado antes que ui.js seja avaliado.
+// First of all: installs the simulated DOM before ui.js is evaluated.
 import {
-  simulated, flushFrames, findAll, fire, textOf, simularTeclado, kbAtual,
-  apontarPara, fireWindow, historico,
+  simulated, flushFrames, findAll, fire, textOf, simulateKeyboard, currentKb,
+  pointAt, fireWindow, historyLog,
 } from './dom-stub.js';
 import {
-  createMatch, replay, push, undo, standings, elapsedOf, pessoaRepetida, partidaValida,
-  sairDaMesa, voltarAMesa, ausenteEntre, juntarDecks, deckKeyOf,
-  passarAMesa, retomarAMesa, mesaPassada, receberAMesa, agoraDaMesa,
+  createMatch, replay, push, undo, standings, elapsedOf, duplicatePerson, isValidMatch,
+  leaveTable, returnToTable, awayBetween, mergeDecks, deckKeyOf,
+  handOffTable, reclaimTable, isHandedOff, receiveTable, tableNow,
   cmdKeyOf, CMD_LETHAL, POISON_LETHAL,
 } from '../src/engine.js';
 import {
-  ORDENACOES, ordenacaoPorId, ordenarLinhas,
-  aggregate, rivalries, tituloDaVotacao, totalDamage, summarize,
+  SORTS, sortById, sortRows,
+  aggregate, rivalries, voteTitle, totalDamage, summarize,
   playerColorOrder, playerColor,
-  identityOf, labelOf, nomeRegistrado,
-  chaveDaVotacao, rotuloDaVotacao, orientarRival,
-  categoriaDaVotacao, rotuloDaCategoria,
+  identityOf, labelOf, recordedName,
+  voteKey, voteKeyLabel, orientRival,
+  voteCategory, categoryLabel, CURRENT_HANDLES, currentHandle, seatName, timeline,
+  displayNameOf,
 } from '../src/stats.js';
-import { LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf } from '../src/seating.js';
+import {
+  LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf, layoutOfMatch,
+} from '../src/seating.js';
 import { createSession, cast, tally, pending, isComplete, describe } from '../src/vote.js';
 import {
   openFlow, closeSheet, dismissOnBackdrop, el, isSheetOpen, onSheetChange,
-  alturaDoTeclado,
+  keyboardHeight,
 } from '../src/ui.js';
 import { DICTS, LANGS, t, tn, setLang, currentLang, ordinal } from '../src/i18n.js';
-import { fromRow as linhaParaPartida } from '../src/cloud.js';
+import { fromRow as rowToMatch } from '../src/cloud.js';
 import {
-  accountState, assinaturaAtiva, sessaoValida, toRow, fromRow, pendentes,
-  state as accountNow, provedores, pedidoDeLink, urlDeRetorno,
-  capturarRetorno, esquecerSessao, precisaRenovar, sessaoAproveitavel, senhaValida,
-  podeVerEstatisticas, assinaturaConhecida,
-  jaTinhaConta,
-  sessaoGuardada,
-  normalizarHandle, handleValido, exibirHandle, participantesDe, montarConvites,
-  colunaDeDecks, baixarPartidas, idsRemotos,
-  enviarPartida, enviarParticipantes, salvarMeusDecks, conta,
-  confiarEm, deixarDeConfiar,
+  accountState, isSubscriptionActive, isSessionValid, toRow, fromRow, pendingUploads,
+  state as accountNow, providers, magicLinkRequest, returnUrl,
+  captureReturn, forgetSession, needsRefresh, isSessionUsable, isPasswordValid,
+  canSeeStats, isSubscriptionKnown,
+  accountAlreadyExisted,
+  sessionFromStorage,
+  normalizeHandle, isHandleValid, displayHandle, participantsOf, buildInvites,
+  decksColumn, downloadMatches, remoteIds,
+  uploadMatch, sendParticipants, saveMyDecks, account,
+  trustHost, untrustHost, pendingInvites,
+  handleStatus, normalizeName, NAME_MAX, saveHandle, saveName,
+  nextHandleChange, HANDLE_CHANGE_DAYS,
 } from '../src/cloud.js';
+import { handleBlock } from '../src/views/setup/handle.js';
+import { accountBlock } from '../src/views/setup/account.js';
+// Straight from the module: what loading or saving the profile triggers.
+import { notify as notifyAccount } from '../src/cloud/account.js';
+import { matchCard } from '../src/views/stats/match.js';
+import { findHandleStep } from '../src/views/setup/pick-player.js';
+import { ensureDraft } from '../src/views/setup/draft.js';
 import { cloudEnabled } from '../src/config.js';
-import { canalDe, canalDoCache } from '../src/canal.js';
-import { NOVIDADES, novidadesDesde, novidadesDe } from '../src/novidades.js';
-import { abrirNovidades } from '../src/views/setup.js';
-// Direto da peca: o bloco de instalacao e detalhe das configuracoes, e
-// exporta-lo na porta o anunciaria como API publica da tela.
-import { installBlock } from '../src/views/setup/instalar.js';
+import { channelOf, channelOfCache } from '../src/channel.js';
+import { RELEASE_NOTES, releaseNotesSince, releaseNotesFor } from '../src/release-notes.js';
+import { openReleaseNotes } from '../src/views/setup.js';
+// Straight from the piece: the install block is a detail of the settings, and
+// exporting it through the door would announce it as public API of the screen.
+import { installBlock } from '../src/views/setup/install.js';
+import { iosBrowser } from '../src/install.js';
 import { APP_VERSION } from '../src/version.js';
 import {
-  aSubir, aBaixar, aApagar, podeSincronizar,
-  cadeirasParaAssociar, apelidosAprendidos, associarConta, decksMudaram,
+  toUpload, toDownload, toDelete, canSync,
+  seatsToLink, learnedAliases, linkAccount, decksChanged, refreshHandles,
 } from '../src/sync.js';
-import { giraComOAssento, grausNaMesa, rotatesToSeat } from '../src/orientation.js';
+import { rotatesWithSeat, tableRotation, rotatesToSeat } from '../src/orientation.js';
 import { renderTable } from '../src/views/table.js';
-// Direto da peca, e nao pela porta: a cadencia do "segurar repete" e detalhe
-// interno da mesa, e exporta-la no barril a anunciaria como API publica.
-import { repetirSegurando } from '../src/views/table/pecas.js';
+// Straight from the piece, not through the door: the "hold to repeat" cadence
+// is an internal detail of the table, and exporting it from the barrel would
+// announce it as public API.
+import { repeatWhileHeld } from '../src/views/table/widgets.js';
 import {
-  COMMIT_MS, CONTAGEM_MS, CONTAGEM_PASSO_MIN, DOUBLE_TAP_MS, HOLD_DELAY,
+  COMMIT_MS, COUNT_MS, COUNT_MIN_STEP, DOUBLE_TAP_MS, HOLD_DELAY,
   REPEAT_ACCEL_AFTER, REPEAT_FAST_MS, REPEAT_MS,
-} from '../src/views/table/constantes.js';
+} from '../src/views/table/constants.js';
 import {
-  renderSetup, seedDraftFrom, continuarMesaBanner, nomeDoArquivo,
-  mesaPassadaBanner,
+  renderSetup, seedDraftFrom, resumeTableBanner, tableFileName,
+  handedOffBanner, passTable, openReceiveTable, tableLink,
 } from '../src/views/setup.js';
+import {
+  normalizeCode, isCodeValid, formatCode, codeInText,
+} from '../src/cloud.js';
 import { renderStats, renderPaywall } from '../src/views/stats.js';
 import { brandMark } from '../src/ui.js';
 import * as store from '../src/store.js';
-// Importar app.js JA e o teste: ele sobe sozinho ao ser avaliado.
-import { anunciarVersao } from '../src/app.js';
+// Importing app.js ALREADY is the test: it starts up by itself when evaluated.
+import { announceVersion, codeFromLink } from '../src/app.js';
 
 function eq(actual, expected, what) {
   const a = JSON.stringify(actual);
   const e = JSON.stringify(expected);
-  if (a !== e) throw new Error((what || 'valor') + ': esperado ' + e + ', veio ' + a);
+  if (a !== e) throw new Error((what || 'value') + ': expected ' + e + ', got ' + a);
 }
 
 function ok(cond, what) {
-  if (!cond) throw new Error(what || 'condicao falsa');
+  if (!cond) throw new Error(what || 'false condition');
 }
 
 /**
- * Relogio controlado, para medir gesto que depende de tempo.
+ * Timer ids NEVER repeat, not even across calls.
  *
- * runAll() e sincrono (nao ha `await` aqui), entao esperar de verdade nao e
- * opcao: dormir dois segundos por caso multiplicaria a suite, e medir
- * "quantos passos sairam de uma seguradinha" exigiria adivinhar. Trocando os
- * temporizadores, o teste ANDA o relogio e conta exatamente.
+ * Restarting at 1 for every new clock produced a hard defect: app modules keep
+ * an id in a module variable (`toastTimer` in ui.js, for example) and call
+ * `clearTimeout` on it. That id survives the end of the case; in the next
+ * case, the new clock handed the SAME number to another timer, and the toast's
+ * `clearTimeout` cancelled an animation that had nothing to do with it.
  *
- * Devolve o que `fn(avancar)` devolver, e restaura os temporizadores de
- * verdade mesmo se o caso falhar no meio - senao o proximo caso rodaria com o
- * relogio parado e acusaria um erro que nao e dele.
+ * The symptom was perfect for fooling you: one of the four numbers stopped
+ * counting, always the same, and only inside the suite - run alone it worked.
  */
-/**
- * Ids de temporizador NUNCA se repetem, nem entre chamadas.
- *
- * Reiniciar em 1 a cada relógio novo produziu um defeito difícil: módulos do
- * app guardam id em variável de módulo (`toastTimer` em ui.js, por exemplo) e
- * chamam `clearTimeout` nela. Esse id sobrevive ao fim do caso; no caso
- * seguinte, o relógio novo entregava o MESMO número a outro temporizador, e o
- * `clearTimeout` do toast cancelava uma animação que nada tinha a ver com ele.
- *
- * O sintoma era perfeito para enganar: um dos quatro números parava de contar,
- * sempre o mesmo, e só dentro da suíte - rodando isolado funcionava.
- */
-let proximoIdFalso = 1000000;
+let nextFakeId = 1000000;
 
-function comRelogioFalso(fn) {
-  const reais = {
+/**
+ * A controlled clock, to measure gestures that depend on time.
+ *
+ * runAll() is synchronous (there is no `await` here), so really waiting is
+ * not an option: sleeping two seconds per case would multiply the suite, and
+ * measuring "how many steps came out of a hold" would require guessing.
+ * Swapping the timers, the test MOVES the clock and counts exactly.
+ *
+ * Returns whatever `fn(advance)` returns, and restores the real timers even
+ * if the case fails halfway - otherwise the next case would run with the
+ * clock stopped and report an error that is not its own.
+ */
+function withFakeClock(fn) {
+  const real = {
     setTimeout: globalThis.setTimeout,
     clearTimeout: globalThis.clearTimeout,
     setInterval: globalThis.setInterval,
     clearInterval: globalThis.clearInterval,
   };
 
-  let agora = 0;
-  const agendados = new Map();
+  let now = 0;
+  const scheduled = new Map();
 
   globalThis.setTimeout = (f, ms = 0) => {
-    const id = proximoIdFalso; proximoIdFalso += 1;
-    agendados.set(id, { quando: agora + ms, cada: null, fn: f });
+    const id = nextFakeId; nextFakeId += 1;
+    scheduled.set(id, { at: now + ms, every: null, fn: f });
     return id;
   };
   globalThis.setInterval = (f, ms = 0) => {
-    const id = proximoIdFalso; proximoIdFalso += 1;
-    agendados.set(id, { quando: agora + ms, cada: ms, fn: f });
+    const id = nextFakeId; nextFakeId += 1;
+    scheduled.set(id, { at: now + ms, every: ms, fn: f });
     return id;
   };
-  globalThis.clearTimeout = (id) => { agendados.delete(id); };
-  globalThis.clearInterval = (id) => { agendados.delete(id); };
+  globalThis.clearTimeout = (id) => { scheduled.delete(id); };
+  globalThis.clearInterval = (id) => { scheduled.delete(id); };
 
-  /** Anda o relogio, rodando o que vencer no caminho, em ordem de tempo. */
-  const avancar = (ms) => {
-    const fim = agora + ms;
-    // Teto de seguranca: um intervalo de 0ms que se reagenda sozinho travaria
-    // a suite em vez de falhar.
-    for (let volta = 0; volta < 20000; volta += 1) {
-      let alvo = null;
-      for (const [id, tarefa] of agendados) {
-        if (tarefa.quando <= fim && (!alvo || tarefa.quando < alvo.tarefa.quando)) {
-          alvo = { id, tarefa };
+  /** Moves the clock, running whatever is due on the way, in time order. */
+  const advance = (ms) => {
+    const end = now + ms;
+    // A safety ceiling: a 0ms interval that reschedules itself would hang the
+    // suite instead of failing.
+    for (let round = 0; round < 20000; round += 1) {
+      let next = null;
+      for (const [id, task] of scheduled) {
+        if (task.at <= end && (!next || task.at < next.task.at)) {
+          next = { id, task };
         }
       }
-      if (!alvo) break;
-      agora = alvo.tarefa.quando;
-      if (alvo.tarefa.cada === null) agendados.delete(alvo.id);
-      else alvo.tarefa.quando = agora + alvo.tarefa.cada;
-      alvo.tarefa.fn();
+      if (!next) break;
+      now = next.task.at;
+      if (next.task.every === null) scheduled.delete(next.id);
+      else next.task.at = now + next.task.every;
+      next.task.fn();
     }
-    agora = fim;
+    now = end;
   };
 
   try {
-    return fn(avancar);
+    return fn(advance);
   } finally {
-    Object.assign(globalThis, reais);
+    Object.assign(globalThis, real);
   }
 }
 
-/** Monta a mesa no DOM simulado e devolve o que os casos de gesto precisam. */
-function mesaNaTela(m) {
+/** Mounts the table in the simulated DOM and returns what the gesture cases need. */
+function tableOnScreen(m) {
   document.body.childNodes.length = 0;
   const root = document.createElement('div');
   const view = renderTable(root, {
@@ -174,30 +191,30 @@ function mesaNaTela(m) {
   return { root, view, tiles: findAll(root, 'tile') };
 }
 
-const eventosDeVida = (m) => m.events.filter((e) => e.type === 'life');
+const lifeEvents = (m) => m.events.filter((e) => e.type === 'life');
 
 /**
- * O botão de estatísticas da home, em qualquer idioma.
+ * The home screen's statistics button, in any language.
  *
- * A home é desenhada no ARRANQUE do app.js, com o idioma que o sistema
- * informa - antes de o runAll trocar para português. Comparar com um texto
- * fixo passava no Windows em português e quebrava no Ubuntu do CI, em inglês.
+ * The home screen is drawn at app.js STARTUP, in the language the system
+ * reports - before runAll switches to Portuguese. Comparing with fixed text
+ * passed on Windows in Portuguese and broke on the CI Ubuntu, in English.
  */
-function botaoDeEstatisticas() {
-  const rotulos = LANGS.map(([codigo]) => DICTS[codigo]['common.stats']);
+function statsButton() {
+  const labels = LANGS.map(([code]) => DICTS[code]['common.stats']);
   return findAll(document.getElementById('app'), 'icon-btn')
-    .find((b) => rotulos.includes(b.attributes['aria-label']));
+    .find((b) => labels.includes(b.attributes['aria-label']));
 }
 
-/** Abaixo de HOLD_DELAY: um toque que nao chega a virar repeticao. */
-const TOQUE_CURTO = HOLD_DELAY - 100;
+/** Below HOLD_DELAY: a tap that never turns into a repetition. */
+const SHORT_TAP = HOLD_DELAY - 100;
 
 const commander = (n) => ({
   oracleId: 'o' + n, name: 'Cmd ' + n, colors: ['U'], art: null, thumb: null,
 });
 
-/** Mesa de apoio com comandantes ficticios. */
-function mesa(n = 4, life = 40, options = {}) {
+/** A helper table with made-up commanders. */
+function makeMatch(n = 4, life = 40, options = {}) {
   return createMatch(
     Array.from({ length: n }, (_, i) => ({
       id: 's' + i, name: 'P' + i, commanders: [commander(i)],
@@ -208,458 +225,459 @@ function mesa(n = 4, life = 40, options = {}) {
 }
 
 /**
- * Abre um painel num corpo limpo.
+ * Opens a panel on a clean body.
  *
- * closeSheet() adia a remocao do nó em 200ms para deixar a animacao terminar,
- * entao sem esta limpeza o painel de um caso ainda esta no corpo durante o
- * seguinte - e a busca por telas pega a sobra do vizinho.
+ * closeSheet() delays removing the node by 200ms to let the animation finish,
+ * so without this cleanup a case's panel is still in the body during the next
+ * one - and the search for screens picks up the neighbor's leftovers.
  */
-function abrirPainel(step) {
+function openPanel(step) {
   document.body.childNodes.length = 0;
   const api = openFlow(step);
   flushFrames();
   return api;
 }
 
-/** As telas do painel aberto agora, na ordem em que foram empilhadas. */
-function telas() {
+/** The screens of the panel open now, in the order they were stacked. */
+function panes() {
   const scrims = findAll(document.body, 'sheet-scrim');
   return findAll(scrims[scrims.length - 1], 'flow-pane');
 }
 
 export const cases = [
-  ['mesa nova começa com todos na vida inicial', () => {
-    const s = replay(mesa());
-    eq(Object.values(s.players).map((p) => p.life), [40, 40, 40, 40], 'vidas');
-    eq(s.turn, 1, 'turno');
-    eq(s.activeSeatId, 's0', 'assento ativo');
-    eq(s.finished, false, 'finalizada');
+  ['a new table starts with everyone at starting life', () => {
+    const s = replay(makeMatch());
+    eq(Object.values(s.players).map((p) => p.life), [40, 40, 40, 40], 'lives');
+    eq(s.turn, 1, 'turn');
+    eq(s.activeSeatId, 's0', 'active seat');
+    eq(s.finished, false, 'finished');
   }],
 
-  ['dano tira vida e é creditado à origem declarada no arraste', () => {
-    const m = mesa();
+  ['damage takes life and is credited to the source declared by the drag', () => {
+    const m = makeMatch();
     push(m, { type: 'life', targetId: 's1', delta: -7, sourceId: 's0' });
-    eq(replay(m).players.s1.life, 33, 'vida do alvo');
-    eq(m.events[0].sourceId, 's0', 'origem');
+    eq(replay(m).players.s1.life, 33, 'target life');
+    eq(m.events[0].sourceId, 's0', 'source');
   }],
 
-  ['desfazer volta exatamente ao estado anterior', () => {
-    const m = mesa();
-    const antes = JSON.stringify(replay(m).players);
+  ['undo goes back exactly to the previous state', () => {
+    const m = makeMatch();
+    const before = JSON.stringify(replay(m).players);
     push(m, { type: 'life', targetId: 's2', delta: -12, sourceId: 's0' });
-    eq(replay(m).players.s2.life, 28, 'vida após dano');
+    eq(replay(m).players.s2.life, 28, 'life after damage');
     undo(m);
-    eq(JSON.stringify(replay(m).players), antes, 'estado após desfazer');
+    eq(JSON.stringify(replay(m).players), before, 'state after undo');
   }],
 
-  ['dano de comandante também sai da vida', () => {
-    const m = mesa();
+  ['commander damage also comes out of life', () => {
+    const m = makeMatch();
     const key = cmdKeyOf('s0', m.seats[0].commanders[0]);
     push(m, { type: 'cmd', targetId: 's1', sourceId: 's0', cmdKey: key, delta: 9 });
     const s = replay(m);
-    eq(s.players.s1.life, 31, 'vida');
-    eq(s.players.s1.cmd[key], 9, 'contador de comandante');
+    eq(s.players.s1.life, 31, 'life');
+    eq(s.players.s1.cmd[key], 9, 'commander counter');
   }],
 
-  ['21 de dano de comandante elimina mesmo com vida sobrando', () => {
-    const m = mesa(4, 100);
+  ['21 commander damage eliminates even with life left', () => {
+    const m = makeMatch(4, 100);
     const key = cmdKeyOf('s0', m.seats[0].commanders[0]);
     push(m, { type: 'cmd', targetId: 's1', sourceId: 's0', cmdKey: key, delta: CMD_LETHAL });
     const s = replay(m);
-    ok(s.players.s1.life > 0, 'ainda tem vida');
-    eq(s.players.s1.dead, true, 'eliminado');
-    eq(s.players.s1.elim.byId, 's0', 'crédito da eliminação');
+    ok(s.players.s1.life > 0, 'still has life');
+    eq(s.players.s1.dead, true, 'eliminated');
+    eq(s.players.s1.elim.byId, 's0', 'credit for the elimination');
   }],
 
-  ['dano de comandantes diferentes não soma para os 21', () => {
-    const m = mesa(4, 100);
+  ['damage from different commanders does not add up to 21', () => {
+    const m = makeMatch(4, 100);
     const k0 = cmdKeyOf('s0', m.seats[0].commanders[0]);
     const k2 = cmdKeyOf('s2', m.seats[2].commanders[0]);
     push(m, { type: 'cmd', targetId: 's1', sourceId: 's0', cmdKey: k0, delta: 15 });
     push(m, { type: 'cmd', targetId: 's1', sourceId: 's2', cmdKey: k2, delta: 15 });
     const p = replay(m).players.s1;
-    eq(p.dead, false, 'segue vivo: 15 e 15 são contadores separados');
-    eq(p.life, 70, 'mas a vida levou os 30');
+    eq(p.dead, false, 'still alive: 15 and 15 are separate counters');
+    eq(p.life, 70, 'but life took the 30');
   }],
 
-  ['10 de veneno elimina', () => {
-    const m = mesa();
+  ['10 poison eliminates', () => {
+    const m = makeMatch();
     push(m, { type: 'poison', targetId: 's2', delta: POISON_LETHAL, sourceId: 's0' });
-    eq(replay(m).players.s2.dead, true, 'eliminado por veneno');
+    eq(replay(m).players.s2.dead, true, 'eliminated by poison');
   }],
 
-  ['turno fecha a volta e pula quem morreu', () => {
-    const m = mesa();
+  ['the turn closes the round and skips whoever died', () => {
+    const m = makeMatch();
     push(m, { type: 'turn' });
     push(m, { type: 'turn' });
-    eq(replay(m).activeSeatId, 's2', 'assento ativo');
-    eq(replay(m).turn, 1, 'ainda na primeira volta');
+    eq(replay(m).activeSeatId, 's2', 'active seat');
+    eq(replay(m).turn, 1, 'still in the first round');
     push(m, { type: 'turn' });
     push(m, { type: 'turn' });
     const s = replay(m);
-    eq(s.activeSeatId, 's0', 'voltou ao primeiro');
-    eq(s.turn, 2, 'turno 2');
+    eq(s.activeSeatId, 's0', 'back to the first');
+    eq(s.turn, 2, 'turn 2');
   }],
 
-  ['assento eliminado é pulado na ordem de turno', () => {
-    const m = mesa();
+  ['an eliminated seat is skipped in turn order', () => {
+    const m = makeMatch();
     push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
     push(m, { type: 'turn' });
-    eq(replay(m).activeSeatId, 's2', 'pulou o eliminado');
+    eq(replay(m).activeSeatId, 's2', 'skipped the eliminated one');
   }],
 
-  ['último vivo vence e a partida encerra', () => {
-    const m = mesa();
+  ['the last one alive wins and the match ends', () => {
+    const m = makeMatch();
     push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
     push(m, { type: 'life', targetId: 's2', delta: -40, sourceId: 's0' });
     push(m, { type: 'life', targetId: 's3', delta: -40, sourceId: 's0' });
     const s = replay(m);
-    eq(s.winnerId, 's0', 'vencedor');
-    eq(s.finished, true, 'finalizada');
+    eq(s.winnerId, 's0', 'winner');
+    eq(s.finished, true, 'finished');
   }],
 
-  ['a mesma pessoa não pode ocupar duas cadeiras', () => {
-    const mesa4 = [
+  ['the same person cannot take two seats', () => {
+    const table4 = [
       { id: 's0', name: 'Alexandre', handle: 'alienpls' },
       { id: 's1', name: 'Bruno' },
       { id: 's2', name: 'Carla', handle: 'carlinha' },
     ];
-    const nova = { id: 's3', name: '' };
+    const fresh = { id: 's3', name: '' };
 
-    eq(pessoaRepetida(mesa4, nova, { name: 'Davi' }), null, 'gente nova entra');
-    eq(pessoaRepetida(mesa4, nova, { name: 'Bruno' }), 'nome', 'nome repetido barra');
-    eq(pessoaRepetida(mesa4, nova, { name: ' bruno ' }), 'nome', 'espaço e caixa não driblam');
+    eq(duplicatePerson(table4, fresh, { name: 'Davi' }), null, 'new people get in');
+    eq(duplicatePerson(table4, fresh, { name: 'Bruno' }), 'name', 'a repeated name is blocked');
+    eq(duplicatePerson(table4, fresh, { name: ' bruno ' }), 'name', 'spaces and case do not get around it');
 
-    // O outro caminho para a mesma pessoa: a conta. Era o que não tinha trava
-    // nenhuma - dava para vincular @alienpls em duas cadeiras.
-    eq(pessoaRepetida(mesa4, nova, { handle: 'alienpls' }), 'conta', 'conta repetida barra');
-    eq(pessoaRepetida(mesa4, nova, { handle: '@AlienPls' }), 'conta', 'arroba e caixa não driblam');
-    eq(pessoaRepetida(mesa4, nova, { handle: 'outro' }), null, 'outra conta entra');
+    // The other path to the same person: the account. It was what had no lock
+    // at all - @alienpls could be linked to two seats.
+    eq(duplicatePerson(table4, fresh, { handle: 'alienpls' }), 'account', 'a repeated account is blocked');
+    eq(duplicatePerson(table4, fresh, { handle: '@AlienPls' }), 'account', 'at sign and case do not get around it');
+    eq(duplicatePerson(table4, fresh, { handle: 'outro' }), null, 'another account gets in');
 
-    // A própria cadeira nunca conflita consigo mesma: editar quem já está
-    // sentado não pode ser recusado por ele próprio já estar ali.
-    eq(pessoaRepetida(mesa4, mesa4[1], { name: 'Bruno' }), null, 'a própria cadeira não conta');
-    eq(pessoaRepetida(mesa4, mesa4[0], { handle: 'alienpls' }), null);
+    // The seat itself never conflicts with itself: editing whoever is already
+    // seated cannot be refused because they are already there.
+    eq(duplicatePerson(table4, table4[1], { name: 'Bruno' }), null, 'the seat itself does not count');
+    eq(duplicatePerson(table4, table4[0], { handle: 'alienpls' }), null);
 
-    eq(pessoaRepetida(mesa4, nova, {}), null, 'sem nada declarado, nada a barrar');
-    eq(pessoaRepetida(null, nova, { name: 'Bruno' }), null, 'sem mesa, sem conflito');
+    eq(duplicatePerson(table4, fresh, {}), null, 'nothing declared, nothing to block');
+    eq(duplicatePerson(null, fresh, { name: 'Bruno' }), null, 'no table, no conflict');
   }],
 
-  ['colocação: vencedor em 1º, quem saiu por último vem antes', () => {
-    const m = mesa();
-    // Um por turno: aqui há de fato quem sobreviveu a quem.
+  ['placing: winner 1st, whoever left last comes first', () => {
+    const m = makeMatch();
+    // One per turn: here there really is who outlived whom.
     push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
     push(m, { type: 'turn' });
     push(m, { type: 'life', targetId: 's2', delta: -40, sourceId: 's0' });
     push(m, { type: 'turn' });
     push(m, { type: 'life', targetId: 's3', delta: -40, sourceId: 's0' });
 
-    eq(standings(m).map((x) => x.seatId), ['s0', 's3', 's2', 's1'], 'ordem final');
-    eq(standings(m).map((x) => x.place), [1, 2, 3, 4], 'sem empate, colocações distintas');
+    eq(standings(m).map((x) => x.seatId), ['s0', 's3', 's2', 's1'], 'final order');
+    eq(standings(m).map((x) => x.place), [1, 2, 3, 4], 'no tie, distinct placings');
   }],
 
-  ['quem morre no mesmo turno divide a colocação', () => {
-    // O caso que a mesa reconhece: alguém estoura a mesa inteira de uma vez.
-    // Não há nada que separe os três - eles não se sobreviveram, e a ordem em
-    // que o motor processou os eventos é detalhe interno que não significa
-    // nada. Desempatar por ali seria inventar um resultado.
-    const m = mesa();
+  ['whoever dies on the same turn shares the placing', () => {
+    // The case the table recognizes: someone wipes the whole table at once.
+    // Nothing separates the three - they did not outlive each other, and the
+    // order in which the engine processed the events is an internal detail that
+    // means nothing. Breaking the tie there would be inventing a result.
+    const m = makeMatch();
     push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
     push(m, { type: 'life', targetId: 's2', delta: -40, sourceId: 's0' });
     push(m, { type: 'life', targetId: 's3', delta: -40, sourceId: 's0' });
 
-    const lugar = new Map(standings(m).map((x) => [x.seatId, x.place]));
-    eq(lugar.get('s0'), 1, 'quem sobrou é o primeiro');
-    // O grupo leva a PIOR colocação que ocupa. Dizer que dois deles foram 2º e
-    // 3º daria a eles um lugar que ninguém conquistou.
-    eq(lugar.get('s1'), 4, 'os três caíram juntos');
-    eq(lugar.get('s2'), 4);
-    eq(lugar.get('s3'), 4);
+    const place = new Map(standings(m).map((x) => [x.seatId, x.place]));
+    eq(place.get('s0'), 1, 'whoever is left is first');
+    // The group takes the WORST placing it occupies. Saying two of them were
+    // 2nd and 3rd would give them a place nobody earned.
+    eq(place.get('s1'), 4, 'the three fell together');
+    eq(place.get('s2'), 4);
+    eq(place.get('s3'), 4);
   }],
 
-  ['empate parcial: só quem caiu junto divide o lugar', () => {
-    const m = mesa();
+  ['partial tie: only whoever fell together shares the place', () => {
+    const m = makeMatch();
     push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
     push(m, { type: 'turn' });
-    // Estes dois caem no mesmo turno, depois do s1.
+    // These two fall on the same turn, after s1.
     push(m, { type: 'life', targetId: 's2', delta: -40, sourceId: 's0' });
     push(m, { type: 'life', targetId: 's3', delta: -40, sourceId: 's0' });
 
-    const lugar = new Map(standings(m).map((x) => [x.seatId, x.place]));
-    eq(lugar.get('s0'), 1, 'o vencedor');
-    eq(lugar.get('s2'), 3, 'os dois do último turno ocupam 2º e 3º, e levam o 3º');
-    eq(lugar.get('s3'), 3);
-    eq(lugar.get('s1'), 4, 'quem caiu antes fica atrás dos dois');
+    const place = new Map(standings(m).map((x) => [x.seatId, x.place]));
+    eq(place.get('s0'), 1, 'the winner');
+    eq(place.get('s2'), 3, 'the two from the last turn occupy 2nd and 3rd, and take 3rd');
+    eq(place.get('s3'), 3);
+    eq(place.get('s1'), 4, 'whoever fell earlier stays behind both');
   }],
 
-  ['desistir tira o jogador da mesa', () => {
-    const m = mesa();
+  ['conceding takes the player off the table', () => {
+    const m = makeMatch();
     push(m, { type: 'concede', targetId: 's3' });
     const s = replay(m);
-    eq(s.players.s3.dead, true, 'fora da mesa');
-    eq(s.alive.length, 3, 'restantes');
+    eq(s.players.s3.dead, true, 'off the table');
+    eq(s.alive.length, 3, 'remaining');
   }],
 
-  ['reviver por desfazer devolve a colocação', () => {
-    const m = mesa();
+  ['reviving through undo gives the placing back', () => {
+    const m = makeMatch();
     push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
-    eq(replay(m).players.s1.dead, true, 'morreu');
+    eq(replay(m).players.s1.dead, true, 'died');
     undo(m);
     const s = replay(m);
-    eq(s.players.s1.dead, false, 'voltou');
-    eq(s.elimOrder.length, 0, 'fila de eliminação limpa');
+    eq(s.players.s1.dead, false, 'came back');
+    eq(s.elimOrder.length, 0, 'elimination queue clean');
   }],
 
-  ['estatísticas somam dano causado e recebido pela origem certa', () => {
-    const m = mesa();
+  ['statistics add up damage dealt and taken by the right source', () => {
+    const m = makeMatch();
     push(m, { type: 'life', targetId: 's1', delta: -10, sourceId: 's0' });
     push(m, { type: 'life', targetId: 's2', delta: -6, sourceId: 's0' });
     push(m, { type: 'life', targetId: 's1', delta: +4, sourceId: null });
     const { players } = aggregate([m]);
-    eq(players.find((p) => p.label === 'P0').damageDealt, 16, 'dano causado por P0');
-    eq(players.find((p) => p.label === 'P1').damageTaken, 10, 'dano recebido por P1');
-    eq(players.find((p) => p.label === 'P1').healed, 4, 'cura de P1');
+    eq(players.find((p) => p.label === 'P0').damageDealt, 16, 'damage dealt by P0');
+    eq(players.find((p) => p.label === 'P1').damageTaken, 10, 'damage taken by P1');
+    eq(players.find((p) => p.label === 'P1').healed, 4, 'healing of P1');
   }],
 
-  ['o convite sempre carrega o @, mesmo sem saber o id da conta', () => {
-    // O defeito que isto guarda: quando o aparelho LEMBRA a que conta um nome
-    // pertence, ele preenche o @ mas não o id - ele não tem, porque lembrar
-    // existe justamente para não buscar de novo. A linha ia para o banco com
-    // user_id nulo, e a política de resposta exige `user_id = auth.uid()`.
-    // Em SQL null não é igual a nada: o convite nascia impossível de
-    // reivindicar, sem erro e sem aviso.
+  ['the invite always carries the @, even without knowing the account id', () => {
+    // The defect this guards: when the device REMEMBERS which account a name
+    // belongs to, it fills in the @ but not the id - it does not have it,
+    // because remembering exists precisely to avoid looking up again. The row
+    // went to the database with a null user_id, and the answer policy requires
+    // `user_id = auth.uid()`. In SQL null equals nothing: the invite was born
+    // impossible to claim, with no error and no warning.
     //
-    // A correção é do servidor (sql/003), que resolve o @ ao inserir. O que o
-    // cliente precisa garantir é a matéria-prima dessa resolução: nunca mandar
-    // uma cadeira marcada sem o @.
+    // The fix is on the server (sql/003), which resolves the @ on insert. What
+    // the client has to guarantee is the raw material of that resolution:
+    // never send a tagged seat without the @.
     const match = createMatch([
       { id: 's0', name: 'Alexandre', handle: 'alienpls', userId: 'uid-1', commanders: [commander(0)] },
       { id: 's1', name: 'Bruno', handle: 'brunomtg', commanders: [commander(1)] },
       { id: 's2', name: 'Carla', commanders: [commander(2)] },
     ], 40);
 
-    const linhas = participantesDe(match);
-    eq(linhas.length, 2, 'só as cadeiras marcadas');
-    ok(linhas.every((l) => l.handle && l.handle.length > 0),
-      'toda linha leva o @: é por ele que o servidor descobre de quem é');
+    const rows = participantsOf(match);
+    eq(rows.length, 2, 'only the tagged seats');
+    ok(rows.every((l) => l.handle && l.handle.length > 0),
+      'every row carries the @: it is how the server finds out whose it is');
 
-    const comId = linhas.find((l) => l.seat_id === 's0');
-    const semId = linhas.find((l) => l.seat_id === 's1');
-    eq(comId.user_id, 'uid-1', 'quando o cliente sabe o id, manda');
-    eq(semId.user_id, null, 'quando não sabe, manda nulo - e o servidor resolve');
-    eq(semId.handle, 'brunomtg', 'mas o @ vai sempre, senão não há como resolver');
+    const withId = rows.find((l) => l.seat_id === 's0');
+    const withoutId = rows.find((l) => l.seat_id === 's1');
+    eq(withId.user_id, 'uid-1', 'when the client knows the id, it sends it');
+    eq(withoutId.user_id, null, 'when it does not, it sends null - and the server resolves it');
+    eq(withoutId.handle, 'brunomtg', 'but the @ always goes, otherwise there is no resolving');
   }],
 
-  ['a conta vinculada sobrevive da mesa até o convite', () => {
-    // Este é o caminho inteiro, e ele estava rompido no primeiro elo:
-    // createMatch montava o assento com id, nome e comandantes, e descartava
-    // handle e userId. A escolha do @ morria no rascunho. A partida gravada não
-    // sabia de conta nenhuma, participantesDe() nunca achava cadeira para
-    // convidar, e a estatística voltava a ter só o nome digitado.
+  ['the linked account survives from the table to the invite', () => {
+    // This is the whole path, and it was broken at the first link:
+    // createMatch built the seat with id, name and commanders, and dropped
+    // handle and userId. The choice of @ died in the draft. The saved match
+    // knew of no account, participantsOf() never found a seat to invite, and
+    // the statistics went back to having only the typed name.
     //
-    // Nada falhava com estardalhaço: o convite simplesmente nunca chegava.
+    // Nothing failed loudly: the invite simply never arrived.
     const m = createMatch([
       { id: 's0', name: 'Alexandre', handle: 'alienpls', userId: 'uid-1', commanders: [commander(0)] },
       { id: 's1', name: 'Bruno', commanders: [commander(1)] },
     ], 40);
 
-    eq(m.seats[0].handle, 'alienpls', 'o assento guarda o @');
-    eq(m.seats[0].userId, 'uid-1', 'e a conta');
-    eq(m.seats[1].handle, null, 'cadeira sem conta continua sem conta');
+    eq(m.seats[0].handle, 'alienpls', 'the seat keeps the @');
+    eq(m.seats[0].userId, 'uid-1', 'and the account');
+    eq(m.seats[1].handle, null, 'a seat without an account stays without one');
 
-    // E a partida gravada gera o convite de verdade.
-    const linhas = participantesDe(m);
-    eq(linhas.length, 1, 'uma cadeira reivindicável');
-    eq(linhas[0].handle, 'alienpls');
-    eq(linhas[0].user_id, 'uid-1');
-    eq(linhas[0].seat_id, 's0');
+    // And the saved match really generates the invite.
+    const rows = participantsOf(m);
+    eq(rows.length, 1, 'one claimable seat');
+    eq(rows[0].handle, 'alienpls');
+    eq(rows[0].user_id, 'uid-1');
+    eq(rows[0].seat_id, 's0');
 
-    // E a estatística identifica a pessoa, não o texto.
-    eq(identityOf(m.seats[0]), '@alienpls', 'a estatística vê a conta');
+    // And the statistics identify the person, not the text.
+    eq(identityOf(m.seats[0]), '@alienpls', 'the statistics see the account');
   }],
 
-  ['a mesma conta com nomes diferentes é uma pessoa só', () => {
-    // O ponto do recurso inteiro: o nome é como a mesa chama alguém NAQUELE
-    // dia. Cadastrar "Alex" numa quinta e "Alexandre" na outra não pode
-    // produzir duas linhas, duas cores e duas histórias - nem transformar a
-    // rivalidade dessa pessoa com o Bruno em duas rivalidades pela metade.
-    const comConta = (nome) => {
+  ['the same account with different names is a single person', () => {
+    // The point of the whole feature: the name is what the table calls someone
+    // THAT day. Adding "Alex" one Thursday and "Alexandre" the next cannot
+    // produce two rows, two colors and two stories - nor turn that person's
+    // rivalry with Bruno into two half rivalries.
+    const withAccount = (name) => {
       const m = createMatch([
-        { id: 's0', name: nome, handle: 'alienpls', commanders: [commander(0)] },
+        { id: 's0', name, handle: 'alienpls', commanders: [commander(0)] },
         { id: 's1', name: 'Bruno', commanders: [commander(1)] },
       ], 40);
       push(m, { type: 'life', targetId: 's1', delta: -7, sourceId: 's0' });
       return m;
     };
 
-    const partidas = [comConta('Alexandre'), comConta('Alex')];
-    const { players } = aggregate(partidas);
+    const matches = [withAccount('Alexandre'), withAccount('Alex')];
+    const { players } = aggregate(matches);
 
-    const dele = players.filter((p) => p.key === '@alienpls');
-    eq(dele.length, 1, 'uma linha só para a conta');
-    eq(dele[0].games, 2, 'as duas partidas somam na mesma pessoa');
-    eq(dele[0].damageDealt, 14, 'o dano das duas mesas soma junto');
-    // O rótulo é o @, e não o nome mais recente. Enquanto era o nome, a mesma
-    // pessoa aparecia como "Alexandre" neste aparelho e "Alex" no de quem
-    // digitou diferente - com a identidade por baixo já unificada. O @ é o
-    // único rótulo que significa a mesma coisa nos dois.
-    eq(dele[0].label, '@alienpls', 'o rótulo de quem tem conta é o @');
-    // Os nomes digitados não se perdem: viram o "registrado como".
-    eq(dele[0].nomes, ['Alexandre', 'Alex'], 'os nomes que a mesa usou');
-    eq(players.length, 2, 'só existem duas pessoas: a conta e o Bruno');
+    const theirs = players.filter((p) => p.key === '@alienpls');
+    eq(theirs.length, 1, 'a single row for the account');
+    eq(theirs[0].games, 2, 'both matches add up on the same person');
+    eq(theirs[0].damageDealt, 14, 'the damage of both tables adds up together');
+    // The label is the @, not the most recent name. While it was the name, the
+    // same person showed up as "Alexandre" on this device and "Alex" on the
+    // device of whoever typed differently - with the identity underneath
+    // already unified. The @ is the only label that means the same on both.
+    eq(theirs[0].label, '@alienpls', 'the label of someone with an account is the @');
+    // The typed names are not lost: they become the "recorded as".
+    eq(theirs[0].names, ['Alexandre', 'Alex'], 'the names the table used');
+    eq(players.length, 2, 'only two people exist: the account and Bruno');
 
-    // A cor acompanha a conta, não o texto digitado.
-    const ordem = playerColorOrder(partidas);
-    eq(playerColor(ordem, '@alienpls'), playerColor(ordem, '@alienpls'), 'cor estável');
+    // The color follows the account, not the typed text.
+    const order = playerColorOrder(matches);
+    eq(playerColor(order, '@alienpls'), playerColor(order, '@alienpls'), 'stable color');
 
-    const rivais = rivalries(partidas);
-    eq(rivais.length, 1, 'uma rivalidade, não duas metades');
-    eq(rivais[0].games, 2, 'as duas mesas contam para o mesmo par');
+    const rivals = rivalries(matches);
+    eq(rivals.length, 1, 'one rivalry, not two halves');
+    eq(rivals[0].games, 2, 'both tables count for the same pair');
   }],
 
-  ['identidade cai no nome quando não há conta, e nunca colide com uma', () => {
-    eq(identityOf({ id: 's0', name: 'Ana' }), 'ana', 'sem conta, o nome serve');
-    eq(identityOf({ id: 's0', name: ' ANA ' }), 'ana', 'espaço e caixa não criam outra pessoa');
-    eq(identityOf({ id: 's0', name: 'Ana', handle: '@Ana' }), '@ana', 'com conta, a conta manda');
+  ['identity falls back to the name when there is no account, and never collides with one', () => {
+    eq(identityOf({ id: 's0', name: 'Ana' }), 'ana', 'without an account, the name works');
+    eq(identityOf({ id: 's0', name: ' ANA ' }), 'ana', 'spaces and case do not create another person');
+    eq(identityOf({ id: 's0', name: 'Ana', handle: '@Ana' }), '@ana', 'with an account, the account rules');
 
-    // O prefixo existe para isto: quem digitou "ana" sem conta nenhuma não é a
-    // dona da conta @ana até que alguém diga que é.
+    // The prefix exists for this: whoever typed "ana" with no account at all
+    // is not the owner of the @ana account until someone says so.
     ok(identityOf({ id: 's0', name: 'ana' }) !== identityOf({ id: 's1', handle: 'ana' }),
-      'nome solto não vira dono da conta de mesmo texto');
+      'a loose name does not become the owner of the account with the same text');
 
-    // Partida antiga, gravada antes de existir @: o aparelho lembra a quem
-    // aquele nome pertence, e ela se junta à conta em vez de ficar órfã.
+    // An old match, recorded before @ existed: the device remembers whom that
+    // name belongs to, and it joins the account instead of staying orphaned.
     eq(identityOf({ id: 's0', name: 'Alex' }, { alex: 'alienpls' }), '@alienpls',
-      'o que o aparelho lembra reconcilia o histórico antigo');
+      'what the device remembers reconciles the old history');
 
-    eq(identityOf({ id: 's9' }), 's9', 'sem nome e sem conta, resta o assento');
-    eq(labelOf({ id: 's0', handle: 'alienpls' }), '@alienpls', 'sem nome, mostra o @');
-    // Com conta, o @ ganha do nome digitado: ver labelOf() em stats/agregar.js.
+    eq(identityOf({ id: 's9' }), 's9', 'with no name and no account, the seat is what is left');
+    eq(labelOf({ id: 's0', handle: 'alienpls' }), '@alienpls', 'with no name, shows the @');
+    // With an account, the @ beats the typed name: see labelOf() in stats/aggregate.js.
     eq(labelOf({ id: 's0', name: 'Ana', handle: 'alienpls' }), '@alienpls',
-      'com conta, o rótulo é o @ mesmo havendo nome');
-    eq(labelOf({ id: 's0', name: 'Ana' }), 'Ana', 'sem conta, o nome digitado');
-    // E o apelido do aparelho também troca o rótulo, senão a mesma pessoa
-    // voltaria a ter dois: o @ nas mesas marcadas e o nome nas antigas.
+      'with an account, the label is the @ even when there is a name');
+    eq(labelOf({ id: 's0', name: 'Ana' }), 'Ana', 'without an account, the typed name');
+    // And the device's alias also switches the label, otherwise the same
+    // person would have two again: the @ on tagged tables and the name on old
+    // ones.
     eq(labelOf({ id: 's0', name: 'Alex' }, { alex: 'alienpls' }), '@alienpls',
-      'apelido conhecido também mostra o @');
-    eq(nomeRegistrado({ id: 's0', name: 'Ana', handle: 'alienpls' }), 'Ana',
-      'o nome digitado fica disponível para o "registrado como"');
-    eq(nomeRegistrado({ id: 's0', name: 'Ana' }), '',
-      'sem conta o rótulo já é o nome, e repetir não informa nada');
+      'a known alias also shows the @');
+    eq(recordedName({ id: 's0', name: 'Ana', handle: 'alienpls' }), 'Ana',
+      'the typed name stays available for "recorded as"');
+    eq(recordedName({ id: 's0', name: 'Ana' }), '',
+      'without an account the label already is the name, and repeating tells nothing');
   }],
 
-  ['vida perdida sem autor conta como paga, não como dano levado', () => {
-    const m = mesa();
+  ['life lost with no dealer counts as paid, not as damage taken', () => {
+    const m = makeMatch();
     push(m, { type: 'life', targetId: 's0', delta: -3, sourceId: null });
     push(m, { type: 'life', targetId: 's0', delta: -8, sourceId: 's1' });
     const p0 = aggregate([m]).players.find((p) => p.label === 'P0');
-    eq(p0.lifePaid, 3, 'vida paga');
-    eq(p0.damageTaken, 8, 'dano levado');
-    eq(replay(m).players.s0.life, 29, 'vida final soma os dois');
+    eq(p0.lifePaid, 3, 'life paid');
+    eq(p0.damageTaken, 8, 'damage taken');
+    eq(replay(m).players.s0.life, 29, 'final life adds both');
   }],
 
-  ['ninguém leva crédito por dano sem origem declarada', () => {
-    const m = mesa();
-    push(m, { type: 'turn' }); // P1 esta no turno...
+  ['nobody gets credit for damage with no declared source', () => {
+    const m = makeMatch();
+    push(m, { type: 'turn' }); // P1 is on turn...
     push(m, { type: 'life', targetId: 's2', delta: -9, sourceId: null });
     const { players } = aggregate([m]);
-    // ...e mesmo assim nao herda o dano: sem arraste, nao ha autor.
-    eq(players.find((p) => p.label === 'P1').damageDealt, 0, 'dano creditado a P1');
-    eq(players.find((p) => p.label === 'P2').lifePaid, 9, 'vida paga por P2');
+    // ...and even so does not inherit the damage: no drag, no dealer.
+    eq(players.find((p) => p.label === 'P1').damageDealt, 0, 'damage credited to P1');
+    eq(players.find((p) => p.label === 'P2').lifePaid, 9, 'life paid by P2');
   }],
 
-  ['veneno arrastado credita quem aplicou', () => {
-    const m = mesa();
+  ['dragged poison credits whoever applied it', () => {
+    const m = makeMatch();
     push(m, { type: 'poison', targetId: 's1', delta: 4, sourceId: 's0' });
     const { players } = aggregate([m]);
-    eq(players.find((p) => p.label === 'P0').poisonDealt, 4, 'veneno aplicado por P0');
-    eq(players.find((p) => p.label === 'P1').poisonTaken, 4, 'veneno recebido por P1');
+    eq(players.find((p) => p.label === 'P0').poisonDealt, 4, 'poison applied by P0');
+    eq(players.find((p) => p.label === 'P1').poisonTaken, 4, 'poison taken by P1');
   }],
 
-  ['dano de comandante entra no dano total dos dois lados', () => {
-    const m = mesa();
+  ['commander damage goes into the total damage on both sides', () => {
+    const m = makeMatch();
     const key = cmdKeyOf('s0', m.seats[0].commanders[0]);
     push(m, { type: 'cmd', targetId: 's1', sourceId: 's0', cmdKey: key, delta: 6 });
     const { players } = aggregate([m]);
     const p0 = players.find((p) => p.label === 'P0');
-    eq(p0.cmdDealt, 6, 'dano de comandante causado');
-    eq(p0.damageDealt, 6, 'e também conta no dano total');
-    eq(players.find((p) => p.label === 'P1').damageTaken, 6, 'dano levado por P1');
+    eq(p0.cmdDealt, 6, 'commander damage dealt');
+    eq(p0.damageDealt, 6, 'and it also counts in the total damage');
+    eq(players.find((p) => p.label === 'P1').damageTaken, 6, 'damage taken by P1');
   }],
 
-  ['estatísticas contam vitória e eliminação', () => {
-    const m = mesa(2);
+  ['statistics count wins and eliminations', () => {
+    const m = makeMatch(2);
     push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
     const p0 = aggregate([m]).players.find((p) => p.label === 'P0');
-    eq(p0.wins, 1, 'vitórias');
-    eq(p0.kills, 1, 'eliminações');
+    eq(p0.wins, 1, 'wins');
+    eq(p0.kills, 1, 'eliminations');
     eq(p0.winrate, 1, 'winrate');
   }],
 
-  ['estatísticas agregam o mesmo deck em várias partidas', () => {
-    const a = mesa(2);
+  ['statistics aggregate the same deck across several matches', () => {
+    const a = makeMatch(2);
     push(a, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
-    const b = mesa(2);
+    const b = makeMatch(2);
     push(b, { type: 'life', targetId: 's0', delta: -40, sourceId: 's1' });
     const { decks } = aggregate([a, b]);
     const d0 = decks.find((d) => d.label === 'Cmd 0');
-    eq(d0.games, 2, 'partidas do deck');
-    eq(d0.wins, 1, 'vitórias');
+    eq(d0.games, 2, 'deck matches');
+    eq(d0.wins, 1, 'wins');
     eq(d0.winrate, 0.5, 'winrate');
   }],
 
-  ['toda variante gira no horário, em pé e deitada', () => {
-    // A ordem dos assentos é a ordem dos turnos. Andando de um assento ao
-    // próximo, o ângulo em relação ao centro tem que sempre CRESCER (Y da tela
-    // aponta para baixo, então ângulo crescente = sentido horário), e a volta
-    // completa tem que somar exatamente 360°. Uma mesa anti-horária daria
-    // passos negativos; uma que vai e volta não fecharia em 360.
+  ['every variant turns clockwise, standing and lying', () => {
+    // The seat order is the turn order. Walking from one seat to the next, the
+    // angle relative to the center must always GROW (screen Y points down, so
+    // a growing angle = clockwise), and the full round must add up to exactly
+    // 360°. A counter-clockwise table would give negative steps; one that goes
+    // back and forth would not close at 360.
     for (const n of [2, 3, 4, 5, 6]) {
       for (const v of variantsFor(n)) {
-        for (const { nome, shape } of shapesOf(v)) {
-          const onde = n + ' jogadores / ' + v.id + ' / ' + nome;
+        for (const { name, shape } of shapesOf(v)) {
+          const where = n + ' players / ' + v.id + ' / ' + name;
           const angles = shape.seats.map((s) => seatAngle(s, shape));
-          let volta = 0;
+          let round = 0;
           for (let i = 0; i < n; i += 1) {
-            const passo = (angles[(i + 1) % n] - angles[i] + 360) % 360;
-            ok(passo > 0, onde + ': assento ' + i + ' não avança no horário');
-            volta += passo;
+            const step = (angles[(i + 1) % n] - angles[i] + 360) % 360;
+            ok(step > 0, where + ': seat ' + i + ' does not move clockwise');
+            round += step;
           }
-          ok(Math.abs(volta - 360) < 0.001, onde + ': a volta somou ' + volta + '°, não 360°');
+          ok(Math.abs(round - 360) < 0.001, where + ': the round added up to ' + round + '°, not 360°');
         }
       }
     }
   }],
 
-  ['toda forma preenche a grade sem sobrepor assentos', () => {
-    for (const [n, variantes] of Object.entries(LAYOUTS)) {
+  ['every shape fills the grid without overlapping seats', () => {
+    for (const [n, variants] of Object.entries(LAYOUTS)) {
       const ids = new Set();
-      for (const v of variantes) {
-        ok(!ids.has(v.id), n + ': id de variante repetido');
+      for (const v of variants) {
+        ok(!ids.has(v.id), n + ': repeated variant id');
         ids.add(v.id);
-        // O rótulo era texto fixo em português dentro do seating.js, então a
-        // escolha de mesa aparecia em português para quem usava o app em
-        // inglês, espanhol ou alemão. Agora é chave, e a chave tem de existir
-        // nos quatro - senão a tela mostra o nome cru da chave.
-        ok(v.labelKey, n + '/' + v.id + ': variante sem rótulo para mostrar ao usuário');
-        for (const [codigo] of LANGS) {
-          ok(DICTS[codigo][v.labelKey],
-            n + '/' + v.id + ': falta ' + v.labelKey + ' em ' + codigo);
+        // The label was fixed Portuguese text inside seating.js, so the table
+        // choice showed in Portuguese for whoever used the app in English,
+        // Spanish or German. Now it is a key, and the key has to exist in all
+        // four - otherwise the screen shows the raw key name.
+        ok(v.labelKey, n + '/' + v.id + ': variant with no label to show the user');
+        for (const [code] of LANGS) {
+          ok(DICTS[code][v.labelKey],
+            n + '/' + v.id + ': missing ' + v.labelKey + ' in ' + code);
         }
 
-        for (const { nome, shape } of shapesOf(v)) {
-          const onde = n + ' jogadores / ' + v.id + ' / ' + nome;
-          ok(shape.seats.length === Number(n), onde + ': tem ' + shape.seats.length + ' assentos');
+        for (const { name, shape } of shapesOf(v)) {
+          const where = n + ' players / ' + v.id + ' / ' + name;
+          ok(shape.seats.length === Number(n), where + ': has ' + shape.seats.length + ' seats');
 
-          const ocupadas = new Set();
+          const taken = new Set();
           for (const s of shape.seats) {
-            // Só 0 e 180: painel de lado deixaria nome e número deitados.
-            ok(s.rot === 0 || s.rot === 180, onde + ': rotação inválida ' + s.rot);
+            // Only 0 and 180: a sideways panel would leave name and number lying down.
+            ok(s.rot === 0 || s.rot === 180, where + ': invalid rotation ' + s.rot);
             for (let c = s.c; c < s.c + (s.cs || 1); c += 1) {
               const cell = s.r + ':' + c;
-              ok(!ocupadas.has(cell), onde + ': célula ' + cell + ' usada duas vezes');
-              ocupadas.add(cell);
-              ok(s.r <= shape.rows && c <= shape.cols, onde + ': assento fora da grade');
+              ok(!taken.has(cell), where + ': cell ' + cell + ' used twice');
+              taken.add(cell);
+              ok(s.r <= shape.rows && c <= shape.cols, where + ': seat outside the grid');
             }
           }
         }
@@ -667,470 +685,476 @@ export const cases = [
     }
   }],
 
-  ['a forma deitada é mais larga que alta onde existe', () => {
+  ['the lying-down shape is wider than tall where it exists', () => {
     for (const n of [5, 6]) {
       for (const v of variantsFor(n)) {
         if (!v.land) continue;
-        ok(v.land.cols > v.land.rows, n + '/' + v.id + ': forma deitada não é larga');
-        ok(v.cols <= v.rows, n + '/' + v.id + ': forma em pé não é alta');
+        ok(v.land.cols > v.land.rows, n + '/' + v.id + ': the lying-down shape is not wide');
+        ok(v.cols <= v.rows, n + '/' + v.id + ': the standing shape is not tall');
       }
     }
   }],
 
-  ['layoutFor escolhe variante e orientação', () => {
-    eq(layoutFor(5, 'inventado').id, variantsFor(5)[0].id, 'cai no padrão');
-    eq(layoutFor(3, 'paisagem').id, 'paisagem', 'variante válida é respeitada');
+  ['layoutFor picks the variant and the orientation', () => {
+    eq(layoutFor(5, 'inventado').id, variantsFor(5)[0].id, 'falls back to the default');
+    eq(layoutFor(3, 'paisagem').id, 'paisagem', 'a valid variant is respected');
 
-    // 4 e 6 não têm o que escolher, e seguem se adaptando pela tela.
-    eq(layoutFor(6, 'padrao', false).cols, 2, 'em pé: duas colunas');
-    eq(layoutFor(6, 'padrao', true).cols, 3, 'deitado: três colunas');
-    eq(layoutFor(4, 'padrao', true).cols, 2, 'sem forma deitada, mantém a mesma');
+    // 4 and 6 have nothing to choose, and keep adapting to the screen.
+    eq(layoutFor(6, 'padrao', false).cols, 2, 'standing: two columns');
+    eq(layoutFor(6, 'padrao', true).cols, 3, 'lying: three columns');
+    eq(layoutFor(4, 'padrao', true).cols, 2, 'with no lying shape, keeps the same one');
   }],
 
-  ['partida antiga não troca as pessoas de lugar ao atualizar o app', () => {
-    // Uma partida em andamento guarda o id de variante de quando começou.
-    // Renomear as variantes sem tratar isso jogaria a mesa no padrão no meio
-    // do jogo, movendo todo mundo de lugar sem aviso.
-    const mesmo = (n, velho, novo) => {
-      const a = layoutFor(n, velho);
-      const b = layoutFor(n, novo);
+  ['an old match does not swap people\'s places when the app updates', () => {
+    // A match in progress keeps the variant id from when it started. Renaming
+    // the variants without handling that would throw the table into the
+    // default in the middle of the game, moving everyone without warning.
+    const same = (n, old, current) => {
+      const a = layoutFor(n, old);
+      const b = layoutFor(n, current);
       eq(JSON.stringify(a.seats), JSON.stringify(b.seats),
-        n + '/' + velho + ' precisa cair exatamente em ' + novo);
+        n + '/' + old + ' has to land exactly on ' + current);
     };
-    mesmo(3, '2-1', 'retrato');
-    mesmo(3, '1-2', 'paisagem');
-    mesmo(5, 'volta', 'retrato');
+    same(3, '2-1', 'retrato');
+    same(3, '1-2', 'paisagem');
+    same(5, 'volta', 'retrato');
 
-    // Este não tem equivalente exato; o que importa é que vá para a deitada em
-    // vez de cair no padrão em pé, que seria a mudança mais brusca.
-    eq(layoutFor(5, '3-2').id, 'paisagem', 'sem equivalente exato, vai para a mais parecida');
+    // This one has no exact equivalent; what matters is that it goes to the
+    // lying-down shape instead of falling into the standing default, which
+    // would be the most abrupt change.
+    eq(layoutFor(5, '3-2').id, 'paisagem', 'no exact equivalent, goes to the closest');
 
-    // E id inventado ainda cai no padrão, como sempre.
-    eq(layoutFor(3, 'nao-existe').id, variantsFor(3)[0].id, 'id desconhecido cai no padrão');
+    // And a made-up id still falls into the default, as always.
+    eq(layoutFor(3, 'nao-existe').id, variantsFor(3)[0].id, 'an unknown id falls into the default');
   }],
 
-  ['com 2, 3 e 5 a escolha é como o aparelho fica na mesa', () => {
-    // A pergunta que a pessoa responde passa a ser concreta: em pé ou deitado
-    // no meio da mesa. "2 embaixo, 1 em cima" descrevia a consequência de uma
-    // escolha que ninguém tinha feito ainda.
+  ['with 2, 3 and 5 the choice is how the device sits on the table', () => {
+    // The question the person answers becomes concrete: standing or lying in
+    // the middle of the table. "2 below, 1 above" described the consequence of
+    // a choice nobody had made yet.
     for (const n of [2, 3, 5]) {
       const vs = variantsFor(n);
-      eq(vs.length, 2, n + ' jogadores: exatamente duas opções');
+      eq(vs.length, 2, n + ' players: exactly two options');
       eq(vs.map((v) => v.orient).sort().join(','), 'landscape,portrait',
-        n + ' jogadores: uma em pé e uma deitada');
+        n + ' players: one standing and one lying');
       eq(orientOf(n, 'retrato'), 'portrait');
       eq(orientOf(n, 'paisagem'), 'landscape');
     }
 
-    // 4 e 6 não pedem orientação nenhuma: travar a tela ali só tiraria
-    // liberdade de quem joga, sem resolver ambiguidade alguma.
-    eq(orientOf(4, 'padrao'), null, 'quatro é simétrico');
-    eq(orientOf(6, 'padrao'), null, 'seis é três de cada lado');
+    // 4 and 6 ask for no orientation: locking the screen there would only take
+    // freedom from the players, without resolving any ambiguity.
+    eq(orientOf(4, 'padrao'), null, 'four is symmetric');
+    eq(orientOf(6, 'padrao'), null, 'six is three on each side');
   }],
 
-  ['a orientação escolhida não é desmentida pela tela', () => {
-    // O que garante isto é o DADO, não o `if`: variante que declara orientação
-    // não tem forma alternativa para trocar. Vale prender a invariante, porque
-    // é ela que sustenta o comportamento - a guarda em layoutFor é só cinto e
-    // suspensório para o dia em que alguém acrescentar as duas coisas juntas.
-    for (const [n, variantes] of Object.entries(LAYOUTS)) {
-      for (const v of variantes) {
+  ['the chosen orientation is not contradicted by the screen', () => {
+    // What guarantees this is the DATA, not the `if`: a variant that declares
+    // an orientation has no alternative shape to switch to. The invariant is
+    // worth pinning, because it is what holds the behavior - the guard in
+    // layoutFor is just belt and braces for the day someone adds both.
+    for (const [n, variants] of Object.entries(LAYOUTS)) {
+      for (const v of variants) {
         ok(!(v.orient && v.land),
-          n + '/' + v.id + ': declara orientação E forma alternativa - uma das '
-          + 'duas vai ser ignorada, e ninguém vai saber qual');
+          n + '/' + v.id + ': declares an orientation AND an alternative shape - one of '
+          + 'the two will be ignored, and nobody will know which');
       }
     }
 
     for (const wide of [false, true]) {
-      eq(layoutFor(5, 'retrato', wide).cols, 2, 'em pé continua 2 colunas (wide=' + wide + ')');
-      eq(layoutFor(5, 'retrato', wide).rows, 3, 'em pé continua 3 linhas (wide=' + wide + ')');
-      eq(layoutFor(5, 'paisagem', wide).cols, 3, 'deitado continua 3 colunas (wide=' + wide + ')');
-      eq(layoutFor(5, 'paisagem', wide).rows, 2, 'deitado continua 2 linhas (wide=' + wide + ')');
+      eq(layoutFor(5, 'retrato', wide).cols, 2, 'standing stays 2 columns (wide=' + wide + ')');
+      eq(layoutFor(5, 'retrato', wide).rows, 3, 'standing stays 3 rows (wide=' + wide + ')');
+      eq(layoutFor(5, 'paisagem', wide).cols, 3, 'lying stays 3 columns (wide=' + wide + ')');
+      eq(layoutFor(5, 'paisagem', wide).rows, 2, 'lying stays 2 rows (wide=' + wide + ')');
     }
   }],
 
-  ['a partida pode começar por qualquer jogador', () => {
-    const m = mesa(4, 40, { firstSeatId: 's2' });
-    eq(replay(m).activeSeatId, 's2', 'quem abre');
-    eq(replay(m).turn, 1, 'turno inicial');
+  ['the match can start with any player', () => {
+    const m = makeMatch(4, 40, { firstSeatId: 's2' });
+    eq(replay(m).activeSeatId, 's2', 'who opens');
+    eq(replay(m).turn, 1, 'initial turn');
   }],
 
-  ['a volta fecha em quem começou, não no primeiro assento', () => {
-    const m = mesa(4, 40, { firstSeatId: 's2' });
+  ['the round closes on whoever started, not on the first seat', () => {
+    const m = makeMatch(4, 40, { firstSeatId: 's2' });
     push(m, { type: 'turn' }); // s2 -> s3
-    push(m, { type: 'turn' }); // s3 -> s0 (dá a volta no array, mas não na mesa)
-    eq(replay(m).turn, 1, 'ainda na primeira volta');
-    eq(replay(m).activeSeatId, 's0', 'assento ativo');
+    push(m, { type: 'turn' }); // s3 -> s0 (wraps the array, but not the table)
+    eq(replay(m).turn, 1, 'still in the first round');
+    eq(replay(m).activeSeatId, 's0', 'active seat');
     push(m, { type: 'turn' }); // s0 -> s1
-    push(m, { type: 'turn' }); // s1 -> s2, aí sim fecha
+    push(m, { type: 'turn' }); // s1 -> s2, now it closes
     const s = replay(m);
-    eq(s.activeSeatId, 's2', 'voltou a quem abriu');
-    eq(s.turn, 2, 'turno 2');
+    eq(s.activeSeatId, 's2', 'back to whoever opened');
+    eq(s.turn, 2, 'turn 2');
   }],
 
-  ['a contagem de turnos não escorrega quando quem começou morre', () => {
-    const m = mesa(4, 40, { firstSeatId: 's0' });
+  ['the turn count does not slip when whoever started dies', () => {
+    const m = makeMatch(4, 40, { firstSeatId: 's0' });
     push(m, { type: 'life', targetId: 's0', delta: -40, sourceId: 's1' });
-    push(m, { type: 'turn' }); // s0 (morto) sai de cena -> s1
-    const inicio = replay(m).turn;
+    push(m, { type: 'turn' }); // s0 (dead) leaves the scene -> s1
+    const start = replay(m).turn;
     push(m, { type: 'turn' }); // s1 -> s2
     push(m, { type: 'turn' }); // s2 -> s3
-    push(m, { type: 'turn' }); // s3 -> pula s0 morto -> s1: uma volta dos vivos
+    push(m, { type: 'turn' }); // s3 -> skips dead s0 -> s1: one round of the living
     const s = replay(m);
-    eq(s.activeSeatId, 's1', 'voltou ao primeiro vivo');
-    eq(s.turn, inicio + 1, 'exatamente uma volta contada');
+    eq(s.activeSeatId, 's1', 'back to the first one alive');
+    eq(s.turn, start + 1, 'exactly one round counted');
   }],
 
-  ['no computador nenhum painel da mesa fica invertido', () => {
+  ['on a computer no table panel is upside down', () => {
     if (!simulated) return 'skip';
-    // O que a pessoa via: no monitor, os jogadores "de cima" apareciam com
-    // nome, vida e comandante de cabeça para baixo. Na mesa isso é o certo -
-    // cada painel aponta para o dono. Num monitor de pé não há ninguém do
-    // outro lado, e metade da tela ficava ilegível.
-    const girosDaMesa = () => {
+    // What the person saw: on the monitor, the players "at the top" showed up
+    // with name, life and commander upside down. At the table that is right -
+    // each panel points to its owner. On an upright monitor there is nobody on
+    // the other side, and half the screen was unreadable.
+    const tableRotations = () => {
       const root = document.createElement('div');
       const view = renderTable(root, {
-        match: mesa(4),
+        match: makeMatch(4),
         onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
       });
-      const giros = findAll(root, 'tile').map((n) => String(n.style.transform || ''));
+      const rotations = findAll(root, 'tile').map((n) => String(n.style.transform || ''));
       view.destroy();
-      return giros;
+      return rotations;
     };
 
-    const antes = globalThis.matchMedia;
+    const before = globalThis.matchMedia;
     try {
-      // Sem ponteiro preciso: aparelho deitado na mesa, os painéis giram.
+      // No fine pointer: device lying on the table, the panels rotate.
       globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
-      ok(girosDaMesa().some((g) => g.includes('180deg')), 'na mesa, os de frente giram');
+      ok(tableRotations().some((g) => g.includes('180deg')), 'at the table, the ones across rotate');
 
-      // Com mouse ou trackpad: monitor de pé, ninguém do outro lado.
+      // With a mouse or trackpad: upright monitor, nobody on the other side.
       globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
-      const noPc = girosDaMesa();
-      eq(noPc.length, 4, 'os quatro painéis foram desenhados');
-      ok(!noPc.some((g) => g.includes('180deg')), 'no computador, nenhum de cabeça para baixo');
-      ok(noPc.every((g) => g.includes('0deg')), 'e todos com unidade, senão o CSS descarta a regra');
+      const onPc = tableRotations();
+      eq(onPc.length, 4, 'the four panels were drawn');
+      ok(!onPc.some((g) => g.includes('180deg')), 'on the computer, none upside down');
+      ok(onPc.every((g) => g.includes('0deg')), 'and all with a unit, otherwise the CSS drops the rule');
     } finally {
-      globalThis.matchMedia = antes;
+      globalThis.matchMedia = before;
     }
   }],
 
-  ['painel: a primeira tela entra visível e clicável', () => {
+  ['panel: the first screen comes in visible and clickable', () => {
     if (!simulated) return 'skip';
-    // A regressão que motivou este teste: a tela nascia com `is-next`
-    // (opacity:0 + pointer-events:none) e ninguém tirava. O painel abria
-    // vazio e nada respondia ao toque.
-    abrirPainel({ title: 'A', build: (pane) => pane.append(document.createElement('p')) });
+    // The regression that motivated this test: the screen was born with
+    // `is-next` (opacity:0 + pointer-events:none) and nobody removed it. The
+    // panel opened empty and nothing answered to touch.
+    openPanel({ title: 'A', build: (pane) => pane.append(document.createElement('p')) });
 
-    const panes = telas();
-    eq(panes.length, 1, 'telas montadas');
-    ok(!panes[0].classList.contains('is-next'), 'primeira tela ficou escondida à direita');
-    ok(!panes[0].classList.contains('is-past'), 'primeira tela ficou marcada como anterior');
+    const list = panes();
+    eq(list.length, 1, 'mounted screens');
+    ok(!list[0].classList.contains('is-next'), 'the first screen stayed hidden on the right');
+    ok(!list[0].classList.contains('is-past'), 'the first screen was marked as previous');
     closeSheet();
   }],
 
-  ['painel: avançar empilha e voltar restaura a tela anterior', () => {
+  ['panel: moving forward stacks and going back restores the previous screen', () => {
     if (!simulated) return 'skip';
-    const api = abrirPainel({ title: 'A', build: () => {} });
+    const api = openPanel({ title: 'A', build: () => {} });
 
     api.next({ title: 'B', build: () => {} });
     flushFrames();
-    let [a, b] = telas();
-    eq(telas().length, 2, 'telas empilhadas');
-    ok(a.classList.contains('is-past'), 'a anterior deveria recuar');
-    ok(!b.classList.contains('is-next'), 'a nova deveria estar à vista');
+    let [a, b] = panes();
+    eq(panes().length, 2, 'stacked screens');
+    ok(a.classList.contains('is-past'), 'the previous one should step back');
+    ok(!b.classList.contains('is-next'), 'the new one should be in sight');
 
     api.back();
     flushFrames();
-    [a, b] = telas();
-    ok(!a.classList.contains('is-past'), 'ao voltar, a primeira volta à vista');
-    ok(b.classList.contains('is-next'), 'a que saiu deveria sair pela direita');
+    [a, b] = panes();
+    ok(!a.classList.contains('is-past'), 'going back, the first returns to sight');
+    ok(b.classList.contains('is-next'), 'the one leaving should leave to the right');
     closeSheet();
   }],
 
-  ['ação em área atinge todos os alvos listados de uma vez', () => {
-    const m = mesa();
+  ['an area action hits all the listed targets at once', () => {
+    const m = makeMatch();
     push(m, { type: 'sweep', sourceId: 's0', amount: 3, gain: 0, targets: ['s1', 's2', 's3'] });
     const s = replay(m);
-    eq([s.players.s1.life, s.players.s2.life, s.players.s3.life], [37, 37, 37], 'oponentes');
-    eq(s.players.s0.life, 40, 'quem disparou não se atinge');
-    eq(m.events.length, 1, 'um evento só, não um por alvo');
+    eq([s.players.s1.life, s.players.s2.life, s.players.s3.life], [37, 37, 37], 'opponents');
+    eq(s.players.s0.life, 40, 'whoever fired is not hit');
+    eq(m.events.length, 1, 'a single event, not one per target');
   }],
 
-  ['dreno tira de todos e devolve para quem drenou', () => {
-    const m = mesa();
+  ['a drain takes from everyone and gives back to whoever drained', () => {
+    const m = makeMatch();
     push(m, { type: 'sweep', sourceId: 's0', amount: 2, gain: 6, targets: ['s1', 's2', 's3'] });
     const s = replay(m);
-    eq(s.players.s1.life, 38, 'oponente');
-    eq(s.players.s0.life, 46, 'quem drenou');
+    eq(s.players.s1.life, 38, 'opponent');
+    eq(s.players.s0.life, 46, 'whoever drained');
   }],
 
-  ['desfazer um dreno reverte tudo num passo', () => {
-    const m = mesa();
-    const antes = JSON.stringify(replay(m).players);
+  ['undoing a drain reverts everything in one step', () => {
+    const m = makeMatch();
+    const before = JSON.stringify(replay(m).players);
     push(m, { type: 'sweep', sourceId: 's0', amount: 5, gain: 15, targets: ['s1', 's2', 's3'] });
     undo(m);
-    eq(JSON.stringify(replay(m).players), antes, 'estado após desfazer');
+    eq(JSON.stringify(replay(m).players), before, 'state after undo');
   }],
 
-  ['ação em área credita as eliminações a quem disparou', () => {
-    const m = mesa(4, 5);
+  ['an area action credits the eliminations to whoever fired it', () => {
+    const m = makeMatch(4, 5);
     push(m, { type: 'sweep', sourceId: 's0', amount: 5, gain: 0, targets: ['s1', 's2', 's3'] });
     const s = replay(m);
-    eq(s.winnerId, 's0', 'vencedor');
-    eq(s.players.s1.elim.byId, 's0', 'crédito da eliminação');
-    eq(aggregate([m]).players.find((p) => p.label === 'P0').kills, 3, 'eliminações contadas');
+    eq(s.winnerId, 's0', 'winner');
+    eq(s.players.s1.elim.byId, 's0', 'credit for the elimination');
+    eq(aggregate([m]).players.find((p) => p.label === 'P0').kills, 3, 'eliminations counted');
   }],
 
-  ['ação em área entra nas estatísticas dos dois lados', () => {
-    const m = mesa();
+  ['an area action goes into the statistics on both sides', () => {
+    const m = makeMatch();
     push(m, { type: 'sweep', sourceId: 's0', amount: 4, gain: 12, targets: ['s1', 's2', 's3'] });
     const { players } = aggregate([m]);
     const p0 = players.find((p) => p.label === 'P0');
-    eq(p0.damageDealt, 12, 'dano causado (4 × 3)');
-    eq(p0.healed, 12, 'vida ganha no dreno');
-    eq(players.find((p) => p.label === 'P1').damageTaken, 4, 'dano levado por alvo');
+    eq(p0.damageDealt, 12, 'damage dealt (4 × 3)');
+    eq(p0.healed, 12, 'life gained in the drain');
+    eq(players.find((p) => p.label === 'P1').damageTaken, 4, 'damage taken per target');
   }],
 
-  ['o arranque guarda de qual versão a pessoa veio', () => {
-    // O recorte das notas depende disto, e era um IIFE rodando no import -
-    // apagar a linha passava pela suite inteira sem uma falha.
-    const vista = store.getDB().settings.versaoVista;
-    const anterior = store.getDB().settings.versaoAnterior;
+  ['the startup stores which version the person came from', () => {
+    // The release-notes slice depends on this, and it was an IIFE running on
+    // import - deleting the line went through the whole suite without a
+    // failure.
+    const seen = store.getDB().settings.versaoVista;
+    const previous = store.getDB().settings.versaoAnterior;
     try {
-      ok(NOVIDADES.length > 1, 'o teste precisa de ao menos duas versões');
-      const velha = NOVIDADES[1].versao;
+      ok(RELEASE_NOTES.length > 1, 'the test needs at least two versions');
+      const old = RELEASE_NOTES[1].version;
 
-      store.setSetting('versaoVista', velha);
+      store.setSetting('versaoVista', old);
       store.setSetting('versaoAnterior', null);
-      const novas = anunciarVersao(APP_VERSION);
+      const fresh = announceVersion(APP_VERSION);
 
-      eq(store.getDB().settings.versaoAnterior, velha,
-        'não guardou de onde a pessoa veio');
+      eq(store.getDB().settings.versaoAnterior, old,
+        'it did not store where the person came from');
       eq(store.getDB().settings.versaoVista, APP_VERSION,
-        'não marcou a versão de agora como vista');
-      eq(novas.map((n) => n.versao), [NOVIDADES[0].versao],
-        'anunciou mais que a diferença');
+        'it did not mark the current version as seen');
+      eq(fresh.map((n) => n.version), [RELEASE_NOTES[0].version],
+        'it announced more than the difference');
 
-      // Reabrir na mesma versão não pode zerar o recorte: zerado, as notas do
-      // menu voltariam a ser o histórico inteiro.
-      eq(anunciarVersao(APP_VERSION), [], 'anunciou sem ter mudado de versão');
-      eq(store.getDB().settings.versaoAnterior, velha,
-        'reabrir na mesma versão apagou de onde a pessoa veio');
+      // Reopening on the same version cannot reset the slice: reset, the menu
+      // notes would go back to being the whole history.
+      eq(announceVersion(APP_VERSION), [], 'it announced without the version changing');
+      eq(store.getDB().settings.versaoAnterior, old,
+        'reopening on the same version erased where the person came from');
 
-      // Instalação nova: nada a anunciar, e nada a lembrar.
+      // A fresh install: nothing to announce, and nothing to remember.
       store.setSetting('versaoVista', null);
       store.setSetting('versaoAnterior', null);
-      eq(anunciarVersao(APP_VERSION), [], 'anunciou para quem instalou agora');
+      eq(announceVersion(APP_VERSION), [], 'it announced to someone who just installed');
       eq(store.getDB().settings.versaoAnterior, null,
-        'inventou uma versão anterior numa instalação nova');
+        'it made up a previous version on a fresh install');
     } finally {
-      store.setSetting('versaoVista', vista || null);
-      store.setSetting('versaoAnterior', anterior || null);
+      store.setSetting('versaoVista', seen || null);
+      store.setSetting('versaoAnterior', previous || null);
     }
     return undefined;
   }],
 
-  ['as notas abrem no que entrou desde a versão anterior', () => {
+  ['the notes open on what came in since the previous version', () => {
     if (!simulated) return 'skip';
-    // O recorte é o que torna a tela legível: com o histórico inteiro, as três
-    // linhas novas ficam embaixo de nove versões já lidas e o que a pessoa
-    // aprende é a fechar a tela sem ler.
-    const antes = store.getDB().settings.versaoAnterior;
+    // The slice is what makes the screen readable: with the whole history, the
+    // three new lines sit under nine versions already read and what the person
+    // learns is to close the screen without reading.
+    const before = store.getDB().settings.versaoAnterior;
     try {
-      ok(NOVIDADES.length > 2, 'o teste precisa de ao menos três versões');
-      const penultima = NOVIDADES[1].versao;
+      ok(RELEASE_NOTES.length > 2, 'the test needs at least three versions');
+      const secondToLast = RELEASE_NOTES[1].version;
 
-      store.setSetting('versaoAnterior', penultima);
-      abrirNovidades();
-      // Na folha ABERTA, e nao em `document.body`: closeSheet remove o no
-      // depois de 200ms, e num teste sincrono a folha anterior ainda esta no
-      // documento - as duas somavam e a contagem dava 12 onde ha 11.
-      const folha = () => findAll(document.body, 'sheet').slice(-1)[0];
-      const versoes = () => findAll(folha(), 'news-version').map((n) => textOf(n));
+      store.setSetting('versaoAnterior', secondToLast);
+      openReleaseNotes();
+      // On the OPEN sheet, and not on `document.body`: closeSheet removes the
+      // node after 200ms, and in a synchronous test the previous sheet is
+      // still in the document - the two added up and the count gave 12 where
+      // there are 11.
+      const sheet = () => findAll(document.body, 'sheet').slice(-1)[0];
+      const versions = () => findAll(sheet(), 'news-version').map((n) => textOf(n));
 
-      eq(versoes(), [NOVIDADES[0].versao],
-        'veio mais que a diferença desde a versão anterior');
+      eq(versions(), [RELEASE_NOTES[0].version],
+        'more than the difference since the previous version came');
 
-      // A saída para o histórico existe: esconder não pode virar apagar.
-      const tudo = findAll(folha(), 'news-all')[0];
-      ok(tudo, 'sem o caminho para ver todas as versões');
-      fire(tudo, 'click');
-      eq(versoes().length, NOVIDADES.length,
-        '"ver todas" não mostrou o histórico inteiro');
+      // The way out to the history exists: hiding cannot become deleting.
+      const all = findAll(sheet(), 'news-all')[0];
+      ok(all, 'no path to see all the versions');
+      fire(all, 'click');
+      eq(versions().length, RELEASE_NOTES.length,
+        '"see all" did not show the whole history');
 
-      // E no histórico inteiro o botão não se repete: não há mais o que abrir.
-      eq(findAll(folha(), 'news-all').length, 0,
-        'o botão de ver todas apareceu na tela que já mostra todas');
+      // And on the whole history the button does not repeat: there is nothing
+      // more to open.
+      eq(findAll(sheet(), 'news-all').length, 0,
+        'the see-all button showed on the screen that already shows everything');
       closeSheet();
 
-      // Instalação nova: sem versão anterior, só as notas desta versão. O
-      // histórico de mudanças de um app que a pessoa nunca usou é ruído antes
-      // do primeiro uso.
+      // A fresh install: with no previous version, only this version's notes.
+      // The change history of an app the person never used is noise before the
+      // first use.
       store.setSetting('versaoAnterior', null);
-      abrirNovidades();
-      eq(versoes(), [APP_VERSION],
-        'instalação nova devia ver só as notas da versão instalada');
+      openReleaseNotes();
+      eq(versions(), [APP_VERSION],
+        'a fresh install should only see the notes of the installed version');
       closeSheet();
 
-      // Uma lista explicita ainda manda: e o caminho do arranque, que ja sabe
-      // exatamente o que a pessoa nao viu.
-      abrirNovidades([NOVIDADES[1]]);
-      eq(versoes(), [NOVIDADES[1].versao], 'a lista passada foi ignorada');
+      // An explicit list still rules: it is the startup path, which already
+      // knows exactly what the person has not seen.
+      openReleaseNotes([RELEASE_NOTES[1]]);
+      eq(versions(), [RELEASE_NOTES[1].version], 'the given list was ignored');
     } finally {
       closeSheet();
-      store.setSetting('versaoAnterior', antes || null);
+      store.setSetting('versaoAnterior', before || null);
     }
     return undefined;
   }],
 
-  ['o botão de atualizar mostra que está atualizando', () => {
+  ['the update button shows that it is updating', () => {
     if (!simulated) return 'skip';
-    // O botão espera até dez segundos em silêncio: consulta a rede e depois
-    // aguarda o worker novo assumir. Apenas desabilitado, ele escurece e fica
-    // parado - indistinguível de um botão que não funcionou.
+    // The button waits up to ten seconds in silence: it checks the network and
+    // then waits for the new worker to take over. Only disabled, it dims and
+    // stays still - indistinguishable from a button that did not work.
     //
-    // `navigator.standalone` é o que faz `state()` dizer 'instalado', que é a
-    // única situação em que este botão existe.
-    const tinha = Object.prototype.hasOwnProperty.call(navigator, 'standalone');
+    // `navigator.standalone` is what makes `state()` say 'installed', the only
+    // situation in which this button exists.
+    const had = Object.prototype.hasOwnProperty.call(navigator, 'standalone');
     Object.defineProperty(navigator, 'standalone', {
       value: true, configurable: true, writable: true,
     });
     try {
       const box = installBlock();
-      const botao = findAll(box, 'menu-item')[0];
-      ok(botao, 'instalado, deveria haver o botão de atualizar');
-      eq(findAll(botao, 'spinner').length, 0, 'girador antes de tocar');
+      const button = findAll(box, 'set-row')[0];
+      ok(button, 'installed, there should be the update button');
+      eq(findAll(button, 'spinner').length, 0, 'spinner before tapping');
 
-      // O girador entra ANTES do await, então já está lá no instante do toque -
-      // é o que o teste síncrono consegue provar, e é o que importa: o retorno
-      // tem de ser imediato, não depois da rede.
-      fire(botao, 'click');
-      eq(findAll(botao, 'spinner').length, 1, 'tocou e não apareceu girador');
-      ok(botao.disabled, 'o botão continuou clicável durante a espera');
-      ok(botao.className.includes('is-updating'), 'sem a classe de espera');
-      ok(textOf(botao).includes(t('settings.updating')),
-        'o rótulo não disse que está atualizando');
+      // The spinner goes in BEFORE the await, so it is already there at the
+      // moment of the tap - which is what the synchronous test can prove, and
+      // what matters: the feedback has to be immediate, not after the network.
+      fire(button, 'click');
+      eq(findAll(button, 'spinner').length, 1, 'tapped and no spinner showed');
+      ok(button.disabled, 'the button stayed clickable during the wait');
+      ok(button.className.includes('is-updating'), 'no waiting class');
+      ok(textOf(button).includes(t('settings.updating')),
+        'the label did not say it is updating');
     } finally {
-      if (!tinha) delete navigator.standalone;
+      if (!had) delete navigator.standalone;
       else navigator.standalone = false;
     }
     return undefined;
   }],
 
-  ['mesa passada não abre a tela de jogo', () => {
+  ['a handed-off table does not open the game screen', () => {
     if (!simulated) return 'skip';
-    // O bastão cobrado onde é barato cobrar. Dentro da mesa seriam vinte
-    // controles para desabilitar, e esquecer um basta para existirem duas
-    // cópias vivas da mesma partida.
+    // The baton is enforced where it is cheap to enforce. Inside the table
+    // there would be twenty controls to disable, and forgetting one is enough
+    // for two live copies of the same match to exist.
     store.wipe();
     try {
-      const m = mesa(4);
+      const m = makeMatch(4);
       m.id = 'p-bastao';
       store.setCurrent(m);
 
-      ok(store.getCurrent(), 'a mesa viva devia estar disponível');
+      ok(store.getCurrent(), 'the live table should be available');
 
-      passarAMesa(m, 1234);
+      handOffTable(m, 1234);
       store.setCurrent(m);
 
-      // A invariante, e não um `if` no roteador: para o resto do app a mesa
-      // passada simplesmente não existe. Assim todo caminho que já tratava
-      // "não há mesa aberta" trata este caso de graça - e não há uma linha
-      // de guarda que alguém possa apagar sem nada quebrar.
-      eq(store.getCurrent(), null, 'a mesa passada ainda conta como a de agora');
-      ok(store.mesaGuardada(), 'a mesa passada sumiu do aparelho');
-      eq(store.mesaGuardada().id, 'p-bastao');
+      // The invariant, and not an `if` in the router: for the rest of the app
+      // the handed-off table simply does not exist. That way every path that
+      // already handled "there is no open table" handles this case for free -
+      // and there is no guard line someone could delete without anything
+      // breaking.
+      eq(store.getCurrent(), null, 'the handed-off table still counts as the current one');
+      ok(store.storedTable(), 'the handed-off table vanished from the device');
+      eq(store.storedTable().id, 'p-bastao');
 
-      // Redesenhar a home com a mesa passada: o aviso aparece, e é ele que
-      // explica por que o jogo sumiu.
-      const raiz = document.createElement('div');
-      renderSetup(raiz, { onStart() {}, onStats() {}, onRefresh() {} });
-      ok(findAll(raiz, 'passada').length === 1,
-        'a home não avisou que a mesa foi passada');
+      // Redrawing the home screen with the handed-off table: the notice shows
+      // up, and it is what explains why the game vanished.
+      const root = document.createElement('div');
+      renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+      ok(findAll(root, 'handed-off').length === 1,
+        'the home screen did not warn that the table was handed off');
 
-      // E o botão de receber está lá para quem vai continuar.
-      ok(findAll(raiz, 'receber-mesa').length === 1,
-        'a home não oferece receber uma mesa');
+      // And the receive button is there for whoever is going to carry on.
+      ok(findAll(root, 'receive-table').length === 1,
+        'the home screen does not offer receiving a table');
     } finally {
       store.wipe();
     }
     return undefined;
   }],
 
-  ['deixar de confiar grava a recusa, em vez de apagar a linha', () => {
+  ['untrusting records the refusal, instead of deleting the row', () => {
     if (!simulated) return 'skip';
-    // Com o aceite automatico vindo do historico, apagar a linha nao desfaz
-    // nada: o gatilho a refaz a partir das partidas ja jogadas, e a pessoa
-    // tocaria o botao todo mes sem entender por que ele nao tem efeito.
-    const fetchReal = globalThis.fetch;
-    const sessaoReal = conta.sessao;
-    const pedidos = [];
+    // With auto-accept coming from the history, deleting the row undoes
+    // nothing: the trigger rebuilds it from the matches already played, and
+    // the person would tap the button every month without understanding why it
+    // has no effect.
+    const realFetch = globalThis.fetch;
+    const realSession = account.session;
+    const requests = [];
     globalThis.fetch = (u, o) => {
-      pedidos.push({ url: String(u), metodo: (o && o.method) || 'GET',
-        corpo: JSON.parse((o && o.body) || 'null') });
+      requests.push({ url: String(u), method: (o && o.method) || 'GET',
+        body: JSON.parse((o && o.body) || 'null') });
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) });
     };
-    conta.sessao = { user: { id: 'eu' }, access_token: 'x' };
+    account.session = { user: { id: 'eu' }, access_token: 'x' };
 
     try {
-      deixarDeConfiar('aquele-anfitriao');
-      const p1 = pedidos[pedidos.length - 1];
-      eq(p1.metodo, 'POST', 'recusar ainda apaga a linha em vez de gravar');
-      eq(p1.corpo.confia, false, 'a recusa não foi gravada como recusa');
-      eq(p1.corpo.host_id, 'aquele-anfitriao');
+      untrustHost('aquele-anfitriao');
+      const p1 = requests[requests.length - 1];
+      eq(p1.method, 'POST', 'refusing still deletes the row instead of recording');
+      eq(p1.body.confia, false, 'the refusal was not recorded as a refusal');
+      eq(p1.body.host_id, 'aquele-anfitriao');
 
-      confiarEm('aquele-anfitriao');
-      const p2 = pedidos[pedidos.length - 1];
-      eq(p2.corpo.confia, true, 'confiar não gravou confiança');
+      trustHost('aquele-anfitriao');
+      const p2 = requests[requests.length - 1];
+      eq(p2.body.confia, true, 'trusting did not record trust');
 
-      // Trocar de ideia precisa valer: com ignore-duplicates o segundo toque
-      // seria engolido e o botão pareceria quebrado.
+      // Changing your mind has to count: with ignore-duplicates the second tap
+      // would be swallowed and the button would look broken.
       ok(String(p2.url).includes('trusted_hosts'));
-      ok(!/ignore-duplicates/.test(JSON.stringify(p2)), 'conflito ignorado');
+      ok(!/ignore-duplicates/.test(JSON.stringify(p2)), 'conflict ignored');
     } finally {
-      globalThis.fetch = fetchReal;
-      conta.sessao = sessaoReal;
+      globalThis.fetch = realFetch;
+      account.session = realSession;
     }
     return undefined;
   }],
 
-  ['retomar leva de volta para a mesa, e não para a home', async () => {
+  ['taking back leads back to the table, not to the home screen', async () => {
     if (!simulated) return 'skip';
-    // O defeito relatado, agora alcançável: o caminho passa por
-    // `await confirmAction`, e o runner síncrono não conseguia observar nada
-    // depois do await. Onze mutações não o pegaram - não por falta de teste,
-    // por impossibilidade de teste.
+    // The reported defect, now reachable: the path goes through
+    // `await confirmAction`, and the synchronous runner could not observe
+    // anything after the await. Eleven mutations did not catch it - not for
+    // lack of a test, but because a test was impossible.
     store.wipe();
     try {
-      const m = mesa(4);
+      const m = makeMatch(4);
       m.id = 'p-retomada';
-      passarAMesa(m, 1000);
+      handOffTable(m, 1000);
       store.setCurrent(m);
 
-      let redesenhos = 0;
-      let aberturas = 0;
-      const banner = mesaPassadaBanner(() => { redesenhos += 1; },
-        () => { aberturas += 1; });
-      ok(banner, 'sem mesa passada não há o que testar');
+      let redraws = 0;
+      let opens = 0;
+      const banner = handedOffBanner(() => { redraws += 1; },
+        () => { opens += 1; });
+      ok(banner, 'without a handed-off table there is nothing to test');
 
-      const retomar = findAll(banner, 'btn')[0];
-      ok(retomar, 'o aviso não oferece retomar');
-      fire(retomar, 'click');
+      const takeBack = findAll(banner, 'btn')[0];
+      ok(takeBack, 'the notice does not offer taking back');
+      fire(takeBack, 'click');
 
-      // A confirmação abre numa folha; confirmar é o que dispara o resto.
+      // The confirmation opens in a sheet; confirming is what fires the rest.
       await Promise.resolve();
-      const acoes = findAll(document.body, 'sheet-actions').slice(-1)[0];
-      ok(acoes, 'retomar não pediu confirmação');
-      fire(acoes.childNodes[1], 'click');
+      const actions = findAll(document.body, 'sheet-actions').slice(-1)[0];
+      ok(actions, 'taking back did not ask for confirmation');
+      fire(actions.childNodes[1], 'click');
       await Promise.resolve();
       await Promise.resolve();
 
-      ok(store.getCurrent(), 'retomou e a mesa não voltou a valer');
-      eq(mesaPassada(store.mesaGuardada()), false, 'o carimbo ficou');
-      eq(aberturas, 1, 'retomar não levou de volta para a mesa');
-      eq(redesenhos, 0, 'retomar só redesenhou a home, que é onde a pessoa '
-        + 'ficava presa sem caminho para a partida');
+      ok(store.getCurrent(), 'took back and the table did not count again');
+      eq(isHandedOff(store.storedTable()), false, 'the stamp stayed');
+      eq(opens, 1, 'taking back did not lead back to the table');
+      eq(redraws, 0, 'taking back only redrew the home screen, which is where the person '
+        + 'got stuck with no way to the match');
     } finally {
       closeSheet();
       store.wipe();
@@ -1138,57 +1162,67 @@ export const cases = [
     return undefined;
   }],
 
-  ['receber um arquivo instala a mesa e abre ela', async () => {
+  ['receiving a file installs the table and opens it', async () => {
     if (!simulated) return 'skip';
-    // O defeito relatado: a mesa era instalada e a tela continuava na home -
-    // só recarregar a página a encontrava, porque a rota inicial é a única
-    // que olha para `getCurrent()` sozinha. A causa era o callback errado
-    // chegando ao botão, e provar isso exige percorrer o caminho inteiro: sem
-    // arquivo escolhido, nenhum callback é chamado e os dois parecem iguais.
+    // The reported defect: the table was installed and the screen stayed on
+    // the home screen - only reloading the page found it, because the initial
+    // route is the only one that looks at `getCurrent()` by itself. The cause
+    // was the wrong callback reaching the button, and proving it takes walking
+    // the whole path: with no file chosen, no callback is called and both look
+    // the same.
     store.wipe();
     try {
-      // Uma mesa empacotada por "outro aparelho".
-      const original = mesa(4);
+      // A table packed by "another device".
+      const original = makeMatch(4);
       original.id = 'p-chegando';
       push(original, { type: 'life', targetId: 's1', sourceId: 's0', delta: -11 });
       store.setCurrent(original);
-      const arquivo = store.empacotarMesa(1000);
+      const file = store.packTable(1000);
       store.wipe();
 
-      let redesenhos = 0;
-      let aberturas = 0;
-      const raiz = document.createElement('div');
-      renderSetup(raiz, {
+      let redraws = 0;
+      let opens = 0;
+      const root = document.createElement('div');
+      renderSetup(root, {
         onStart() {}, onStats() {},
-        onRefresh: () => { redesenhos += 1; },
-        onAbrirMesa: () => { aberturas += 1; },
+        onRefresh: () => { redraws += 1; },
+        onOpenTable: () => { opens += 1; },
       });
 
-      const receber = findAll(raiz, 'receber-mesa')[0];
-      ok(receber, 'a home não oferece receber uma mesa');
-      fire(receber, 'click');
+      const receive = findAll(root, 'receive-table')[0];
+      ok(receive, 'the home screen does not offer receiving a table');
+      fire(receive, 'click');
 
-      const campo = document.body.childNodes[document.body.childNodes.length - 1];
-      eq(campo.attributes.type, 'file', 'tocar em receber não abriu o seletor');
+      // With a cloud, receiving opens the code field; the file is one tap
+      // away, under "I have a file", for when there is no internet.
+      if (cloudEnabled()) {
+        const haveFile = findAll(document.body, 'btn')
+          .find((b) => textOf(b) === t('pass.haveFile'));
+        ok(haveFile, 'receiving by code does not offer the file');
+        fire(haveFile, 'click');
+      }
 
-      // O arquivo que a pessoa escolheu.
-      campo.files = [{ name: 'mesa.json', text: () => Promise.resolve(arquivo) }];
-      fire(campo, 'change');
+      const field = document.body.childNodes[document.body.childNodes.length - 1];
+      eq(field.attributes.type, 'file', 'tapping receive did not open the picker');
+
+      // The file the person chose.
+      field.files = [{ name: 'mesa.json', text: () => Promise.resolve(file) }];
+      fire(field, 'change');
       for (let i = 0; i < 4; i += 1) await Promise.resolve();
 
-      const acoes = findAll(document.body, 'sheet-actions').slice(-1)[0];
-      ok(acoes, 'receber não pediu confirmação');
-      fire(acoes.childNodes[1], 'click');
+      const actions = findAll(document.body, 'sheet-actions').slice(-1)[0];
+      ok(actions, 'receiving did not ask for confirmation');
+      fire(actions.childNodes[1], 'click');
       for (let i = 0; i < 4; i += 1) await Promise.resolve();
 
-      const chegou = store.getCurrent();
-      ok(chegou, 'a mesa não foi instalada');
-      eq(chegou.id, 'p-chegando');
-      eq(replay(chegou).players.s1.life, 40 - 11, 'a partida não chegou inteira');
+      const arrived = store.getCurrent();
+      ok(arrived, 'the table was not installed');
+      eq(arrived.id, 'p-chegando');
+      eq(replay(arrived).players.s1.life, 40 - 11, 'the match did not arrive whole');
 
-      eq(aberturas, 1, 'instalou a mesa e não abriu ela: era preciso '
-        + 'recarregar a página para a partida aparecer');
-      eq(redesenhos, 0, 'receber só redesenhou a home');
+      eq(opens, 1, 'it installed the table and did not open it: the page had '
+        + 'to be reloaded for the match to show up');
+      eq(redraws, 0, 'receiving only redrew the home screen');
     } finally {
       closeSheet();
       store.wipe();
@@ -1196,276 +1230,278 @@ export const cases = [
     return undefined;
   }],
 
-  ['o arquivo da mesa carrega o id da partida', () => {
-    // Nome fixo fazia duas mesas na pasta de downloads virarem
-    // `mesa-hit-easy (1).json`, e aí ninguém sabe qual é qual - nem quem
-    // envia, nem quem recebe.
-    const a1 = mesa(4);
-    const b1 = mesa(4);
-    ok(a1.id !== b1.id, 'o teste precisa de duas partidas diferentes');
+  ['the table file carries the match id', () => {
+    // A fixed name turned two tables in the downloads folder into
+    // `mesa-hit-easy (1).json`, and then nobody knows which is which - neither
+    // the sender nor the receiver.
+    const a1 = makeMatch(4);
+    const b1 = makeMatch(4);
+    ok(a1.id !== b1.id, 'the test needs two different matches');
 
-    const n1 = nomeDoArquivo(a1);
-    const n2 = nomeDoArquivo(b1);
-    ok(n1.includes(a1.id), 'o nome não leva o id: ' + n1);
-    ok(n1 !== n2, 'duas mesas geraram o mesmo nome de arquivo');
-    ok(n1.endsWith('.json'), 'o arquivo perdeu a extensão: ' + n1);
+    const n1 = tableFileName(a1);
+    const n2 = tableFileName(b1);
+    ok(n1.includes(a1.id), 'the name does not carry the id: ' + n1);
+    ok(n1 !== n2, 'two tables produced the same file name');
+    ok(n1.endsWith('.json'), 'the file lost its extension: ' + n1);
 
-    // Caracteres que não se salvam em arquivo não podem passar. O id de hoje
-    // só tem letras, números e `_`, mas descobrir o contrário no celular de
-    // outra pessoa seria tarde.
-    const sujo = nomeDoArquivo({ id: 'a/b\\c:d*e?f"g<h>i|j' });
-    ok(!/[\/\\:*?"<>|]/.test(sujo), 'o nome saiu com caractere proibido: ' + sujo);
+    // Characters that cannot be saved in a file cannot get through. Today's
+    // id only has letters, digits and `_`, but finding out otherwise on
+    // someone else's phone would be too late.
+    const dirty = tableFileName({ id: 'a/b\\c:d*e?f"g<h>i|j' });
+    ok(!/[\/\\:*?"<>|]/.test(dirty), 'the name came out with a forbidden character: ' + dirty);
 
-    // Sem id ainda produz um nome válido, em vez de 'mesa-hit-easy-.json'.
-    eq(nomeDoArquivo(null), 'mesa-hit-easy.json');
-    eq(nomeDoArquivo({ id: '' }), 'mesa-hit-easy.json');
+    // Without an id it still produces a valid name, instead of 'mesa-hit-easy-.json'.
+    eq(tableFileName(null), 'mesa-hit-easy.json');
+    eq(tableFileName({ id: '' }), 'mesa-hit-easy.json');
   }],
 
-  ['com partida aberta, a home oferece entrar nela', () => {
+  ['with an open match, the home screen offers to go into it', () => {
     if (!simulated) return 'skip';
-    // O defeito relatado: retomar devolvia a mesa e deixava a pessoa parada na
-    // home, sem caminho de volta para a partida - e o menu da mesa, onde mora
-    // passar, ficava inalcancável. Era isso o "botão de mover a partida
-    // sumiu".
+    // The reported defect: taking back returned the table and left the person
+    // stuck on the home screen, with no way back to the match - and the table
+    // menu, where passing lives, was out of reach. That was the "the button to
+    // move the match disappeared".
     //
-    // Normalmente este estado nem existe: o app abre direto na mesa quando há
-    // partida. Retomar criou um estado novo, e a saída tem de existir venha
-    // ele de onde vier.
+    // Normally this state does not even exist: the app opens straight on the
+    // table when there is a match. Taking back created a new state, and the
+    // way out has to exist wherever it comes from.
     store.wipe();
     try {
-      eq(continuarMesaBanner(() => {}), null, 'ofereceu entrar sem partida');
+      eq(resumeTableBanner(() => {}), null, 'offered to go in without a match');
 
-      const m = mesa(4);
+      const m = makeMatch(4);
       m.id = 'p-aberta';
       store.setCurrent(m);
 
-      let abriu = 0;
-      const banner = continuarMesaBanner(() => { abriu += 1; });
-      ok(banner, 'com partida aberta, a home não ofereceu entrar nela');
+      let opened = 0;
+      const banner = resumeTableBanner(() => { opened += 1; });
+      ok(banner, 'with an open match, the home screen did not offer to go into it');
       fire(banner, 'click');
-      eq(abriu, 1, 'tocar em continuar não abriu a mesa');
+      eq(opened, 1, 'tapping resume did not open the table');
 
-      // Mesa passada NÃO conta: para o resto do app ela não existe, e
-      // oferecer "continuar" levaria a uma tela que o roteador recusa.
-      passarAMesa(m, 1000);
+      // A handed-off table does NOT count: for the rest of the app it does not
+      // exist, and offering "resume" would lead to a screen the router refuses.
+      handOffTable(m, 1000);
       store.setCurrent(m);
-      eq(continuarMesaBanner(() => {}), null,
-        'ofereceu continuar uma mesa que foi passada adiante');
+      eq(resumeTableBanner(() => {}), null,
+        'it offered to resume a table that was handed off');
     } finally {
       store.wipe();
     }
     return undefined;
   }],
 
-  ['passar a mesa tira o bastão deste aparelho', () => {
-    // O ponto inteiro: depois da passagem existem duas cópias com o mesmo id,
-    // e o envio usa ignore-duplicates - a primeira que subir vence e a outra
-    // some calada. Se o aparelho antigo continuasse jogando, seria ele que
-    // perderia ou faria perder a metade de alguém.
-    const m = mesa(4);
-    eq(mesaPassada(m), false, 'mesa nova já nasceu passada');
+  ['passing the table takes the baton from this device', () => {
+    // The whole point: after the handoff there are two copies with the same
+    // id, and the upload uses ignore-duplicates - the first one up wins and
+    // the other vanishes silently. If the old device kept playing, it would be
+    // the one losing someone's half or making them lose it.
+    const m = makeMatch(4);
+    eq(isHandedOff(m), false, 'a new table was born handed off');
 
-    eq(passarAMesa(m, 5000), true, 'não passou');
-    eq(mesaPassada(m), true, 'passou e não ficou marcada');
+    eq(handOffTable(m, 5000), true, 'it did not pass');
+    eq(isHandedOff(m), true, 'it passed and was not marked');
     eq(m.passadaEm, 5000);
 
-    // Passar duas vezes não remarca: a data do bastão é a da primeira vez,
-    // e reescrevê-la apagaria quando a mesa saiu daqui.
-    eq(passarAMesa(m, 9000), false, 'passou de novo');
-    eq(m.passadaEm, 5000, 'a data da passagem foi reescrita');
+    // Passing twice does not re-stamp: the baton date is the first one, and
+    // rewriting it would erase when the table left here.
+    eq(handOffTable(m, 9000), false, 'it passed again');
+    eq(m.passadaEm, 5000, 'the handoff date was rewritten');
 
-    // Retomar é a única porta de volta, e é explícita.
-    eq(retomarAMesa(m), true);
-    eq(mesaPassada(m), false, 'retomou e continuou marcada');
-    eq(retomarAMesa(m), false, 'retomou uma mesa que não estava passada');
+    // Taking back is the only way back, and it is explicit.
+    eq(reclaimTable(m), true);
+    eq(isHandedOff(m), false, 'took back and it stayed marked');
+    eq(reclaimTable(m), false, 'it took back a table that was not handed off');
 
-    eq(passarAMesa(null), false, 'passou uma mesa que não existe');
+    eq(handOffTable(null), false, 'it passed a table that does not exist');
   }],
 
-  ['a mesa recebida acerta o relógio para frente', () => {
-    // Os eventos carregam o `ts` do aparelho que os gravou. Se o relógio de
-    // quem recebe estiver atrasado, o próximo evento nasce ANTES do anterior -
-    // e `elapsedOf` e `advanceTurn` subtraem instantes, então tempo andando
-    // para trás vira duração negativa em cima da mesa.
-    const m = mesa(4);
+  ['the received table moves the clock forward', () => {
+    // The events carry the `ts` of the device that recorded them. If the
+    // receiver's clock is behind, the next event is born BEFORE the previous
+    // one - and `elapsedOf` and `advanceTurn` subtract instants, so time going
+    // backwards becomes a negative duration on the table.
+    const m = makeMatch(4);
     m.startedAt = 1000000;
     m.events.push({ id: 'e1', ts: 1000000 + 600000, type: 'life', targetId: 's0', delta: -3 });
-    passarAMesa(m, 1000000 + 600000);
+    handOffTable(m, 1000000 + 600000);
 
-    // Aparelho atrasado dez minutos: precisa de desvio.
-    const atrasado = receberAMesa(m, 1000000);
-    ok(atrasado.desvioDeRelogio > 600000,
-      'relógio atrasado recebeu desvio pequeno demais: ' + atrasado.desvioDeRelogio);
-    ok(agoraDaMesa(atrasado, 1000000) > 1000000 + 600000,
-      'o próximo evento nasceria antes do último que já aconteceu');
+    // A device ten minutes behind: it needs an offset.
+    const behind = receiveTable(m, 1000000);
+    ok(behind.desvioDeRelogio > 600000,
+      'a clock behind got too small an offset: ' + behind.desvioDeRelogio);
+    ok(tableNow(behind, 1000000) > 1000000 + 600000,
+      'the next event would be born before the last one that already happened');
 
-    // Aparelho adiantado: nada a corrigir. Empurrar o relógio para frente sem
-    // precisão infl aria a duração da partida.
-    const adiantado = receberAMesa(m, 1000000 + 9999999);
-    eq(adiantado.desvioDeRelogio, 0, 'relógio adiantado não devia ganhar desvio');
+    // A device ahead: nothing to fix. Pushing the clock forward without
+    // precision would inflate the match duration.
+    const ahead = receiveTable(m, 1000000 + 9999999);
+    eq(ahead.desvioDeRelogio, 0, 'a clock ahead should not get an offset');
 
-    // E a mesa chega jogavel: sem o carimbo e sem refazer.
-    eq(mesaPassada(adiantado), false, 'a mesa chegou ainda marcada como passada');
-    eq(adiantado.redo, []);
-    eq(adiantado.id, m.id, 'o id mudou: a partida deixaria de ser a mesma');
+    // And the table arrives playable: without the stamp and without redo.
+    eq(isHandedOff(ahead), false, 'the table arrived still marked as handed off');
+    eq(ahead.redo, []);
+    eq(ahead.id, m.id, 'the id changed: the match would stop being the same');
 
-    eq(receberAMesa({ id: 'x' }), null, 'aceitou uma mesa quebrada');
+    eq(receiveTable({ id: 'x' }), null, 'it accepted a broken table');
   }],
 
-  ['o arquivo da mesa leva uma mesa, e não o seu histórico', () => {
-    // O exportador de backup manda o banco inteiro. Usá-lo aqui entregaria ao
-    // amigo todas as partidas de quem passou, os @ que o aparelho conhece e as
-    // preferências. É o erro mais fácil de cometer e o mais caro.
+  ['the table file carries one table, not your history', () => {
+    // The backup exporter sends the whole database. Using it here would hand
+    // the friend every match of whoever passed it, the @s the device knows and
+    // the preferences. It is the easiest mistake to make and the most
+    // expensive.
     store.wipe();
     try {
-      const antiga = mesa(4);
-      antiga.id = 'p-antiga';
-      antiga.events.push({ id: 'w', ts: antiga.startedAt + 1, type: 'win', targetId: 's0' });
-      store.mesclarPartidas([antiga]);
+      const old = makeMatch(4);
+      old.id = 'p-antiga';
+      old.events.push({ id: 'w', ts: old.startedAt + 1, type: 'win', targetId: 's0' });
+      store.mergeMatches([old]);
       store.rememberPlayer('Bruno');
 
-      const atual = mesa(4);
-      atual.id = 'p-atual';
-      store.setCurrent(atual);
+      const current = makeMatch(4);
+      current.id = 'p-atual';
+      store.setCurrent(current);
 
-      const texto = store.empacotarMesa(7777);
-      ok(texto, 'não empacotou');
-      ok(!texto.includes('p-antiga'), 'o arquivo levou o histórico junto');
-      ok(!texto.includes('Bruno'), 'o arquivo levou os nomes que o aparelho conhece');
+      const text = store.packTable(7777);
+      ok(text, 'it did not pack');
+      ok(!text.includes('p-antiga'), 'the file took the history along');
+      ok(!text.includes('Bruno'), 'the file took the names the device knows');
 
-      const dado = store.lerMesa(texto);
-      eq(dado.partida.id, 'p-atual');
-      eq(dado.versao, store.VERSAO_MESA);
+      const data = store.readTable(text);
+      eq(data.partida.id, 'p-atual');
+      eq(data.versao, store.TABLE_FORMAT_VERSION);
 
-      // Empacotar JÁ solta a mesa: empacotar sem soltar deixaria duas cópias
-      // vivas, que é o único jeito de perder dados aqui.
+      // Packing ALREADY releases the table: packing without releasing would
+      // leave two live copies, which is the only way to lose data here.
       eq(store.getCurrent(), null,
-        'empacotou e a mesa continuou valendo como a de agora');
-      eq(mesaPassada(store.mesaGuardada()), true, 'empacotou e não soltou');
-      eq(store.empacotarMesa(8888), null, 'empacotou uma mesa já passada');
+        'it packed and the table still counted as the current one');
+      eq(isHandedOff(store.storedTable()), true, 'it packed and did not release');
+      eq(store.packTable(8888), null, 'it packed a table already handed off');
 
-      // E o arquivo é recusado com motivo, em vez de abrir pela metade.
-      const recusa = (texto2, esperado) => {
-        try { store.lerMesa(texto2); } catch (e) { eq(e.message, esperado); return; }
-        throw new Error('aceitou o que devia recusar: ' + esperado);
+      // And the file is refused with a reason, instead of opening halfway.
+      const refuse = (text2, expected) => {
+        try { store.readTable(text2); } catch (e) { eq(e.message, expected); return; }
+        throw new Error('it accepted what it should refuse: ' + expected);
       };
-      recusa('{{{', 'ilegivel');
-      recusa(JSON.stringify({ history: [] }), 'nao-e-mesa');
-      recusa(JSON.stringify({ formato: store.FORMATO_MESA, versao: 99, partida: atual }), 'versao-nova');
-      recusa(JSON.stringify({ formato: store.FORMATO_MESA, versao: 1, partida: { id: 'x' } }), 'mesa-invalida');
+      refuse('{{{', 'unreadable');
+      refuse(JSON.stringify({ history: [] }), 'not-a-table');
+      refuse(JSON.stringify({ formato: store.TABLE_FORMAT, versao: 99, partida: current }), 'newer-version');
+      refuse(JSON.stringify({ formato: store.TABLE_FORMAT, versao: 1, partida: { id: 'x' } }), 'invalid-table');
     } finally {
       store.wipe();
     }
     return undefined;
   }],
 
-  ['receber instala a mesa e o jogo continua de onde parou', () => {
+  ['receiving installs the table and the game carries on where it stopped', () => {
     store.wipe();
     try {
-      const m = mesa(4);
+      const m = makeMatch(4);
       m.id = 'p-viajante';
       push(m, { type: 'life', targetId: 's1', sourceId: 's0', delta: -7 });
-      const vidaAntes = replay(m).players.s1.life;
+      const lifeBefore = replay(m).players.s1.life;
 
       store.setCurrent(m);
-      const texto = store.empacotarMesa(1000);
+      const text = store.packTable(1000);
 
-      // Outro aparelho, do zero.
+      // Another device, from scratch.
       store.wipe();
       eq(store.getCurrent(), null);
 
-      store.instalarMesa(store.lerMesa(texto), 2000);
-      const chegou = store.getCurrent();
-      ok(chegou, 'a mesa não foi instalada');
-      eq(chegou.id, 'p-viajante');
-      eq(replay(chegou).players.s1.life, vidaAntes,
-        'a vida não sobreviveu à viagem');
-      eq(mesaPassada(chegou), false, 'chegou marcada como passada: não dá para jogar');
+      store.installTable(store.readTable(text), 2000);
+      const arrived = store.getCurrent();
+      ok(arrived, 'the table was not installed');
+      eq(arrived.id, 'p-viajante');
+      eq(replay(arrived).players.s1.life, lifeBefore,
+        'the life did not survive the trip');
+      eq(isHandedOff(arrived), false, 'it arrived marked as handed off: it cannot be played');
 
-      // E continua rendendo eventos novos, depois dos antigos.
-      const ultimoAntes = chegou.events[chegou.events.length - 1].ts;
-      push(chegou, { type: 'life', targetId: 's2', sourceId: 's0', delta: -2 });
-      const novo = chegou.events[chegou.events.length - 1];
-      ok(novo.ts > ultimoAntes,
-        'o evento novo nasceu antes do último antigo: ' + novo.ts + ' <= ' + ultimoAntes);
-      eq(replay(chegou).players.s2.life, 40 - 2);
+      // And it keeps yielding new events, after the old ones.
+      const lastBefore = arrived.events[arrived.events.length - 1].ts;
+      push(arrived, { type: 'life', targetId: 's2', sourceId: 's0', delta: -2 });
+      const fresh = arrived.events[arrived.events.length - 1];
+      ok(fresh.ts > lastBefore,
+        'the new event was born before the last old one: ' + fresh.ts + ' <= ' + lastBefore);
+      eq(replay(arrived).players.s2.life, 40 - 2);
 
-      // Retomar desfaz, para o caso de a passagem não ter dado certo.
-      passarAMesa(chegou, 3000);
-      store.setCurrent(chegou);
-      eq(store.getCurrent(), null, 'passada e ainda jogável');
-      eq(store.retomarMesa(), true);
-      ok(store.getCurrent(), 'retomou e a mesa não voltou a valer');
-      eq(mesaPassada(store.getCurrent()), false);
-      eq(store.retomarMesa(), false, 'retomou o que não estava passado');
+      // Taking back undoes it, for when the handoff did not work out.
+      handOffTable(arrived, 3000);
+      store.setCurrent(arrived);
+      eq(store.getCurrent(), null, 'handed off and still playable');
+      eq(store.takeTableBack(), true);
+      ok(store.getCurrent(), 'took back and the table did not count again');
+      eq(isHandedOff(store.getCurrent()), false);
+      eq(store.takeTableBack(), false, 'took back what was not handed off');
     } finally {
       store.wipe();
     }
     return undefined;
   }],
 
-  ['o que sobe leva o carimbo do canal', () => {
-    // Produção e beta moram na mesma origem e na mesma base. O disco já era
-    // separado por `chave()`; a nuvem não sabia o que era canal, e uma mesa de
-    // teste subia para a mesma tabela que o app de verdade lê.
+  ['what goes up carries the channel stamp', () => {
+    // Production and beta live on the same origin and the same database. The
+    // disk was already separated by `storageKey()`; the cloud did not know
+    // what a channel was, and a test table went up to the same table the real
+    // app reads.
     const m = createMatch([
       { id: 's0', name: 'Alex', handle: 'alienpls', commanders: [commander(1)] },
       { id: 's1', name: 'Bruno', handle: 'bruno', commanders: [commander(2)] },
     ], 40);
     m.id = 'p-canal';
 
-    eq(toRow(m, 'dono-1', 'beta').canal, 'beta', 'a partida subiu sem o canal');
+    eq(toRow(m, 'dono-1', 'beta').canal, 'beta', 'the match went up without the channel');
     eq(toRow(m, 'dono-1', 'producao').canal, 'producao');
 
-    // Sem canal, 'producao'. O banco também põe esse padrão, e é o certo para
-    // as linhas antigas - mas aqui o valor explícito é o que impede o caso
-    // perigoso: o beta subindo carimbado como real por omissão.
-    eq(toRow(m, 'dono-1').canal, 'producao', 'sem canal devia virar produção');
+    // Without a channel, 'producao'. The database also sets that default, and
+    // it is right for the old rows - but here the explicit value is what
+    // prevents the dangerous case: beta going up stamped as real by omission.
+    eq(toRow(m, 'dono-1').canal, 'producao', 'without a channel it should become production');
 
-    // As cadeiras também. Uma cadeira marcada numa mesa de teste viraria
-    // convite visível no app de verdade - o canal de teste escrevendo na vida
-    // de outra pessoa.
-    const cadeiras = participantesDe(m, 'beta');
-    eq(cadeiras.length, 2, 'as duas cadeiras marcadas deviam virar linha');
-    cadeiras.forEach((c, i) => {
-      eq(c.canal, 'beta', 'cadeira ' + i + ' subiu sem o canal');
+    // The seats too. A seat tagged at a test table would become an invite
+    // visible in the real app - the test channel writing into someone else's
+    // life.
+    const seats = participantsOf(m, 'beta');
+    eq(seats.length, 2, 'both tagged seats should become rows');
+    seats.forEach((c, i) => {
+      eq(c.canal, 'beta', 'seat ' + i + ' went up without the channel');
       eq(c.match_id, 'p-canal');
     });
-    eq(participantesDe(m)[0].canal, 'producao', 'sem canal devia virar produção');
+    eq(participantsOf(m)[0].canal, 'producao', 'without a channel it should become production');
   }],
 
-  ['os decks do perfil têm uma coluna por canal', () => {
-    // `decks` guarda os decks que seguem a conta. Sem separar, uma mesa de
-    // teste com comandantes inventados entraria no seletor de deck do app de
-    // verdade - e o recurso existe justamente para o seletor conhecer os
-    // decks da pessoa.
-    eq(colunaDeDecks('beta'), 'decks_beta');
-    eq(colunaDeDecks('producao'), 'decks');
-    eq(colunaDeDecks(undefined), 'decks', 'sem canal devia ser a coluna real');
-    eq(colunaDeDecks('qualquer-outra-coisa'), 'decks',
-      'canal desconhecido não pode virar a coluna de teste');
+  ['the profile decks have one column per channel', () => {
+    // `decks` keeps the decks that follow the account. Without separating, a
+    // test table with made-up commanders would get into the deck picker of the
+    // real app - and the feature exists precisely so the picker knows the
+    // person's decks.
+    eq(decksColumn('beta'), 'decks_beta');
+    eq(decksColumn('producao'), 'decks');
+    eq(decksColumn(undefined), 'decks', 'without a channel it should be the real column');
+    eq(decksColumn('qualquer-outra-coisa'), 'decks',
+      'an unknown channel cannot become the test column');
   }],
 
-  ['o beta sobe carimbado como beta, de ponta a ponta', () => {
+  ['beta goes up stamped as beta, end to end', () => {
     if (!simulated) return 'skip';
-    // Cobrir só `toRow` não bastava: ela é pura e recebe o canal pronto. O
-    // ponto que importa é onde `canal()` é CHAMADO, e trocar essa chamada por
-    // 'producao' passava pela suite inteira - a mutação que significa, em
-    // uma linha, "o beta envenena a base de verdade".
-    const fetchReal = globalThis.fetch;
-    const caminhoReal = location.pathname;
-    const sessaoReal = conta.sessao;
-    const perfilReal = conta.perfil;
-    const corpos = [];
+    // Covering only `toRow` was not enough: it is pure and receives the
+    // channel ready. The point that matters is where `channel()` is CALLED,
+    // and swapping that call for 'producao' went through the whole suite -
+    // the mutation that means, in one line, "beta poisons the real database".
+    const realFetch = globalThis.fetch;
+    const realPath = location.pathname;
+    const realSession = account.session;
+    const realProfile = account.profile;
+    const bodies = [];
 
     globalThis.fetch = (u, o) => {
-      corpos.push({ url: String(u), corpo: JSON.parse((o && o.body) || 'null') });
+      bodies.push({ url: String(u), body: JSON.parse((o && o.body) || 'null') });
       return Promise.resolve({
         ok: true, status: 200, json: () => Promise.resolve([]),
       });
     };
-    conta.sessao = { user: { id: 'dono-de-teste' }, access_token: 'x' };
-    conta.perfil = { id: 'dono-de-teste', handle: 'alienpls' };
+    account.session = { user: { id: 'dono-de-teste' }, access_token: 'x' };
+    account.profile = { id: 'dono-de-teste', handle: 'alienpls' };
 
     try {
       const m = createMatch([
@@ -1474,186 +1510,189 @@ export const cases = [
       ], 40);
       m.id = 'p-subida';
 
-      const deMesa = () => corpos.find((c) => c.url.includes('/matches'));
-      const deCadeira = () => corpos.find((c) => c.url.includes('/match_players'));
-      const dePerfil = () => corpos.find((c) => c.url.includes('/profiles'));
+      const ofMatch = () => bodies.find((c) => c.url.includes('/matches'));
+      const ofSeats = () => bodies.find((c) => c.url.includes('/match_players'));
+      const ofProfile = () => bodies.find((c) => c.url.includes('/profiles'));
 
       location.pathname = '/hit-easy/beta/';
-      // As duas chamadas separadas de propósito: dentro de `enviarPartida` as
-      // cadeiras só saem DEPOIS do `await` da partida, e este runner é
-      // síncrono - esperar por elas aqui seria esperar para sempre.
-      enviarPartida(m);
-      enviarParticipantes(m);
-      salvarMeusDecks([{ commanders: [commander(1)], lastUsed: 10 }]);
+      // The two calls separated on purpose: inside `uploadMatch` the seats
+      // only go out AFTER the match's `await`, and this runner is synchronous -
+      // waiting for them here would be waiting forever.
+      uploadMatch(m);
+      sendParticipants(m);
+      saveMyDecks([{ commanders: [commander(1)], lastUsed: 10 }]);
 
-      ok(deMesa(), 'a partida não chegou a ser enviada');
-      eq(deMesa().corpo.canal, 'beta',
-        'o beta subiu a partida carimbada como produção');
+      ok(ofMatch(), 'the match was never sent');
+      eq(ofMatch().body.canal, 'beta',
+        'beta uploaded the match stamped as production');
 
-      ok(deCadeira(), 'as cadeiras marcadas não foram enviadas');
-      deCadeira().corpo.forEach((linha, i) => {
-        eq(linha.canal, 'beta', 'cadeira ' + i + ' subiu com o canal errado');
+      ok(ofSeats(), 'the tagged seats were not sent');
+      ofSeats().body.forEach((row, i) => {
+        eq(row.canal, 'beta', 'seat ' + i + ' went up with the wrong channel');
       });
 
-      ok(dePerfil(), 'os decks não chegaram a ser enviados');
-      ok('decks_beta' in dePerfil().corpo,
-        'o beta escreveu os decks na coluna de verdade: '
-        + Object.keys(dePerfil().corpo).join(', '));
-      ok(!('decks' in dePerfil().corpo), 'o beta tocou a coluna de produção');
+      ok(ofProfile(), 'the decks were never sent');
+      ok('decks_beta' in ofProfile().body,
+        'beta wrote the decks to the real column: '
+        + Object.keys(ofProfile().body).join(', '));
+      ok(!('decks' in ofProfile().body), 'beta touched the production column');
 
-      // E produção continua escrevendo onde sempre escreveu.
-      corpos.length = 0;
+      // And production keeps writing where it always wrote.
+      bodies.length = 0;
       location.pathname = '/hit-easy/';
       const m2 = createMatch([
         { id: 's0', name: 'Alex', handle: 'alienpls', commanders: [commander(1)] },
       ], 40);
       m2.id = 'p-subida-2';
-      enviarPartida(m2);
-      salvarMeusDecks([{ commanders: [commander(1)], lastUsed: 10 }]);
+      uploadMatch(m2);
+      saveMyDecks([{ commanders: [commander(1)], lastUsed: 10 }]);
 
-      eq(deMesa().corpo.canal, 'producao', 'produção subiu fora do seu canal');
-      ok('decks' in dePerfil().corpo, 'produção deixou de escrever em decks');
-      ok(!('decks_beta' in dePerfil().corpo),
-        'produção escreveu na coluna de teste');
+      eq(ofMatch().body.canal, 'producao', 'production went up outside its channel');
+      ok('decks' in ofProfile().body, 'production stopped writing to decks');
+      ok(!('decks_beta' in ofProfile().body),
+        'production wrote to the test column');
     } finally {
-      globalThis.fetch = fetchReal;
-      location.pathname = caminhoReal;
-      conta.sessao = sessaoReal;
-      conta.perfil = perfilReal;
+      globalThis.fetch = realFetch;
+      location.pathname = realPath;
+      account.session = realSession;
+      account.profile = realProfile;
     }
     return undefined;
   }],
 
-  ['o que desce filtra pelo canal deste app', () => {
+  ['what comes down is filtered by this app\'s channel', () => {
     if (!simulated) return 'skip';
-    // Carimbar na subida e não filtrar na descida deixaria tudo como estava:
-    // produção continuaria baixando as partidas de teste. As duas pontas
-    // precisam valer, e aqui a prova é a URL que sai de verdade.
-    const fetchReal = globalThis.fetch;
-    const caminhoReal = location.pathname;
-    const pedidos = [];
+    // Stamping on the way up and not filtering on the way down would leave
+    // everything as it was: production would keep downloading the test
+    // matches. Both ends have to hold, and here the proof is the URL that
+    // really goes out.
+    const realFetch = globalThis.fetch;
+    const realPath = location.pathname;
+    const requests = [];
     globalThis.fetch = (u, o) => {
-      pedidos.push(String(u));
+      requests.push(String(u));
       return Promise.resolve({
         ok: true, status: 200, json: () => Promise.resolve([]),
       });
     };
 
     try {
-      const ultima = () => pedidos[pedidos.length - 1];
+      const last = () => requests[requests.length - 1];
 
       location.pathname = '/hit-easy/beta/';
-      baixarPartidas();
-      ok(ultima().includes('canal=eq.beta'),
-        'o beta baixou sem filtrar o canal: ' + ultima());
-      idsRemotos();
-      ok(ultima().includes('canal=eq.beta'),
-        'a lista de ids do beta não filtrou: ' + ultima());
+      downloadMatches();
+      ok(last().includes('canal=eq.beta'),
+        'beta downloaded without filtering the channel: ' + last());
+      remoteIds();
+      ok(last().includes('canal=eq.beta'),
+        'the beta id list did not filter: ' + last());
 
       location.pathname = '/hit-easy/';
-      baixarPartidas();
-      ok(ultima().includes('canal=eq.producao'),
-        'produção baixou sem filtrar o canal: ' + ultima());
-      ok(!ultima().includes('beta'), 'produção pediu partidas de teste');
-      idsRemotos();
-      ok(ultima().includes('canal=eq.producao'),
-        'a lista de ids de produção não filtrou: ' + ultima());
+      downloadMatches();
+      ok(last().includes('canal=eq.producao'),
+        'production downloaded without filtering the channel: ' + last());
+      ok(!last().includes('beta'), 'production asked for test matches');
+      remoteIds();
+      ok(last().includes('canal=eq.producao'),
+        'the production id list did not filter: ' + last());
     } finally {
-      globalThis.fetch = fetchReal;
-      location.pathname = caminhoReal;
+      globalThis.fetch = realFetch;
+      location.pathname = realPath;
     }
     return undefined;
   }],
 
-  ['ordenar sobe pela colocação e desce por todo o resto', () => {
-    // A colocação é a única que inverte: primeiro lugar é 1, então o melhor é o
-    // MENOR. Errar a direção aqui daria uma lista encabeçada pelo pior jogador
-    // sob o rótulo "melhor colocação" - e ninguém olha duas vezes para uma
-    // lista ordenada, que é justamente o que a torna perigosa.
-    const linha = (key, extra) => ({
+  ['sorting goes up for placing and down for everything else', () => {
+    // Placing is the only one that inverts: first place is 1, so the best is
+    // the SMALLEST. Getting the direction wrong here would give a list headed
+    // by the worst player under the label "best placing" - and nobody looks
+    // twice at a sorted list, which is precisely what makes it dangerous.
+    const row = (key, extra) => ({
       key, label: key, games: 0, wins: 0, winrate: 0,
       avgDamageDealt: 0, avgKills: 0, avgPlace: 0, ...extra,
     });
 
-    const linhas = [
-      linha('pouco', { games: 1, wins: 1, winrate: 1, avgPlace: 3, avgDamageDealt: 10 }),
-      linha('muito', { games: 10, wins: 8, winrate: 0.8, avgPlace: 1.2, avgDamageDealt: 90 }),
-      linha('meio', { games: 5, wins: 2, winrate: 0.4, avgPlace: 2.1, avgDamageDealt: 50 }),
+    const rows = [
+      row('pouco', { games: 1, wins: 1, winrate: 1, avgPlace: 3, avgDamageDealt: 10 }),
+      row('muito', { games: 10, wins: 8, winrate: 0.8, avgPlace: 1.2, avgDamageDealt: 90 }),
+      row('meio', { games: 5, wins: 2, winrate: 0.4, avgPlace: 2.1, avgDamageDealt: 50 }),
     ];
 
-    const chaves = (id) => ordenarLinhas(linhas, id).map((l) => l.key);
+    const keys = (id) => sortRows(rows, id).map((l) => l.key);
 
-    eq(chaves('partidas'), ['muito', 'meio', 'pouco'], 'partidas não desceu');
-    eq(chaves('vitorias'), ['muito', 'meio', 'pouco'], 'vitórias não desceu');
-    eq(chaves('dano'), ['muito', 'meio', 'pouco'], 'dano não desceu');
-    eq(chaves('colocacao'), ['muito', 'meio', 'pouco'],
-      'colocação não subiu: o melhor colocado tem de vir primeiro');
+    eq(keys('matches'), ['muito', 'meio', 'pouco'], 'matches did not go down');
+    eq(keys('wins'), ['muito', 'meio', 'pouco'], 'wins did not go down');
+    eq(keys('damage'), ['muito', 'meio', 'pouco'], 'damage did not go down');
+    eq(keys('place'), ['muito', 'meio', 'pouco'],
+      'placing did not go up: the best placed has to come first');
 
-    // Taxa tem a armadilha conhecida: uma partida ganha é 100%. É o que a
-    // pessoa pediu ao escolher taxa, e o teste registra que é de propósito.
-    eq(chaves('taxa'), ['pouco', 'muito', 'meio'], 'taxa não desceu');
+    // The rate has the known trap: one won match is 100%. It is what the
+    // person asked for when choosing the rate, and the test records that it is
+    // on purpose.
+    eq(keys('winrate'), ['pouco', 'muito', 'meio'], 'rate did not go down');
 
-    // O padrão continua o de sempre, e um id que não existe mais cai nele em
-    // vez de devolver a lista na ordem do Map.
-    eq(chaves('relevancia'), chaves('id-que-nao-existe'),
-      'id desconhecido não caiu no padrão');
-    eq(ordenacaoPorId('nada').id, ORDENACOES[0].id);
+    // The default is the usual one, and an id that no longer exists falls
+    // back to it instead of returning the list in Map order.
+    eq(keys('relevance'), keys('id-que-nao-existe'),
+      'an unknown id did not fall back to the default');
+    eq(sortById('nada').id, SORTS[0].id);
 
-    // Não mexe na lista de quem chamou: a tela ordena a cada repintura, e
-    // ordenar no lugar embaralharia o agg que as outras abas estão lendo.
+    // It does not touch the caller's list: the screen sorts on every repaint,
+    // and sorting in place would shuffle the agg the other tabs are reading.
     //
-    // Depois de uma ordem que REORDENA. A assertiva vinha depois de ordenar
-    // por relevância, que nesta fixture devolve a ordem original - passava
-    // igual com a lista mutada, e o teste de mutação foi quem contou.
-    ordenarLinhas(linhas, 'partidas');
-    eq(linhas.map((l) => l.key), ['pouco', 'muito', 'meio'], 'a lista original mudou');
+    // After an order that REORDERS. The assertion used to come after sorting
+    // by relevance, which in this fixture returns the original order - it
+    // passed the same with the list mutated, and the mutation test is what
+    // told.
+    sortRows(rows, 'matches');
+    eq(rows.map((l) => l.key), ['pouco', 'muito', 'meio'], 'the original list changed');
   }],
 
-  ['empate em partidas desempata por relevância, sempre igual', () => {
-    // Metade de um grupo empata em duas partidas. Sem desempate explícito a
-    // ordem vinha da inserção do Map, que muda quando se apaga uma partida
-    // antiga: a lista se reorganizava sozinha sem aquele número ter mudado.
-    const linha = (key, winrate) => ({ key, label: key, games: 2, wins: 1, winrate });
-    const a = [linha('x', 0.1), linha('y', 0.9), linha('z', 0.5)];
-    const b = [linha('z', 0.5), linha('x', 0.1), linha('y', 0.9)];
+  ['a tie in matches is broken by relevance, always the same', () => {
+    // Half a group ties on two matches. Without an explicit tiebreaker the
+    // order came from the Map insertion, which changes when an old match is
+    // deleted: the list reshuffled by itself without that number changing.
+    const row = (key, winrate) => ({ key, label: key, games: 2, wins: 1, winrate });
+    const a = [row('x', 0.1), row('y', 0.9), row('z', 0.5)];
+    const b = [row('z', 0.5), row('x', 0.1), row('y', 0.9)];
 
-    eq(ordenarLinhas(a, 'partidas').map((l) => l.key), ['y', 'z', 'x']);
-    eq(ordenarLinhas(b, 'partidas').map((l) => l.key), ['y', 'z', 'x'],
-      'a mesma lista em outra ordem de entrada saiu diferente');
+    eq(sortRows(a, 'matches').map((l) => l.key), ['y', 'z', 'x']);
+    eq(sortRows(b, 'matches').map((l) => l.key), ['y', 'z', 'x'],
+      'the same list in another input order came out different');
   }],
 
-  ['todas as ordenações têm rótulo nas quatro línguas', () => {
-    // Uma opção sem tradução aparece como a própria chave no seletor - e só
-    // em alemão, que é exatamente o tipo de defeito que ninguém vê.
-    const antes = currentLang();
+  ['every sort has a label in the four languages', () => {
+    // An option with no translation shows up as the key itself in the picker -
+    // and only in German, which is exactly the kind of defect nobody sees.
+    const before = currentLang();
     try {
       for (const lang of LANGS) {
         setLang(lang);
-        for (const o of ORDENACOES) {
-          const texto = t(o.rotulo);
-          ok(texto && texto !== o.rotulo,
-            'sem tradução de ' + o.rotulo + ' em ' + lang);
+        for (const o of SORTS) {
+          const text = t(o.label);
+          ok(text && text !== o.label,
+            'no translation of ' + o.label + ' in ' + lang);
         }
       }
     } finally {
-      setLang(antes);
+      setLang(before);
     }
     return undefined;
   }],
 
-  ['o seletor de ordem reordena as duas abas', () => {
+  ['the sort picker reorders both tabs', () => {
     if (!simulated) return 'skip';
     store.wipe();
-    let raiz = null;
+    let root = null;
     try {
-      // Três partidas entre os mesmos dois: Ana ganha uma, Bruno duas. Assim
-      // "melhor colocação" e "mais vitórias" apontam para o Bruno, e a lista
-      // tem um primeiro lugar que se pode afirmar.
-      // Bruno vence mais, Ana causa mais dano. As duas ordens apontam para
-      // pessoas diferentes, e e isso que prova que o seletor manda: com uma
-      // ordem que coincide com o padrao da agregacao, nao ordenar daria o
-      // mesmo resultado e o teste passaria sem nada estar ligado.
-      const partida = (id, vencedor) => {
+      // Three matches between the same two: Ana wins one, Bruno two. That way
+      // "best placing" and "most wins" point to Bruno, and the list has a first
+      // place that can be asserted.
+      // Bruno wins more, Ana deals more damage. The two orders point to
+      // different people, and that is what proves the picker is in charge:
+      // with an order that matches the aggregation's default, not sorting
+      // would give the same result and the test would pass with nothing wired.
+      const matchOf = (id, winner) => {
         const m = createMatch([
           { id: 's0', name: 'Ana', commanders: [commander(1)] },
           { id: 's1', name: 'Bruno', commanders: [commander(2)] },
@@ -1662,460 +1701,466 @@ export const cases = [
         m.events.push({
           type: 'life', ts: m.startedAt + 1, targetId: 's1', sourceId: 's0', delta: -9,
         });
-        m.events.push({ type: 'win', ts: m.startedAt + 2, targetId: vencedor });
+        m.events.push({ type: 'win', ts: m.startedAt + 2, targetId: winner });
         return m;
       };
-      store.mesclarPartidas([partida('a', 's0'), partida('b', 's1'), partida('c', 's1')]);
+      store.mergeMatches([matchOf('a', 's0'), matchOf('b', 's1'), matchOf('c', 's1')]);
 
-      const root = document.createElement('div');
-      raiz = root;
-      renderStats(root, { onBack() {} });
-      const painel = () => findAll(root, 'stats-panel')[0];
-      const nomes = () => findAll(painel(), 'card-name').map((n) => textOf(n));
-      const seletor = () => findAll(root, 'select-input')
+      const screen = document.createElement('div');
+      root = screen;
+      renderStats(screen, { onBack() {} });
+      const panel = () => findAll(screen, 'stats-panel')[0];
+      const names = () => findAll(panel(), 'card-name').map((n) => textOf(n));
+      const picker = () => findAll(screen, 'select-input')
         .find((c) => c.getAttribute('aria-label') === t('stats.sortBy'));
 
-      ok(seletor(), 'a aba de Decks não tem o seletor de ordem');
-      eq(nomes().length, 2, 'os dois decks deviam estar na lista');
+      ok(picker(), 'the Decks tab has no sort picker');
+      eq(names().length, 2, 'both decks should be on the list');
 
-      // Colocação é a direção invertida, a que erra calada: o deck do Bruno
-      // tem de encabeçar, porque ele venceu mais.
-      fire(seletor(), 'change', { target: { value: 'colocacao' } });
-      eq(nomes()[0], 'Cmd 2',
-        'por melhor colocação o primeiro devia ser o deck de quem venceu mais');
+      // Placing is the inverted direction, the one that fails silently: Bruno's
+      // deck has to lead, because he won more.
+      fire(picker(), 'change', { target: { value: 'place' } });
+      eq(names()[0], 'Cmd 2',
+        'by best placing the first should be the deck of whoever won more');
 
-      fire(seletor(), 'change', { target: { value: 'partidas' } });
-      eq(nomes().length, 2, 'ordenar por partidas perdeu uma linha');
+      fire(picker(), 'change', { target: { value: 'matches' } });
+      eq(names().length, 2, 'sorting by matches lost a row');
 
-      // A aba de Jogadores também tem o seletor, e reordena de verdade.
-      fire(findAll(root, 'tab')[1], 'click');
-      ok(seletor(), 'a aba de Jogadores não tem o seletor de ordem');
-      eq(nomes().length, 2, 'a aba de Jogadores não listou os dois');
+      // The Players tab has the picker too, and really reorders.
+      fire(findAll(screen, 'tab')[1], 'click');
+      ok(picker(), 'the Players tab has no sort picker');
+      eq(names().length, 2, 'the Players tab did not list both');
 
-      // Por relevância (o padrão) o Bruno encabeça, porque venceu mais.
-      eq(nomes()[0], 'Bruno', 'o padrão devia começar por quem venceu mais');
+      // By relevance (the default) Bruno leads, because he won more.
+      eq(names()[0], 'Bruno', 'the default should start with whoever won more');
 
-      // Por dano a lista INVERTE: Ana causou todo o dano. É a única forma de
-      // provar que a aba ordena, em vez de só repetir a ordem da agregação.
-      fire(seletor(), 'change', { target: { value: 'dano' } });
-      eq(nomes()[0], 'Ana', 'por dano causado o primeiro devia ser quem bateu');
+      // By damage the list INVERTS: Ana dealt all the damage. It is the only
+      // way to prove the tab sorts, instead of just repeating the aggregation
+      // order.
+      fire(picker(), 'change', { target: { value: 'damage' } });
+      eq(names()[0], 'Ana', 'by damage dealt the first should be whoever hit');
 
-      fire(seletor(), 'change', { target: { value: 'colocacao' } });
-      eq(nomes()[0], 'Bruno',
-        'por melhor colocação o primeiro devia ser quem venceu mais');
+      fire(picker(), 'change', { target: { value: 'place' } });
+      eq(names()[0], 'Bruno',
+        'by best placing the first should be whoever won more');
     } finally {
-      // Aba ativa e ordem são estado de MÓDULO da tela e sobrevivem ao caso.
-      // Deixar a aba de Jogadores ligada fez o teste do filtro contar cartões
-      // de jogador achando que contava decks - e a mensagem de falha acusava o
-      // filtro, que não tinha nada a ver. Desfazer na raiz que este caso
-      // criou, porque ela nunca foi anexada ao document.
-      if (raiz) {
-        const campo = findAll(raiz, 'select-input')
+      // The active tab and the order are MODULE state of the screen and
+      // survive the case. Leaving the Players tab on made the filter test count
+      // player cards thinking it counted decks - and the failure message
+      // blamed the filter, which had nothing to do with it. Undo it on the
+      // root this case created, because it was never attached to the document.
+      if (root) {
+        const field = findAll(root, 'select-input')
           .find((c) => c.getAttribute('aria-label') === t('stats.sortBy'));
-        if (campo) fire(campo, 'change', { target: { value: 'relevancia' } });
-        const primeira = findAll(raiz, 'tab')[0];
-        if (primeira) fire(primeira, 'click');
+        if (field) fire(field, 'change', { target: { value: 'relevance' } });
+        const first = findAll(root, 'tab')[0];
+        if (first) fire(first, 'click');
       }
       store.wipe();
     }
     return undefined;
   }],
 
-  ['juntar decks não repete, e fica com a data mais nova', () => {
-    const deck = (n, quando) => ({ commanders: [commander(n)], lastUsed: quando });
+  ['merging decks does not repeat, and keeps the newest date', () => {
+    const deck = (n, at) => ({ commanders: [commander(n)], lastUsed: at });
 
-    // Mesmo deck nas duas listas: fica a data mais recente, porque é ela que
-    // responde "qual deck ele anda jogando".
-    const juntos = juntarDecks([deck(1, 100), deck(2, 300)], [deck(1, 500)]);
-    eq(juntos.length, 2, 'o mesmo deck entrou duas vezes');
-    eq(juntos[0].lastUsed, 500, 'a lista não veio do mais recente para o mais antigo');
-    eq(juntos[1].lastUsed, 300);
+    // The same deck in both lists: the most recent date stays, because it is
+    // what answers "which deck have they been playing".
+    const merged = mergeDecks([deck(1, 100), deck(2, 300)], [deck(1, 500)]);
+    eq(merged.length, 2, 'the same deck went in twice');
+    eq(merged[0].lastUsed, 500, 'the list did not come from the most recent to the oldest');
+    eq(merged[1].lastUsed, 300);
 
-    // Lixo não entra: deck sem comandante não tem chave, e viraria uma linha
-    // vazia no seletor.
-    eq(juntarDecks([{ commanders: [] }, null], [undefined]).length, 0,
-      'deck sem comandante entrou na lista');
+    // Junk does not get in: a deck with no commander has no key, and would
+    // become an empty row in the picker.
+    eq(mergeDecks([{ commanders: [] }, null], [undefined]).length, 0,
+      'a deck with no commander got into the list');
   }],
 
-  ['os decks só sobem para o perfil quando o conjunto muda', () => {
-    // `lastUsed` muda a cada partida. Sem comparar por conjunto, toda
-    // sincronização escreveria no perfil para dizer a mesma coisa.
-    const deck = (n, quando) => ({ commanders: [commander(n)], lastUsed: quando });
+  ['the decks only go up to the profile when the set changes', () => {
+    // `lastUsed` changes with every match. Without comparing by set, every
+    // sync would write to the profile to say the same thing.
+    const deck = (n, at) => ({ commanders: [commander(n)], lastUsed: at });
 
-    eq(decksMudaram([deck(1, 100)], [deck(1, 999)]), false,
-      'a mesma lista com data diferente foi tratada como mudança');
-    eq(decksMudaram([deck(1, 100), deck(2, 100)], [deck(1, 100)]), true,
-      'um deck novo não foi notado');
-    eq(decksMudaram([], []), false, 'duas listas vazias diferem');
-    eq(decksMudaram([deck(1, 100)], undefined), true,
-      'perfil sem decks devia receber a primeira lista');
+    eq(decksChanged([deck(1, 100)], [deck(1, 999)]), false,
+      'the same list with a different date was treated as a change');
+    eq(decksChanged([deck(1, 100), deck(2, 100)], [deck(1, 100)]), true,
+      'a new deck was not noticed');
+    eq(decksChanged([], []), false, 'two empty lists differ');
+    eq(decksChanged([deck(1, 100)], undefined), true,
+      'a profile with no decks should receive the first list');
 
-    // A ordem não conta: é conjunto, não sequência.
-    eq(decksMudaram([deck(1, 1), deck(2, 2)], [deck(2, 9), deck(1, 9)]), false,
-      'a ordem das listas virou diferença');
+    // The order does not count: it is a set, not a sequence.
+    eq(decksChanged([deck(1, 1), deck(2, 2)], [deck(2, 9), deck(1, 9)]), false,
+      'the order of the lists became a difference');
   }],
 
-  ['num aparelho novo, os decks da conta aparecem sem histórico', () => {
-    // É o caso inteiro: entrar na conta num aparelho onde nunca se jogou. O
-    // histórico local está vazio, e sem os decks da conta a pessoa tem de
-    // buscar na Scryfall o comandante que o app já conhece.
+  ['on a new device, the account decks show up without history', () => {
+    // It is the whole case: signing in on a device where nobody ever played.
+    // The local history is empty, and without the account decks the person
+    // has to search Scryfall for a commander the app already knows.
     store.wipe();
     try {
       eq(store.decksOfPlayer(null, 'alienpls').length, 0,
-        'apareceu deck sem histórico e sem perfil');
+        'a deck showed up with no history and no profile');
 
-      store.guardarDecksDaConta('alienpls', [
+      store.saveAccountDecks('alienpls', [
         { commanders: [commander(1)], lastUsed: 200 },
         { commanders: [commander(2)], lastUsed: 100 },
       ]);
 
-      const semHistorico = store.decksOfPlayer(null, 'alienpls');
-      eq(semHistorico.length, 2, 'os decks da conta não apareceram');
-      eq(deckKeyOf(semHistorico[0].commanders), deckKeyOf([commander(1)]),
-        'a lista não veio do mais recente para o mais antigo');
+      const noHistory = store.decksOfPlayer(null, 'alienpls');
+      eq(noHistory.length, 2, 'the account decks did not show up');
+      eq(deckKeyOf(noHistory[0].commanders), deckKeyOf([commander(1)]),
+        'the list did not come from the most recent to the oldest');
 
-      // E com histórico local, as duas fontes se juntam sem repetir.
+      // And with local history, both sources merge without repeating.
       const m = createMatch([
         { id: 's0', name: 'Alex', handle: 'alienpls', commanders: [commander(2)] },
         { id: 's1', name: 'Bruno', commanders: [commander(9)] },
       ], 40);
       m.startedAt = 900;
-      store.mesclarPartidas([m]);
+      store.mergeMatches([m]);
 
-      const juntos = store.decksOfPlayer(null, 'alienpls');
-      eq(juntos.length, 2, 'o deck repetido entrou duas vezes');
-      eq(deckKeyOf(juntos[0].commanders), deckKeyOf([commander(2)]),
-        'o deck jogado agora não foi para o topo');
+      const merged = store.decksOfPlayer(null, 'alienpls');
+      eq(merged.length, 2, 'the repeated deck went in twice');
+      eq(deckKeyOf(merged[0].commanders), deckKeyOf([commander(2)]),
+        'the deck played now did not go to the top');
 
-      // Outra conta no mesmo aparelho não vê os decks da primeira.
+      // Another account on the same device does not see the first one's decks.
       eq(store.decksOfPlayer(null, 'outra').length, 0,
-        'os decks de uma conta vazaram para outra');
+        'one account\'s decks leaked to another');
     } finally {
       store.wipe();
     }
     return undefined;
   }],
 
-  ['a linha de deck sabe quem o levou', () => {
-    // A linha agrega todo mundo que jogou aquele deck, e e assim que tem de
-    // ser - em Commander o mesmo deck passa de mao em mao. Mas sem saber QUEM,
-    // nao da para responder "quais decks o Bruno joga".
-    const comDeck = (nome, qualDeck) => createMatch([
-      { id: 's0', name: nome, commanders: [commander(qualDeck)] },
+  ['the deck row knows who brought it', () => {
+    // The row aggregates everyone who played that deck, and that is how it has
+    // to be - in Commander the same deck passes from hand to hand. But without
+    // knowing WHO, there is no answering "which decks does Bruno play".
+    const withDeck = (name, whichDeck) => createMatch([
+      { id: 's0', name, commanders: [commander(whichDeck)] },
       { id: 's1', name: 'Bruno', commanders: [commander(9)] },
     ], 40);
 
-    const { decks } = aggregate([comDeck('Ana', 1), comDeck('Caio', 1)]);
-    const compartilhado = decks.find((d) => d.jogadores.length === 2);
-    ok(compartilhado, 'nenhum deck registrou os dois jogadores');
-    eq(compartilhado.jogadores.slice().sort(), ['ana', 'caio'],
-      'o deck não guardou quem o levou');
+    const { decks } = aggregate([withDeck('Ana', 1), withDeck('Caio', 1)]);
+    const shared = decks.find((d) => d.playerKeys.length === 2);
+    ok(shared, 'no deck recorded both players');
+    eq(shared.playerKeys.slice().sort(), ['ana', 'caio'],
+      'the deck did not keep who brought it');
 
-    const doBruno = decks.find((d) => d.jogadores.includes('bruno'));
-    eq(doBruno.jogadores, ['bruno'], 'o deck do Bruno ficou com gente a mais');
+    const brunos = decks.find((d) => d.playerKeys.includes('bruno'));
+    eq(brunos.playerKeys, ['bruno'], 'Bruno\'s deck ended up with extra people');
   }],
 
-  ['o filtro da aba de Decks mostra só os decks daquele jogador', () => {
+  ['the Decks tab filter shows only that player\'s decks', () => {
     if (!simulated) return 'skip';
     store.wipe();
-    let raiz = null;
+    let root = null;
     try {
-      // Ana joga dois decks, Bruno joga um. "Todos" mostra os três.
-      const partida = (deckDaAna, id) => {
+      // Ana plays two decks, Bruno plays one. "All" shows the three.
+      const matchOf = (anasDeck, id) => {
         const m = createMatch([
-          { id: 's0', name: 'Ana', commanders: [commander(deckDaAna)] },
+          { id: 's0', name: 'Ana', commanders: [commander(anasDeck)] },
           { id: 's1', name: 'Bruno', commanders: [commander(9)] },
         ], 40);
         m.id = 'p-' + id;
         return m;
       };
-      store.mesclarPartidas([partida(1, 'a'), partida(2, 'b')]);
+      store.mergeMatches([matchOf(1, 'a'), matchOf(2, 'b')]);
 
-      const root = document.createElement('div');
-      raiz = root;
-      renderStats(root, { onBack() {} });
+      const screen = document.createElement('div');
+      root = screen;
+      renderStats(screen, { onBack() {} });
 
-      const painel = () => findAll(root, 'stats-panel')[0];
-      const quantosDecks = () => findAll(painel(), 'card').length;
-      eq(quantosDecks(), 3, '"Todos" não mostrou os três decks');
+      const panel = () => findAll(screen, 'stats-panel')[0];
+      const deckCount = () => findAll(panel(), 'card').length;
+      eq(deckCount(), 3, '"All" did not show the three decks');
 
-      // Pelo aria-label, e não pela posição: a aba passou a ter dois
-      // `<select>`, e `[0]` pegaria o de ordem no dia em que a ordem viesse
-      // primeiro - um teste que muda de assunto sozinho.
-      const filtro = () => findAll(root, 'select-input')
+      // By aria-label, not by position: the tab now has two `<select>`s, and
+      // `[0]` would pick the sort one the day the sort came first - a test
+      // that changes subject by itself.
+      const filter = () => findAll(screen, 'select-input')
         .find((c) => c.getAttribute('aria-label') === t('stats.filterByPlayer'));
-      ok(filtro(), 'a aba de Decks não tem o filtro de jogador');
+      ok(filter(), 'the Decks tab has no player filter');
 
-      // Filtrar pelo Bruno: só o deck dele.
-      fire(filtro(), 'change', { target: { value: 'bruno' } });
-      eq(quantosDecks(), 1, 'o filtro não reduziu a lista ao deck do Bruno');
+      // Filtering by Bruno: only his deck.
+      fire(filter(), 'change', { target: { value: 'bruno' } });
+      eq(deckCount(), 1, 'the filter did not reduce the list to Bruno\'s deck');
 
-      // E voltar para Todos devolve os três.
-      fire(filtro(), 'change', { target: { value: 'todos' } });
-      eq(quantosDecks(), 3, '"Todos" não devolveu a lista inteira');
+      // And going back to All returns the three.
+      fire(filter(), 'change', { target: { value: 'all' } });
+      eq(deckCount(), 3, '"All" did not return the whole list');
     } finally {
-      // O filtro é estado de MÓDULO da tela e sobrevive ao caso: deixá-lo
-      // preso faria o teste seguinte ver uma lista filtrada sem motivo.
+      // The filter is MODULE state of the screen and survives the case:
+      // leaving it stuck would make the next test see a filtered list for no
+      // reason.
       //
-      // Na raiz deste caso, e não em `document.body`: a raiz nunca foi
-      // anexada ao documento, então a busca antiga não achava nada e a
-      // limpeza era um no-op que passava por limpeza.
-      if (raiz) {
-        const campo = findAll(raiz, 'select-input')
+      // On this case's root, not on `document.body`: the root was never
+      // attached to the document, so the old search found nothing and the
+      // cleanup was a no-op passing for cleanup.
+      if (root) {
+        const field = findAll(root, 'select-input')
           .find((c) => c.getAttribute('aria-label') === t('stats.filterByPlayer'));
-        if (campo) fire(campo, 'change', { target: { value: 'todos' } });
+        if (field) fire(field, 'change', { target: { value: 'all' } });
       }
       store.wipe();
     }
     return undefined;
   }],
 
-  ['nas estatísticas, o voltar do aparelho volta dentro do app', () => {
+  ['in the statistics, the device back button goes back inside the app', () => {
     if (!simulated) return 'skip';
-    // Sem isto o voltar do Android FECHAVA o app: não havia entrada de
-    // histórico para consumir, e PWA em tela cheia sai. Justamente na tela
-    // onde o gesto é o mais natural.
-    const naRota = () => document.body.dataset.route;
-    const eraRota = naRota();
+    // Without this Android's back CLOSED the app: there was no history entry
+    // to consume, and a fullscreen PWA exits. Precisely on the screen where the
+    // gesture is the most natural.
+    const onRoute = () => document.body.dataset.route;
+    const wasRoute = onRoute();
     try {
-      const estatisticas = botaoDeEstatisticas();
-      ok(estatisticas, 'a home não tem o botão de estatísticas');
+      const stats = statsButton();
+      ok(stats, 'the home screen has no statistics button');
 
-      const antes = historico.empilhadas;
-      fire(estatisticas, 'click');
-      eq(naRota(), 'stats', 'não chegou nas estatísticas');
-      eq(historico.empilhadas, antes + 1,
-        'entrar nas estatísticas não empilhou entrada de histórico');
+      const before = historyLog.pushed;
+      fire(stats, 'click');
+      eq(onRoute(), 'stats', 'did not get to the statistics');
+      eq(historyLog.pushed, before + 1,
+        'entering the statistics did not push a history entry');
 
-      // O gesto do sistema: volta dentro do app, não fecha.
+      // The system gesture: goes back inside the app, does not close.
       fireWindow('popstate');
-      eq(naRota(), 'setup', 'o voltar não trouxe para a tela inicial');
+      eq(onRoute(), 'setup', 'back did not bring us to the home screen');
     } finally {
-      if (naRota() !== eraRota) document.body.dataset.route = eraRota;
+      if (onRoute() !== wasRoute) document.body.dataset.route = wasRoute;
     }
     return undefined;
   }],
 
-  ['com painel aberto, o voltar fecha o painel e não navega', () => {
+  ['with a panel open, back closes the panel and does not navigate', () => {
     if (!simulated) return 'skip';
-    // O pior efeito possível do voltar que acabou de entrar: sair da tela
-    // deixando a folha de pé sobre a tela nova.
-    const naRota = () => document.body.dataset.route;
-    const eraRota = naRota();
+    // The worst possible effect of the back that just came in: leaving the
+    // screen with the sheet standing over the new one.
+    const onRoute = () => document.body.dataset.route;
+    const wasRoute = onRoute();
     try {
-      const estatisticas = botaoDeEstatisticas();
-      ok(estatisticas, 'a home não tem o botão de estatísticas');
-      fire(estatisticas, 'click');
-      eq(naRota(), 'stats', 'não chegou nas estatísticas');
+      const stats = statsButton();
+      ok(stats, 'the home screen has no statistics button');
+      fire(stats, 'click');
+      eq(onRoute(), 'stats', 'did not get to the statistics');
 
       openFlow({ title: 'teste', build: (pane) => pane.append(el('p', { text: 'x' })) });
-      ok(isSheetOpen(), 'o painel não abriu');
+      ok(isSheetOpen(), 'the panel did not open');
 
-      const antes = historico.empilhadas;
+      const before = historyLog.pushed;
       fireWindow('popstate');
-      ok(!isSheetOpen(), 'o voltar não fechou o painel');
-      eq(naRota(), 'stats', 'o voltar navegou com painel aberto');
-      eq(historico.empilhadas, antes + 1,
-        'fechar o painel não devolveu a entrada de histórico');
+      ok(!isSheetOpen(), 'back did not close the panel');
+      eq(onRoute(), 'stats', 'back navigated with a panel open');
+      eq(historyLog.pushed, before + 1,
+        'closing the panel did not give the history entry back');
 
       fireWindow('popstate');
-      eq(naRota(), 'setup', 'o voltar seguinte não saiu das estatísticas');
+      eq(onRoute(), 'setup', 'the next back did not leave the statistics');
     } finally {
       closeSheet();
-      if (naRota() !== eraRota) document.body.dataset.route = eraRota;
+      if (onRoute() !== wasRoute) document.body.dataset.route = wasRoute;
     }
     return undefined;
   }],
 
-  ['esconder o app para o relógio da partida em andamento', () => {
+  ['hiding the app stops the clock of the match in progress', () => {
     if (!simulated) return 'skip';
-    // A fiação, e não a conta: prova que o ouvinte de visibilidade está
-    // pendurado e chega ao motor. app.js sobe junto com a suíte (ver o import
-    // no topo), então o ouvinte já está registrado aqui.
+    // The wiring, not the math: it proves the visibility listener is hung and
+    // reaches the engine. app.js starts along with the suite (see the import
+    // at the top), so the listener is already registered here.
     store.wipe();
     try {
-      const m = mesa();
+      const m = makeMatch();
       store.setCurrent(m);
 
-      const antes = document.visibilityState;
+      const before = document.visibilityState;
       document.visibilityState = 'hidden';
       fire(document, 'visibilitychange');
-      document.visibilityState = antes;
+      document.visibilityState = before;
 
       ok(store.getCurrent().ausenteDesde,
-        'esconder o app não parou o relógio');
+        'hiding the app did not stop the clock');
     } finally {
       store.wipe();
     }
     return undefined;
   }],
 
-  ['o tempo fora da mesa não conta na duração nem no turno', () => {
-    // O defeito que isto conserta: a duração era tempo de PAREDE. Sair para as
-    // estatísticas, bloquear o celular ou fechar o app somava tudo aquilo à
-    // partida - e, ao passar a vez, ao turno de quem estava jogando. Meia hora
-    // no banheiro virava "o turno mais longo da noite".
-    const m = mesa();
+  ['time away from the table counts neither in the duration nor in the turn', () => {
+    // The defect this fixes: the duration was WALL time. Going to the
+    // statistics, locking the phone or closing the app added all of that to
+    // the match - and, when passing the turn, to the turn of whoever was
+    // playing. Half an hour in the bathroom became "the longest turn of the
+    // night".
+    const m = makeMatch();
     const t0 = m.startedAt;
 
-    // Turno 1 de 0 a 100s, com 60s de ausência no meio dele.
+    // Turn 1 from 0 to 100s, with 60s away in the middle of it.
     m.ausencias = [[t0 + 20000, t0 + 80000]];
     m.events.push({ id: 'a', ts: t0 + 100000, turn: 1, type: 'turn' });
 
     const s1 = replay(m);
-    eq(elapsedOf(m, s1, t0 + 100000), 40000, 'a duração não descontou a ausência');
-    eq(s1.players.s0.timeOnTurn, 40000, 'o turno não descontou a ausência');
+    eq(elapsedOf(m, s1, t0 + 100000), 40000, 'the duration did not discount the time away');
+    eq(s1.players.s0.timeOnTurn, 40000, 'the turn did not discount the time away');
   }],
 
-  ['a ausência é descontada por sobreposição, e não no total', () => {
-    // Por sobreposição porque o tempo de turno precisa descontar só o que caiu
-    // DENTRO daquele turno - um total somado descontaria do turno errado.
-    const m = mesa();
+  ['time away is discounted by overlap, not in total', () => {
+    // By overlap because turn time has to discount only what fell INSIDE that
+    // turn - an added total would discount from the wrong turn.
+    const m = makeMatch();
     const t0 = m.startedAt;
     m.ausencias = [[t0 + 100, t0 + 200], [t0 + 500, t0 + 900]];
 
-    eq(ausenteEntre(m, t0, t0 + 1000), 500, 'as duas faixas somam');
-    eq(ausenteEntre(m, t0, t0 + 150), 50, 'a faixa é recortada no fim');
-    eq(ausenteEntre(m, t0 + 150, t0 + 1000), 450, 'e no começo');
-    eq(ausenteEntre(m, t0 + 250, t0 + 450), 0, 'janela entre as faixas não desconta');
+    eq(awayBetween(m, t0, t0 + 1000), 500, 'the two ranges add up');
+    eq(awayBetween(m, t0, t0 + 150), 50, 'the range is clipped at the end');
+    eq(awayBetween(m, t0 + 150, t0 + 1000), 450, 'and at the start');
+    eq(awayBetween(m, t0 + 250, t0 + 450), 0, 'a window between the ranges discounts nothing');
 
-    // O período ainda ABERTO conta até o instante da pergunta: é o caso do app
-    // fechado, em que ninguém escreveu o fim.
+    // The period still OPEN counts up to the moment of the question: it is the
+    // case of the closed app, where nobody wrote the end.
     m.ausenteDesde = t0 + 2000;
-    eq(ausenteEntre(m, t0, t0 + 3000), 1500, 'o período aberto conta até agora');
+    eq(awayBetween(m, t0, t0 + 3000), 1500, 'the open period counts up to now');
   }],
 
-  ['o relógio não para duas vezes, nem depois do fim', () => {
-    // Com pausa manual em curso o tempo já não conta. Abrir uma ausência por
-    // cima descontaria o mesmo período duas vezes, e a partida sairia mais
-    // curta do que foi.
-    const pausada = mesa();
-    pausada.events.push({
-      id: 'p', ts: pausada.startedAt + 1000, turn: 1, type: 'pause',
+  ['the clock does not stop twice, nor after the end', () => {
+    // With a manual pause in progress the time no longer counts. Opening an
+    // away period on top would discount the same period twice, and the match
+    // would come out shorter than it was.
+    const paused = makeMatch();
+    paused.events.push({
+      id: 'p', ts: paused.startedAt + 1000, turn: 1, type: 'pause',
     });
-    eq(sairDaMesa(pausada, pausada.startedAt + 2000), false,
-      'abriu ausência com a mesa já pausada');
-    eq(pausada.ausenteDesde, undefined, 'e sujou a partida');
+    eq(leaveTable(paused, paused.startedAt + 2000), false,
+      'it opened an away period with the table already paused');
+    eq(paused.ausenteDesde, undefined, 'and dirtied the match');
 
-    // Partida encerrada: o relógio parou de andar, não há o que descontar.
-    const fim = mesa(2);
-    push(fim, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
-    ok(replay(fim).finished, 'a partida devia estar encerrada');
-    eq(sairDaMesa(fim, Date.now()), false, 'abriu ausência com a partida encerrada');
+    // A finished match: the clock stopped moving, there is nothing to discount.
+    const end = makeMatch(2);
+    push(end, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
+    ok(replay(end).finished, 'the match should be over');
+    eq(leaveTable(end, Date.now()), false, 'it opened an away period with the match over');
   }],
 
-  ['uma ausência que ficou aberta fecha ao voltar à mesa', () => {
-    // É o caso do app fechado com a mesa aberta: `ausenteDesde` ficou gravado,
-    // e todo o tempo em que o app esteve fora tem de sair da partida.
-    const m = mesa();
+  ['an away period left open closes on returning to the table', () => {
+    // It is the case of the app closed with the table open: `ausenteDesde`
+    // stayed saved, and all the time the app was away has to come out of the
+    // match.
+    const m = makeMatch();
     const t0 = m.startedAt;
 
-    ok(sairDaMesa(m, t0 + 10000), 'não abriu a ausência');
-    eq(m.ausenteDesde, t0 + 10000, 'não marcou desde quando');
+    ok(leaveTable(m, t0 + 10000), 'it did not open the away period');
+    eq(m.ausenteDesde, t0 + 10000, 'it did not mark since when');
 
-    // Duas horas fora, e o app volta.
-    ok(voltarAMesa(m, t0 + 7210000), 'não fechou a ausência');
-    eq(m.ausenteDesde, null, 'deixou o período aberto');
-    eq(m.ausencias, [[t0 + 10000, t0 + 7210000]], 'não guardou o período');
+    // Two hours away, and the app comes back.
+    ok(returnToTable(m, t0 + 7210000), 'it did not close the away period');
+    eq(m.ausenteDesde, null, 'it left the period open');
+    eq(m.ausencias, [[t0 + 10000, t0 + 7210000]], 'it did not keep the period');
 
     m.events.push({ id: 'a', ts: t0 + 7215000, turn: 1, type: 'turn' });
     eq(elapsedOf(m, replay(m), t0 + 7215000), 15000,
-      'as duas horas fora entraram na duração');
+      'the two hours away went into the duration');
 
-    // Voltar sem ter saído não faz nada.
-    eq(voltarAMesa(m, t0 + 7220000), false, 'fechou um período que não existia');
+    // Returning without having left does nothing.
+    eq(returnToTable(m, t0 + 7220000), false, 'it closed a period that did not exist');
   }],
 
-  ['o tempo pausado não conta na duração da partida', () => {
-    const m = mesa();
+  ['paused time does not count in the match duration', () => {
+    const m = makeMatch();
     const t0 = m.startedAt;
     m.events.push({ id: 'a', ts: t0 + 1000, turn: 1, type: 'pause' });
     m.events.push({ id: 'b', ts: t0 + 61000, turn: 1, type: 'resume' });
     m.events.push({ id: 'c', ts: t0 + 71000, turn: 1, type: 'life', targetId: 's1', delta: -1, sourceId: 's0' });
     const s = replay(m);
-    eq(s.pausedTotal, 60000, 'total pausado');
-    eq(elapsedOf(m, s, t0 + 71000), 11000, 'duração já sem a pausa');
+    eq(s.pausedTotal, 60000, 'total paused');
+    eq(elapsedOf(m, s, t0 + 71000), 11000, 'duration already without the pause');
   }],
 
-  ['o tempo pausado também sai do tempo de turno do jogador', () => {
-    const m = mesa();
+  ['paused time also comes out of the player\'s turn time', () => {
+    const m = makeMatch();
     const t0 = m.startedAt;
     m.events.push({ id: 'a', ts: t0 + 2000, turn: 1, type: 'pause' });
     m.events.push({ id: 'b', ts: t0 + 32000, turn: 1, type: 'resume' });
     m.events.push({ id: 'c', ts: t0 + 40000, turn: 1, type: 'turn' });
-    eq(replay(m).players.s0.timeOnTurn, 10000, 'turno de P0 sem os 30s parados');
+    eq(replay(m).players.s0.timeOnTurn, 10000, 'P0 turn without the 30s stopped');
   }],
 
-  ['pausa ainda aberta conta até o último evento, e não além', () => {
-    const m = mesa();
+  ['a pause still open counts up to the last event, and not beyond', () => {
+    const m = makeMatch();
     const t0 = m.startedAt;
     m.events.push({ id: 'a', ts: t0 + 5000, turn: 1, type: 'pause' });
     const s = replay(m);
-    eq(s.paused, true, 'segue pausada');
-    eq(s.pausedSince, t0 + 5000, 'início da pausa');
-    eq(s.pausedTotal, 0, 'nada fechado ainda');
-    // Com a pausa correndo, o relógio da partida trava nos 5s de antes dela.
-    eq(elapsedOf(m, s, t0 + 90000), 5000, 'duração congelada');
+    eq(s.paused, true, 'still paused');
+    eq(s.pausedSince, t0 + 5000, 'start of the pause');
+    eq(s.pausedTotal, 0, 'nothing closed yet');
+    // With the pause running, the match clock freezes at the 5s before it.
+    eq(elapsedOf(m, s, t0 + 90000), 5000, 'frozen duration');
   }],
 
-  ['a mesa monta sem explodir', () => {
+  ['the table mounts without blowing up', () => {
     if (!simulated) return 'skip';
-    // Fumaça pura, e vale o preço: um `let` declarado depois do primeiro uso
-    // derrubava renderTable inteiro e deixava a tela preta. Sintaxe válida,
-    // imports certos, 38 testes verdes - e nada na tela.
+    // Pure smoke, and worth the price: a `let` declared after its first use
+    // brought down the whole renderTable and left the screen black. Valid
+    // syntax, correct imports, 38 green tests - and nothing on screen.
     const root = document.createElement('div');
     const view = renderTable(root, {
-      match: mesa(4),
+      match: makeMatch(4),
       onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
     });
-    ok(root.childNodes.length > 0, 'a mesa não desenhou nada');
-    ok(findAll(root, 'tile').length === 4, 'painéis desenhados');
-    ok(findAll(root, 'hub').length === 1, 'núcleo central desenhado');
+    ok(root.childNodes.length > 0, 'the table drew nothing');
+    ok(findAll(root, 'tile').length === 4, 'panels drawn');
+    ok(findAll(root, 'hub').length === 1, 'central core drawn');
     view.destroy();
   }],
 
-  ['a tela de montagem monta sem explodir', () => {
+  ['the setup screen mounts without blowing up', () => {
     if (!simulated) return 'skip';
     const root = document.createElement('div');
     renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
-    ok(root.childNodes.length > 0, 'a home não desenhou nada');
-    ok(findAll(root, 'seat-card').length >= 2, 'cartões de jogador desenhados');
+    ok(root.childNodes.length > 0, 'the home screen drew nothing');
+    ok(findAll(root, 'seat-card').length >= 2, 'player cards drawn');
   }],
 
-  ['tocar fora fecha, mas o clique fantasma do celular não', () => {
+  ['tapping outside closes, but the phone\'s ghost click does not', () => {
     if (!simulated) return 'skip';
-    // No celular, o toque que ABRE o painel dispara um `click` logo depois, e
-    // ele cai na cobertura recém-montada. Sem esta regra, o painel de ação em
-    // área abria e fechava no mesmo gesto - e só no aparelho.
+    // On a phone, the tap that OPENS the panel fires a `click` right after,
+    // and it lands on the freshly mounted backdrop. Without this rule, the
+    // area-action panel opened and closed in the same gesture - and only on
+    // the device.
     const scrim = el('div', {});
-    let fechou = 0;
-    dismissOnBackdrop(scrim, () => { fechou += 1; });
+    let closed = 0;
+    dismissOnBackdrop(scrim, () => { closed += 1; });
 
-    fire(scrim, 'click');                    // clique fantasma: sem pointerdown
-    eq(fechou, 0, 'o clique fantasma não pode fechar');
+    fire(scrim, 'click');                    // ghost click: no pointerdown
+    eq(closed, 0, 'the ghost click cannot close');
 
-    fire(scrim, 'pointerdown');              // toque de verdade na cobertura
+    fire(scrim, 'pointerdown');              // a real tap on the backdrop
     fire(scrim, 'click');
-    eq(fechou, 1, 'tocar fora precisa fechar');
+    eq(closed, 1, 'tapping outside has to close');
 
-    fire(scrim, 'click');                    // clique solto de novo
-    eq(fechou, 1, 'não fecha duas vezes pelo mesmo toque');
+    fire(scrim, 'click');                    // a loose click again
+    eq(closed, 1, 'it does not close twice for the same tap');
   }],
 
-  ['o app inteiro sobe e desenha a primeira tela', () => {
+  ['the whole app starts and draws the first screen', () => {
     if (!simulated) return 'skip';
-    // O caso mais completo que dá para rodar sem navegador: importa app.js de
-    // verdade, que aplica tema, liga orientação, monta a rota inicial e
-    // registra os observadores. Os testes anteriores montavam as views
-    // isoladas - este pega o que só quebra na costura entre elas.
+    // The most complete case that can run without a browser: it really
+    // imports app.js, which applies the theme, turns on orientation, mounts
+    // the initial route and registers the observers. The previous tests
+    // mounted the views in isolation - this one catches what only breaks at
+    // the seams between them.
     const app = document.getElementById('app');
-    ok(app, 'o stub precisa oferecer #app');
-    ok(app.childNodes.length > 0, 'o app não desenhou nada ao subir');
-    ok(document.body.dataset.route, 'nenhuma rota foi definida');
-    eq(document.documentElement.dataset.theme, 'dark', 'tema aplicado na carga');
+    ok(app, 'the stub has to offer #app');
+    ok(app.childNodes.length > 0, 'the app drew nothing on startup');
+    ok(document.body.dataset.route, 'no route was set');
+    eq(document.documentElement.dataset.theme, 'dark', 'theme applied on load');
   }],
 
-  ['votação conta os votos e diz quem votou em quê', () => {
+  ['the vote counts the votes and says who voted for what', () => {
     const v = createSession({
       question: 'Carnage ou homage?',
       options: ['Carnage', 'Homage'],
@@ -2123,37 +2168,37 @@ export const cases = [
     });
     cast(v, 'a', [0]); cast(v, 'b', [1]); cast(v, 'c', [0]);
     const r = tally(v);
-    eq(r.rows[0].label, 'Carnage', 'mais votada');
-    eq(r.rows[0].votes, 2, 'votos da vencedora');
-    eq(r.rows[0].voters, ['Ana', 'Caio'], 'quem votou nela');
-    eq(r.tie, false, 'não houve empate');
-    eq(r.total, 3, 'total de votos');
+    eq(r.rows[0].label, 'Carnage', 'most voted');
+    eq(r.rows[0].votes, 2, 'votes of the winner');
+    eq(r.rows[0].voters, ['Ana', 'Caio'], 'who voted for it');
+    eq(r.tie, false, 'there was no tie');
+    eq(r.total, 3, 'total votes');
   }],
 
-  ['votação detecta empate no topo', () => {
+  ['the vote detects a tie at the top', () => {
     const v = createSession({
       options: ['A', 'B'],
       voters: [{ id: 'a', name: 'Ana' }, { id: 'b', name: 'Bruno' }],
     });
     cast(v, 'a', [0]); cast(v, 'b', [1]);
     const r = tally(v);
-    eq(r.tie, true, 'empate');
-    eq(r.top.length, 2, 'duas opções no topo');
+    eq(r.tie, true, 'tie');
+    eq(r.top.length, 2, 'two options at the top');
   }],
 
-  ["unanimidade é reconhecida — é o que Prisoner's Dilemma pergunta", () => {
+  ["unanimity is recognized — it is what Prisoner's Dilemma asks", () => {
     const v = createSession({
       options: ['Silence', 'Snitch'],
       voters: [{ id: 'a', name: 'Ana' }, { id: 'b', name: 'Bruno' }],
     });
     cast(v, 'a', [0]); cast(v, 'b', [0]);
-    eq(tally(v).unanimous, true, 'todos escolheram o mesmo');
+    eq(tally(v).unanimous, true, 'everyone chose the same');
 
     cast(v, 'b', [1]);
-    eq(tally(v).unanimous, false, 'com escolhas diferentes, não é unânime');
+    eq(tally(v).unanimous, false, 'with different choices, it is not unanimous');
   }],
 
-  ['votos extras contam, e podem ir em opções diferentes', () => {
+  ['extra votes count, and can go to different options', () => {
     // Brago's Representative: "you get an additional vote. (The votes can be
     // for different choices or for the same choice.)"
     const v = createSession({
@@ -2162,12 +2207,12 @@ export const cases = [
     });
     cast(v, 'a', [0, 1]); cast(v, 'b', [1]);
     const r = tally(v);
-    eq(r.total, 3, 'três votos com dois votantes');
-    eq(r.rows[0].label, 'B', 'B ganhou com dois');
-    eq(r.rows[0].votes, 2, 'votos de B');
+    eq(r.total, 3, 'three votes with two voters');
+    eq(r.rows[0].label, 'B', 'B won with two');
+    eq(r.rows[0].votes, 2, 'votes of B');
   }],
 
-  ['número secreto acha o maior e o menor, com empates', () => {
+  ['a secret number finds the highest and the lowest, with ties', () => {
     const v = createSession({
       kind: 'numero',
       voters: [
@@ -2177,178 +2222,182 @@ export const cases = [
     });
     cast(v, 'a', [7]); cast(v, 'b', [7]); cast(v, 'c', [3]); cast(v, 'd', [0]);
     const r = tally(v);
-    eq(r.maior, 7, 'maior número');
-    eq(r.menor, 0, 'menor número');
-    eq(r.highest, ['a', 'b'], 'empate no topo entra inteiro');
-    eq(r.lowest, ['d'], 'menor sozinho');
-    eq(r.rows[0].name, 'Ana', 'ordenado do maior para o menor');
+    eq(r.max, 7, 'highest number');
+    eq(r.min, 0, 'lowest number');
+    eq(r.highest, ['a', 'b'], 'a tie at the top goes in whole');
+    eq(r.lowest, ['d'], 'lowest alone');
+    eq(r.rows[0].name, 'Ana', 'sorted from highest to lowest');
   }],
 
-  ['todo mundo no mesmo número não tem maior nem menor', () => {
+  ['everyone on the same number has no highest nor lowest', () => {
     const v = createSession({
       kind: 'numero',
       voters: [{ id: 'a', name: 'Ana' }, { id: 'b', name: 'Bruno' }],
     });
     cast(v, 'a', [5]); cast(v, 'b', [5]);
-    eq(tally(v).allEqual, true, 'empate geral');
+    eq(tally(v).allEqual, true, 'a general tie');
   }],
 
-  ['a votação sabe de quem ainda falta o voto', () => {
+  ['the vote knows whose vote is still missing', () => {
     const v = createSession({
       options: ['A', 'B'],
       voters: [{ id: 'a', name: 'Ana' }, { id: 'b', name: 'Bruno' }],
     });
-    eq(pending(v).map((x) => x.name), ['Ana', 'Bruno'], 'ninguém votou');
+    eq(pending(v).map((x) => x.name), ['Ana', 'Bruno'], 'nobody voted');
     cast(v, 'a', [0]);
-    eq(pending(v).map((x) => x.name), ['Bruno'], 'falta o Bruno');
-    eq(isComplete(v), false, 'ainda incompleta');
+    eq(pending(v).map((x) => x.name), ['Bruno'], 'Bruno is missing');
+    eq(isComplete(v), false, 'still incomplete');
     cast(v, 'b', [1]);
-    eq(isComplete(v), true, 'completa');
-    eq(describe(v), 'A 1 × B 1', 'resumo para o histórico');
+    eq(isComplete(v), true, 'complete');
+    eq(describe(v), 'A 1 × B 1', 'summary for the history');
   }],
 
-  ['trocar de modelo de votação não deixa o título antigo grudado', () => {
+  ['switching vote models does not leave the old title stuck', () => {
     if (!simulated) return 'skip';
     setLang('pt');
-    // O bug relatado: tocar em "Prisoner's Dilemma" - que se auto-intitula - e
-    // depois trocar para "Jogador" deixava a pergunta antiga no campo. A
-    // votação ia para a estatística dizendo que a mesa jogou um dilema que
-    // nunca aconteceu.
+    // The reported bug: tapping "Prisoner's Dilemma" - which titles itself -
+    // and then switching to "Player" left the old question in the field. The
+    // vote went to the statistics saying the table played a dilemma that
+    // never happened.
     document.body.childNodes.length = 0;
     const root = document.createElement('div');
     const view = renderTable(root, {
-      match: mesa(4), onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
+      match: makeMatch(4), onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
     });
 
-    const telaAtiva = () => {
+    const activePane = () => {
       const p = findAll(document.body, 'flow-pane');
       return p[p.length - 1];
     };
-    const acharTexto = (cls, txt) =>
-      findAll(telaAtiva(), cls).find((n) => textOf(n).includes(txt));
-    const campo = () => findAll(telaAtiva(), 'search-input')[0];
-    const modelo = (txt) => findAll(telaAtiva(), 'pad-mode').find((b) => textOf(b).includes(txt));
+    const findText = (cls, txt) =>
+      findAll(activePane(), cls).find((n) => textOf(n).includes(txt));
+    const field = () => findAll(activePane(), 'search-input')[0];
+    const model = (txt) => findAll(activePane(), 'pad-mode').find((b) => textOf(b).includes(txt));
 
     fire(findAll(root, 'hub-btn').find((b) => b.attributes['aria-label'] === 'Menu'), 'click');
-    fire(acharTexto('menu-item', 'Votação secreta'), 'click');
+    fire(findText('menu-item', 'Votação secreta'), 'click');
 
-    eq(campo().value, '', 'começa sem título');
+    eq(field().value, '', 'starts with no title');
 
-    fire(modelo('Prisoner'), 'click');
-    eq(campo().value, "Prisoner's Dilemma", 'o modelo preenche o título sozinho');
+    fire(model('Prisoner'), 'click');
+    eq(field().value, "Prisoner's Dilemma", 'the model fills in the title by itself');
 
-    fire(modelo(t('vote.preset.player')), 'click');
-    eq(campo().value, '', 'trocar de modelo limpa o título que o próprio app pôs');
+    fire(model(t('vote.preset.player')), 'click');
+    eq(field().value, '', 'switching models clears the title the app itself put there');
 
-    // O que a pessoa digitou é intocável: só o app apaga o que o app escreveu.
-    fire(modelo('Prisoner'), 'click');
-    const c = campo();
+    // What the person typed is untouchable: only the app erases what the app
+    // wrote.
+    fire(model('Prisoner'), 'click');
+    const c = field();
     c.value = 'Quem leva o combo?';
     fire(c, 'input');
-    fire(modelo(t('vote.preset.player')), 'click');
-    eq(campo().value, 'Quem leva o combo?', 'título digitado sobrevive à troca');
+    fire(model(t('vote.preset.player')), 'click');
+    eq(field().value, 'Quem leva o combo?', 'a typed title survives the switch');
 
-    // E apagar tudo devolve o campo ao app: quem esvaziou não tem opinião.
-    const c2 = campo();
+    // And erasing everything gives the field back to the app: whoever emptied
+    // it has no opinion.
+    const c2 = field();
     c2.value = '';
     fire(c2, 'input');
-    fire(modelo('Prisoner'), 'click');
-    eq(campo().value, "Prisoner's Dilemma", 'campo vazio volta a aceitar o modelo');
+    fire(model('Prisoner'), 'click');
+    eq(field().value, "Prisoner's Dilemma", 'an empty field accepts the model again');
 
     closeSheet();
     view.destroy();
   }],
 
-  ['a votação vai do menu até a revelação sem travar', () => {
+  ['the vote goes from the menu to the reveal without getting stuck', () => {
     if (!simulated) return 'skip';
-    // Nasceu de um bug real: renderTable já tinha um `pending` local (o Map dos
-    // toques), que sombreava a função `pending` importada de vote.js. O botão
-    // "Começar a votação" existia, estava habilitado, e não fazia nada.
-    // Sintaxe válida, imports corretos, 49 testes verdes.
+    // Born from a real bug: renderTable already had a local `pending` (the Map
+    // of taps), which shadowed the `pending` function imported from vote.js.
+    // The "Start the vote" button existed, was enabled, and did nothing. Valid
+    // syntax, correct imports, 49 green tests.
     document.body.childNodes.length = 0;
     const root = document.createElement('div');
     const view = renderTable(root, {
-      match: mesa(4), onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
+      match: makeMatch(4), onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
     });
 
-    // As telas anteriores continuam montadas atrás (é assim que voltar funciona
-    // sem refazer nada), então procurar no corpo inteiro acharia botões velhos.
-    const telaAtiva = () => {
+    // The previous screens stay mounted behind (that is how going back works
+    // without redoing anything), so searching the whole body would find old
+    // buttons.
+    const activePane = () => {
       const p = findAll(document.body, 'flow-pane');
       return p[p.length - 1];
     };
-    const acharTexto = (cls, txt) =>
-      findAll(telaAtiva(), cls).find((n) => textOf(n).includes(txt));
+    const findText = (cls, txt) =>
+      findAll(activePane(), cls).find((n) => textOf(n).includes(txt));
 
     const menu = findAll(root, 'hub-btn').find((b) => b.attributes['aria-label'] === 'Menu');
     fire(menu, 'click');
-    const abrir = acharTexto('menu-item', 'Votação secreta');
-    ok(abrir, 'o menu não oferece a votação');
-    fire(abrir, 'click');
+    const open = findText('menu-item', 'Votação secreta');
+    ok(open, 'the menu does not offer the vote');
+    fire(open, 'click');
 
-    const comecar = acharTexto('btn', 'Começar');
-    ok(comecar, 'sem botão de começar');
-    ok(!comecar.disabled, 'o botão nasceu desabilitado');
-    fire(comecar, 'click');
+    const start = findText('btn', 'Começar');
+    ok(start, 'no start button');
+    ok(!start.disabled, 'the button was born disabled');
+    fire(start, 'click');
 
-    // Cada votante passa por entrega + cédula, e no fim vem a revelação.
+    // Each voter goes through handoff + ballot, and at the end comes the reveal.
     for (let i = 0; i < 4; i += 1) {
-      const sou = acharTexto('btn', 'Sou ');
-      ok(sou, 'faltou a tela de entrega do votante ' + (i + 1));
-      fire(sou, 'click');
-      const escolha = findAll(telaAtiva(), 'vote-choice')[i % 2];
-      ok(escolha, 'faltaram as opções para o votante ' + (i + 1));
-      fire(escolha, 'click');
+      const iAm = findText('btn', 'Sou ');
+      ok(iAm, 'the handoff screen of voter ' + (i + 1) + ' was missing');
+      fire(iAm, 'click');
+      const choice = findAll(activePane(), 'vote-choice')[i % 2];
+      ok(choice, 'the options for voter ' + (i + 1) + ' were missing');
+      fire(choice, 'click');
     }
 
-    const revelar = acharTexto('btn', 'Revelar');
-    ok(revelar, 'não chegou na revelação');
-    fire(revelar, 'click');
-    eq(findAll(telaAtiva(), 'vote-result-row').length, 2, 'linhas do resultado');
-    ok(acharTexto('btn', 'Guardar'), 'sem o botão de guardar no histórico');
+    const reveal = findText('btn', 'Revelar');
+    ok(reveal, 'it did not get to the reveal');
+    fire(reveal, 'click');
+    eq(findAll(activePane(), 'vote-result-row').length, 2, 'result rows');
+    ok(findText('btn', 'Guardar'), 'no button to save to the history');
 
     closeSheet();
     view.destroy();
   }],
 
-  ['o app sabe quando há painel aberto, e avisa quem redesenha por baixo', () => {
+  ['the app knows when a panel is open, and tells whoever redraws underneath', () => {
     if (!simulated) return 'skip';
-    // Girar o aparelho remonta a mesa, e remontar chama destroy(), que fecha o
-    // painel. Como a votação pede retrato JUSTAMENTE enquanto está aberta, sem
-    // este aviso ela mandaria girar a tela e se fecharia sozinha em seguida.
+    // Rotating the device remounts the table, and remounting calls destroy(),
+    // which closes the panel. Since the vote asks for portrait PRECISELY while
+    // it is open, without this notice it would ask to rotate the screen and
+    // then close by itself.
     document.body.childNodes.length = 0;
-    const vistos = [];
-    const parar = onSheetChange((aberto) => vistos.push(aberto));
+    const seen = [];
+    const stop = onSheetChange((open) => seen.push(open));
 
-    eq(isSheetOpen(), false, 'começa sem painel');
+    eq(isSheetOpen(), false, 'starts with no panel');
     openFlow({ title: 'X', build: () => {} });
     flushFrames();
-    eq(isSheetOpen(), true, 'painel aberto');
+    eq(isSheetOpen(), true, 'panel open');
     closeSheet();
-    eq(isSheetOpen(), false, 'painel fechado');
-    eq(vistos, [true, false], 'avisos na ordem certa');
-    parar();
+    eq(isSheetOpen(), false, 'panel closed');
+    eq(seen, [true, false], 'notices in the right order');
+    stop();
   }],
 
-  ['a votação abre centralizada e volta a pedir paisagem ao sair', () => {
+  ['the vote opens centered and asks for landscape again on leaving', () => {
     if (!simulated) return 'skip';
     document.body.childNodes.length = 0;
-    let restaurou = false;
+    let restored = false;
     openFlow({ title: 'Votação', build: () => {} }, {
       centered: true,
-      onClose: () => { restaurou = true; },
+      onClose: () => { restored = true; },
     });
     flushFrames();
     const scrim = findAll(document.body, 'sheet-scrim')[0];
-    ok(scrim.classList.contains('is-centered'), 'sem a classe de centralizado');
+    ok(scrim.classList.contains('is-centered'), 'no centered class');
     closeSheet();
-    ok(restaurou, 'não restaurou a orientação ao fechar');
+    ok(restored, 'it did not restore the orientation on closing');
   }],
 
-  ['quem já está na mesa aparece por último na escolha de jogador', () => {
+  ['whoever is already at the table shows up last in the player picker', () => {
     if (!simulated) return 'skip';
-    // A lista serve para achar quem AINDA não sentou. Nomes inclicáveis no
-    // meio do caminho atrapalham a mira, então vão para o fim.
+    // The list is for finding whoever has NOT sat yet. Unclickable names in the
+    // middle of the way spoil the aim, so they go to the end.
     ['Ana', 'Bruno', 'Caio', 'Duda'].forEach(store.rememberPlayer);
 
     const commander = (n) => ({ oracleId: 'o' + n, name: 'Cmd ' + n, colors: ['U'] });
@@ -2361,186 +2410,186 @@ export const cases = [
     const root = document.createElement('div');
     renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
 
-    // Abre o seletor do assento da Ana: só o Bruno está ocupado.
+    // Opens the picker of Ana's seat: only Bruno is taken.
     fire(findAll(root, 'seat-name')[0], 'click');
     flushFrames();
 
-    const linhas = findAll(document.body, 'player-row');
-    const nomes = linhas.map((n) => textOf(findAll(n, 'player-name')[0]));
-    const ocupadas = linhas.map((n) => n.classList.contains('is-busy'));
+    const rows = findAll(document.body, 'player-row');
+    const names = rows.map((n) => textOf(findAll(n, 'player-name')[0]));
+    const busy = rows.map((n) => n.classList.contains('is-busy'));
 
-    ok(linhas.length === 4, 'esperava as quatro pessoas salvas, veio ' + linhas.length);
-    eq(nomes[nomes.length - 1], 'Bruno', 'quem está na mesa deveria ser o último');
-    ok(ocupadas[ocupadas.length - 1], 'a última linha deveria estar marcada como ocupada');
+    ok(rows.length === 4, 'expected the four saved people, got ' + rows.length);
+    eq(names[names.length - 1], 'Bruno', 'whoever is at the table should be last');
+    ok(busy[busy.length - 1], 'the last row should be marked as taken');
 
-    // Nenhuma linha disponível pode vir depois de uma ocupada.
-    const primeiraOcupada = ocupadas.indexOf(true);
+    // No available row can come after a taken one.
+    const firstBusy = busy.indexOf(true);
     ok(
-      ocupadas.slice(primeiraOcupada).every(Boolean),
-      'sobrou alguém selecionável depois de quem já está na mesa',
+      busy.slice(firstBusy).every(Boolean),
+      'someone selectable was left after whoever is already at the table',
     );
     closeSheet();
   }],
 
-  ['a mana marcada zera ao passar o turno, e não vira evento', () => {
+  ['marked mana resets when the turn passes, and does not become an event', () => {
     if (!simulated) return 'skip';
     document.body.childNodes.length = 0;
     const root = document.createElement('div');
-    const match = mesa(4);
+    const match = makeMatch(4);
     const view = renderTable(root, {
       match, onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
     });
 
-    const abrirMenu = () => fire(
+    const openMenu = () => fire(
       findAll(root, 'hub-btn').find((b) => b.attributes['aria-label'] === 'Menu'), 'click',
     );
-    const noCorpo = (cls, txt) =>
+    const inBody = (cls, txt) =>
       findAll(document.body, cls).find((n) => textOf(n).includes(txt));
 
-    abrirMenu();
-    fire(noCorpo('menu-item', 'Marcador de mana'), 'click');
+    openMenu();
+    fire(inBody('menu-item', 'Marcador de mana'), 'click');
 
-    // Três toques no "+" da primeira cor (branco) e dois na segunda (azul).
+    // Three taps on the "+" of the first color (white) and two on the second (blue).
     const tiles = findAll(document.body, 'mana-tile');
-    eq(tiles.length, 6, 'as seis cores');
+    eq(tiles.length, 6, 'the six colors');
     for (let i = 0; i < 3; i += 1) fire(findAll(tiles[0], 'mana-plus')[0], 'pointerdown');
     for (let i = 0; i < 2; i += 1) fire(findAll(tiles[1], 'mana-plus')[0], 'pointerdown');
-    eq(match.mana.W, 3, 'branco marcado');
-    eq(match.mana.U, 2, 'azul marcado');
+    eq(match.mana.W, 3, 'white marked');
+    eq(match.mana.U, 2, 'blue marked');
 
-    // Tirar também funciona.
+    // Taking off works too.
     fire(findAll(tiles[0], 'mana-minus')[0], 'pointerdown');
-    eq(match.mana.W, 2, 'branco depois de tirar um');
-    // E não passa de zero.
+    eq(match.mana.W, 2, 'white after taking one off');
+    // And it does not go below zero.
     for (let i = 0; i < 5; i += 1) fire(findAll(tiles[1], 'mana-minus')[0], 'pointerdown');
-    eq(match.mana.U, 0, 'azul não fica negativo');
+    eq(match.mana.U, 0, 'blue does not go negative');
 
-    const eventosAntes = match.events.length;
+    const eventsBefore = match.events.length;
     closeSheet();
 
-    // Passar a vez limpa o pote.
+    // Passing the turn clears the pool.
     fire(findAll(root, 'hub-ring')[0], 'click');
-    eq(match.mana, { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }, 'mana zerada na virada');
-    eq(match.events.length, eventosAntes + 1, 'só o evento de turno entrou no log');
-    eq(match.events[match.events.length - 1].type, 'turn', 'e é o de turno');
+    eq(match.mana, { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }, 'mana reset at the turn');
+    eq(match.events.length, eventsBefore + 1, 'only the turn event went into the log');
+    eq(match.events[match.events.length - 1].type, 'turn', 'and it is the turn one');
 
     view.destroy();
   }],
 
-  ['votação por número secreto vai até a revelação', () => {
+  ['a secret-number vote goes all the way to the reveal', () => {
     if (!simulated) return 'skip';
-    // O caminho onde o teclado do celular entra em cena. Aqui garantimos ao
-    // menos que o fluxo fecha; a sobreposição do teclado é CSS e só o aparelho
-    // confirma.
+    // The path where the phone keyboard comes into play. Here we guarantee at
+    // least that the flow closes; the keyboard overlap is CSS and only the
+    // device confirms it.
     document.body.childNodes.length = 0;
     const root = document.createElement('div');
     const view = renderTable(root, {
-      match: mesa(3), onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
+      match: makeMatch(3), onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
     });
-    const telaAtiva = () => {
+    const activePane = () => {
       const p = findAll(document.body, 'flow-pane');
       return p[p.length - 1];
     };
-    const achar = (cls, txt) =>
-      findAll(telaAtiva(), cls).find((n) => textOf(n).includes(txt));
+    const find = (cls, txt) =>
+      findAll(activePane(), cls).find((n) => textOf(n).includes(txt));
 
     fire(findAll(root, 'hub-btn').find((b) => b.attributes['aria-label'] === 'Menu'), 'click');
     fire(findAll(document.body, 'menu-item').find((n) => textOf(n).includes('Votação')), 'click');
 
-    fire(achar('pad-mode', 'Número'), 'click');
-    fire(achar('btn', 'Começar'), 'click');
+    fire(find('pad-mode', 'Número'), 'click');
+    fire(find('btn', 'Começar'), 'click');
 
-    const numeros = [7, 7, 2];
+    const numbers = [7, 7, 2];
     for (let i = 0; i < 3; i += 1) {
-      fire(achar('btn', 'Sou '), 'click');
-      const campo = findAll(telaAtiva(), 'vote-number')[0];
-      ok(campo, 'faltou o campo de número do votante ' + (i + 1));
-      campo.value = String(numeros[i]);
-      fire(achar('btn', 'Confirmar'), 'click');
+      fire(find('btn', 'Sou '), 'click');
+      const field = findAll(activePane(), 'vote-number')[0];
+      ok(field, 'the number field of voter ' + (i + 1) + ' was missing');
+      field.value = String(numbers[i]);
+      fire(find('btn', 'Confirmar'), 'click');
     }
 
-    fire(achar('btn', 'Revelar'), 'click');
-    const linhas = findAll(telaAtiva(), 'vote-result-row');
-    eq(linhas.length, 3, 'uma linha por jogador');
-    // 7 e 7 empatam no topo; o 2 fica sozinho embaixo.
-    eq(linhas.filter((l) => l.classList.contains('is-high')).length, 2, 'empate no maior');
-    eq(linhas.filter((l) => l.classList.contains('is-low')).length, 1, 'um menor só');
+    fire(find('btn', 'Revelar'), 'click');
+    const rows = findAll(activePane(), 'vote-result-row');
+    eq(rows.length, 3, 'one row per player');
+    // 7 and 7 tie at the top; the 2 stays alone at the bottom.
+    eq(rows.filter((l) => l.classList.contains('is-high')).length, 2, 'tie on the highest');
+    eq(rows.filter((l) => l.classList.contains('is-low')).length, 1, 'a single lowest');
 
     closeSheet();
     view.destroy();
   }],
 
-  ['a identidade de cor do deck chega mesmo ao CSS', () => {
+  ['the deck color identity really reaches the CSS', () => {
     if (!simulated) return 'skip';
-    // Custom property exige setProperty: `style['--accent'] = cor` não registra
-    // nada no navegador. O app passa a cor do deck assim em 17 lugares, e por
-    // muito tempo tudo caiu no --accent branco da raiz - painéis, cartões e as
-    // bolinhas de mana ficaram todos sem cor, em silêncio.
+    // A custom property requires setProperty: `style['--accent'] = color`
+    // registers nothing in the browser. The app passes the deck color this way
+    // in 17 places, and for a long time everything fell into the root's white
+    // --accent - panels, cards and mana dots all lost their color, silently.
     const n = el('div', { style: { '--accent': '#5C9FD6', width: '10px' } });
-    eq(n.style.getPropertyValue('--accent'), '#5C9FD6', 'custom property registrada');
-    eq(n.style.width, '10px', 'propriedade normal continua funcionando');
+    eq(n.style.getPropertyValue('--accent'), '#5C9FD6', 'custom property registered');
+    eq(n.style.width, '10px', 'a normal property keeps working');
 
-    // E de ponta a ponta: o painel de um deck azul carrega a cor dele.
+    // And end to end: the panel of a blue deck carries its color.
     document.body.childNodes.length = 0;
     const root = document.createElement('div');
     const view = renderTable(root, {
-      match: mesa(4), onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
+      match: makeMatch(4), onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
     });
-    const painel = findAll(root, 'tile')[0];
-    ok(painel.style.getPropertyValue('--accent'), 'o painel ficou sem cor de deck');
+    const panel = findAll(root, 'tile')[0];
+    ok(panel.style.getPropertyValue('--accent'), 'the panel ended up with no deck color');
     view.destroy();
   }],
 
-  ['as bolinhas de mana saem cada uma na sua cor', () => {
+  ['each mana dot comes out in its own color', () => {
     if (!simulated) return 'skip';
     document.body.childNodes.length = 0;
     const root = document.createElement('div');
     const view = renderTable(root, {
-      match: mesa(4), onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
+      match: makeMatch(4), onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
     });
     fire(findAll(root, 'hub-btn').find((b) => b.attributes['aria-label'] === 'Menu'), 'click');
     fire(findAll(document.body, 'menu-item').find((n) => textOf(n).includes('mana')), 'click');
 
-    const cores = findAll(document.body, 'mana-tile')
-      .map((t) => t.style.getPropertyValue('--accent'));
-    eq(cores.length, 6, 'seis cores');
-    ok(cores.every(Boolean), 'alguma bolinha ficou sem cor');
-    eq(new Set(cores).size, 6, 'as seis precisam ser cores distintas');
+    const colors = findAll(document.body, 'mana-tile')
+      .map((tile) => tile.style.getPropertyValue('--accent'));
+    eq(colors.length, 6, 'six colors');
+    ok(colors.every(Boolean), 'some dot ended up with no color');
+    eq(new Set(colors).size, 6, 'the six have to be distinct colors');
 
     closeSheet();
     view.destroy();
   }],
 
-  ["as estatísticas guardam o que cada um escolheu no Prisoner's Dilemma", () => {
-    const m = mesa(4);
-    const votar = (escolhas) => push(m, {
+  ["the statistics keep what each one chose in Prisoner's Dilemma", () => {
+    const m = makeMatch(4);
+    const vote = (choices) => push(m, {
       type: 'vote',
       question: "Prisoner's Dilemma",
       preset: 'dilema',
       kind: 'opcoes',
       options: ['Silence', 'Snitch'],
       ballots: [
-        { seatId: 's1', name: 'P1', choices: [escolhas[0]] },
-        { seatId: 's2', name: 'P2', choices: [escolhas[1]] },
-        { seatId: 's3', name: 'P3', choices: [escolhas[2]] },
+        { seatId: 's1', name: 'P1', choices: [choices[0]] },
+        { seatId: 's2', name: 'P2', choices: [choices[1]] },
+        { seatId: 's3', name: 'P3', choices: [choices[2]] },
       ],
     });
-    votar([0, 0, 1]); // P1 e P2 calados, P3 delatou
-    votar([0, 1, 1]); // P1 calado de novo
+    vote([0, 0, 1]); // P1 and P2 silent, P3 snitched
+    vote([0, 1, 1]); // P1 silent again
 
     const { players } = aggregate([m]);
     const p1 = players.find((p) => p.label === 'P1');
     const p3 = players.find((p) => p.label === 'P3');
 
-    eq(p1.votes, 2, 'P1 participou de duas');
-    eq(p1.voteChoices.dilema, { Silence: 2 }, 'P1 escolheu Silence nas duas');
-    eq(p3.voteChoices.dilema, { Snitch: 2 }, 'P3 delatou nas duas');
+    eq(p1.votes, 2, 'P1 took part in two');
+    eq(p1.voteChoices.dilema, { Silence: 2 }, 'P1 chose Silence in both');
+    eq(p3.voteChoices.dilema, { Snitch: 2 }, 'P3 snitched in both');
     eq(players.find((p) => p.label === 'P2').voteChoices.dilema,
-      { Silence: 1, Snitch: 1 }, 'P2 fez uma de cada');
+      { Silence: 1, Snitch: 1 }, 'P2 did one of each');
   }],
 
-  ['quem nunca votou não ganha estatística de votação', () => {
-    const m = mesa(4);
+  ['whoever never voted gets no vote statistics', () => {
+    const m = makeMatch(4);
     push(m, {
       type: 'vote',
       question: "Prisoner's Dilemma",
@@ -2549,405 +2598,415 @@ export const cases = [
       ballots: [{ seatId: 's1', name: 'P1', choices: [0] }],
     });
     const { players } = aggregate([m]);
-    eq(players.find((p) => p.label === 'P1').votes, 1, 'quem votou tem');
-    eq(players.find((p) => p.label === 'P0').votes, 0, 'quem não votou fica zerado');
-    eq(players.find((p) => p.label === 'P0').voteChoices, {}, 'e sem escolhas nenhuma');
+    eq(players.find((p) => p.label === 'P1').votes, 1, 'whoever voted has it');
+    eq(players.find((p) => p.label === 'P0').votes, 0, 'whoever did not vote stays at zero');
+    eq(players.find((p) => p.label === 'P0').voteChoices, {}, 'and with no choices at all');
   }],
 
-  ['a estatística agrupa por categoria, não pela pergunta escrita', () => {
-    const m = mesa(2);
-    const votar = (extra, escolha) => push(m, Object.assign({
+  ['the statistics group by category, not by the written question', () => {
+    const m = makeMatch(2);
+    const vote = (extra, choice) => push(m, Object.assign({
       type: 'vote', kind: 'opcoes', options: ['Silence', 'Snitch'],
-      ballots: [{ seatId: 's0', name: 'P0', choices: [escolha] }],
+      ballots: [{ seatId: 's0', name: 'P0', choices: [choice] }],
     }, extra));
 
-    // Duas noites, o mesmo modelo, perguntas escritas de jeitos diferentes.
-    // Antes isso virava duas linhas - e a pergunta livre muda toda vez, então
-    // a lista crescia sem nunca responder "essa pessoa costuma delatar?".
-    votar({ preset: 'dilema', question: "Prisoner's Dilemma" }, 0);
-    votar({ preset: 'dilema', question: 'Quem entrega quem?' }, 0);
-    votar({ preset: 'jogador', question: 'Quem leva o combo?', options: ['P0', 'P1'] }, 1);
+    // Two nights, the same model, questions written in different ways. That
+    // used to become two rows - and the free-form question changes every time,
+    // so the list grew without ever answering "does this person usually
+    // snitch?".
+    vote({ preset: 'dilema', question: "Prisoner's Dilemma" }, 0);
+    vote({ preset: 'dilema', question: 'Quem entrega quem?' }, 0);
+    vote({ preset: 'jogador', question: 'Quem leva o combo?', options: ['P0', 'P1'] }, 1);
     push(m, {
       type: 'vote', preset: 'numero', kind: 'numero', question: '', options: [],
       ballots: [{ seatId: 's0', name: 'P0', choices: [7] }],
     });
 
     const p0 = aggregate([m]).players.find((x) => x.label === 'P0');
-    eq(p0.votes, 4, 'quatro votações');
+    eq(p0.votes, 4, 'four votes');
     eq(Object.keys(p0.voteChoices).sort(), ['dilema', 'jogador', 'numero'],
-      'três categorias, não quatro perguntas');
-    eq(p0.voteChoices.dilema, { Silence: 2 }, 'as duas noites de dilema somam junto');
-    eq(p0.voteChoices.numero, { 7: 1 }, 'número secreto guarda o valor');
+      'three categories, not four questions');
+    eq(p0.voteChoices.dilema, { Silence: 2 }, 'the two dilemma nights add up together');
+    eq(p0.voteChoices.numero, { 7: 1 }, 'the secret number keeps the value');
 
-    // A chave é o modelo, e o modelo não é texto de tela: trocar o idioma não
-    // pode partir o histórico em dois montes.
-    const chavesEm = (lang) => {
+    // The key is the model, and the model is not screen text: switching the
+    // language cannot split the history into two piles.
+    const keysIn = (lang) => {
       setLang(lang);
       return Object.keys(aggregate([m]).players.find((x) => x.label === 'P0').voteChoices).sort();
     };
-    eq(chavesEm('en'), chavesEm('pt'), 'as mesmas categorias em qualquer idioma');
+    eq(keysIn('en'), keysIn('pt'), 'the same categories in any language');
     setLang('pt');
 
-    // Só a tela traduz. O nome da carta não se traduz nunca.
-    eq(rotuloDaCategoria('numero'), t('vote.preset.number'));
-    eq(rotuloDaCategoria('dilema'), "Prisoner's Dilemma", 'nome de carta fica como é');
+    // Only the screen translates. The card name is never translated.
+    eq(categoryLabel('numero'), t('vote.preset.number'));
+    eq(categoryLabel('dilema'), "Prisoner's Dilemma", 'a card name stays as it is');
     setLang('de');
-    eq(rotuloDaCategoria('dilema'), "Prisoner's Dilemma", 'inclusive em alemão');
-    eq(rotuloDaCategoria('numero'), t('vote.preset.number'), 'o resto acompanha o idioma');
+    eq(categoryLabel('dilema'), "Prisoner's Dilemma", 'even in German');
+    eq(categoryLabel('numero'), t('vote.preset.number'), 'the rest follows the language');
     setLang('pt');
   }],
 
-  ['votação antiga, sem categoria gravada, não é chutada', () => {
-    // O campo `preset` não existia. Dá para recuperar o essencial pelo `kind`;
-    // o resto vira categoria genérica. Inventar qual modelo foi usado seria
-    // pior que admitir que não se sabe.
-    eq(categoriaDaVotacao({ kind: 'numero' }), 'numero', 'número se reconhece sozinho');
-    eq(categoriaDaVotacao({ kind: 'opcoes', options: ['Silence', 'Snitch'] }), 'opcoes',
-      'parecer um dilema não prova que era');
-    eq(categoriaDaVotacao({ preset: 'jogador', kind: 'opcoes' }), 'jogador',
-      'gravada, a categoria manda');
-    eq(categoriaDaVotacao(null), 'opcoes', 'sem evento, categoria genérica');
-    eq(rotuloDaCategoria('opcoes'), t('vote.preset.other'));
+  ['an old vote, with no recorded category, is not guessed', () => {
+    // The `preset` field did not exist. The essentials can be recovered from
+    // `kind`; the rest becomes a generic category. Inventing which model was
+    // used would be worse than admitting it is unknown.
+    eq(voteCategory({ kind: 'numero' }), 'numero', 'a number recognizes itself');
+    eq(voteCategory({ kind: 'opcoes', options: ['Silence', 'Snitch'] }), 'opcoes',
+      'looking like a dilemma does not prove it was one');
+    eq(voteCategory({ preset: 'jogador', kind: 'opcoes' }), 'jogador',
+      'when recorded, the category rules');
+    eq(voteCategory(null), 'opcoes', 'with no event, a generic category');
+    eq(categoryLabel('opcoes'), t('vote.preset.other'));
   }],
 
-  ['votação sem título é nomeada pelas próprias opções', () => {
-    // "Votação sem título" não diz nada e enche a estatística de linhas iguais.
-    // Separador neutro: " ou " seria português no meio do alemão.
-    eq(tituloDaVotacao({ kind: 'opcoes', options: ['Silence', 'Snitch'] }),
-      'Silence / Snitch', 'nome vem das opções');
-    eq(tituloDaVotacao({ kind: 'opcoes', options: ['A'], question: '  ' }),
-      'A', 'espaço em branco não conta como título');
-    eq(tituloDaVotacao({ kind: 'numero', options: [] }),
-      'Número secreto', 'número tem nome próprio');
-    eq(tituloDaVotacao({ kind: 'opcoes', options: [], question: 'Carnage?' }),
-      'Carnage?', 'título dado ganha da derivação');
+  ['an untitled vote is named by its own options', () => {
+    // "Untitled vote" says nothing and fills the statistics with identical
+    // rows. A neutral separator: " ou " would be Portuguese in the middle of
+    // German.
+    eq(voteTitle({ kind: 'opcoes', options: ['Silence', 'Snitch'] }),
+      'Silence / Snitch', 'the name comes from the options');
+    eq(voteTitle({ kind: 'opcoes', options: ['A'], question: '  ' }),
+      'A', 'blank space does not count as a title');
+    eq(voteTitle({ kind: 'numero', options: [] }),
+      'Número secreto', 'the number has its own name');
+    eq(voteTitle({ kind: 'opcoes', options: [], question: 'Carnage?' }),
+      'Carnage?', 'a given title beats the derivation');
 
-    // Isso é o TÍTULO, usado na linha do tempo da partida - onde interessa
-    // saber qual votação foi aquela. A estatística agrupa por categoria, que é
-    // outra pergunta: o que essa pessoa costuma escolher.
-    const m = mesa(2);
+    // This is the TITLE, used in the match timeline - where it matters to know
+    // which vote it was. The statistics group by category, which is another
+    // question: what this person usually chooses.
+    const m = makeMatch(2);
     push(m, {
       type: 'vote', preset: 'dilema', kind: 'opcoes',
       options: ['Silence', 'Snitch'], question: '',
       ballots: [{ seatId: 's0', name: 'P0', choices: [0] }],
     });
     const p0 = aggregate([m]).players.find((x) => x.label === 'P0');
-    eq(Object.keys(p0.voteChoices), ['dilema'], 'a estatística agrupa pelo modelo');
-    eq(chaveDaVotacao(m.events[0]), 'Silence / Snitch',
-      'e o título continua saindo das opções quando ninguém escreveu um');
+    eq(Object.keys(p0.voteChoices), ['dilema'], 'the statistics group by model');
+    eq(voteKey(m.events[0]), 'Silence / Snitch',
+      'and the title still comes from the options when nobody wrote one');
   }],
 
-  ['rivalidades somam o dano de cada um contra o outro', () => {
-    const m = mesa(3);
+  ['rivalries add up each one\'s damage against the other', () => {
+    const m = makeMatch(3);
     push(m, { type: 'life', targetId: 's1', delta: -10, sourceId: 's0' });
     push(m, { type: 'life', targetId: 's1', delta: -4, sourceId: 's0' });
     push(m, { type: 'life', targetId: 's0', delta: -6, sourceId: 's1' });
     push(m, { type: 'life', targetId: 's2', delta: -3, sourceId: 's0' });
 
-    const pares = rivalries([m]);
-    const p01 = pares.find((r) => (r.a === 'P0' && r.b === 'P1') || (r.a === 'P1' && r.b === 'P0'));
-    ok(p01, 'o par P0-P1 precisa existir');
-    const deP0 = p01.a === 'P0' ? p01.aToB : p01.bToA;
-    const deP1 = p01.a === 'P0' ? p01.bToA : p01.aToB;
-    eq(deP0.damage, 14, 'P0 bateu 14 no P1');
-    eq(deP1.damage, 6, 'P1 devolveu 6');
-    eq(p01.total, 20, 'dano trocado');
-    eq(pares[0], p01, 'o par mais violento vem primeiro');
-    eq(pares.length, 2, 'P0-P1 e P0-P2, mas não P1-P2');
+    const pairs = rivalries([m]);
+    const p01 = pairs.find((r) => (r.a === 'P0' && r.b === 'P1') || (r.a === 'P1' && r.b === 'P0'));
+    ok(p01, 'the P0-P1 pair has to exist');
+    const fromP0 = p01.a === 'P0' ? p01.aToB : p01.bToA;
+    const fromP1 = p01.a === 'P0' ? p01.bToA : p01.aToB;
+    eq(fromP0.damage, 14, 'P0 hit P1 for 14');
+    eq(fromP1.damage, 6, 'P1 hit back 6');
+    eq(p01.total, 20, 'damage exchanged');
+    eq(pairs[0], p01, 'the most violent pair comes first');
+    eq(pairs.length, 2, 'P0-P1 and P0-P2, but not P1-P2');
   }],
 
-  ['rivalidades contam eliminação, comandante e veneno', () => {
-    const m = mesa(2, 30);
+  ['rivalries count elimination, commander and poison', () => {
+    const m = makeMatch(2, 30);
     const key = cmdKeyOf('s0', m.seats[0].commanders[0]);
     push(m, { type: 'cmd', targetId: 's1', sourceId: 's0', cmdKey: key, delta: 5 });
     push(m, { type: 'poison', targetId: 's1', delta: 2, sourceId: 's0' });
     push(m, { type: 'life', targetId: 's1', delta: -30, sourceId: 's0' });
 
     const r = rivalries([m])[0];
-    const deP0 = r.a === 'P0' ? r.aToB : r.bToA;
-    eq(deP0.cmdDamage, 5, 'dano de comandante');
-    eq(deP0.poison, 2, 'veneno');
-    eq(deP0.kills, 1, 'eliminação creditada');
-    eq(deP0.damage, 35, 'comandante entra no dano total');
-    eq(r.games, 1, 'uma partida juntos');
+    const fromP0 = r.a === 'P0' ? r.aToB : r.bToA;
+    eq(fromP0.cmdDamage, 5, 'commander damage');
+    eq(fromP0.poison, 2, 'poison');
+    eq(fromP0.kills, 1, 'elimination credited');
+    eq(fromP0.damage, 35, 'commander goes into the total damage');
+    eq(r.games, 1, 'one match together');
   }],
 
-  ['dano sem autor não cria rivalidade', () => {
-    const m = mesa(2);
+  ['damage with no dealer creates no rivalry', () => {
+    const m = makeMatch(2);
     push(m, { type: 'life', targetId: 's1', delta: -8, sourceId: null });
-    eq(rivalries([m]).length, 0, 'vida paga não é rivalidade com ninguém');
+    eq(rivalries([m]).length, 0, 'life paid is no rivalry with anyone');
   }],
 
-  ['ação em área conta para todos os alvos como rivalidade', () => {
-    const m = mesa(4);
+  ['an area action counts as a rivalry for every target', () => {
+    const m = makeMatch(4);
     push(m, { type: 'sweep', sourceId: 's0', amount: 3, gain: 0, targets: ['s1', 's2', 's3'] });
-    const pares = rivalries([m]);
-    eq(pares.length, 3, 'três pares, um por alvo');
-    ok(pares.every((r) => r.total === 3), 'três de dano em cada');
+    const pairs = rivalries([m]);
+    eq(pairs.length, 3, 'three pairs, one per target');
+    ok(pairs.every((r) => r.total === 3), 'three damage on each');
   }],
 
-  ['partida malformada não entra no histórico', () => {
+  ['a malformed match does not get into the history', () => {
     if (!simulated) return 'skip';
-    // Isto derrubou a tela de estatísticas de verdade: uma linha de teste com
-    // `payload: {t:1}`, esquecida no banco, foi baixada pela sincronização e
-    // entrou no histórico. replay() e as estatísticas assumem seats e events -
-    // uma linha sem eles não fica quieta num canto, derruba a TELA INTEIRA.
-    const boa = mesa(4);
-    ok(partidaValida(boa), 'uma partida de verdade passa');
+    // This really took down the statistics screen: a test row with
+    // `payload: {t:1}`, forgotten in the database, was downloaded by the sync
+    // and got into the history. replay() and the statistics assume seats and
+    // events - a row without them does not sit quietly in a corner, it takes
+    // down the WHOLE SCREEN.
+    const good = makeMatch(4);
+    ok(isValidMatch(good), 'a real match passes');
 
-    ok(!partidaValida(null), 'nada');
-    ok(!partidaValida({ id: 'x' }), 'só um id não é partida');
-    ok(!partidaValida({ ...boa, seats: [] }), 'mesa vazia');
-    ok(!partidaValida({ ...boa, seats: undefined }), 'sem assentos');
-    ok(!partidaValida({ ...boa, events: undefined }), 'sem eventos');
-    ok(!partidaValida({ ...boa, startedAt: undefined }), 'sem início');
-    ok(!partidaValida({ ...boa, id: '' }), 'sem id');
-    ok(partidaValida({ ...boa, events: [] }), 'partida sem lance nenhum ainda é partida');
+    ok(!isValidMatch(null), 'nothing');
+    ok(!isValidMatch({ id: 'x' }), 'just an id is not a match');
+    ok(!isValidMatch({ ...good, seats: [] }), 'empty table');
+    ok(!isValidMatch({ ...good, seats: undefined }), 'no seats');
+    ok(!isValidMatch({ ...good, events: undefined }), 'no events');
+    ok(!isValidMatch({ ...good, startedAt: undefined }), 'no start');
+    ok(!isValidMatch({ ...good, id: '' }), 'no id');
+    ok(isValidMatch({ ...good, events: [] }), 'a match with no move yet is still a match');
 
-    // E a porta de entrada recusa. Este é o caso exato que aconteceu.
+    // And the entry door refuses. This is the exact case that happened.
     store.wipe();
-    const lixo = linhaParaPartida({ id: 'rec-1', payload: { t: 1 } });
-    eq(store.mesclarPartidas([lixo]), 0, 'não entra o que não é partida');
-    eq(store.getDB().history.length, 0, 'e o histórico continua limpo');
+    const junk = rowToMatch({ id: 'rec-1', payload: { t: 1 } });
+    eq(store.mergeMatches([junk]), 0, 'what is not a match does not get in');
+    eq(store.getDB().history.length, 0, 'and the history stays clean');
 
-    // O que é bom passa junto do que é ruim, sem contaminar.
-    eq(store.mesclarPartidas([lixo, boa]), 1, 'a boa entra mesmo vindo com lixo');
+    // What is good gets in alongside what is bad, without contamination.
+    eq(store.mergeMatches([junk, good]), 1, 'the good one gets in even arriving with junk');
     eq(store.getDB().history.length, 1);
   }],
 
-  ['a tela de estatísticas sobrevive a lixo vindo da nuvem', () => {
+  ['the statistics screen survives junk coming from the cloud', () => {
     if (!simulated) return 'skip';
     setLang('pt');
     store.wipe();
-    store.archive(mesa(3));
-    // Mesmo que algo passe pela porta - localStorage editado, defeito futuro -
-    // a tela não pode ficar preta. Preta não diz nada a quem usa nem a quem vai
-    // consertar.
+    store.archive(makeMatch(3));
+    // Even if something gets through the door - an edited localStorage, a
+    // future defect - the screen cannot go black. Black tells nothing to the
+    // user nor to whoever will fix it.
     store.getDB().history.push({ id: 'quebrada' });
 
     const root = document.createElement('div');
-    let explodiu = null;
+    let blewUp = null;
     try {
       renderStats(root, { onBack() {} });
     } catch (e) {
-      explodiu = e.message;
+      blewUp = e.message;
     }
-    ok(!explodiu, 'a tela não pode explodir com um registro ruim: ' + explodiu);
-    ok(root.childNodes.length > 0, 'e não pode ficar vazia');
+    ok(!blewUp, 'the screen cannot blow up with a bad record: ' + blewUp);
+    ok(root.childNodes.length > 0, 'and it cannot be empty');
   }],
 
-  ['quem não assina sobe uma vez, e não reenvia para sempre', () => {
-    // O detalhe que define o desenho: o banco deixa INSERIR sem assinatura mas
-    // não deixa LER. Quem não assina recebe lista vazia ao baixar - então, sem
-    // anotar no aparelho o que já subiu, toda abertura pareceria "a nuvem está
-    // vazia" e o histórico inteiro seria reenviado. Para sempre.
-    const locais = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  ['a non-subscriber uploads once, and does not resend forever', () => {
+    // The detail that defines the design: the database lets INSERT without a
+    // subscription but does not let READ. A non-subscriber gets an empty list
+    // on download - so, without noting on the device what already went up,
+    // every open would look like "the cloud is empty" and the whole history
+    // would be resent. Forever.
+    const local = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
 
-    // Primeira vez: nada anotado, nada visível do outro lado.
-    eq(aSubir(locais, [], []).map((m) => m.id), ['a', 'b', 'c'], 'sobe tudo');
+    // First time: nothing noted, nothing visible on the other side.
+    eq(toUpload(local, [], []).map((m) => m.id), ['a', 'b', 'c'], 'uploads everything');
 
-    // Depois de subir, mesmo sem conseguir ler a nuvem, não repete.
-    eq(aSubir(locais, ['a', 'b', 'c'], []).length, 0, 'não reenvia o que já foi');
-    eq(aSubir(locais, ['a'], []).map((m) => m.id), ['b', 'c'], 'só o que falta');
+    // After uploading, even without being able to read the cloud, it does not
+    // repeat.
+    eq(toUpload(local, ['a', 'b', 'c'], []).length, 0, 'does not resend what already went');
+    eq(toUpload(local, ['a'], []).map((m) => m.id), ['b', 'c'], 'only what is missing');
 
-    // Aparelho novo que baixou tudo não precisa devolver nada.
-    eq(aSubir(locais, [], ['a', 'b', 'c']).length, 0, 'o servidor já tem');
+    // A new device that downloaded everything does not need to send anything
+    // back.
+    eq(toUpload(local, [], ['a', 'b', 'c']).length, 0, 'the server already has it');
 
-    // E uma partida que falhou continua na fila, porque a fila é derivada: sem
-    // marca, ela é pendente por definição - não há estrutura separada que possa
-    // divergir do histórico.
-    eq(aSubir(locais, ['a', 'c'], []).map((m) => m.id), ['b'], 'a que falhou volta');
+    // And a match that failed stays in the queue, because the queue is
+    // derived: with no mark, it is pending by definition - there is no
+    // separate structure that could diverge from the history.
+    eq(toUpload(local, ['a', 'c'], []).map((m) => m.id), ['b'], 'the one that failed comes back');
   }],
 
-  ['marcar a conta numa partida já jogada', () => {
+  ['tagging the account in a match already played', () => {
     if (!simulated) return 'skip';
     store.wipe();
-    const m = mesa(4);
+    const m = makeMatch(4);
     push(m, { type: 'life', targetId: 's1', delta: -5, sourceId: 's0' });
     store.archive(m);
-    store.setCurrent(mesa(2)); // há uma mesa acontecendo agora
+    store.setCurrent(makeMatch(2)); // there is a table happening right now
 
-    const guardada = store.getDB().history[0];
-    eq(guardada.seats[0].handle, null, 'ninguém foi marcado na hora');
+    const saved = store.getDB().history[0];
+    eq(saved.seats[0].handle, null, 'nobody was tagged at the time');
 
-    // Marca a cadeira e grava de volta.
-    guardada.seats[0].handle = 'alienpls';
-    guardada.seats[0].userId = 'uid-1';
-    ok(store.atualizarPartida(guardada), 'a partida é regravada');
-    eq(store.getDB().history[0].seats[0].handle, 'alienpls', 'a marca ficou');
+    // Tags the seat and writes it back.
+    saved.seats[0].handle = 'alienpls';
+    saved.seats[0].userId = 'uid-1';
+    ok(store.updateMatch(saved), 'the match is written again');
+    eq(store.getDB().history[0].seats[0].handle, 'alienpls', 'the tag stayed');
 
-    // archive() zera a partida em andamento como parte de encerrar. Usar
-    // archive para editar um registro antigo apagaria a mesa que está
-    // acontecendo agora - um estrago silencioso e absurdo.
-    ok(store.getCurrent(), 'a mesa em andamento continua de pé');
+    // archive() clears the match in progress as part of finishing. Using
+    // archive to edit an old record would wipe the table happening right now -
+    // silent and absurd damage.
+    ok(store.getCurrent(), 'the table in progress is still standing');
 
-    // E o convite passa a existir para aquela cadeira.
-    const linhas = participantesDe(store.getDB().history[0]);
-    eq(linhas.length, 1);
-    eq(linhas[0].seat_id, 's0');
-    eq(linhas[0].handle, 'alienpls');
+    // And the invite now exists for that seat.
+    const rows = participantsOf(store.getDB().history[0]);
+    eq(rows.length, 1);
+    eq(rows[0].seat_id, 's0');
+    eq(rows[0].handle, 'alienpls');
 
-    // Partida que não está no histórico não é criada por engano.
-    ok(!store.atualizarPartida({ ...mesa(3), id: 'nao-existe' }), 'não inventa registro');
-    ok(!store.atualizarPartida({ id: 'x' }), 'nem aceita coisa malformada');
+    // A match that is not in the history is not created by mistake.
+    ok(!store.updateMatch({ ...makeMatch(3), id: 'nao-existe' }), 'does not invent a record');
+    ok(!store.updateMatch({ id: 'x' }), 'nor accepts something malformed');
   }],
 
-  ['apagar num aparelho apaga em todos - e nunca por engano', () => {
-    // O aparelho B tinha a partida e a marcou como enviada ao baixá-la. O
-    // aparelho A apagou. Sem reconciliar, ela ficava em B para sempre: nada
-    // no fluxo de subir ou baixar a alcançava.
-    eq(aApagar(['p1', 'p2'], ['p2'], true), ['p1'], 'some daqui o que sumiu de lá');
-    eq(aApagar(['p1', 'p2'], ['p1', 'p2'], true), [], 'o que continua lá, fica');
+  ['deleting on one device deletes on all - and never by mistake', () => {
+    // Device B had the match and marked it as uploaded when downloading it.
+    // Device A deleted it. Without reconciling, it stayed on B forever: nothing
+    // in the upload or download flow reached it.
+    eq(toDelete(['p1', 'p2'], ['p2'], true), ['p1'], 'what vanished there goes here');
+    eq(toDelete(['p1', 'p2'], ['p1', 'p2'], true), [], 'what is still there, stays');
 
-    // Partida que nunca subiu não pode ser julgada pela ausência dela na nuvem.
-    eq(aApagar([], ['p9'], true), [], 'nada marcado, nada a apagar');
+    // A match that never went up cannot be judged by its absence from the cloud.
+    eq(toDelete([], ['p9'], true), [], 'nothing marked, nothing to delete');
 
-    // As duas travas contra desastre. A leitura devolve lista vazia para quem
-    // NÃO assina - idêntico ao que devolveria se tudo tivesse sido apagado.
-    // Confundir os dois casos destruiria o histórico de quem só deixou de
-    // pagar, e não há desfazer.
-    eq(aApagar(['p1', 'p2'], [], false), [], 'sem poder ler de verdade, não apaga');
-    eq(aApagar(['p1', 'p2'], [], true), [],
-      'lista remota vazia com coisas enviadas é suspeito demais para agir');
+    // The two locks against disaster. The read returns an empty list for
+    // NON-subscribers - identical to what it would return if everything had
+    // been deleted. Confusing the two cases would destroy the history of
+    // someone who just stopped paying, and there is no undo.
+    eq(toDelete(['p1', 'p2'], [], false), [], 'without really being able to read, does not delete');
+    eq(toDelete(['p1', 'p2'], [], true), [],
+      'an empty remote list with things uploaded is too suspicious to act on');
 
-    // Errar para o lado de sobrar é recuperável; errar para o lado de apagar não.
-    eq(aApagar(['p1'], ['p1', 'p2', 'p3'], true), [], 'a nuvem ter mais não apaga nada aqui');
+    // Erring on the side of leftovers is recoverable; erring on the side of
+    // deleting is not.
+    eq(toDelete(['p1'], ['p1', 'p2', 'p3'], true), [], 'the cloud having more deletes nothing here');
   }],
 
-  ['baixar traz só o que este aparelho não tem', () => {
-    const aqui = [{ id: 'a' }, { id: 'b' }];
-    const la = [{ id: 'b' }, { id: 'c' }, { id: 'd' }];
-    eq(aBaixar(aqui, la).map((m) => m.id), ['c', 'd'], 'nem duplica nem perde');
-    eq(aBaixar([], la).length, 3, 'aparelho novo recebe tudo');
-    eq(aBaixar(aqui, []).length, 0, 'sem assinatura o servidor devolve vazio');
-    eq(aBaixar(null, null).length, 0, 'listas vazias não explodem');
+  ['downloading brings only what this device does not have', () => {
+    const here = [{ id: 'a' }, { id: 'b' }];
+    const there = [{ id: 'b' }, { id: 'c' }, { id: 'd' }];
+    eq(toDownload(here, there).map((m) => m.id), ['c', 'd'], 'neither duplicates nor loses');
+    eq(toDownload([], there).length, 3, 'a new device gets everything');
+    eq(toDownload(here, []).length, 0, 'without a subscription the server returns empty');
+    eq(toDownload(null, null).length, 0, 'empty lists do not blow up');
   }],
 
-  ['sincronizar só faz sentido com conta', () => {
-    ok(!podeSincronizar(true, 'deslogado'), 'sem conta não há para onde subir');
-    ok(!podeSincronizar(false, 'assinante'), 'sem nuvem configurada não há nuvem');
-    ok(podeSincronizar(true, 'sem-assinatura'), 'sem assinar ainda se pode SUBIR');
-    ok(podeSincronizar(true, 'assinante'));
+  ['syncing only makes sense with an account', () => {
+    ok(!canSync(true, 'signed-out'), 'without an account there is nowhere to upload to');
+    ok(!canSync(false, 'subscriber'), 'with no cloud configured there is no cloud');
+    ok(canSync(true, 'unsubscribed'), 'without subscribing you can still UPLOAD');
+    ok(canSync(true, 'subscriber'));
   }],
 
-  ['o histórico local não é apagado ao subir, e a mesclagem não sobrescreve', () => {
+  ['the local history is not deleted on upload, and merging does not overwrite', () => {
     if (!simulated) return 'skip';
     store.wipe();
-    const m = mesa(4);
+    const m = makeMatch(4);
     push(m, { type: 'life', targetId: 's1', delta: -7, sourceId: 's0' });
     store.archive(m);
 
-    eq(store.getDB().history.length, 1, 'a partida está aqui');
-    store.marcarEnviada(m.id);
-    eq(store.enviadas(), [m.id], 'anotada como enviada');
-    eq(store.getDB().history.length, 1, 'e continua aqui: subir não apaga nada');
+    eq(store.getDB().history.length, 1, 'the match is here');
+    store.markUploaded(m.id);
+    eq(store.uploadedIds(), [m.id], 'noted as uploaded');
+    eq(store.getDB().history.length, 1, 'and it is still here: uploading deletes nothing');
 
-    // Partida encerrada é imutável, e a cópia local pode ter algo que a remota
-    // não tem se um envio falhou pela metade. Na dúvida, o que já está aqui manda.
-    const forjada = { ...m, seats: [] };
-    eq(store.mesclarPartidas([forjada]), 0, 'não traz o que já existe');
-    eq(store.getDB().history[0].seats.length, 4, 'e não sobrescreve o que estava aqui');
+    // A finished match is immutable, and the local copy may have something the
+    // remote one does not if an upload failed halfway. When in doubt, what is
+    // already here wins.
+    const forged = { ...m, seats: [] };
+    eq(store.mergeMatches([forged]), 0, 'does not bring what already exists');
+    eq(store.getDB().history[0].seats.length, 4, 'and does not overwrite what was here');
 
-    const outra = mesa(3);
-    eq(store.mesclarPartidas([outra]), 1, 'traz o que é novo');
+    const other = makeMatch(3);
+    eq(store.mergeMatches([other]), 1, 'brings what is new');
     eq(store.getDB().history.length, 2);
 
-    // Apagar tira a marca junto, senão a partida nunca mais poderia subir.
+    // Deleting takes the mark along, otherwise the match could never go up
+    // again.
     store.deleteMatch(m.id);
-    store.esquecerEnviada(m.id);
-    eq(store.enviadas().includes(m.id), false, 'a marca sai com a partida');
+    store.forgetUploaded(m.id);
+    eq(store.uploadedIds().includes(m.id), false, 'the mark goes with the match');
   }],
 
-  ['sem assinatura, o histórico fica fechado', () => {
-    // Não existe caso de "deslogado vê o que é dele": bastaria sair da conta
-    // para abrir a porta, e um portão que se abre ao ser evitado não é portão.
-    ok(!podeVerEstatisticas(true, 'deslogado'), 'sem conta, fechado');
-    ok(!podeVerEstatisticas(true, 'sem-assinatura'), 'com conta e sem assinar, fechado');
-    ok(podeVerEstatisticas(true, 'assinante'), 'assinando, abre');
+  ['without a subscription, the history stays closed', () => {
+    // There is no "signed-out sees what is theirs" case: signing out would be
+    // enough to open the door, and a gate that opens when avoided is no gate.
+    ok(!canSeeStats(true, 'signed-out'), 'without an account, closed');
+    ok(!canSeeStats(true, 'unsubscribed'), 'with an account and no subscription, closed');
+    ok(canSeeStats(true, 'subscriber'), 'subscribing, open');
 
-    // Sem nuvem configurada o app roda como sempre rodou. Trancar ali não
-    // protegeria nada: os dados estão no aparelho de quem está olhando.
-    ok(podeVerEstatisticas(false, 'desligado'), 'sem nuvem, nada muda');
-    ok(podeVerEstatisticas(false, 'deslogado'), 'sem nuvem, nem o login importa');
+    // With no cloud configured the app runs as it always did. Locking there
+    // would protect nothing: the data is on the device of whoever is looking.
+    ok(canSeeStats(false, 'off'), 'with no cloud, nothing changes');
+    ok(canSeeStats(false, 'signed-out'), 'with no cloud, not even signing in matters');
   }],
 
-  ['não se nega o que ainda não se sabe', () => {
+  ['what is not known yet is not denied', () => {
     if (!simulated || !cloudEnabled()) return 'skip';
-    // O defeito relatado: a tela de bloqueio aparecia por alguns segundos e
-    // depois liberava sozinha. Não era o status mudando - era o app tratando
-    // "ainda não perguntei ao servidor" como "não tem". Para quem paga, ser
-    // informado de que não pagou é o pior defeito possível.
-    esquecerSessao();
-    ok(assinaturaConhecida(), 'sem sessão a resposta é imediata: não há assinatura');
+    // The reported defect: the lock screen showed for a few seconds and then
+    // unlocked by itself. It was not the status changing - it was the app
+    // treating "have not asked the server yet" as "does not have it". For
+    // whoever pays, being told they did not pay is the worst possible defect.
+    forgetSession();
+    ok(isSubscriptionKnown(), 'without a session the answer is immediate: there is no subscription');
 
     location.hash = '#access_token=faz-de-conta&expires_at=99999999999';
-    ok(capturarRetorno(), 'sessão capturada');
-    ok(!assinaturaConhecida(), 'com sessão e sem ter perguntado, ainda não se sabe');
+    ok(captureReturn(), 'session captured');
+    ok(!isSubscriptionKnown(), 'with a session and without having asked, it is not known yet');
 
-    esquecerSessao();
-    ok(assinaturaConhecida(), 'sair fecha a pergunta de novo');
+    forgetSession();
+    ok(isSubscriptionKnown(), 'signing out closes the question again');
   }],
 
-  ['enquanto verifica, a paywall não acusa ninguém', () => {
+  ['while checking, the paywall accuses nobody', () => {
     if (!simulated) return 'skip';
     setLang('pt');
     store.wipe();
-    store.archive(mesa(4));
+    store.archive(makeMatch(4));
 
-    const desenhar = (verificando) => {
+    const draw = (checking) => {
       document.body.childNodes.length = 0;
       const root = document.createElement('div');
-      renderPaywall(root, { onBack() {}, onUnlock() {}, verificando });
+      renderPaywall(root, { onBack() {}, onUnlock() {}, checking });
       return root;
     };
 
-    const checando = desenhar(true);
-    eq(findAll(checando, 'paywall-title').length, 0, 'não diz que o histórico está fechado');
-    eq(findAll(checando, 'btn').length, 0, 'nem oferece entrar ou conferir');
-    ok(findAll(checando, 'paywall-body').map(textOf).join('').includes(t('paywall.checking')),
-      'só avisa que está conferindo');
+    const whileChecking = draw(true);
+    eq(findAll(whileChecking, 'paywall-title').length, 0, 'does not say the history is closed');
+    eq(findAll(whileChecking, 'btn').length, 0, 'nor offers to sign in or check');
+    ok(findAll(whileChecking, 'paywall-body').map(textOf).join('').includes(t('paywall.checking')),
+      'only says it is checking');
 
-    // E quando a resposta chega, aí sim.
-    const negado = desenhar(false);
-    eq(findAll(negado, 'paywall-title').length, 1, 'com resposta, explica o bloqueio');
+    // And when the answer arrives, then yes.
+    const denied = draw(false);
+    eq(findAll(denied, 'paywall-title').length, 1, 'with an answer, it explains the lock');
   }],
 
-  ['a paywall diz quantas partidas estão esperando', () => {
+  ['the paywall says how many matches are waiting', () => {
     if (!simulated) return 'skip';
     setLang('pt');
     store.wipe();
-    store.archive(mesa(4));
-    store.archive(mesa(3));
+    store.archive(makeMatch(4));
+    store.archive(makeMatch(3));
 
     document.body.childNodes.length = 0;
     const root = document.createElement('div');
     renderPaywall(root, { onBack() {}, onUnlock() {} });
 
-    // O número não é enfeite: é a diferença entre "pague para usar" e "o que é
-    // seu está aqui, esperando". Continuar jogando nunca foi bloqueado.
-    const texto = findAll(root, 'paywall-count').map(textOf).join('');
-    ok(texto.includes('2'), 'mostra as duas partidas guardadas');
-    ok(findAll(root, 'paywall-title').length === 1, 'e explica por quê');
+    // The number is not decoration: it is the difference between "pay to use"
+    // and "what is yours is here, waiting". Playing on was never blocked.
+    const text = findAll(root, 'paywall-count').map(textOf).join('');
+    ok(text.includes('2'), 'shows the two saved matches');
+    ok(findAll(root, 'paywall-title').length === 1, 'and explains why');
 
-    // Deslogado, o caminho é entrar; a checagem de assinatura viria depois.
-    eq(accountNow(), 'deslogado');
-    const botoes = findAll(root, 'btn').map(textOf);
-    ok(botoes.includes(t('paywall.signInFirst')), 'oferece entrar na conta');
-    ok(!botoes.includes(t('paywall.recheck')), 'sem conta não há assinatura a conferir');
+    // Signed out, the path is to sign in; the subscription check would come
+    // after.
+    eq(accountNow(), 'signed-out');
+    const buttons = findAll(root, 'btn').map(textOf);
+    ok(buttons.includes(t('paywall.signInFirst')), 'offers to sign in');
+    ok(!buttons.includes(t('paywall.recheck')), 'without an account there is no subscription to check');
   }],
 
-  ['a linha de votação mostra a categoria e o total', () => {
+  ['the vote row shows the category and the total', () => {
     if (!simulated) return 'skip';
     setLang('pt');
     store.wipe();
-    const m = mesa(2);
-    const votar = (q) => push(m, {
+    const m = makeMatch(2);
+    const vote = (q) => push(m, {
       type: 'vote', preset: 'dilema', kind: 'opcoes', question: q,
       options: ['Silence', 'Snitch'],
       ballots: [{ seatId: 's0', name: 'P0', choices: [0] }],
     });
-    votar("Prisoner's Dilemma");
-    votar('Quem entrega quem?');   // outra pergunta, mesmo modelo
+    vote("Prisoner's Dilemma");
+    vote('Quem entrega quem?');   // another question, same model
     store.archive(m);
 
     document.body.childNodes.length = 0;
@@ -2955,25 +3014,24 @@ export const cases = [
     renderStats(root, { onBack() {} });
     fire(findAll(root, 'tab').find((b) => textOf(b) === t('stats.players')), 'click');
 
-    const perguntas = findAll(root, 'vote-history-q').map(textOf);
-    eq(perguntas.length, 1, 'as duas noites do mesmo modelo dão uma linha só');
-    eq(perguntas[0], "Prisoner's Dilemma", 'à esquerda, o tipo da votação');
+    const questions = findAll(root, 'vote-history-q').map(textOf);
+    eq(questions.length, 1, 'the two nights of the same model give a single row');
+    eq(questions[0], "Prisoner's Dilemma", 'on the left, the type of vote');
 
-    const totais = findAll(root, 'vote-history-total').map(textOf);
-    eq(totais[0], '2', 'à direita, quantos votos a pessoa deu nessa categoria');
+    const totals = findAll(root, 'vote-history-total').map(textOf);
+    eq(totals[0], '2', 'on the right, how many votes the person cast in that category');
     ok(findAll(root, 'vote-history-picks').map(textOf)[0].includes('Silence'),
-      'e o que ela escolheu continua ali');
+      'and what they chose is still there');
   }],
 
-  ['a aba de rivalidades compara um par por vez', () => {
+  ['the rivalries tab compares one pair at a time', () => {
     if (!simulated) return 'skip';
     setLang('pt');
-    // Antes a aba despejava TODAS as duplas: cinco jogadores dão dez cartões, e
-    // a comparação que interessa fica perdida no meio de nove que ninguém
-    // pediu. Rivalidade é uma pergunta sobre duas pessoas - a tela pergunta
-    // quais.
+    // The tab used to dump ALL the pairs: five players give ten cards, and the
+    // comparison that matters gets lost among nine nobody asked for. A rivalry
+    // is a question about two people - the screen asks which.
     store.wipe();
-    const m = mesa(4);
+    const m = makeMatch(4);
     push(m, { type: 'life', targetId: 's1', delta: -9, sourceId: 's0' });
     push(m, { type: 'life', targetId: 's2', delta: -5, sourceId: 's0' });
     push(m, { type: 'life', targetId: 's0', delta: -4, sourceId: 's3' });
@@ -2983,253 +3041,258 @@ export const cases = [
     const root = document.createElement('div');
     renderStats(root, { onBack() {} });
 
-    const aba = findAll(root, 'tab').find((b) => textOf(b) === t('stats.rivals'));
-    ok(aba, 'a aba de rivalidades existe');
-    fire(aba, 'click');
+    const tab = findAll(root, 'tab').find((b) => textOf(b) === t('stats.rivals'));
+    ok(tab, 'the rivalries tab exists');
+    fire(tab, 'click');
 
-    // Três pares de fato (s0-s1, s0-s2, s0-s3), mas um gráfico só.
-    eq(findAll(root, 'rival-select').length, 2, 'dois campos de filtro');
-    eq(findAll(root, 'rival-card').length, 1, 'um gráfico por vez, não todos');
+    // Three actual pairs (s0-s1, s0-s2, s0-s3), but a single chart.
+    eq(findAll(root, 'rival-select').length, 2, 'two filter fields');
+    eq(findAll(root, 'rival-card').length, 1, 'one chart at a time, not all');
 
-    // E os filtros oferecem só quem tem rivalidade registrada: oferecer alguém
-    // que nunca cruzou com ninguém só produziria combinações vazias.
-    const opcoes = findAll(root, 'rival-select')[0].childNodes.length;
-    eq(opcoes, 4, 'os quatro que se enfrentaram');
+    // And the filters only offer whoever has a recorded rivalry: offering
+    // someone who never crossed paths with anyone would only produce empty
+    // combinations.
+    const options = findAll(root, 'rival-select')[0].childNodes.length;
+    eq(options, 4, 'the four who faced each other');
 
-    // O campo da esquerda manda no lado esquerdo do gráfico. Sem isso o desenho
-    // contradiz o controle logo acima dele.
-    const nomeEsquerda = () => textOf(findAll(root, 'rival-name')[0]);
-    const seletor = (i) => findAll(root, 'rival-select')[i];
-    const trocar = (i, valor) => {
-      const sel = seletor(i);
-      sel.value = valor;
-      fire(sel, 'change', { target: { value: valor } });
+    // The left field rules the left side of the chart. Without it the drawing
+    // contradicts the control right above it.
+    const leftName = () => textOf(findAll(root, 'rival-name')[0]);
+    const picker = (i) => findAll(root, 'rival-select')[i];
+    const pick = (i, value) => {
+      const sel = picker(i);
+      sel.value = value;
+      fire(sel, 'change', { target: { value } });
     };
 
-    eq(nomeEsquerda(), 'P0', 'começa com quem está no campo da esquerda');
-    trocar(0, 'p1');          // esquerda = P1 (aqui os dois campos coincidem)
-    trocar(1, 'p0');          // direita = P0
-    eq(nomeEsquerda(), 'P1', 'trocar o campo da esquerda vira o gráfico');
-    eq(findAll(root, 'rival-card').length, 1, 'continua sendo um gráfico só');
+    eq(leftName(), 'P0', 'starts with whoever is in the left field');
+    pick(0, 'p1');          // left = P1 (here both fields coincide)
+    pick(1, 'p0');          // right = P0
+    eq(leftName(), 'P1', 'switching the left field turns the chart');
+    eq(findAll(root, 'rival-card').length, 1, 'it is still a single chart');
   }],
 
-  ['virar o gráfico troca os dois lados inteiros', () => {
-    // Trocar só o nome inverteria a leitura do dano - pior que não trocar.
-    const par = {
+  ['turning the chart swaps both sides entirely', () => {
+    // Swapping only the name would invert the reading of the damage - worse
+    // than not swapping.
+    const pair = {
       a: 'Ana', keyA: 'ana', aToB: { damage: 9, kills: 1 },
       b: 'Bruno', keyB: 'bruno', bToA: { damage: 4, kills: 0 },
       games: 2, total: 13,
     };
 
-    eq(orientarRival(par, 'ana'), par, 'já está do jeito pedido');
+    eq(orientRival(pair, 'ana'), pair, 'already the way asked');
 
-    const virado = orientarRival(par, 'bruno');
-    eq(virado.a, 'Bruno', 'nome trocou');
-    eq(virado.keyA, 'bruno', 'chave trocou junto - é ela que dá a cor');
-    eq(virado.aToB.damage, 4, 'e o dano acompanha quem passou para a esquerda');
-    eq(virado.b, 'Ana');
-    eq(virado.bToA.damage, 9);
-    eq(virado.games, 2, 'o que é do par não muda');
-    eq(virado.total, 13);
+    const turned = orientRival(pair, 'bruno');
+    eq(turned.a, 'Bruno', 'the name switched');
+    eq(turned.keyA, 'bruno', 'the key switched along - it is what gives the color');
+    eq(turned.aToB.damage, 4, 'and the damage follows whoever moved to the left');
+    eq(turned.b, 'Ana');
+    eq(turned.bToA.damage, 9);
+    eq(turned.games, 2, 'what belongs to the pair does not change');
+    eq(turned.total, 13);
 
-    eq(orientarRival(par, 'carla'), par, 'chave de fora do par não vira nada');
-    eq(orientarRival(null, 'ana'), null, 'sem par, sem gráfico');
+    eq(orientRival(pair, 'carla'), pair, 'a key outside the pair turns nothing');
+    eq(orientRival(null, 'ana'), null, 'no pair, no chart');
   }],
 
-  ['ocultar tira da lista sem tocar nas partidas', () => {
+  ['hiding takes it off the list without touching the matches', () => {
     if (!simulated) return 'skip';
     store.wipe();
-    const m = mesa(3);
+    const m = makeMatch(3);
     push(m, { type: 'life', targetId: 's1', delta: -12, sourceId: 's0' });
     store.archive(m);
 
-    eq(aggregate(store.getDB().history).players.length, 3, 'três jogadores no começo');
+    eq(aggregate(store.getDB().history).players.length, 3, 'three players at the start');
 
     store.hidePlayer('P1');
-    eq(store.isPlayerHidden('p1'), true, 'a chave ignora maiúsculas');
-    eq(store.getDB().history.length, 1, 'a partida continua salva');
-    eq(store.getDB().history[0].events.length, 1, 'com os eventos intactos');
+    eq(store.isPlayerHidden('p1'), true, 'the key ignores case');
+    eq(store.getDB().history.length, 1, 'the match is still saved');
+    eq(store.getDB().history[0].events.length, 1, 'with the events intact');
 
-    // O dano que P0 causou em P1 continua contando para P0.
+    // The damage P0 dealt to P1 keeps counting for P0.
     const p0 = aggregate(store.getDB().history).players.find((x) => x.label === 'P0');
-    eq(p0.damageDealt, 12, 'o dano não some junto com a linha');
+    eq(p0.damageDealt, 12, 'the damage does not vanish along with the row');
 
     store.unhidePlayer('P1');
-    eq(store.isPlayerHidden('P1'), false, 'restaurado');
+    eq(store.isPlayerHidden('P1'), false, 'restored');
     store.wipe();
   }],
 
-  ['o dano total inclui dreno e ação em área', () => {
-    // Existiam duas somas de dano - uma nas estatísticas, outra no cartaz de
-    // vitória - e a do cartaz não conhecia `sweep`: um dreno de 5 em três
-    // oponentes aparecia como zero no fim da partida.
-    const m = mesa(4);
+  ['total damage includes drain and area actions', () => {
+    // There were two damage sums - one in the statistics, another on the
+    // victory poster - and the poster's did not know `sweep`: a drain of 5 on
+    // three opponents showed up as zero at the end of the match.
+    const m = makeMatch(4);
     push(m, { type: 'life', targetId: 's1', delta: -7, sourceId: 's0' });
     push(m, { type: 'sweep', sourceId: 's0', amount: 5, gain: 15, targets: ['s1', 's2', 's3'] });
     const key = cmdKeyOf('s0', m.seats[0].commanders[0]);
     push(m, { type: 'cmd', targetId: 's2', sourceId: 's0', cmdKey: key, delta: 4 });
 
     eq(totalDamage(m), 26, '7 + (5 × 3) + 4');
-    eq(summarize(m).totalDamage, 26, 'o resumo usa a mesma conta');
+    eq(summarize(m).totalDamage, 26, 'the summary uses the same math');
   }],
 
-  ['a vida ganha no dreno não conta como dano', () => {
-    const m = mesa(4);
+  ['life gained in a drain does not count as damage', () => {
+    const m = makeMatch(4);
     push(m, { type: 'sweep', sourceId: 's0', amount: 2, gain: 6, targets: ['s1', 's2', 's3'] });
-    eq(totalDamage(m), 6, 'só os 2 × 3 que saíram, não os 6 que entraram');
+    eq(totalDamage(m), 6, 'only the 2 × 3 that went out, not the 6 that came in');
   }],
 
-  ['a colocação é escrita como cada língua escreve', () => {
-    // O `º` é indicador ordinal do português e do espanhol. Em inglês e alemão
-    // ele não existe, e estava aparecendo assim mesmo.
+  ['the placing is written the way each language writes it', () => {
+    // The `º` is the ordinal indicator of Portuguese and Spanish. English and
+    // German do not have it, and it was showing up anyway.
     eq(ordinal(1, 'pt'), '1º');
     eq(ordinal(4, 'es'), '4º');
-    eq(ordinal(1, 'de'), '1.', 'alemão usa ponto');
+    eq(ordinal(1, 'de'), '1.', 'German uses a period');
     eq(ordinal(4, 'de'), '4.');
 
-    // O inglês era pior que um caractere errado: a tradução dizia "{n}th
-    // place", que produz "1th place", "2th place", "3th place".
+    // English was worse than a wrong character: the translation said "{n}th
+    // place", which produces "1th place", "2th place", "3th place".
     eq(ordinal(1, 'en'), '1st');
     eq(ordinal(2, 'en'), '2nd');
     eq(ordinal(3, 'en'), '3rd');
     eq(ordinal(4, 'en'), '4th');
 
-    // As exceções do inglês: 11, 12 e 13 levam "th" apesar de terminarem em 1,
-    // 2 e 3. Numa mesa de Commander isso nunca acontece - mas a função não sabe
-    // de onde é chamada, e regra pela metade é a que quebra quando alguém reusa.
+    // The English exceptions: 11, 12 and 13 take "th" even though they end in
+    // 1, 2 and 3. That never happens at a Commander table - but the function
+    // does not know where it is called from, and a half rule is the one that
+    // breaks when someone reuses it.
     eq(ordinal(11, 'en'), '11th');
     eq(ordinal(12, 'en'), '12th');
     eq(ordinal(13, 'en'), '13th');
     eq(ordinal(21, 'en'), '21st');
-    eq(ordinal(111, 'en'), '111th', 'a regra olha os dois últimos dígitos');
+    eq(ordinal(111, 'en'), '111th', 'the rule looks at the last two digits');
     eq(ordinal(101, 'en'), '101st');
 
-    // E a frase inteira, montada, em cada idioma.
+    // And the whole sentence, assembled, in each language.
     setLang('pt'); eq(t('table.place', { n: ordinal(1) }), '1º lugar');
     setLang('en'); eq(t('table.place', { n: ordinal(1) }), '1st place');
     setLang('es'); eq(t('table.place', { n: ordinal(3) }), '3º puesto');
     setLang('de'); eq(t('table.place', { n: ordinal(2) }), '2. Platz');
     setLang('pt');
 
-    eq(ordinal('abc', 'en'), 'abc', 'o que não é número passa direto');
+    eq(ordinal('abc', 'en'), 'abc', 'what is not a number passes straight through');
   }],
 
-  ['os quatro idiomas têm exatamente as mesmas chaves', () => {
-    // Sem isto, uma tradução esquecida só aparece quando alguém troca de
-    // idioma e encontra uma frase em português no meio do alemão.
+  ['the four languages have exactly the same keys', () => {
+    // Without this, a forgotten translation only shows up when someone
+    // switches language and finds a Portuguese sentence in the middle of
+    // German.
     const base = Object.keys(DICTS.pt).sort();
-    for (const [codigo] of LANGS) {
-      const chaves = Object.keys(DICTS[codigo]).sort();
-      const faltando = base.filter((k) => !chaves.includes(k));
-      const sobrando = chaves.filter((k) => !base.includes(k));
-      ok(!faltando.length, codigo + ' não traduziu: ' + faltando.slice(0, 5).join(', '));
-      ok(!sobrando.length, codigo + ' tem chave a mais: ' + sobrando.slice(0, 5).join(', '));
+    for (const [code] of LANGS) {
+      const keys = Object.keys(DICTS[code]).sort();
+      const missing = base.filter((k) => !keys.includes(k));
+      const extra = keys.filter((k) => !base.includes(k));
+      ok(!missing.length, code + ' did not translate: ' + missing.slice(0, 5).join(', '));
+      ok(!extra.length, code + ' has an extra key: ' + extra.slice(0, 5).join(', '));
     }
   }],
 
-  ['nenhuma tradução perde uma variável de interpolação', () => {
-    // "{name} venceu" sem o {name} no alemão viraria uma frase sem sujeito.
+  ['no translation loses an interpolation variable', () => {
+    // "{name} won" without the {name} in German would become a sentence with
+    // no subject.
     const vars = (txt) => (String(txt).match(/\{\w+\}/g) || []).sort().join(',');
-    for (const chave of Object.keys(DICTS.pt)) {
-      const esperado = vars(DICTS.pt[chave]);
-      for (const [codigo] of LANGS) {
-        eq(vars(DICTS[codigo][chave]), esperado,
-          codigo + ' / ' + chave + ': variáveis diferentes do português');
+    for (const key of Object.keys(DICTS.pt)) {
+      const expected = vars(DICTS.pt[key]);
+      for (const [code] of LANGS) {
+        eq(vars(DICTS[code][key]), expected,
+          code + ' / ' + key + ': variables different from Portuguese');
       }
     }
   }],
 
-  ['nenhum texto ficou vazio em nenhum idioma', () => {
-    for (const [codigo] of LANGS) {
-      for (const [chave, texto] of Object.entries(DICTS[codigo])) {
-        ok(typeof texto === 'string' && texto.trim().length > 0,
-          codigo + ' / ' + chave + ' está vazio');
+  ['no text was left empty in any language', () => {
+    for (const [code] of LANGS) {
+      for (const [key, text] of Object.entries(DICTS[code])) {
+        ok(typeof text === 'string' && text.trim().length > 0,
+          code + ' / ' + key + ' is empty');
       }
     }
   }],
 
-  ['traduzir interpola, pluraliza e volta ao português quando falta', () => {
+  ['translating interpolates, pluralizes and falls back to Portuguese when missing', () => {
     setLang('en');
-    eq(currentLang(), 'en', 'idioma trocado');
-    eq(t('pregame.startsToast', { name: 'Ana' }), 'Ana goes first', 'interpolação');
+    eq(currentLang(), 'en', 'language switched');
+    eq(t('pregame.startsToast', { name: 'Ana' }), 'Ana goes first', 'interpolation');
     eq(tn(1, 'player.deckSaved', 'player.decksSaved'), '1 saved deck', 'singular');
     eq(tn(3, 'player.deckSaved', 'player.decksSaved'), '3 saved decks', 'plural');
-    eq(t('chave.que.nao.existe'), 'chave.que.nao.existe', 'chave desconhecida volta como está');
+    eq(t('chave.que.nao.existe'), 'chave.que.nao.existe', 'an unknown key comes back as it is');
 
-    setLang('zz'); // idioma inexistente
-    eq(currentLang(), 'pt', 'cai no português');
+    setLang('zz'); // a language that does not exist
+    eq(currentLang(), 'pt', 'falls back to Portuguese');
     setLang('pt');
   }],
 
-  ['as telas sobem inteiras nos quatro idiomas', () => {
+  ['the screens come up whole in the four languages', () => {
     if (!simulated) return 'skip';
-    // Uma chave faltando ou uma variável errada só aparece ao desenhar de
-    // verdade — o teste dos dicionários não pega um t() escrito errado na view.
-    for (const [codigo] of LANGS) {
-      setLang(codigo);
-      const m = mesa(3);
+    // A missing key or a wrong variable only shows up when really drawing —
+    // the dictionary test does not catch a t() written wrong in the view.
+    for (const [code] of LANGS) {
+      setLang(code);
+      const m = makeMatch(3);
       push(m, { type: 'sweep', sourceId: 's0', amount: 3, gain: 6, targets: ['s1', 's2'] });
 
       const home = document.createElement('div');
       renderSetup(home, { onStart() {}, onStats() {}, onRefresh() {} });
-      ok(findAll(home, 'seat-card').length >= 2, codigo + ': home não desenhou');
+      ok(findAll(home, 'seat-card').length >= 2, code + ': the home screen did not draw');
 
-      const mesa2 = document.createElement('div');
-      const v = renderTable(mesa2, {
+      const tableRoot = document.createElement('div');
+      const v = renderTable(tableRoot, {
         match: m, onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
       });
-      ok(findAll(mesa2, 'tile').length === 3, codigo + ': mesa não desenhou');
+      ok(findAll(tableRoot, 'tile').length === 3, code + ': the table did not draw');
       v.destroy();
 
-      // Nenhum texto pode sair como a própria chave.
-      const rotulo = textOf(findAll(mesa2, 'hub-label')[0]);
-      ok(rotulo && !rotulo.includes('.'), codigo + ': rótulo saiu como chave crua');
+      // No text can come out as the key itself.
+      const label = textOf(findAll(tableRoot, 'hub-label')[0]);
+      ok(label && !label.includes('.'), code + ': a label came out as a raw key');
     }
     setLang('pt');
   }],
 
-  ['o motivo da vitória declarada entra na estatística', () => {
-    const m = mesa(3);
+  ['the reason of a declared win goes into the statistics', () => {
+    const m = makeMatch(3);
     push(m, { type: 'win', targetId: 's0', reason: 'combo' });
     const p0 = aggregate([m]).players.find((x) => x.label === 'P0');
-    eq(p0.wins, 1, 'vitória contada');
-    eq(p0.winReasons, { combo: 1 }, 'motivo guardado');
+    eq(p0.wins, 1, 'win counted');
+    eq(p0.winReasons, { combo: 1 }, 'reason kept');
     eq(aggregate([m]).players.find((x) => x.label === 'P1').winReasons, {},
-      'quem não venceu não ganha motivo');
+      'whoever did not win gets no reason');
   }],
 
-  ['vitória por último vivo não inventa motivo', () => {
-    const m = mesa(2);
+  ['a win by being the last one alive does not invent a reason', () => {
+    const m = makeMatch(2);
     push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
     const p0 = aggregate([m]).players.find((x) => x.label === 'P0');
-    eq(p0.wins, 1, 'venceu');
-    eq(p0.winReasons, {}, 'sem motivo declarado');
+    eq(p0.wins, 1, 'won');
+    eq(p0.winReasons, {}, 'no declared reason');
   }],
 
-  ['declarar sem escolher motivo continua valendo como vitória', () => {
-    const m = mesa(3);
+  ['declaring without picking a reason still counts as a win', () => {
+    const m = makeMatch(3);
     push(m, { type: 'win', targetId: 's2', reason: null });
     const s2 = aggregate([m]).players.find((x) => x.label === 'P2');
-    eq(s2.wins, 1, 'a vitória vale');
-    eq(s2.winReasons, {}, 'mas sem motivo');
+    eq(s2.wins, 1, 'the win counts');
+    eq(s2.winReasons, {}, 'but with no reason');
   }],
 
-  ['motivos somam ao longo de várias partidas', () => {
-    const fazer = (motivo) => {
-      const m = mesa(2);
-      push(m, { type: 'win', targetId: 's0', reason: motivo });
+  ['reasons add up over several matches', () => {
+    const make = (reason) => {
+      const m = makeMatch(2);
+      push(m, { type: 'win', targetId: 's0', reason });
       return m;
     };
-    const p0 = aggregate([fazer('combo'), fazer('combo'), fazer('combate')])
+    const p0 = aggregate([make('combo'), make('combo'), make('combate')])
       .players.find((x) => x.label === 'P0');
-    eq(p0.winReasons, { combo: 2, combate: 1 }, 'contagem por motivo');
-    eq(p0.wins, 3, 'total de vitórias');
+    eq(p0.winReasons, { combo: 2, combate: 1 }, 'count per reason');
+    eq(p0.wins, 3, 'total wins');
   }],
 
-  ['cada assento da home mostra a própria cadeira na mini-mesa', () => {
+  ['each home screen seat shows its own chair on the mini table', () => {
     if (!simulated) return 'skip';
-    // A ordem da lista já diz a ordem dos turnos; a miniatura diz o LUGAR, que
-    // é o que falta quando são 5 ou 6 pessoas em volta.
+    // The list order already says the turn order; the thumbnail says the
+    // PLACE, which is what is missing with 5 or 6 people around.
     setLang('pt');
     seedDraftFrom(createMatch([0, 1, 2, 3].map((i) => ({
       id: 'z' + i, name: 'J' + i,
@@ -3241,262 +3304,268 @@ export const cases = [
     renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
 
     const spots = findAll(root, 'seat-spot');
-    eq(spots.length, 4, 'uma miniatura por assento');
+    eq(spots.length, 4, 'one thumbnail per seat');
     spots.forEach((spot, i) => {
-      const acesas = findAll(spot, 'is-here');
-      eq(acesas.length, 1, 'assento ' + i + ': exatamente uma cadeira acesa');
-      eq(textOf(acesas[0]), String(i + 1), 'assento ' + i + ': número da posição');
-      eq(findAll(spot, 'layout-cell').length, 4, 'a mesa inteira aparece');
+      const lit = findAll(spot, 'is-here');
+      eq(lit.length, 1, 'seat ' + i + ': exactly one chair lit');
+      eq(textOf(lit[0]), String(i + 1), 'seat ' + i + ': position number');
+      eq(findAll(spot, 'layout-cell').length, 4, 'the whole table shows');
     });
   }],
 
-  ['a marca desenha os cinco pips, cada um na sua cor e dentro da caixa', () => {
+  ['the mark draws the five pips, each in its color and inside the box', () => {
     if (!simulated) return 'skip';
-    // Era um quadradinho com degradê que virava mancha em 14px. Agora são
-    // círculos separados — e todos precisam caber no viewBox 24×24, senão o
-    // de cima aparece cortado.
+    // It used to be a small square with a gradient that became a smudge at
+    // 14px. Now they are separate circles — and all of them have to fit in the
+    // 24×24 viewBox, otherwise the top one shows cut off.
     //
-    // Já foi a silhueta da mesa do ícone, enquanto o ícone era a mesa. O ícone
-    // voltou, e a marca voltou junto: são duas coisas separadas no código e uma
-    // só para quem olha, e deixá-las diferentes foi defeito uma vez.
+    // It was once the silhouette of the icon's table, while the icon was the
+    // table. The icon came back, and the mark came back with it: they are two
+    // separate things in the code and a single one for whoever looks, and
+    // leaving them different was a defect once.
     setLang('pt');
     const m = brandMark();
-    eq(m.childNodes.length, 5, 'cinco pips');
+    eq(m.childNodes.length, 5, 'five pips');
 
-    const cores = m.childNodes.map((c) => c.attributes.fill);
-    eq(new Set(cores).size, 5, 'cinco cores distintas');
+    const colors = m.childNodes.map((c) => c.attributes.fill);
+    eq(new Set(colors).size, 5, 'five distinct colors');
 
     m.childNodes.forEach((c, i) => {
       const cx = Number(c.attributes.cx);
       const cy = Number(c.attributes.cy);
       const r = Number(c.attributes.r);
-      ok(cx - r >= 0 && cx + r <= 24, 'pip ' + i + ' sai da caixa na horizontal');
-      ok(cy - r >= 0 && cy + r <= 24, 'pip ' + i + ' sai da caixa na vertical');
+      ok(cx - r >= 0 && cx + r <= 24, 'pip ' + i + ' leaves the box horizontally');
+      ok(cy - r >= 0 && cy + r <= 24, 'pip ' + i + ' leaves the box vertically');
     });
   }],
 
-  ['trocar o idioma pela tela de configurações funciona de verdade', () => {
+  ['switching the language through the settings screen really works', () => {
     if (!simulated) return 'skip';
-    // O teste dos dicionários passava e o seletor não funcionava: eu esquecia
-    // de repintar, e a escolha não saía do lugar. Só exercitando o controle.
+    // The dictionary test passed and the picker did not work: I forgot to
+    // repaint, and the choice went nowhere. Only by exercising the control.
     setLang('pt');
     store.wipe();
     document.body.childNodes.length = 0;
 
-    let redesenhos = 0;
+    let redraws = 0;
     const root = document.createElement('div');
-    renderSetup(root, { onStart() {}, onStats() {}, onRefresh() { redesenhos += 1; } });
+    renderSetup(root, { onStart() {}, onStats() {}, onRefresh() { redraws += 1; } });
 
-    const engrenagem = findAll(root, 'icon-btn')
+    const gear = findAll(root, 'icon-btn')
       .find((b) => b.attributes['aria-label'] === t('common.settings'));
-    ok(engrenagem, 'sem botão de configurações');
-    fire(engrenagem, 'click');
+    ok(gear, 'no settings button');
+    fire(gear, 'click');
 
-    const campo = findAll(document.body, 'select-input')[0];
-    ok(campo, 'o idioma deveria ser um campo de seleção');
-    eq(campo.value, 'pt', 'começa no idioma atual');
-    eq(campo.childNodes.length, 4, 'os quatro idiomas na lista');
+    const field = findAll(document.body, 'select-input')[0];
+    ok(field, 'the language should be a select field');
+    eq(field.value, 'pt', 'starts on the current language');
+    eq(field.childNodes.length, 4, 'the four languages on the list');
 
-    campo.value = 'de';
-    fire(campo, 'change');
+    field.value = 'de';
+    fire(field, 'change');
 
-    eq(currentLang(), 'de', 'o idioma mudou');
-    eq(store.getDB().settings.lang, 'de', 'e ficou salvo');
-    ok(redesenhos > 0, 'a tela de trás precisa ser redesenhada');
+    eq(currentLang(), 'de', 'the language changed');
+    eq(store.getDB().settings.lang, 'de', 'and was saved');
+    ok(redraws > 0, 'the screen behind needs to be redrawn');
 
-    // O painel reabre traduzido, senão ficaria em português até fechar na mão.
-    const legendas = findAll(document.body, 'sheet-legend').map(textOf);
-    ok(legendas.includes('Sprache'), 'o painel não reabriu em alemão: ' + legendas.join(' | '));
+    // The panel reopens translated, otherwise it would stay in Portuguese
+    // until closed by hand.
+    const labels = findAll(document.body, 'set-label').map(textOf);
+    ok(labels.includes('Sprache'), 'the panel did not reopen in German: ' + labels.join(' | '));
 
     closeSheet();
     setLang('pt');
     store.wipe();
   }],
 
-  ['o atalho da mana aparece com mana, abre o contador e some ao zerar', () => {
+  ['the mana shortcut shows with mana, opens the counter and disappears at zero', () => {
     if (!simulated) return 'skip';
     setLang('pt');
     document.body.childNodes.length = 0;
     const root = document.createElement('div');
-    const match = mesa(4);
+    const match = makeMatch(4);
     const view = renderTable(root, {
       match, onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
     });
 
-    const atalho = () => findAll(root, 'is-mana')[0];
-    const abrirMenu = () => fire(
+    const shortcut = () => findAll(root, 'is-mana')[0];
+    const openMenu = () => fire(
       findAll(root, 'hub-btn').find((b) => b.attributes['aria-label'] === t('common.menu')), 'click',
     );
 
-    ok(atalho(), 'o botão precisa existir no hub');
-    eq(atalho().hidden, true, 'sem mana, fica escondido');
+    ok(shortcut(), 'the button has to exist in the hub');
+    eq(shortcut().hidden, true, 'with no mana, it stays hidden');
 
-    // Marca mana pelo caminho normal (menu → contador).
-    abrirMenu();
+    // Marks mana through the normal path (menu → counter).
+    openMenu();
     fire(findAll(document.body, 'menu-item').find((n) => textOf(n).includes(t('mana.marker'))), 'click');
     const tiles = findAll(document.body, 'mana-tile');
     for (let i = 0; i < 2; i += 1) fire(findAll(tiles[0], 'mana-plus')[0], 'pointerdown');
     fire(findAll(tiles[3], 'mana-plus')[0], 'pointerdown');
     closeSheet();
 
-    eq(atalho().hidden, false, 'com mana, o atalho aparece');
-    eq(textOf(atalho()), '3', 'e mostra o total');
+    eq(shortcut().hidden, false, 'with mana, the shortcut shows');
+    eq(textOf(shortcut()), '3', 'and shows the total');
 
-    // O atalho abre o contador direto, sem passar pelo menu.
+    // The shortcut opens the counter directly, without going through the menu.
     document.body.childNodes.length = 0;
-    fire(atalho(), 'click');
-    eq(findAll(document.body, 'mana-tile').length, 6, 'o toque no atalho abre o contador');
+    fire(shortcut(), 'click');
+    eq(findAll(document.body, 'mana-tile').length, 6, 'tapping the shortcut opens the counter');
 
-    // Gastar tudo faz o atalho sumir.
+    // Spending everything makes the shortcut disappear.
     const t2 = findAll(document.body, 'mana-tile');
     for (let i = 0; i < 2; i += 1) fire(findAll(t2[0], 'mana-minus')[0], 'pointerdown');
     fire(findAll(t2[3], 'mana-minus')[0], 'pointerdown');
-    eq(atalho().hidden, true, 'pote vazio, atalho some');
+    eq(shortcut().hidden, true, 'empty pool, the shortcut disappears');
     closeSheet();
 
-    // E passar a vez também limpa.
+    // And passing the turn clears it too.
     fire(findAll(root, 'mana-plus')[0] || findAll(root, 'hub-ring')[0], 'click');
     view.destroy();
   }],
 
-  ['a cor de um jogador é a mesma em todas as partidas dele', () => {
-    // Era o problema: a cor vinha do comandante, então trocar de deck trocava
-    // a cor da pessoa, e a aba de partidas ficava impossível de ler.
-    const partida = (t0, nomes) => {
-      const m = createMatch(nomes.map((n, i) => ({
+  ['a player\'s color is the same in all their matches', () => {
+    // That was the problem: the color came from the commander, so switching
+    // decks switched the person's color, and the matches tab became
+    // impossible to read.
+    const matchOf = (t0, names) => {
+      const m = createMatch(names.map((n, i) => ({
         id: 's' + i, name: n,
         commanders: [{ oracleId: 'o' + t0 + i, name: 'Cmd', colors: ['U'] }],
       })), 40);
       m.startedAt = t0;
       return m;
     };
-    const historico = [
-      partida(1000, ['Ana', 'Bruno', 'Caio']),
-      partida(2000, ['Ana', 'Duda']),
+    const history = [
+      matchOf(1000, ['Ana', 'Bruno', 'Caio']),
+      matchOf(2000, ['Ana', 'Duda']),
     ];
-    const ordem = playerColorOrder(historico);
-    eq(playerColor(ordem, 'Ana'), playerColor(ordem, 'Ana'), 'mesma pessoa, mesma cor');
-    ok(playerColor(ordem, 'Ana') !== playerColor(ordem, 'Bruno'), 'pessoas diferentes, cores diferentes');
-    eq(playerColor(ordem, ' ana '), playerColor(ordem, 'Ana'), 'espaço e caixa não criam outra pessoa');
+    const order = playerColorOrder(history);
+    eq(playerColor(order, 'Ana'), playerColor(order, 'Ana'), 'same person, same color');
+    ok(playerColor(order, 'Ana') !== playerColor(order, 'Bruno'), 'different people, different colors');
+    eq(playerColor(order, ' ana '), playerColor(order, 'Ana'), 'spaces and case do not create another person');
   }],
 
-  ['entrar um jogador novo não muda a cor de ninguém', () => {
-    // Por isso a ordem é por primeira aparição, e não alfabética: uma "Ana"
-    // cadastrada depois empurraria todo mundo e trocaria as cores já vistas.
-    const partida = (t0, nomes) => {
-      const m = createMatch(nomes.map((n, i) => ({
+  ['a new player coming in does not change anyone\'s color', () => {
+    // That is why the order is by first appearance, not alphabetical: an "Ana"
+    // added later would push everyone and switch the colors already seen.
+    const matchOf = (t0, names) => {
+      const m = createMatch(names.map((n, i) => ({
         id: 's' + i, name: n, commanders: [{ oracleId: 'o' + i, name: 'C', colors: ['U'] }],
       })), 40);
       m.startedAt = t0;
       return m;
     };
-    const antes = [partida(1000, ['Zeca', 'Bruno'])];
-    const ordemAntes = playerColorOrder(antes);
-    const corZeca = playerColor(ordemAntes, 'Zeca');
-    const corBruno = playerColor(ordemAntes, 'Bruno');
+    const before = [matchOf(1000, ['Zeca', 'Bruno'])];
+    const orderBefore = playerColorOrder(before);
+    const zecaColor = playerColor(orderBefore, 'Zeca');
+    const brunoColor = playerColor(orderBefore, 'Bruno');
 
-    const depois = [...antes, partida(2000, ['Ana', 'Zeca'])];
-    const ordemDepois = playerColorOrder(depois);
-    eq(playerColor(ordemDepois, 'Zeca'), corZeca, 'Zeca manteve a cor');
-    eq(playerColor(ordemDepois, 'Bruno'), corBruno, 'Bruno manteve a cor');
-    ok(playerColor(ordemDepois, 'Ana') !== corZeca, 'a nova ganhou cor própria');
+    const after = [...before, matchOf(2000, ['Ana', 'Zeca'])];
+    const orderAfter = playerColorOrder(after);
+    eq(playerColor(orderAfter, 'Zeca'), zecaColor, 'Zeca kept the color');
+    eq(playerColor(orderAfter, 'Bruno'), brunoColor, 'Bruno kept the color');
+    ok(playerColor(orderAfter, 'Ana') !== zecaColor, 'the new one got its own color');
   }],
 
-  ['as cores de jogador se espalham em vez de se agrupar', () => {
-    // Ângulo áureo: com qualquer quantidade, cada nova cor cai no maior vão que
-    // sobrou. Duas pessoas seguidas nunca saem em tons quase iguais.
-    const hue = (cor) => Number(String(cor).match(/hsl\(([\d.]+)/)[1]);
-    const ordem = new Map(['a', 'b', 'c', 'd', 'e', 'f'].map((n, i) => [n, i]));
-    const tons = ['a', 'b', 'c', 'd', 'e', 'f'].map((n) => hue(playerColor(ordem, n)));
+  ['player colors spread out instead of clustering', () => {
+    // The golden angle: with any amount, each new color falls in the largest
+    // gap left. Two people in a row never come out in almost equal hues.
+    const hue = (color) => Number(String(color).match(/hsl\(([\d.]+)/)[1]);
+    const order = new Map(['a', 'b', 'c', 'd', 'e', 'f'].map((n, i) => [n, i]));
+    const hues = ['a', 'b', 'c', 'd', 'e', 'f'].map((n) => hue(playerColor(order, n)));
 
-    for (let i = 0; i < tons.length; i += 1) {
-      for (let j = i + 1; j < tons.length; j += 1) {
-        const bruto = Math.abs(tons[i] - tons[j]);
-        const dist = Math.min(bruto, 360 - bruto);
-        ok(dist > 25, 'tons ' + i + ' e ' + j + ' ficaram a ' + dist.toFixed(0) + '° um do outro');
+    for (let i = 0; i < hues.length; i += 1) {
+      for (let j = i + 1; j < hues.length; j += 1) {
+        const raw = Math.abs(hues[i] - hues[j]);
+        const dist = Math.min(raw, 360 - raw);
+        ok(dist > 25, 'hues ' + i + ' and ' + j + ' ended up ' + dist.toFixed(0) + '° apart');
       }
     }
   }],
 
-  ['o estado da conta cobre os quatro casos', () => {
-    // A interface inteira se desenha a partir daqui, então cada caso precisa
-    // sair certo — inclusive o de sempre: sem nuvem configurada, o app é local.
+  ['the account state covers the four cases', () => {
+    // The whole interface is drawn from here, so each case has to come out
+    // right — including the usual one: with no cloud configured, the app is
+    // local.
     const s = { access_token: 'x' };
-    eq(accountState({ ligado: false, sessao: s, assinatura: { status: 'active' } }),
-      'desligado', 'sem nuvem, nada muda');
-    eq(accountState({ ligado: true, sessao: null }), 'deslogado', 'nuvem ligada, sem sessão');
-    eq(accountState({ ligado: true, sessao: s, assinatura: null }),
-      'sem-assinatura', 'entrou mas não assina');
-    eq(accountState({ ligado: true, sessao: s, assinatura: { status: 'active' } }),
-      'assinante', 'entrou e assina');
+    eq(accountState({ enabled: false, session: s, subscription: { status: 'active' } }),
+      'off', 'with no cloud, nothing changes');
+    eq(accountState({ enabled: true, session: null }), 'signed-out', 'cloud on, no session');
+    eq(accountState({ enabled: true, session: s, subscription: null }),
+      'unsubscribed', 'signed in but not subscribed');
+    eq(accountState({ enabled: true, session: s, subscription: { status: 'active' } }),
+      'subscriber', 'signed in and subscribed');
   }],
 
-  ['assinatura vencida perde o acesso, mas com um dia de tolerância', () => {
-    // Cartão falha e o Stripe tenta de novo em algumas horas. Derrubar o acesso
-    // nesse meio-tempo puniria quem está em dia por um problema do emissor.
-    const agora = Date.parse('2026-08-23T12:00:00Z');
-    const em = (h) => new Date(agora + h * 3600e3).toISOString();
+  ['an expired subscription loses access, but with one day of grace', () => {
+    // Cards fail and Stripe retries within a few hours. Dropping access in the
+    // meantime would punish someone in good standing for an issuer problem.
+    const now = Date.parse('2026-08-23T12:00:00Z');
+    const at = (h) => new Date(now + h * 3600e3).toISOString();
 
-    ok(assinaturaAtiva({ status: 'active', current_period_end: em(24) }, agora), 'em dia');
-    ok(assinaturaAtiva({ status: 'active', current_period_end: em(-6) }, agora),
-      'venceu há 6h: ainda dentro da tolerância');
-    ok(!assinaturaAtiva({ status: 'active', current_period_end: em(-30) }, agora),
-      'venceu há 30h: fora');
-    ok(!assinaturaAtiva({ status: 'canceled', current_period_end: em(240) }, agora),
-      'cancelada não vale, mesmo dentro do período');
-    ok(!assinaturaAtiva(null, agora), 'sem assinatura');
-    ok(assinaturaAtiva({ status: 'active' }, agora), 'sem data de fim, vale');
+    ok(isSubscriptionActive({ status: 'active', current_period_end: at(24) }, now), 'in good standing');
+    ok(isSubscriptionActive({ status: 'active', current_period_end: at(-6) }, now),
+      'expired 6h ago: still within the grace');
+    ok(!isSubscriptionActive({ status: 'active', current_period_end: at(-30) }, now),
+      'expired 30h ago: out');
+    ok(!isSubscriptionActive({ status: 'canceled', current_period_end: at(240) }, now),
+      'cancelled does not count, even within the period');
+    ok(!isSubscriptionActive(null, now), 'no subscription');
+    ok(isSubscriptionActive({ status: 'active' }, now), 'with no end date, it counts');
   }],
 
-  ['sessão expirada não conta como sessão', () => {
-    const agora = Date.parse('2026-08-23T12:00:00Z');
-    ok(sessaoValida({ access_token: 'x', expires_at: agora / 1000 + 3600 }, agora), 'válida');
-    ok(!sessaoValida({ access_token: 'x', expires_at: agora / 1000 - 10 }, agora), 'expirada');
-    ok(!sessaoValida({ expires_at: agora / 1000 + 3600 }, agora), 'sem token');
-    ok(!sessaoValida(null, agora), 'sem nada');
+  ['an expired session does not count as a session', () => {
+    const now = Date.parse('2026-08-23T12:00:00Z');
+    ok(isSessionValid({ access_token: 'x', expires_at: now / 1000 + 3600 }, now), 'valid');
+    ok(!isSessionValid({ access_token: 'x', expires_at: now / 1000 - 10 }, now), 'expired');
+    ok(!isSessionValid({ expires_at: now / 1000 + 3600 }, now), 'no token');
+    ok(!isSessionValid(null, now), 'nothing at all');
   }],
 
-  ['a partida vai e volta do banco sem perder nada', () => {
-    const m = mesa(4);
+  ['the match goes to the database and back without losing anything', () => {
+    const m = makeMatch(4);
     push(m, { type: 'life', targetId: 's1', delta: -7, sourceId: 's0' });
     push(m, { type: 'turn' });
-    undo(m); // deixa algo em `redo`
+    undo(m); // leaves something in `redo`
 
-    const linha = toRow(m, 'user-123');
-    eq(linha.id, m.id, 'id preservado');
-    eq(linha.owner, 'user-123', 'dono');
-    eq(linha.payload.redo, [], 'refazer não sobe: é estado de tela, não histórico');
+    const row = toRow(m, 'user-123');
+    eq(row.id, m.id, 'id preserved');
+    eq(row.owner, 'user-123', 'owner');
+    eq(row.payload.redo, [], 'redo does not go up: it is screen state, not history');
 
-    const volta = fromRow(linha);
-    eq(volta.events, m.events, 'o log volta inteiro');
-    eq(JSON.stringify(replay(volta)), JSON.stringify(replay(m)), 'e o replay dá o mesmo estado');
+    const back = fromRow(row);
+    eq(back.events, m.events, 'the log comes back whole');
+    eq(JSON.stringify(replay(back)), JSON.stringify(replay(m)), 'and the replay gives the same state');
   }],
 
-  ['só sobe o que o servidor ainda não tem', () => {
-    // Partida encerrada é imutável, então comparar por id basta: não há versão
-    // nem conflito para resolver. É o que torna o sync tão simples.
-    const locais = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
-    eq(pendentes(locais, ['b']).map((m) => m.id), ['a', 'c'], 'faltam duas');
-    eq(pendentes(locais, ['a', 'b', 'c']).map((m) => m.id), [], 'nada a fazer');
-    eq(pendentes(locais, []).map((m) => m.id), ['a', 'b', 'c'], 'servidor vazio');
-    eq(pendentes([], ['a']).length, 0, 'nada local');
+  ['only what the server does not have yet goes up', () => {
+    // A finished match is immutable, so comparing by id is enough: there is no
+    // version and no conflict to resolve. That is what makes the sync so
+    // simple.
+    const local = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+    eq(pendingUploads(local, ['b']).map((m) => m.id), ['a', 'c'], 'two missing');
+    eq(pendingUploads(local, ['a', 'b', 'c']).map((m) => m.id), [], 'nothing to do');
+    eq(pendingUploads(local, []).map((m) => m.id), ['a', 'b', 'c'], 'empty server');
+    eq(pendingUploads([], ['a']).length, 0, 'nothing local');
   }],
 
-  ['o nome padrão do jogador é singular em todo idioma', () => {
-    // Usava a chave do TÍTULO da seção, que é plural: em inglês saía
-    // "Players 1". Título de seção e nome de pessoa são textos diferentes.
-    const esperado = { pt: 'Jogador 1', en: 'Player 1', es: 'Jugador 1', de: 'Spieler 1' };
-    for (const [codigo] of LANGS) {
-      setLang(codigo);
-      eq(t('setup.playerN', { n: 1 }), esperado[codigo], codigo);
-      ok(!t('setup.playerN', { n: 1 }).includes('{'), codigo + ': variável não interpolada');
+  ['the default player name is singular in every language', () => {
+    // It used the key of the section TITLE, which is plural: in English it
+    // came out as "Players 1". A section title and a person's name are
+    // different texts.
+    const expected = { pt: 'Jogador 1', en: 'Player 1', es: 'Jugador 1', de: 'Spieler 1' };
+    for (const [code] of LANGS) {
+      setLang(code);
+      eq(t('setup.playerN', { n: 1 }), expected[code], code);
+      ok(!t('setup.playerN', { n: 1 }).includes('{'), code + ': variable not interpolated');
       ok(t('setup.playerN', { n: 2 }) !== t('setup.players'),
-        codigo + ': nome de jogador não pode ser o título da seção');
+        code + ': a player name cannot be the section title');
     }
     setLang('pt');
   }],
 
-  ['a tela de conta aparece nas configurações quando há nuvem', () => {
+  ['the account screen shows in the settings when there is a cloud', () => {
     if (!simulated) return 'skip';
     setLang('pt');
     document.body.childNodes.length = 0;
@@ -3504,188 +3573,199 @@ export const cases = [
     renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
     fire(findAll(root, 'icon-btn').find((b) => b.attributes['aria-label'] === t('common.settings')), 'click');
 
-    const conta = findAll(document.body, 'account')[0];
+    // The account is ONE row on the main screen, and opens its own screen. On
+    // the main one it cannot come whole: it was the block that pushed language
+    // and theme to the end of the scroll.
+    const summary = findAll(document.body, 'set-account')[0];
     if (!cloudEnabled()) {
-      ok(!conta, 'sem nuvem configurada, nada de conta na tela');
+      ok(!summary, 'with no cloud configured, no account on the screen');
       closeSheet();
       return;
     }
+    ok(summary, 'with a cloud, the account row has to exist');
+    eq(findAll(document.body, 'account').length, 0, 'the whole account came back to the main screen');
+    fire(summary, 'click');
 
-    ok(conta, 'com nuvem, a seção de conta precisa existir');
-    eq(accountNow(), 'deslogado', 'ninguém entrou ainda');
+    const accountScreen = findAll(document.body, 'account')[0];
+    ok(accountScreen, 'the account row did not open the account screen');
+    eq(accountNow(), 'signed-out', 'nobody signed in yet');
 
-    // E-mail e senha: entrar num aparelho novo não pode depender de abrir a
-    // caixa de entrada. O link por e-mail continua ali, como recuperação.
-    const campos = findAll(conta, 'search-input');
-    eq(campos.length, 2, 'e-mail e senha');
-    eq(campos[1].attributes.type, 'password', 'o segundo campo é senha');
-    eq(campos[1].attributes.autocomplete, 'current-password',
-      'o gerenciador de senhas do aparelho precisa reconhecer o campo');
-    ok(findAll(conta, 'account-link').length === 1, 'o link por e-mail segue disponível');
+    // Email and password: signing in on a new device cannot depend on opening
+    // the inbox. The email link is still there, as recovery.
+    const fields = findAll(accountScreen, 'search-input');
+    eq(fields.length, 2, 'email and password');
+    eq(fields[1].attributes.type, 'password', 'the second field is the password');
+    eq(fields[1].attributes.autocomplete, 'current-password',
+      'the device password manager has to recognize the field');
+    ok(findAll(accountScreen, 'account-link').length === 1, 'the email link is still available');
 
-    // Botão de provedor social só existe se o servidor disser que está ligado.
-    const rotulos = findAll(conta, 'btn').map(textOf);
-    const temGoogle = rotulos.some((x) => x.includes('Google'));
-    eq(temGoogle, provedores().includes('google'),
-      'botão do Google precisa acompanhar o que o servidor aceita');
+    // A social provider button only exists if the server says it is on.
+    const labels = findAll(accountScreen, 'btn').map(textOf);
+    const hasGoogle = labels.some((x) => x.includes('Google'));
+    eq(hasGoogle, providers().includes('google'),
+      'the Google button has to follow what the server accepts');
     closeSheet();
   }],
 
-  ['sessão vencida com refresh não é sessão perdida', () => {
-    // Este era o bug: guardava-se o refresh_token e nunca se usava, então a
-    // sessão morria em uma hora e a pessoa tinha de pedir e-mail de novo. Para
-    // sempre. Descartar a sessão vencida aqui era o que fechava a porta.
-    const agora = 1000000000000;
-    const hora = 3600 * 1000;
+  ['an expired session with a refresh token is not a lost session', () => {
+    // This was the bug: the refresh_token was stored and never used, so the
+    // session died in one hour and the person had to ask for an email again.
+    // Forever. Discarding the expired session here was what closed the door.
+    const now = 1000000000000;
+    const hour = 3600 * 1000;
 
-    const viva = { access_token: 'a', expires_at: (agora + hora) / 1000 };
-    const vencidaComRefresh = { access_token: 'a', refresh_token: 'r', expires_at: (agora - hora) / 1000 };
-    const vencidaSemRefresh = { access_token: 'a', expires_at: (agora - hora) / 1000 };
+    const alive = { access_token: 'a', expires_at: (now + hour) / 1000 };
+    const expiredWithRefresh = { access_token: 'a', refresh_token: 'r', expires_at: (now - hour) / 1000 };
+    const expiredNoRefresh = { access_token: 'a', expires_at: (now - hour) / 1000 };
 
-    ok(sessaoAproveitavel(viva, agora), 'sessão no prazo serve');
-    ok(sessaoAproveitavel(vencidaComRefresh, agora), 'vencida com refresh se renova');
-    ok(!sessaoAproveitavel(vencidaSemRefresh, agora), 'vencida sem refresh acabou');
-    ok(!sessaoAproveitavel(null, agora), 'nenhuma sessão');
+    ok(isSessionUsable(alive, now), 'a session within its time works');
+    ok(isSessionUsable(expiredWithRefresh, now), 'expired with refresh gets renewed');
+    ok(!isSessionUsable(expiredNoRefresh, now), 'expired without refresh is over');
+    ok(!isSessionUsable(null, now), 'no session');
 
-    // A margem evita o caso em que o token vence ENTRE decidir e o pedido
-    // chegar ao servidor - rede lenta e relógio de aparelho fora de hora.
-    ok(!precisaRenovar(viva, agora), 'faltando uma hora, não mexe');
-    ok(precisaRenovar({ ...vencidaComRefresh, expires_at: (agora + 30000) / 1000 }, agora),
-      'faltando 30s, renova antes de usar');
-    ok(!precisaRenovar(viva, agora), 'sem refresh_token não há o que renovar, mesmo no prazo');
-    ok(precisaRenovar(vencidaComRefresh, agora), 'já vencida, renova');
-    ok(!precisaRenovar(vencidaSemRefresh, agora), 'sem refresh não há o que renovar');
-    ok(!precisaRenovar({ access_token: 'a', refresh_token: 'r' }, agora),
-      'sem prazo declarado, não fica renovando à toa');
+    // The margin avoids the case where the token expires BETWEEN deciding and
+    // the request reaching the server - slow network and a device clock that
+    // is off.
+    ok(!needsRefresh(alive, now), 'with an hour left, leaves it alone');
+    ok(needsRefresh({ ...expiredWithRefresh, expires_at: (now + 30000) / 1000 }, now),
+      'with 30s left, renews before using');
+    ok(!needsRefresh(alive, now), 'without a refresh_token there is nothing to renew, even within time');
+    ok(needsRefresh(expiredWithRefresh, now), 'already expired, renews');
+    ok(!needsRefresh(expiredNoRefresh, now), 'without refresh there is nothing to renew');
+    ok(!needsRefresh({ access_token: 'a', refresh_token: 'r' }, now),
+      'with no declared expiry, it does not keep renewing for nothing');
 
-    // E a decisão de verdade: o que sai do disco. Uma regra correta guardada
-    // num lugar que ninguém consulta não conserta nada - era exatamente aqui
-    // que a sessão morria, e o teste da regra solta não perceberia.
-    ok(sessaoGuardada(JSON.stringify(vencidaComRefresh), agora), 'volta do disco para ser renovada');
-    ok(!sessaoGuardada(JSON.stringify(vencidaSemRefresh), agora), 'essa não volta');
-    ok(!sessaoGuardada(null, agora), 'disco vazio');
-    ok(!sessaoGuardada('{quebrado', agora), 'lixo no disco não derruba o app');
+    // And the real decision: what comes out of the disk. A correct rule kept
+    // somewhere nobody consults fixes nothing - this is exactly where the
+    // session died, and the test of the loose rule would not notice.
+    ok(sessionFromStorage(JSON.stringify(expiredWithRefresh), now), 'comes back from disk to be renewed');
+    ok(!sessionFromStorage(JSON.stringify(expiredNoRefresh), now), 'this one does not come back');
+    ok(!sessionFromStorage(null, now), 'empty disk');
+    ok(!sessionFromStorage('{quebrado', now), 'junk on disk does not take the app down');
   }],
 
-  ['cadastro não promete e-mail para quem já tem conta', () => {
-    // Com confirmação de e-mail ligada, o GoTrue NÃO diz "esse e-mail já
-    // existe" - responder isso transformaria o cadastro num verificador de
-    // endereços para qualquer um. Ele devolve um usuário de fachada com
-    // `identities` vazio, e esse array vazio é o único sinal.
+  ['sign-up does not promise an email to someone who already has an account', () => {
+    // With email confirmation on, GoTrue does NOT say "that email already
+    // exists" - answering that would turn sign-up into an address checker for
+    // anyone. It returns a decoy user with empty `identities`, and that empty
+    // array is the only signal.
     //
-    // Sem lê-lo, o app dizia "confira sua caixa de entrada" para quem já tinha
-    // conta, e a pessoa ficava esperando um e-mail que não ia resolver nada.
-    ok(jaTinhaConta({ id: 'x', identities: [] }), 'array vazio: a conta já existia');
-    ok(!jaTinhaConta({ id: 'x', identities: [{ provider: 'email' }] }), 'conta nova de verdade');
-    ok(!jaTinhaConta({ access_token: 'a', identities: [] }),
-      'se veio sessão, entrou - não importa o resto');
-    ok(!jaTinhaConta(null), 'resposta vazia não é conta existente');
-    ok(!jaTinhaConta({ id: 'x' }), 'sem o campo, não dá para afirmar nada');
+    // Without reading it, the app said "check your inbox" to someone who
+    // already had an account, and the person was left waiting for an email
+    // that would solve nothing.
+    ok(accountAlreadyExisted({ id: 'x', identities: [] }), 'empty array: the account already existed');
+    ok(!accountAlreadyExisted({ id: 'x', identities: [{ provider: 'email' }] }), 'a truly new account');
+    ok(!accountAlreadyExisted({ access_token: 'a', identities: [] }),
+      'if a session came, it signed in - the rest does not matter');
+    ok(!accountAlreadyExisted(null), 'an empty answer is not an existing account');
+    ok(!accountAlreadyExisted({ id: 'x' }), 'without the field, nothing can be asserted');
   }],
 
-  ['senha curta nem sai do aparelho', () => {
-    ok(!senhaValida(''), 'vazia');
-    ok(!senhaValida('1234567'), 'sete não bastam');
-    ok(senhaValida('12345678'), 'oito bastam');
-    ok(!senhaValida(null), 'nulo não explode');
+  ['a short password does not even leave the device', () => {
+    ok(!isPasswordValid(''), 'empty');
+    ok(!isPasswordValid('1234567'), 'seven are not enough');
+    ok(isPasswordValid('12345678'), 'eight are enough');
+    ok(!isPasswordValid(null), 'null does not blow up');
   }],
 
-  ['no computador nada da mesa vira de cabeça para baixo', () => {
-    // Deitado na mesa, o teclado gira para o assento de quem age - é assim que
-    // a pessoa lê o próprio ataque. Num monitor de pé, de frente para uma
-    // pessoa só, o mesmo giro entregava a tela invertida.
+  ['on a computer nothing at the table turns upside down', () => {
+    // Lying on the table, the pad rotates toward the seat of whoever acts -
+    // that is how the person reads their own attack. On an upright monitor,
+    // facing a single person, the same rotation delivered the screen inverted.
     //
-    // O sinal é o ponteiro, não o tamanho: tablet grande em paisagem tem a
-    // largura de um notebook, e chutar por pixels erraria nos dois sentidos.
-    ok(giraComOAssento(false), 'sem mouse: está na mesa, gira');
-    ok(!giraComOAssento(true), 'com mouse ou trackpad: está de pé, não gira');
+    // The signal is the pointer, not the size: a large tablet in landscape is
+    // as wide as a laptop, and guessing by pixels would be wrong both ways.
+    ok(rotatesWithSeat(false), 'no mouse: it is on the table, rotates');
+    ok(!rotatesWithSeat(true), 'with a mouse or trackpad: it is upright, does not rotate');
 
-    // O valor que chega ao CSS, com unidade. Sem o sufixo, `rotate(0)` é
-    // inválido e o navegador descarta a regra inteira em silêncio.
-    eq(grausNaMesa(180, false), '180deg', 'na mesa, acompanha o assento');
-    eq(grausNaMesa(180, true), '0deg', 'no computador, sempre de pé');
-    eq(grausNaMesa(undefined, false), '0deg', 'assento sem giro declarado');
+    // The value that reaches the CSS, with a unit. Without the suffix,
+    // `rotate(0)` is invalid and the browser silently drops the whole rule.
+    eq(tableRotation(180, false), '180deg', 'at the table, follows the seat');
+    eq(tableRotation(180, true), '0deg', 'on the computer, always upright');
+    eq(tableRotation(undefined, false), '0deg', 'a seat with no declared rotation');
 
-    // E que a leitura do ponteiro realmente chegue até a decisão.
+    // And that the pointer reading really reaches the decision.
     if (simulated) {
-      const antes = globalThis.matchMedia;
+      const before = globalThis.matchMedia;
       try {
         globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
-        eq(rotatesToSeat(), false, 'ponteiro preciso: não gira');
+        eq(rotatesToSeat(), false, 'fine pointer: does not rotate');
         globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
-        eq(rotatesToSeat(), true, 'sem ponteiro preciso: gira');
+        eq(rotatesToSeat(), true, 'no fine pointer: rotates');
       } finally {
-        globalThis.matchMedia = antes;
+        globalThis.matchMedia = before;
       }
     }
   }],
 
-  ['escolher jogador oferece criar OU procurar conta', () => {
+  ['picking a player offers creating OR finding an account', () => {
     if (!simulated || !cloudEnabled()) return 'skip';
     setLang('pt');
 
-    const abrirEscolha = () => {
+    const openPicker = () => {
       document.body.childNodes.length = 0;
       const root = document.createElement('div');
       renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
       fire(findAll(root, 'seat-name')[0], 'click');
       flushFrames();
-      const t2 = telas();
-      return t2[t2.length - 1];
+      const list = panes();
+      return list[list.length - 1];
     };
 
-    // Deslogado: só dá para digitar um nome. Procurar conta exigiria conta.
-    eq(accountNow(), 'deslogado', 'cada caso começa sem sessão');
-    ok(findAll(abrirEscolha(), 'search-input').length >= 1, 'sempre dá para digitar');
-    eq(findAll(abrirEscolha(), 'is-find').length, 0, 'sem conta, não há o que procurar');
+    // Signed out: you can only type a name. Finding an account would require
+    // an account.
+    eq(accountNow(), 'signed-out', 'each case starts with no session');
+    ok(findAll(openPicker(), 'search-input').length >= 1, 'typing is always possible');
+    eq(findAll(openPicker(), 'is-find').length, 0, 'without an account, there is nothing to find');
     closeSheet();
 
     location.hash = '#access_token=faz-de-conta&expires_at=99999999999';
-    ok(capturarRetorno(), 'sessão capturada');
+    ok(captureReturn(), 'session captured');
 
-    const pane = abrirEscolha();
-    ok(findAll(pane, 'search-input').length >= 1, 'caminho 1: digitar um nome');
-    eq(findAll(pane, 'is-find').length, 1, 'caminho 2: procurar a conta');
+    const pane = openPicker();
+    ok(findAll(pane, 'search-input').length >= 1, 'path 1: type a name');
+    eq(findAll(pane, 'is-find').length, 1, 'path 2: find the account');
     closeSheet();
-    esquecerSessao();
+    forgetSession();
   }],
 
-  ['digitar o nome de quem já está na mesa é recusado', () => {
+  ['typing the name of someone already at the table is refused', () => {
     if (!simulated) return 'skip';
     setLang('pt');
     document.body.childNodes.length = 0;
     const root = document.createElement('div');
     renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
 
-    // A lista de salvos já desabilitava quem estava sentado, mas digitar o
-    // mesmo nome na mão passava direto.
-    // Os nomes vêm da tela, não do padrão: o rascunho é compartilhado entre
-    // casos e pode ter sido mexido antes.
-    const nomes = () => findAll(root, 'seat-name-text').map(textOf);
-    const primeiro = nomes()[0];
-    const jaSentado = nomes()[1];
-    ok(primeiro !== jaSentado, 'as duas cadeiras começam com nomes distintos');
+    // The saved list already disabled whoever was seated, but typing the same
+    // name by hand went straight through.
+    // The names come from the screen, not from the default: the draft is
+    // shared between cases and may have been touched before.
+    const names = () => findAll(root, 'seat-name-text').map(textOf);
+    const first = names()[0];
+    const alreadySeated = names()[1];
+    ok(first !== alreadySeated, 'the two seats start with distinct names');
 
     fire(findAll(root, 'seat-name')[0], 'click');
     flushFrames();
-    const pane = telas()[telas().length - 1];
-    const campo = findAll(pane, 'search-input')[0];
-    const usar = findAll(pane, 'btn').find((b) => textOf(b) === t('player.use'));
+    const pane = panes()[panes().length - 1];
+    const field = findAll(pane, 'search-input')[0];
+    const use = findAll(pane, 'btn').find((b) => textOf(b) === t('player.use'));
 
-    campo.value = jaSentado;
-    fire(campo, 'input', { target: { value: jaSentado } });
-    fire(usar, 'click');
+    field.value = alreadySeated;
+    fire(field, 'input', { target: { value: alreadySeated } });
+    fire(use, 'click');
     flushFrames();
 
-    // Não avançou para o deck, e a cadeira não virou a segunda pessoa.
-    const titulo = findAll(document.body, 'sheet-title').map(textOf).join(' ');
-    ok(titulo !== t('commander.title'), 'não pode seguir para o deck com nome repetido');
-    eq(nomes()[0], primeiro, 'a primeira cadeira continua sendo ela mesma');
+    // It did not move on to the deck, and the seat did not become the second
+    // person.
+    const title = findAll(document.body, 'sheet-title').map(textOf).join(' ');
+    ok(title !== t('commander.title'), 'it cannot move on to the deck with a repeated name');
+    eq(names()[0], first, 'the first seat is still itself');
 
     closeSheet();
   }],
 
-  ['digitar um nome vai direto ao deck', () => {
+  ['typing a name goes straight to the deck', () => {
     if (!simulated) return 'skip';
     setLang('pt');
     document.body.childNodes.length = 0;
@@ -3694,83 +3774,86 @@ export const cases = [
     fire(findAll(root, 'seat-name')[0], 'click');
     flushFrames();
 
-    const pane = telas()[telas().length - 1];
+    const pane = panes()[panes().length - 1];
     findAll(pane, 'search-input')[0].value = 'Zé da Mesa';
-    const usar = findAll(pane, 'btn').find((b) => textOf(b) === t('player.use'));
-    ok(usar, 'o botão de usar o nome digitado');
-    fire(usar, 'click');
+    const use = findAll(pane, 'btn').find((b) => textOf(b) === t('player.use'));
+    ok(use, 'the button to use the typed name');
+    fire(use, 'click');
     flushFrames();
 
-    // Antes havia uma pergunta de @ no meio do caminho. Ela virou uma escolha
-    // no INÍCIO - quem digitou um nome já decidiu que não vai vincular conta,
-    // e perguntar de novo logo depois era refazer a pergunta já respondida.
-    const titulo = findAll(document.body, 'sheet-title').map(textOf).join(' ');
-    eq(titulo, t('commander.title'), 'o passo seguinte é o deck');
+    // There used to be an @ question in the middle of the way. It became a
+    // choice at the START - whoever typed a name already decided not to link
+    // an account, and asking again right after was redoing a question already
+    // answered.
+    const title = findAll(document.body, 'sheet-title').map(textOf).join(' ');
+    eq(title, t('commander.title'), 'the next step is the deck');
     closeSheet();
   }],
 
-  ['o @ fica sob o nome, e some para quem não entrou', () => {
+  ['the @ sits under the name, and disappears for whoever did not sign in', () => {
     if (!simulated || !cloudEnabled()) return 'skip';
     setLang('pt');
 
-    const desenhar = () => {
+    const draw = () => {
       document.body.childNodes.length = 0;
       const root = document.createElement('div');
       renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
       return root;
     };
 
-    // Deslogado: a regra que não pode quebrar. Quem nunca vai criar conta não
-    // ganha um controle a mais na tela por causa de um recurso que não usa.
-    eq(accountNow(), 'deslogado', 'cada caso começa sem sessão');
-    eq(findAll(desenhar(), 'seat-handle').length, 0, 'sem conta, nada de @ na cadeira');
+    // Signed out: the rule that cannot break. Whoever will never create an
+    // account does not get one more control on the screen because of a
+    // feature they do not use.
+    eq(accountNow(), 'signed-out', 'each case starts with no session');
+    eq(findAll(draw(), 'seat-handle').length, 0, 'without an account, no @ on the seat');
 
-    // Agora com sessão. Entrar pelo fragmento é o mesmo caminho do link
-    // mágico, então o teste usa a porta de entrada real e não um atalho.
+    // Now with a session. Signing in through the fragment is the same path as
+    // the magic link, so the test uses the real entry door and not a shortcut.
     location.hash = '#access_token=faz-de-conta&expires_at=99999999999';
-    ok(capturarRetorno(), 'a sessão foi capturada da URL');
-    ok(accountNow() !== 'deslogado', 'agora há sessão');
+    ok(captureReturn(), 'the session was captured from the URL');
+    ok(accountNow() !== 'signed-out', 'now there is a session');
 
-    const root = desenhar();
-    const cartoes = findAll(root, 'seat-card');
-    const linhas = findAll(root, 'seat-handle');
-    ok(cartoes.length >= 2, 'a home desenha as cadeiras');
-    eq(linhas.length, cartoes.length, 'uma linha de @ por cadeira');
+    const root = draw();
+    const cards = findAll(root, 'seat-card');
+    const lines = findAll(root, 'seat-handle');
+    ok(cards.length >= 2, 'the home screen draws the seats');
+    eq(lines.length, cards.length, 'one @ line per seat');
 
-    // Sob o NOME, não solto no canto do cartão: tem de estar no mesmo bloco de
-    // texto que o nome e o deck. Antes era um chip na borda, longe daquilo que
-    // descrevia e disputando espaço com a alça de arrastar.
-    const info = linhas[0].closest('.seat-info');
-    ok(info, 'a linha do @ mora dentro de .seat-info');
+    // Under the NAME, not loose in the corner of the card: it has to be in the
+    // same text block as the name and the deck. It used to be a chip on the
+    // edge, far from what it described and fighting for space with the drag
+    // handle.
+    const info = lines[0].closest('.seat-info');
+    ok(info, 'the @ line lives inside .seat-info');
 
-    const irmaos = info.childNodes.filter((n) => n && n.classList);
-    const iNome = irmaos.findIndex((n) => n.classList.contains('seat-name'));
-    const iArroba = irmaos.findIndex((n) => n.classList.contains('seat-handle'));
-    ok(iNome >= 0 && iArroba >= 0, 'nome e @ estão os dois na coluna');
-    ok(iArroba > iNome, 'o @ vem DEPOIS do nome, não antes');
+    const siblings = info.childNodes.filter((n) => n && n.classList);
+    const iName = siblings.findIndex((n) => n.classList.contains('seat-name'));
+    const iAt = siblings.findIndex((n) => n.classList.contains('seat-handle'));
+    ok(iName >= 0 && iAt >= 0, 'name and @ are both in the column');
+    ok(iAt > iName, 'the @ comes AFTER the name, not before');
 
-    esquecerSessao();
+    forgetSession();
   }],
 
-  ['o @ é normalizado antes de qualquer coisa', () => {
-    eq(normalizarHandle('  @AlienPls '), 'alienpls', 'tira arroba, espaço e caixa');
-    eq(normalizarHandle('@@alex'), 'alex', 'arroba repetida');
-    eq(normalizarHandle(null), '', 'nulo não explode');
-    eq(exibirHandle('AlienPls'), '@alienpls', 'na tela volta com arroba');
-    eq(exibirHandle(''), '', 'sem @ não inventa arroba');
+  ['the @ is normalized before anything else', () => {
+    eq(normalizeHandle('  @AlienPls '), 'alienpls', 'removes at sign, spaces and case');
+    eq(normalizeHandle('@@alex'), 'alex', 'repeated at sign');
+    eq(normalizeHandle(null), '', 'null does not blow up');
+    eq(displayHandle('AlienPls'), '@alienpls', 'on screen it comes back with the at sign');
+    eq(displayHandle(''), '', 'without an @ it does not invent an at sign');
 
-    ok(handleValido('@AlienPls'), 'o que a pessoa digita costuma ter arroba e maiúscula');
-    ok(handleValido('abc'), 'mínimo de 3');
-    ok(!handleValido('ab'), 'curto demais');
-    ok(!handleValido('a'.repeat(21)), 'longo demais');
-    ok(!handleValido('alex parma'), 'espaço no meio não vale');
-    ok(!handleValido('alex@exemplo.com'), 'e-mail não é @ público');
-    ok(!handleValido('alex-parma'), 'só letra, número e sublinhado');
+    ok(isHandleValid('@AlienPls'), 'what people type usually has an at sign and capitals');
+    ok(isHandleValid('abc'), 'minimum of 3');
+    ok(!isHandleValid('ab'), 'too short');
+    ok(!isHandleValid('a'.repeat(21)), 'too long');
+    ok(!isHandleValid('alex parma'), 'a space in the middle does not count');
+    ok(!isHandleValid('alex@exemplo.com'), 'an email is not a public @');
+    ok(!isHandleValid('alex-parma'), 'only letters, digits and underscore');
   }],
 
-  ['só cadeira marcada com @ vira convite', () => {
-    // A regra que não pode quebrar: quem nunca vai criar conta continua usando
-    // o app exatamente como antes. Cadeira é texto livre, e assim segue.
+  ['only a seat tagged with an @ becomes an invite', () => {
+    // The rule that cannot break: whoever will never create an account keeps
+    // using the app exactly as before. A seat is free text, and stays so.
     const match = {
       id: 'p1',
       seats: [
@@ -3781,658 +3864,681 @@ export const cases = [
       ],
     };
 
-    const linhas = participantesDe(match);
-    eq(linhas.length, 1, 'três das quatro cadeiras não viram convite nenhum');
-    eq(linhas[0].seat_id, 's1');
-    eq(linhas[0].handle, 'alienpls', 'vai normalizado para o banco');
-    eq(linhas[0].match_id, 'p1');
-    eq(linhas[0].user_id, null, 'sem @ resolvido ainda, a cadeira fica sem dono');
+    const rows = participantsOf(match);
+    eq(rows.length, 1, 'three of the four seats become no invite at all');
+    eq(rows[0].seat_id, 's1');
+    eq(rows[0].handle, 'alienpls', 'it goes normalized to the database');
+    eq(rows[0].match_id, 'p1');
+    eq(rows[0].user_id, null, 'with no @ resolved yet, the seat has no owner');
 
-    eq(participantesDe(null).length, 0, 'sem partida, sem convite');
-    eq(participantesDe({ seats: [{ id: 's1', handle: 'alex' }] }).length, 0,
-      'partida sem id não gera linha órfã');
+    eq(participantsOf(null).length, 0, 'no match, no invite');
+    eq(participantsOf({ seats: [{ id: 's1', handle: 'alex' }] }).length, 0,
+      'a match with no id does not create an orphan row');
   }],
 
-  ['convite aparece mesmo quando a partida não vem junto', () => {
-    // É o portão funcionando, não um erro. Quem não assina precisa VER que há
-    // partidas esperando - senão nunca aceita e nunca soube que existiam. O
-    // convite é livre; ler o conteúdo é que é pago.
-    const linhas = [
+  ['an invite shows even when the match does not come along', () => {
+    // It is the gate working, not an error. A non-subscriber needs to SEE that
+    // matches are waiting - otherwise they never accept and never knew they
+    // existed. The invite is free; reading the content is what is paid.
+    const rows = [
       { match_id: 'p1', seat_id: 's1', status: 'pendente', handle: 'alienpls' },
       { match_id: 'p2', seat_id: 's3', status: 'pendente', handle: 'alienpls' },
     ];
-    const semAssinar = montarConvites(linhas, []);
-    eq(semAssinar.length, 2, 'os dois convites aparecem');
-    ok(semAssinar.every((c) => c.match === null), 'sem assinatura, nada do conteúdo');
-    eq(semAssinar[0].matchId, 'p1');
+    const unsubscribed = buildInvites(rows, []);
+    eq(unsubscribed.length, 2, 'both invites show');
+    ok(unsubscribed.every((c) => c.match === null), 'without a subscription, none of the content');
+    eq(unsubscribed[0].matchId, 'p1');
 
-    const assinando = montarConvites(linhas, [{ id: 'p2', seats: [] }]);
-    eq(assinando[0].match, null, 'esta ainda não veio');
-    ok(assinando[1].match, 'esta veio e pode ser mostrada');
+    const subscribed = buildInvites(rows, [{ id: 'p2', seats: [] }]);
+    eq(subscribed[0].match, null, 'this one has not come yet');
+    ok(subscribed[1].match, 'this one came and can be shown');
 
-    eq(montarConvites(null, null).length, 0, 'listas vazias não explodem');
+    eq(buildInvites(null, null).length, 0, 'empty lists do not blow up');
   }],
 
-  ['as notas de versão descrevem a versão que está no ar', () => {
-    ok(NOVIDADES.length, 'existe pelo menos uma versão anotada');
-    ok(novidadesDe(APP_VERSION), 'a versão atual tem notas: ' + APP_VERSION);
+  ['the release notes describe the version that is live', () => {
+    ok(RELEASE_NOTES.length, 'there is at least one annotated version');
+    ok(releaseNotesFor(APP_VERSION), 'the current version has notes: ' + APP_VERSION);
 
-    // Ordem importa: a tela mostra da mais nova para a mais antiga, e
-    // novidadesDesde() corta pela posição.
-    eq(NOVIDADES[0].versao, APP_VERSION, 'a mais recente vem primeiro');
+    // Order matters: the screen shows from newest to oldest, and
+    // releaseNotesSince() cuts by position.
+    eq(RELEASE_NOTES[0].version, APP_VERSION, 'the most recent comes first');
 
-    for (const v of NOVIDADES) {
-      ok(/^\d+\.\d+\.\d+$/.test(v.versao), v.versao + ': número de versão malformado');
-      ok(/^\d{4}-\d{2}-\d{2}$/.test(v.data), v.versao + ': data malformada');
-      ok(v.itens && v.itens.length, v.versao + ': versão sem nenhuma mudança anotada');
-      for (const item of v.itens) {
-        ok(['novo', 'corrigido', 'mudou'].includes(item.tipo),
-          v.versao + ': tipo desconhecido "' + item.tipo + '"');
-        ok(item.texto && String(item.texto).length > 20,
-          v.versao + ': nota curta demais para dizer alguma coisa');
+    for (const v of RELEASE_NOTES) {
+      ok(/^\d+\.\d+\.\d+$/.test(v.version), v.version + ': malformed version number');
+      ok(/^\d{4}-\d{2}-\d{2}$/.test(v.date), v.version + ': malformed date');
+      ok(v.items && v.items.length, v.version + ': a version with no change annotated');
+      for (const item of v.items) {
+        ok(['new', 'fixed', 'changed'].includes(item.type),
+          v.version + ': unknown type "' + item.type + '"');
+        ok(item.text && String(item.text).length > 20,
+          v.version + ': a note too short to say anything');
       }
-      // Cada tipo tem tradução nos quatro idiomas, senão a etiqueta sai crua.
-      for (const [codigo] of LANGS) {
-        for (const tipo of ['novo', 'corrigido', 'mudou']) {
-          ok(DICTS[codigo]['news.' + tipo], 'falta news.' + tipo + ' em ' + codigo);
+      // Each type has a translation in the four languages, otherwise the tag
+      // comes out raw.
+      for (const [code] of LANGS) {
+        for (const type of ['new', 'fixed', 'changed']) {
+          ok(DICTS[code]['news.' + type], 'missing news.' + type + ' in ' + code);
         }
       }
     }
   }],
 
-  ['quem atualiza vê só o que ainda não viu', () => {
-    // Ler de novo o que já se leu treina a ignorar a tela. E quem instala
-    // agora não vê nada: o histórico inteiro de mudanças é ruído antes do
-    // primeiro uso.
-    const falso = [{ versao: '1.3.0' }, { versao: '1.2.0' }, { versao: '1.1.0' }];
-    const desde = (vista) => {
-      const onde = falso.findIndex((n) => n.versao === vista);
-      return onde < 0 ? falso : falso.slice(0, onde);
+  ['whoever updates sees only what they have not seen yet', () => {
+    // Reading again what was already read trains people to ignore the screen.
+    // And whoever installs now sees nothing: the whole change history is noise
+    // before the first use.
+    const fake = [{ version: '1.3.0' }, { version: '1.2.0' }, { version: '1.1.0' }];
+    const since = (seen) => {
+      const at = fake.findIndex((n) => n.version === seen);
+      return at < 0 ? fake : fake.slice(0, at);
     };
-    eq(desde('1.2.0').map((n) => n.versao), ['1.3.0'], 'só o que veio depois');
-    eq(desde('1.3.0').length, 0, 'já está na mais nova: nada a mostrar');
-    eq(desde('1.1.0').map((n) => n.versao), ['1.3.0', '1.2.0'], 'pulou duas, vê as duas');
+    eq(since('1.2.0').map((n) => n.version), ['1.3.0'], 'only what came after');
+    eq(since('1.3.0').length, 0, 'already on the newest: nothing to show');
+    eq(since('1.1.0').map((n) => n.version), ['1.3.0', '1.2.0'], 'skipped two, sees both');
 
-    // Versão desconhecida devolve tudo - é o caso de quem voltou de um app
-    // muito antigo, e mostrar demais é melhor que mostrar nada.
-    eq(novidadesDesde('0.0.1').length, NOVIDADES.length, 'versão que não existe: tudo');
-    eq(novidadesDesde(null).length, NOVIDADES.length, 'sem referência: tudo');
-    eq(novidadesDesde(APP_VERSION).length, 0, 'quem já está na atual não vê nada');
+    // An unknown version returns everything - it is the case of someone coming
+    // back from a very old app, and showing too much beats showing nothing.
+    eq(releaseNotesSince('0.0.1').length, RELEASE_NOTES.length, 'a version that does not exist: everything');
+    eq(releaseNotesSince(null).length, RELEASE_NOTES.length, 'no reference: everything');
+    eq(releaseNotesSince(APP_VERSION).length, 0, 'whoever is already on the current sees nothing');
   }],
 
-  ['o canal sai do caminho da URL', () => {
-    eq(canalDe('/hit-easy/'), 'producao', 'raiz publicada');
-    eq(canalDe('/hit-easy/beta/'), 'beta', 'canal de teste');
-    eq(canalDe('/hit-easy/beta/index.html'), 'beta', 'arquivo dentro do beta');
-    eq(canalDe('/'), 'producao', 'servidor local');
-    // 'beta' tem de ser um trecho inteiro do caminho, não pedaço de palavra.
-    eq(canalDe('/hit-easy/betamax/'), 'producao', 'não é o canal beta');
-    eq(canalDe('/beta-teste/'), 'producao', 'nem esse');
+  ['the channel comes from the URL path', () => {
+    eq(channelOf('/hit-easy/'), 'producao', 'published root');
+    eq(channelOf('/hit-easy/beta/'), 'beta', 'test channel');
+    eq(channelOf('/hit-easy/beta/index.html'), 'beta', 'a file inside beta');
+    eq(channelOf('/'), 'producao', 'local server');
+    // 'beta' has to be a whole path segment, not a piece of a word.
+    eq(channelOf('/hit-easy/betamax/'), 'producao', 'it is not the beta channel');
+    eq(channelOf('/beta-teste/'), 'producao', 'nor this one');
   }],
 
-  ['produção não pode mudar de chave ao ganhar um canal de teste', () => {
-    // localStorage é por ORIGEM. Separar beta de produção é obrigatório - mas
-    // se a separação mexesse também no nome usado em produção, todo mundo que
-    // já usa o app abriria o histórico vazio. O beta ganha sufixo; produção não
-    // muda um byte. Este teste existe para que ninguém "arrume" isso depois.
-    const chaveDe = (canal, base) => (canal === 'beta' ? base + '.beta' : base);
-    eq(chaveDe('producao', 'mtglc.db.v1'), 'mtglc.db.v1', 'histórico de produção intocado');
-    eq(chaveDe('producao', 'mtglc.session.v1'), 'mtglc.session.v1', 'sessão intocada');
-    ok(chaveDe('beta', 'mtglc.db.v1') !== 'mtglc.db.v1', 'beta escreve em outro lugar');
+  ['production cannot change keys when it gains a test channel', () => {
+    // localStorage is per ORIGIN. Separating beta from production is mandatory
+    // - but if the separation also touched the name used in production,
+    // everyone already using the app would open an empty history. Beta gets a
+    // suffix; production does not change a byte. This test exists so nobody
+    // "tidies" that up later.
+    const keyOf = (channel, base) => (channel === 'beta' ? base + '.beta' : base);
+    eq(keyOf('producao', 'mtglc.db.v1'), 'mtglc.db.v1', 'production history untouched');
+    eq(keyOf('producao', 'mtglc.session.v1'), 'mtglc.session.v1', 'session untouched');
+    ok(keyOf('beta', 'mtglc.db.v1') !== 'mtglc.db.v1', 'beta writes somewhere else');
   }],
 
-  ['o service worker só apaga cache do próprio canal', () => {
-    // O activate antes apagava todo cache que não fosse o atual. Com dois canais
-    // na mesma origem, quem ativasse por último derrubaria o app offline do
-    // outro - e ainda o de qualquer outra página hospedada no mesmo domínio.
-    eq(canalDoCache('hiteasy-shell-v26'), 'producao', 'nome antigo continua sendo de produção');
-    eq(canalDoCache('hiteasy-art-v27'), 'producao');
-    eq(canalDoCache('hiteasy-beta-shell-v27'), 'beta');
-    eq(canalDoCache('workbox-precache-de-outro-app'), null, 'cache alheio não se toca');
-    eq(canalDoCache(''), null);
+  ['the service worker only deletes caches of its own channel', () => {
+    // activate used to delete every cache that was not the current one. With
+    // two channels on the same origin, whichever activated last would take
+    // down the other's offline app - and that of any other page hosted on the
+    // same domain.
+    eq(channelOfCache('hiteasy-shell-v26'), 'producao', 'an old name is still production\'s');
+    eq(channelOfCache('hiteasy-art-v27'), 'producao');
+    eq(channelOfCache('hiteasy-beta-shell-v27'), 'beta');
+    eq(channelOfCache('workbox-precache-de-outro-app'), null, 'someone else\'s cache is not touched');
+    eq(channelOfCache(''), null);
 
-    const CANAL = 'producao', SHELL = 'hiteasy-shell-v27', ART = 'hiteasy-art-v27';
-    const apagar = (nomes) => nomes.filter(
-      (k) => canalDoCache(k) === CANAL && k !== SHELL && k !== ART);
+    const CHANNEL = 'producao', SHELL = 'hiteasy-shell-v27', ART = 'hiteasy-art-v27';
+    const toDeleteNow = (names) => names.filter(
+      (k) => channelOfCache(k) === CHANNEL && k !== SHELL && k !== ART);
 
-    eq(apagar([SHELL, ART, 'hiteasy-shell-v26', 'hiteasy-beta-shell-v27', 'outro-app-v1']),
-      ['hiteasy-shell-v26'], 'só a versão velha do próprio canal');
+    eq(toDeleteNow([SHELL, ART, 'hiteasy-shell-v26', 'hiteasy-beta-shell-v27', 'outro-app-v1']),
+      ['hiteasy-shell-v26'], 'only the old version of its own channel');
   }],
 
-  ['o pedido de link mágico leva redirect_to na query', () => {
-    // O primeiro login real caiu em localhost:3000 porque o destino ia no CORPO,
-    // como `options.email_redirect_to` - forma do SDK, não da API REST. O GoTrue
-    // ignora campo que não conhece sem reclamar e usa o Site URL do projeto.
-    // Um erro mudo assim só aparece com e-mail de verdade na mão; por isso o
-    // formato do pedido virou função pura, para o teste olhar antes.
-    const alvo = 'https://alienpls-vibes.github.io/hit-easy/';
-    const { caminho, corpo } = pedidoDeLink(' Alex@Exemplo.com ', alvo);
+  ['the magic link request carries redirect_to in the query', () => {
+    // The first real sign-in landed on localhost:3000 because the destination
+    // went in the BODY, as `options.email_redirect_to` - the SDK's form, not
+    // the REST API's. GoTrue ignores a field it does not know without
+    // complaining and uses the project's Site URL. A silent error like that
+    // only shows with a real email in hand; that is why the request format
+    // became a pure function, so the test looks at it first.
+    const target = 'https://alienpls-vibes.github.io/hit-easy/';
+    const { path, body } = magicLinkRequest(' Alex@Exemplo.com ', target);
 
-    ok(caminho.startsWith('/auth/v1/otp?'), 'endpoint do OTP');
-    const query = new URLSearchParams(caminho.slice(caminho.indexOf('?') + 1));
-    eq(query.get('redirect_to'), alvo, 'destino precisa viajar na query');
+    ok(path.startsWith('/auth/v1/otp?'), 'OTP endpoint');
+    const query = new URLSearchParams(path.slice(path.indexOf('?') + 1));
+    eq(query.get('redirect_to'), target, 'the destination has to travel in the query');
 
-    eq(corpo.email, 'Alex@Exemplo.com', 'espaços em volta não vão para o servidor');
-    eq(corpo.create_user, true, 'primeiro acesso cria a conta');
-    ok(!('options' in corpo), 'options é campo do SDK; a API REST o descarta calada');
-    ok(!JSON.stringify(corpo).includes('redirect'), 'destino não pode ir só no corpo');
+    eq(body.email, 'Alex@Exemplo.com', 'surrounding spaces do not go to the server');
+    eq(body.create_user, true, 'the first access creates the account');
+    ok(!('options' in body), 'options is an SDK field; the REST API silently drops it');
+    ok(!JSON.stringify(body).includes('redirect'), 'the destination cannot go only in the body');
   }],
 
-  ['o endereço de retorno não carrega fragmento nem query', () => {
-    // Dois motivos. Um: pedir um segundo link estando com `#access_token=...` na
-    // barra mandaria esse token dentro do e-mail. Dois: o endereço tem de bater
-    // com a lista de Redirect URLs do Supabase, e sobra faz o servidor recusar.
-    const sujo = {
+  ['the return address carries neither fragment nor query', () => {
+    // Two reasons. One: asking for a second link while having
+    // `#access_token=...` in the bar would send that token inside the email.
+    // Two: the address has to match Supabase's Redirect URLs list, and
+    // anything extra makes the server refuse.
+    const dirty = {
       origin: 'https://alienpls-vibes.github.io',
       pathname: '/hit-easy/',
       search: '?x=1',
       hash: '#access_token=eyJhbGciOi',
     };
-    const limpo = urlDeRetorno(sujo);
-    eq(limpo, 'https://alienpls-vibes.github.io/hit-easy/', 'só origem e caminho');
-    ok(!limpo.includes('access_token'), 'token jamais entra no pedido de link');
-    ok(!limpo.includes('?'), 'sem query');
+    const clean = returnUrl(dirty);
+    eq(clean, 'https://alienpls-vibes.github.io/hit-easy/', 'only origin and path');
+    ok(!clean.includes('access_token'), 'a token never goes into the link request');
+    ok(!clean.includes('?'), 'no query');
   }],
 
-  ['senha errada mostra um erro visível no login', () => {
+  ['a wrong password shows a visible error on sign-in', () => {
     if (!simulated || !cloudEnabled()) return 'skip';
     setLang('pt');
     document.body.childNodes.length = 0;
     const root = document.createElement('div');
     renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
     fire(findAll(root, 'icon-btn').find((b) => b.attributes['aria-label'] === t('common.settings')), 'click');
+    fire(findAll(document.body, 'set-account')[0], 'click');
 
-    const conta = findAll(document.body, 'account')[0];
-    ok(conta, 'a seção de conta');
+    const accountScreen = findAll(document.body, 'account')[0];
+    ok(accountScreen, 'the account section');
 
-    const aviso = findAll(conta, 'account-erro')[0];
-    ok(aviso, 'existe um lugar para o erro aparecer');
-    ok(!aviso.classList.contains('is-on'), 'sem erro, ele não ocupa espaço');
+    const notice = findAll(accountScreen, 'account-error')[0];
+    ok(notice, 'there is a place for the error to show');
+    ok(!notice.classList.contains('is-on'), 'with no error, it takes no space');
 
-    // Erra o e-mail e aperta entrar: antes isso era um parágrafo cinza depois
-    // dos dois botões, fora do campo de visão de quem acabou de errar.
-    const entrar = findAll(conta, 'btn').find((b) => textOf(b) === t('account.signIn'));
-    ok(entrar, 'o botão de entrar');
-    fire(entrar, 'click');
+    // Gets the email wrong and presses sign in: this used to be a grey
+    // paragraph after the two buttons, out of sight of whoever just got it
+    // wrong.
+    const signIn = findAll(accountScreen, 'btn').find((b) => textOf(b) === t('account.signIn'));
+    ok(signIn, 'the sign-in button');
+    fire(signIn, 'click');
 
-    ok(aviso.classList.contains('is-on'), 'o erro aparece');
-    eq(textOf(aviso), t('account.invalidEmail'), 'e diz o que houve');
+    ok(notice.classList.contains('is-on'), 'the error shows');
+    eq(textOf(notice), t('account.invalidEmail'), 'and says what happened');
 
-    // Mexer no campo apaga: a mensagem falava do que estava ali antes.
-    const campos = findAll(conta, 'search-input');
-    fire(campos[0], 'input', { target: { value: 'a@b.co' } });
-    ok(!aviso.classList.contains('is-on'), 'corrigir o campo limpa o aviso');
+    // Touching the field clears it: the message talked about what was there
+    // before.
+    const fields = findAll(accountScreen, 'search-input');
+    fire(fields[0], 'input', { target: { value: 'a@b.co' } });
+    ok(!notice.classList.contains('is-on'), 'fixing the field clears the notice');
 
     closeSheet();
   }],
 
-  ['e-mail inválido não dispara pedido de link', () => {
+  ['an invalid email does not fire a link request', () => {
     if (!simulated) return 'skip';
-    // Sem isto, cada dedo errado vira uma chamada à rede e um e-mail perdido.
-    const valido = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v || '').trim());
-    ok(valido('a@b.co'), 'mínimo aceitável');
-    ok(valido(' alex@exemplo.com '), 'espaços em volta não invalidam');
-    ok(!valido('alex@exemplo'), 'sem domínio de topo');
-    ok(!valido('alex exemplo.com'), 'sem arroba');
-    ok(!valido(''), 'vazio');
+    // Without this, every slip of the finger becomes a network call and a lost
+    // email.
+    const valid = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v || '').trim());
+    ok(valid('a@b.co'), 'minimum acceptable');
+    ok(valid(' alex@exemplo.com '), 'surrounding spaces do not invalidate');
+    ok(!valid('alex@exemplo'), 'no top-level domain');
+    ok(!valid('alex exemplo.com'), 'no at sign');
+    ok(!valid(''), 'empty');
   }],
 
-  ['replay é determinístico: mesmo log, mesmo estado', () => {
-    const m = mesa();
+  ['replay is deterministic: same log, same state', () => {
+    const m = makeMatch();
     push(m, { type: 'life', targetId: 's1', delta: -5, sourceId: 's0' });
     push(m, { type: 'turn' });
     push(m, { type: 'poison', targetId: 's2', delta: 3, sourceId: 's1' });
-    eq(JSON.stringify(replay(m)), JSON.stringify(replay(m)), 'dois replays');
+    eq(JSON.stringify(replay(m)), JSON.stringify(replay(m)), 'two replays');
   }],
 
-  ['segurar repete e acelera, na cadência que os dois lugares compartilham', () => (
-    comRelogioFalso((avancar) => {
-      let passos = 0;
-      const parar = repetirSegurando(() => { passos += 1; }, { passoInicial: true });
+  ['holding repeats and speeds up, at the cadence both places share', () => (
+    withFakeClock((advance) => {
+      let steps = 0;
+      const stop = repeatWhileHeld(() => { steps += 1; }, { stepRightAway: true });
 
-      avancar(HOLD_DELAY - 1);
-      eq(passos, 0, 'antes do atraso não sai passo nenhum');
+      advance(HOLD_DELAY - 1);
+      eq(steps, 0, 'before the delay no step comes out');
 
-      avancar(1);
-      eq(passos, 1, 'o primeiro passo sai ao completar o atraso');
+      advance(1);
+      eq(steps, 1, 'the first step comes out when the delay completes');
 
-      avancar(REPEAT_MS * 3);
-      eq(passos, 4, 'na cadência lenta, um passo por REPEAT_MS');
+      advance(REPEAT_MS * 3);
+      eq(steps, 4, 'at the slow cadence, one step per REPEAT_MS');
 
-      // Depois de REPEAT_ACCEL_AFTER passos lentos, a cadência troca.
-      avancar(REPEAT_MS * (REPEAT_ACCEL_AFTER - 3));
-      eq(passos, 1 + REPEAT_ACCEL_AFTER, 'os passos lentos antes de acelerar');
+      // After REPEAT_ACCEL_AFTER slow steps, the cadence switches.
+      advance(REPEAT_MS * (REPEAT_ACCEL_AFTER - 3));
+      eq(steps, 1 + REPEAT_ACCEL_AFTER, 'the slow steps before speeding up');
 
-      avancar(REPEAT_FAST_MS * 4);
-      eq(passos, 1 + REPEAT_ACCEL_AFTER + 4, 'acelerado, um passo por REPEAT_FAST_MS');
+      advance(REPEAT_FAST_MS * 4);
+      eq(steps, 1 + REPEAT_ACCEL_AFTER + 4, 'sped up, one step per REPEAT_FAST_MS');
 
-      parar();
-      avancar(5000);
-      eq(passos, 1 + REPEAT_ACCEL_AFTER + 4, 'soltar para de verdade');
+      stop();
+      advance(5000);
+      eq(steps, 1 + REPEAT_ACCEL_AFTER + 4, 'letting go really stops');
       return undefined;
     })
   )],
 
-  ['segurar na borda do painel tira vida acelerando, e vira um evento só', () => {
+  ['holding the panel edge takes life speeding up, and becomes a single event', () => {
     if (!simulated) return 'skip';
-    return comRelogioFalso((avancar) => {
-      const m = mesa(4);
-      const { tiles, view } = mesaNaTela(m);
-      const menos = findAll(tiles[0], 'tap-minus')[0];
-      ok(menos, 'o painel não tem a faixa de tirar vida');
+    return withFakeClock((advance) => {
+      const m = makeMatch(4);
+      const { tiles, view } = tableOnScreen(m);
+      const minus = findAll(tiles[0], 'tap-minus')[0];
+      ok(minus, 'the panel has no take-life strip');
 
-      // O número do painel, que é o que o jogador realmente vê: ele já traz o
-      // pendente somado. Ler o log aqui seria ler o lugar errado - `nudge()`
-      // acumula, e só `commit()` grava.
-      const noPainel = () => textOf(findAll(tiles[0], 'tile-life')[0]);
-      const pendente = () => textOf(findAll(tiles[0], 'tile-delta')[0]);
+      // The panel number, which is what the player really sees: it already
+      // brings the pending amount added. Reading the log here would be reading
+      // the wrong place - `nudge()` accumulates, and only `commit()` saves.
+      const onPanel = () => textOf(findAll(tiles[0], 'tile-life')[0]);
+      const pendingDelta = () => textOf(findAll(tiles[0], 'tile-delta')[0]);
 
-      eq(noPainel(), '40', 'a mesa não começou em 40');
+      eq(onPanel(), '40', 'the table did not start at 40');
 
-      fire(menos, 'pointerdown', { pointerId: 1, clientX: 5, clientY: 5 });
+      fire(minus, 'pointerdown', { pointerId: 1, clientX: 5, clientY: 5 });
 
-      // Antes do atraso, segurar ainda não é repetição: nada foi aplicado.
-      avancar(HOLD_DELAY - 1);
-      eq(noPainel(), '40', 'a vida andou antes da hora');
+      // Before the delay, holding is not repetition yet: nothing was applied.
+      advance(HOLD_DELAY - 1);
+      eq(onPanel(), '40', 'the life moved too early');
 
-      // O passo do atraso, mais três da cadência lenta.
-      avancar(1 + REPEAT_MS * 3);
-      eq(noPainel(), '36', 'quatro passos, quatro pontos de vida');
-      eq(pendente(), '-4', 'o delta flutuante não mostra o que ainda não gravou');
+      // The delay step, plus three at the slow cadence.
+      advance(1 + REPEAT_MS * 3);
+      eq(onPanel(), '36', 'four steps, four life points');
+      eq(pendingDelta(), '-4', 'the floating delta does not show what has not been saved yet');
 
-      fire(menos, 'pointerup', { pointerId: 1, clientX: 5, clientY: 5 });
+      fire(minus, 'pointerup', { pointerId: 1, clientX: 5, clientY: 5 });
 
-      // Soltar não pode cobrar um passo por cima do que a repetição aplicou.
-      eq(noPainel(), '36', 'soltar cobrou um passo a mais');
-      eq(eventosDeVida(m).length, 0, 'gravou antes da coalescência fechar');
+      // Letting go cannot charge a step on top of what the repetition applied.
+      eq(onPanel(), '36', 'letting go charged one extra step');
+      eq(lifeEvents(m).length, 0, 'it saved before the coalescing closed');
 
-      // E a seguradinha inteira entra como UM evento, senão "desfazer"
-      // voltaria ponto por ponto - quarenta toques para desfazer um gesto.
-      avancar(COMMIT_MS + 10);
-      const vida = eventosDeVida(m);
-      eq(vida.length, 1, 'a seguradinha inteira virou um evento só');
-      eq(vida[0].delta, -4, 'o evento não soma os quatro passos');
-      eq(vida[0].sourceId, null, 'borda do painel não tem autor: é vida paga');
+      // And the whole hold goes in as ONE event, otherwise "undo" would go
+      // back point by point - forty taps to undo one gesture.
+      advance(COMMIT_MS + 10);
+      const life = lifeEvents(m);
+      eq(life.length, 1, 'the whole hold became a single event');
+      eq(life[0].delta, -4, 'the event does not add up the four steps');
+      eq(life[0].sourceId, null, 'the panel edge has no dealer: it is life paid');
 
       view.destroy();
       return undefined;
     });
   }],
 
-  ['o painel sobe com o teclado, medindo o viewport de layout', () => {
+  ['the panel goes up with the keyboard, measuring the layout viewport', () => {
     if (!simulated) return 'skip';
 
-    // A conta: a região visível vai de `deslocamento` a
-    // `deslocamento + visível`. Um elemento fixo com `bottom: B` tem a base em
-    // `layout - B`, então B = layout - visível - deslocamento.
-    eq(alturaDoTeclado(800, 800, 0), 0, 'sem teclado, nada a descontar');
-    eq(alturaDoTeclado(800, 500, 0), 300, 'o teclado tomou 300');
-    eq(alturaDoTeclado(800, 500, 60), 240, 'e a página rolada desconta junto');
-    eq(alturaDoTeclado(0, 500, 0), 0, 'sem layout não há conta a fazer');
-    // Sem campo de texto focado não há teclado, e a conta nem se faz: a barra
-    // de URL do celular também encolhe o viewport visível, e a diferença saía
-    // como uns 60px de "teclado" empurrando todo painel para cima.
-    eq(alturaDoTeclado(800, 500, 0, false), 0, 'sem campo focado não há teclado');
-    eq(alturaDoTeclado(800, 500, 0, true), 300, 'com campo focado, a conta vale');
+    // The math: the visible region goes from `offset` to `offset + visible`.
+    // A fixed element with `bottom: B` has its base at `layout - B`, so
+    // B = layout - visible - offset.
+    eq(keyboardHeight(800, 800, 0), 0, 'no keyboard, nothing to discount');
+    eq(keyboardHeight(800, 500, 0), 300, 'the keyboard took 300');
+    eq(keyboardHeight(800, 500, 60), 240, 'and a scrolled page discounts too');
+    eq(keyboardHeight(0, 500, 0), 0, 'without a layout there is no math to do');
+    // With no focused text field there is no keyboard, and the math is not even
+    // done: the phone URL bar also shrinks the visual viewport, and the
+    // difference came out as some 60px of "keyboard" pushing every panel up.
+    eq(keyboardHeight(800, 500, 0, false), 0, 'no focused field, no keyboard');
+    eq(keyboardHeight(800, 500, 0, true), 300, 'with a focused field, the math counts');
 
-    // E a fiação. Este é o caso que o defeito produzia: um navegador em que
-    // `innerHeight` acompanha o viewport VISUAL. Lendo innerHeight, a conta
-    // dava 500 - 500 - 0 = 0: --kb zero, painel colado na borda de baixo,
-    // atrás do teclado. Quem procurava um @ digitava sem ver.
-    simularTeclado({ layout: 800, visivel: 500 });
-    eq(kbAtual(), '300px', 'o app leu a altura errada e o painel não sobe');
+    // And the wiring. This is the case the defect produced: a browser where
+    // `innerHeight` follows the VISUAL viewport. Reading innerHeight, the math
+    // gave 500 - 500 - 0 = 0: --kb zero, the panel stuck to the bottom edge,
+    // behind the keyboard. Whoever searched for an @ typed blind.
+    simulateKeyboard({ layout: 800, visible: 500 });
+    eq(currentKb(), '300px', 'the app read the wrong height and the panel does not go up');
 
-    // Teclado fechando: volta a zero, senão sobraria um vão embaixo do painel.
-    simularTeclado({ layout: 800, visivel: 800 });
-    eq(kbAtual(), '0px', 'fechar o teclado devolve a tela inteira');
+    // The keyboard closing: back to zero, otherwise a gap would be left under
+    // the panel.
+    simulateKeyboard({ layout: 800, visible: 800 });
+    eq(currentKb(), '0px', 'closing the keyboard gives the whole screen back');
 
-    // A barra de URL encolhendo o viewport NÃO é teclado. Sem esta distinção,
-    // todo painel subia um pedaço só por existir barra de URL na tela.
-    simularTeclado({ layout: 800, visivel: 740, comCampo: false });
-    eq(kbAtual(), '0px', 'a barra de URL foi confundida com teclado');
+    // The URL bar shrinking the viewport is NOT a keyboard. Without this
+    // distinction, every panel went up a bit just because there was a URL bar
+    // on screen.
+    simulateKeyboard({ layout: 800, visible: 740, withField: false });
+    eq(currentKb(), '0px', 'the URL bar was mistaken for a keyboard');
   }],
 
-  ['associar uma conta escolhe a cadeira certa, e recusa o que é ambíguo', () => {
-    // A regra de "isto é a mesma pessoa", sozinha. Ela decide onde gravar o
-    // handle no histórico inteiro, então cada recusa dela evita um estrago
-    // diferente - e nenhuma das três é hipotética.
-    const mesaCom = (id, cadeiras) => ({
+  ['linking an account picks the right seat, and refuses what is ambiguous', () => {
+    // The "this is the same person" rule, on its own. It decides where to
+    // write the handle across the whole history, so each refusal of it
+    // prevents a different kind of damage - and none of the three is
+    // hypothetical.
+    const tableWith = (id, seats) => ({
       id,
-      seats: cadeiras.map((c, i) => ({ id: 's' + i, ...c })),
+      seats: seats.map((c, i) => ({ id: 's' + i, ...c })),
     });
 
-    // O caso comum: uma cadeira com o nome, sem conta.
-    const simples = mesaCom('m1', [{ name: 'Alexandre' }, { name: 'Bruno' }]);
-    const r1 = cadeirasParaAssociar([simples], ['alexandre'], 'alienpls');
-    eq(r1.alvos, [{ matchId: 'm1', seatId: 's0' }], 'acha a cadeira');
-    eq(r1.ambiguas, [], 'e não há nada ambíguo');
+    // The common case: a seat with the name, no account.
+    const simple = tableWith('m1', [{ name: 'Alexandre' }, { name: 'Bruno' }]);
+    const r1 = seatsToLink([simple], ['alexandre'], 'alienpls');
+    eq(r1.targets, [{ matchId: 'm1', seatId: 's0' }], 'finds the seat');
+    eq(r1.ambiguous, [], 'and there is nothing ambiguous');
 
-    // Cadeira já marcada com OUTRA conta: decisão anterior manda. Sem isto, um
-    // nome repetido reescreveria a conta de outra pessoa.
-    const jaMarcada = mesaCom('m2', [{ name: 'Alexandre', handle: 'outro' }]);
-    eq(cadeirasParaAssociar([jaMarcada], ['alexandre'], 'alienpls').alvos, [],
-      'não sobrescreve conta já marcada');
+    // A seat already tagged with ANOTHER account: the previous decision wins.
+    // Without this, a repeated name would overwrite someone else's account.
+    const alreadyTagged = tableWith('m2', [{ name: 'Alexandre', handle: 'outro' }]);
+    eq(seatsToLink([alreadyTagged], ['alexandre'], 'alienpls').targets, [],
+      'does not overwrite an account already tagged');
 
-    // O @ já está na mesa, em outra cadeira. Gravar de novo poria a mesma
-    // pessoa duas vezes na mesma partida, e a estatística somaria dano dela
-    // contra si mesma.
-    const jaNaMesa = mesaCom('m3', [
+    // The @ is already at the table, in another seat. Writing again would put
+    // the same person twice in the same match, and the statistics would add
+    // up their damage against themselves.
+    const alreadySeated = tableWith('m3', [
       { name: 'Alexandre' }, { name: 'Alex', handle: 'alienpls' },
     ]);
-    eq(cadeirasParaAssociar([jaNaMesa], ['alexandre'], 'alienpls').alvos, [],
-      'não senta a mesma pessoa duas vezes');
+    eq(seatsToLink([alreadySeated], ['alexandre'], 'alienpls').targets, [],
+      'does not seat the same person twice');
 
-    // Dois nomes do conjunto na MESMA mesa: ou são duas pessoas, ou um apelido
-    // está errado. Nenhum dos dois se resolve adivinhando.
-    const duasCandidatas = mesaCom('m4', [{ name: 'Alexandre' }, { name: 'Alex' }]);
-    const r4 = cadeirasParaAssociar([duasCandidatas], ['alexandre', 'alex'], 'alienpls');
-    eq(r4.alvos, [], 'não escolhe uma das duas no chute');
-    eq(r4.ambiguas, ['m4'], 'e reporta a partida para quem chamou');
+    // Two names of the set at the SAME table: either they are two people, or
+    // an alias is wrong. Neither is solved by guessing.
+    const twoCandidates = tableWith('m4', [{ name: 'Alexandre' }, { name: 'Alex' }]);
+    const r4 = seatsToLink([twoCandidates], ['alexandre', 'alex'], 'alienpls');
+    eq(r4.targets, [], 'does not pick one of the two by guessing');
+    eq(r4.ambiguous, ['m4'], 'and reports the match to the caller');
   }],
 
-  ['só aprende quem é quem de partida própria ou de anfitrião confiável', () => {
-    // O aprendizado é o que faz a associação viajar sem tabela nova. O gate não
-    // é formalidade: sem ele, bastaria um anfitrião qualquer sentar uma cadeira
-    // chamada "Alexandre" com o @ dele para o SEU histórico do Alexandre passar
-    // a somar na conta errada.
-    const partida = (id, dono) => ({
+  ['who is who is only learned from your own match or from a trusted host', () => {
+    // Learning is what makes the link travel without a new table. The gate is
+    // not a formality: without it, any host could seat a chair called
+    // "Alexandre" with their @ and YOUR history of Alexandre would start adding
+    // up on the wrong account.
+    const matchOf = (id, owner) => ({
       id,
-      owner: dono,
+      owner,
       seats: [{ id: 's0', name: 'Alexandre', handle: 'alienpls' }],
     });
 
-    eq(apelidosAprendidos([partida('m1', 'eu')], 'eu', []),
-      [{ nome: 'Alexandre', handle: 'alienpls' }], 'da minha própria, aprende');
+    eq(learnedAliases([matchOf('m1', 'eu')], 'eu', []),
+      [{ name: 'Alexandre', handle: 'alienpls' }], 'from my own, it learns');
 
-    eq(apelidosAprendidos([partida('m2', 'amigo')], 'eu', ['amigo']),
-      [{ nome: 'Alexandre', handle: 'alienpls' }], 'de quem eu confio, aprende');
+    eq(learnedAliases([matchOf('m2', 'amigo')], 'eu', ['amigo']),
+      [{ name: 'Alexandre', handle: 'alienpls' }], 'from whoever I trust, it learns');
 
-    eq(apelidosAprendidos([partida('m3', 'estranho')], 'eu', ['amigo']), [],
-      'de estranho, não aprende');
+    eq(learnedAliases([matchOf('m3', 'estranho')], 'eu', ['amigo']), [],
+      'from a stranger, it does not learn');
 
-    eq(apelidosAprendidos([partida('m4', null)], 'eu', ['amigo']), [],
-      'sem dono não há por quem responder');
+    eq(learnedAliases([matchOf('m4', null)], 'eu', ['amigo']), [],
+      'with no owner there is nobody to vouch');
 
-    // Cadeira sem @ não ensina nada - é justamente o estado de quem ainda não
-    // foi associado.
-    eq(apelidosAprendidos([{ id: 'm5', owner: 'eu', seats: [{ id: 's0', name: 'Ana' }] }],
-      'eu', []), [], 'cadeira sem conta não ensina');
+    // A seat with no @ teaches nothing - it is precisely the state of whoever
+    // has not been linked yet.
+    eq(learnedAliases([{ id: 'm5', owner: 'eu', seats: [{ id: 's0', name: 'Ana' }] }],
+      'eu', []), [], 'a seat with no account teaches nothing');
   }],
 
-  ['dois aparelhos, a mesma pessoa: associar depois junta o histórico', () => {
-    // O cenário inteiro. O aparelho A registrou a pessoa como "Alexandre", o B
-    // como "Alex", e nenhum dos dois associou conta na hora - foi feito depois.
+  ['two devices, the same person: linking later joins the history', () => {
+    // The whole scenario. Device A recorded the person as "Alexandre", B as
+    // "Alex", and neither linked an account at the time - it was done later.
     store.wipe();
 
-    const mesaDe = (nome, sufixo) => {
+    const tableOf = (name, suffix) => {
       const m = createMatch([
-        { id: 's0', name: nome, commanders: [commander(0)] },
+        { id: 's0', name, commanders: [commander(0)] },
         { id: 's1', name: 'Bruno', commanders: [commander(1)] },
       ], 40);
-      m.id = 'partida-' + sufixo;
+      m.id = 'partida-' + suffix;
       push(m, { type: 'life', targetId: 's1', delta: -7, sourceId: 's0' });
       return m;
     };
 
-    store.mesclarPartidas([mesaDe('Alexandre', 'a'), mesaDe('Alex', 'b')]);
-    // Como o app faz ao escolher cada jogador na montagem da mesa.
+    store.mergeMatches([tableOf('Alexandre', 'a'), tableOf('Alex', 'b')]);
+    // As the app does when picking each player while setting up the table.
     ['Alexandre', 'Alex', 'Bruno'].forEach(store.rememberPlayer);
 
-    // Antes: são duas pessoas estranhas entre si, cada uma com metade do dano.
-    const antes = aggregate(store.partidas(), store.knownHandles());
-    eq(antes.players.length, 3, 'antes, "Alex" e "Alexandre" são estranhos');
-    eq(antes.players.filter((x) => x.damageDealt === 7).length, 2,
-      'e o dano dela sai partido em duas metades');
+    // Before: they are two strangers to each other, each with half the damage.
+    const before = aggregate(store.matches(), store.knownHandles());
+    eq(before.players.length, 3, 'before, "Alex" and "Alexandre" are strangers');
+    eq(before.players.filter((x) => x.damageDealt === 7).length, 2,
+      'and their damage comes out split in two halves');
 
-    // A associação, feita depois - uma vez por nome que a mesa usou. O segundo
-    // já sabe do primeiro: rememberHandle junta os nomes do mesmo @.
-    associarConta('Alexandre', { handle: 'alienpls', id: 'u-1' });
+    // The link, done later - once per name the table used. The second already
+    // knows about the first: rememberHandle gathers the names of the same @.
+    linkAccount('Alexandre', { handle: 'alienpls', id: 'u-1' });
 
-    // Uma terceira partida chega do outro aparelho DEPOIS da primeira
-    // associação, e vem com o nome antigo. Não é hipótese: é o que a
-    // sincronização faz toda vez que o outro aparelho sobe o que tinha.
-    store.mesclarPartidas([mesaDe('Alexandre', 'c')]);
+    // A third match arrives from the other device AFTER the first link, and
+    // comes with the old name. It is not hypothetical: it is what the sync does
+    // every time the other device uploads what it had.
+    store.mergeMatches([tableOf('Alexandre', 'c')]);
 
-    // A segunda associação junta os nomes que já apontavam para este @, então
-    // ela alcança a partida que acabou de chegar - e não só a que fala "Alex".
-    associarConta('Alex', { handle: 'alienpls', id: 'u-1' });
+    // The second link gathers the names that already pointed to this @, so it
+    // reaches the match that just arrived - and not only the one saying "Alex".
+    linkAccount('Alex', { handle: 'alienpls', id: 'u-1' });
 
-    const depois = aggregate(store.partidas(), store.knownHandles());
-    const dela = depois.players.filter((x) => x.key === '@alienpls');
-    eq(depois.players.length, 2, 'depois, só a pessoa e o Bruno');
-    eq(dela.length, 1, 'uma linha só');
-    eq(dela[0].games, 3, 'as três mesas somam na mesma pessoa');
-    eq(dela[0].damageDealt, 21, 'e o dano das três soma junto');
-    eq(dela[0].label, '@alienpls', 'a linha se chama pelo @');
-    eq(dela[0].nomes.slice().sort(), ['Alex', 'Alexandre'],
-      'sem perder os nomes que a mesa usou');
+    const after = aggregate(store.matches(), store.knownHandles());
+    const theirs = after.players.filter((x) => x.key === '@alienpls');
+    eq(after.players.length, 2, 'after, only the person and Bruno');
+    eq(theirs.length, 1, 'a single row');
+    eq(theirs[0].games, 3, 'the three tables add up on the same person');
+    eq(theirs[0].damageDealt, 21, 'and the damage of the three adds up together');
+    eq(theirs[0].label, '@alienpls', 'the row is called by the @');
+    eq(theirs[0].names.slice().sort(), ['Alex', 'Alexandre'],
+      'without losing the names the table used');
 
-    // O handle foi GRAVADO nas partidas, e não só no mapa deste aparelho. É
-    // isto que faz a associação viajar: o payload vai para a nuvem, o outro
-    // aparelho baixa e aprende.
-    ok(store.partidas().every((m) => m.seats[0].handle === 'alienpls'),
-      'o handle não entrou no payload das partidas');
+    // The handle was WRITTEN into the matches, not only into this device's
+    // map. That is what makes the link travel: the payload goes to the cloud,
+    // the other device downloads it and learns.
+    ok(store.matches().every((m) => m.seats[0].handle === 'alienpls'),
+      'the handle did not get into the matches\' payload');
 
-    // E o que o outro aparelho aprenderia dessas partidas.
-    const comDono = store.partidas().map((m) => ({ ...m, owner: 'eu' }));
-    const aprendidos = apelidosAprendidos(comDono, 'eu', []);
-    // Conjunto, e não lista: a mesma pessoa aparece em três mesas, então o
-    // nome repete - e aprender duas vezes o mesmo apelido não faz nada.
-    eq([...new Set(aprendidos.map((x) => x.nome))].sort(), ['Alex', 'Alexandre'],
-      'os dois nomes viajam junto com as partidas');
+    // And what the other device would learn from these matches.
+    const withOwner = store.matches().map((m) => ({ ...m, owner: 'eu' }));
+    const learned = learnedAliases(withOwner, 'eu', []);
+    // A set, not a list: the same person shows up at three tables, so the name
+    // repeats - and learning the same alias twice does nothing.
+    eq([...new Set(learned.map((x) => x.name))].sort(), ['Alex', 'Alexandre'],
+      'both names travel along with the matches');
 
-    // A lista de seleção passa a mostrar a PESSOA, e não os dois nomes.
-    const pessoas = store.pessoasConhecidas();
-    eq(pessoas.length, 2, 'duas pessoas na lista, e não três nomes');
-    const p = pessoas.find((x) => x.chave === '@alienpls');
-    eq(p.label, '@alienpls', 'a linha da lista se chama pelo @');
-    eq(p.nomes.slice().sort(), ['Alex', 'Alexandre'], 'e lembra os dois nomes');
+    // The picker list now shows the PERSON, not the two names.
+    const people = store.knownPeople();
+    eq(people.length, 2, 'two people on the list, not three names');
+    const p = people.find((x) => x.key === '@alienpls');
+    // Called by a NAME, never by the @ - the @ belongs to the search screen.
+    // Without a chosen name, the most recent name the table used.
+    eq(p.label, p.names[0], 'the list row is not called by the most recent name');
+    ok(!p.label.startsWith('@'), 'the list row is called by the @');
+    eq(p.names.slice().sort(), ['Alex', 'Alexandre'], 'and remembers both names');
+    store.learnDisplayNames({ alienpls: 'Alê Parma' });
+    eq(store.knownPeople().find((x) => x.key === '@alienpls').label, 'Alê Parma',
+      'the list row ignores the name the person chose');
 
-    // Esquecer é da pessoa, não de um dos nomes: esquecer só um a deixaria meia
-    // na lista, e ela voltaria pelo outro nome na próxima abertura.
-    store.esquecerPessoa('@alienpls');
-    eq(store.pessoasConhecidas().map((x) => x.label), ['Bruno'],
-      'esquecer a pessoa leva os dois nomes dela');
+    // Forgetting is about the person, not one of the names: forgetting only
+    // one would leave them half on the list, and they would come back through
+    // the other name on the next open.
+    store.forgetPerson('@alienpls');
+    eq(store.knownPeople().map((x) => x.label), ['Bruno'],
+      'forgetting the person takes both of their names');
 
     store.wipe();
   }],
 
-  ['o apelido aprendido nunca sobrescreve o que este aparelho decidiu', () => {
-    // Duas pessoas diferentes podem ter o mesmo nome na mesa de gente
-    // diferente. Se o que vem da nuvem pudesse sobrescrever, uma partida
-    // baixada renomearia a SUA Ana para a Ana de outro grupo.
+  ['a learned alias never overwrites what this device decided', () => {
+    // Two different people can have the same name at different groups'
+    // tables. If what comes from the cloud could overwrite, a downloaded match
+    // would rename YOUR Ana to another group's Ana.
     store.wipe();
     store.rememberHandle('Ana', 'ana_daqui');
 
-    eq(store.aprenderApelido('Ana', 'ana_de_outro'), false,
-      'divergência não se resolve adivinhando');
-    eq(store.handleOf('Ana'), 'ana_daqui', 'a decisão local continua valendo');
+    eq(store.learnAlias('Ana', 'ana_de_outro'), false,
+      'a disagreement is not solved by guessing');
+    eq(store.handleOf('Ana'), 'ana_daqui', 'the local decision still holds');
 
-    // Mas um nome que este aparelho nunca viu, sim - e ele entra na lista de
-    // seleção, porque é gente com quem você jogou.
-    eq(store.aprenderApelido('Caio', 'caio99'), true, 'nome novo, aprende');
+    // But a name this device never saw, yes - and it goes into the picker
+    // list, because it is someone you played with.
+    eq(store.learnAlias('Caio', 'caio99'), true, 'a new name, it learns');
     eq(store.handleOf('Caio'), 'caio99');
-    ok(store.pessoasConhecidas().some((x) => x.chave === '@caio99'),
-      'e passa a aparecer na seleção de jogador');
+    ok(store.knownPeople().some((x) => x.key === '@caio99'),
+      'and starts showing up in the player picker');
 
     store.wipe();
   }],
 
-  ['o dano por arraste conta a vida do alvo', () => {
+  ['damage by drag counts the target\'s life', () => {
     if (!simulated) return 'skip';
-    return comRelogioFalso((avancar) => {
-      // O caminho principal: arrastar de um painel ao outro, dizer quanto foi,
-      // e a vida do alvo andar quando a tela fecha.
-      const m = mesa(4);
-      const { root, tiles, view } = mesaNaTela(m);
-      const vidaDe = (i) => textOf(findAll(tiles[i], 'tile-life')[0]);
+    return withFakeClock((advance) => {
+      // The main path: dragging from one panel to another, saying how much it
+      // was, and the target's life moving when the screen closes.
+      const m = makeMatch(4);
+      const { root, tiles, view } = tableOnScreen(m);
+      const lifeOf = (i) => textOf(findAll(tiles[i], 'tile-life')[0]);
 
-      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+      const center = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
 
-      // Mover além do limiar arma o ataque na hora, sem esperar o tempo de
-      // toque. Quem está sob o dedo é o painel do oponente.
-      apontarPara(tiles[1]);
-      fire(centro, 'pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
-      fire(centro, 'pointermove', { pointerId: 1, clientX: 90, clientY: 90 });
-      fire(centro, 'pointerup', { pointerId: 1, clientX: 90, clientY: 90 });
-      apontarPara(null);
+      // Moving beyond the threshold arms the attack right away, without
+      // waiting for the tap time. Whoever is under the finger is the
+      // opponent's panel.
+      pointAt(tiles[1]);
+      fire(center, 'pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
+      fire(center, 'pointermove', { pointerId: 1, clientX: 90, clientY: 90 });
+      fire(center, 'pointerup', { pointerId: 1, clientX: 90, clientY: 90 });
+      pointAt(null);
 
       ok(findAll(root, 'pad-scrim').length === 1,
-        'o arraste não abriu o teclado de dano');
+        'the drag did not open the damage pad');
 
-      const sete = findAll(root, 'pad-chip').find((c) => textOf(c) === '7');
-      ok(sete, 'o teclado de dano não tem o atalho de 7');
-      fire(sete, 'click');
+      const seven = findAll(root, 'pad-chip').find((c) => textOf(c) === '7');
+      ok(seven, 'the damage pad has no 7 shortcut');
+      fire(seven, 'click');
 
-      // O número não salta: ainda é o antigo quando a tela fecha.
-      eq(vidaDe(1), '40', 'a vida do alvo saltou em vez de contar');
+      // The number does not jump: it is still the old one when the screen
+      // closes.
+      eq(lifeOf(1), '40', 'the target\'s life jumped instead of counting');
 
-      avancar(Math.round(CONTAGEM_MS / 2));
-      const meio = Number(vidaDe(1));
-      ok(meio < 40 && meio > 33, 'a contagem não durou: estava em ' + meio);
+      advance(Math.round(COUNT_MS / 2));
+      const middle = Number(lifeOf(1));
+      ok(middle < 40 && middle > 33, 'the count did not last: it was at ' + middle);
 
-      avancar(CONTAGEM_MS * 2);
-      eq(vidaDe(1), '33', 'o alvo não terminou em 33');
-      eq(vidaDe(0), '40', 'quem atacou perdeu vida sem motivo');
+      advance(COUNT_MS * 2);
+      eq(lifeOf(1), '33', 'the target did not end at 33');
+      eq(lifeOf(0), '40', 'the attacker lost life for no reason');
 
-      // E o dano tem autor: veio do arraste, não da borda.
-      const dano = m.events.filter((e) => e.type === 'life');
-      eq(dano.length, 1, 'o arraste não gravou um evento de vida');
-      eq(dano[0].sourceId, 's0', 'o dano do arraste ficou sem autor');
+      // And the damage has a dealer: it came from the drag, not from the edge.
+      const damage = m.events.filter((e) => e.type === 'life');
+      eq(damage.length, 1, 'the drag did not record a life event');
+      eq(damage[0].sourceId, 's0', 'the drag damage was left with no dealer');
 
       view.destroy();
       return undefined;
     });
   }],
 
-  ['o dreno conta a vida de quem apanhou e de quem curou', () => {
+  ['a drain counts the life of whoever got hit and of whoever healed', () => {
     if (!simulated) return 'skip';
-    return comRelogioFalso((avancar) => {
-      const m = mesa(4);
-      const { root, tiles, view } = mesaNaTela(m);
-      const vidaDe = (i) => textOf(findAll(tiles[i], 'tile-life')[0]);
+    return withFakeClock((advance) => {
+      const m = makeMatch(4);
+      const { root, tiles, view } = tableOnScreen(m);
+      const lifeOf = (i) => textOf(findAll(tiles[i], 'tile-life')[0]);
 
-      // Duplo toque no centro abre a ação em área.
-      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
-      const tocar = (id) => {
-        fire(centro, 'pointerdown', { pointerId: id, clientX: 50, clientY: 50 });
-        fire(centro, 'pointerup', { pointerId: id, clientX: 50, clientY: 50 });
+      // A double tap in the center opens the area action.
+      const center = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+      const tap = (id) => {
+        fire(center, 'pointerdown', { pointerId: id, clientX: 50, clientY: 50 });
+        fire(center, 'pointerup', { pointerId: id, clientX: 50, clientY: 50 });
       };
-      tocar(1);
-      tocar(2);
+      tap(1);
+      tap(2);
 
-      // O painel de área monta a própria cobertura dentro da mesa, e não um
-      // painel deslizante no corpo do documento.
-      ok(findAll(root, 'pad-scrim').length === 1, 'a ação em área não abriu');
+      // The area pad mounts its own backdrop inside the table, not a sliding
+      // panel on the document body.
+      ok(findAll(root, 'pad-scrim').length === 1, 'the area action did not open');
 
-      const dreno = findAll(root, 'pad-mode')
+      const drain = findAll(root, 'pad-mode')
         .find((b) => textOf(b).includes('Dreno'));
-      ok(dreno, 'a ação em área não oferece dreno');
-      fire(dreno, 'click');
+      ok(drain, 'the area action does not offer drain');
+      fire(drain, 'click');
 
-      // Tira 7 de cada oponente. O chip confirma no mesmo toque.
-      const sete = findAll(root, 'pad-chip').find((c) => textOf(c) === '7');
-      ok(sete, 'não há atalho de 7');
-      fire(sete, 'click');
+      // Takes 7 from each opponent. The chip confirms on the same tap.
+      const seven = findAll(root, 'pad-chip').find((c) => textOf(c) === '7');
+      ok(seven, 'there is no 7 shortcut');
+      fire(seven, 'click');
 
-      // Aqui está o ponto: o número NÃO salta. No instante do envio ele ainda
-      // é o antigo, e só então começa a andar.
-      eq(vidaDe(1), '40', 'a vida do oponente saltou em vez de contar');
-      eq(vidaDe(0), '40', 'a vida de quem drenou saltou em vez de contar');
+      // Here is the point: the number does NOT jump. At the moment of sending
+      // it is still the old one, and only then starts moving.
+      eq(lifeOf(1), '40', 'the opponent\'s life jumped instead of counting');
+      eq(lifeOf(0), '40', 'the drainer\'s life jumped instead of counting');
 
-      // No meio do caminho o número tem de estar ENTRE os dois valores. É o
-      // que separa uma contagem de 420ms de um passo de 1ms, que termina em
-      // sete milissegundos e ninguém vê - e ver é o ponto da melhoria.
-      avancar(Math.round(CONTAGEM_MS / 2));
-      const meio = Number(vidaDe(1));
-      ok(meio < 40 && meio > 33,
-        'a contagem não durou: no meio do caminho já estava em ' + meio);
+      // Halfway the number has to be BETWEEN the two values. That is what
+      // separates a 420ms count from a 1ms step, which ends in seven
+      // milliseconds and nobody sees - and seeing is the point of the
+      // improvement.
+      advance(Math.round(COUNT_MS / 2));
+      const middle = Number(lifeOf(1));
+      ok(middle < 40 && middle > 33,
+        'the count did not last: halfway it was already at ' + middle);
 
-      // E termina no valor certo. `gain` padrão é o total tirado (3 x 7).
-      avancar(CONTAGEM_MS * 3);
-      eq(vidaDe(1), '33', 'o oponente não terminou em 33');
-      eq(vidaDe(2), '33', 'o segundo oponente ficou de fora');
-      eq(vidaDe(3), '33', 'o terceiro oponente ficou de fora');
-      eq(vidaDe(0), '61', 'quem drenou não terminou com o total curado');
+      // And it ends on the right value. The default `gain` is the total taken
+      // (3 x 7).
+      advance(COUNT_MS * 3);
+      eq(lifeOf(1), '33', 'the opponent did not end at 33');
+      eq(lifeOf(2), '33', 'the second opponent was left out');
+      eq(lifeOf(3), '33', 'the third opponent was left out');
+      eq(lifeOf(0), '61', 'the drainer did not end with the total healed');
 
-      // A direção fica marcada enquanto conta, e sai ao terminar.
-      const numero = findAll(tiles[1], 'tile-life')[0];
-      ok(!numero.classList.contains('is-caindo'), 'a marca de direção ficou presa');
+      // The direction stays marked while counting, and leaves at the end.
+      const number = findAll(tiles[1], 'tile-life')[0];
+      ok(!number.classList.contains('is-falling'), 'the direction mark got stuck');
 
       view.destroy();
       return undefined;
     });
   }],
 
-  ['dano em todos conta, e a borda do painel não', () => {
+  ['damage to everyone counts, and the panel edge does not', () => {
     if (!simulated) return 'skip';
-    return comRelogioFalso((avancar) => {
-      const m = mesa(4);
-      const { root, tiles, view } = mesaNaTela(m);
-      const vidaDe = (i) => textOf(findAll(tiles[i], 'tile-life')[0]);
+    return withFakeClock((advance) => {
+      const m = makeMatch(4);
+      const { root, tiles, view } = tableOnScreen(m);
+      const lifeOf = (i) => textOf(findAll(tiles[i], 'tile-life')[0]);
 
-      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
-      const tocar = (id) => {
-        fire(centro, 'pointerdown', { pointerId: id, clientX: 50, clientY: 50 });
-        fire(centro, 'pointerup', { pointerId: id, clientX: 50, clientY: 50 });
+      const center = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+      const tap = (id) => {
+        fire(center, 'pointerdown', { pointerId: id, clientX: 50, clientY: 50 });
+        fire(center, 'pointerup', { pointerId: id, clientX: 50, clientY: 50 });
       };
-      tocar(1);
-      tocar(2);
+      tap(1);
+      tap(2);
 
-      // "Dano em todos" é o modo que já vem escolhido.
-      const cinco = findAll(root, 'pad-chip').find((c) => textOf(c) === '5');
-      ok(cinco, 'não há atalho de 5');
-      fire(cinco, 'click');
+      // "Damage to everyone" is the mode already chosen.
+      const five = findAll(root, 'pad-chip').find((c) => textOf(c) === '5');
+      ok(five, 'there is no 5 shortcut');
+      fire(five, 'click');
 
-      eq(vidaDe(1), '40', 'a vida saltou em vez de contar');
-      avancar(CONTAGEM_MS * 3);
-      eq(vidaDe(1), '35', 'o dano em todos não chegou');
-      eq(vidaDe(0), '40', 'quem causou perdeu vida sem dreno');
+      eq(lifeOf(1), '40', 'the life jumped instead of counting');
+      advance(COUNT_MS * 3);
+      eq(lifeOf(1), '35', 'the damage to everyone did not arrive');
+      eq(lifeOf(0), '40', 'whoever dealt it lost life with no drain');
 
-      // A borda NÃO conta: ali o número já anda a cada toque, e contar por
-      // cima brigaria com o "segurar repete".
-      const menos = findAll(tiles[2], 'tap-minus')[0];
-      fire(menos, 'pointerdown', { pointerId: 9, clientX: 5, clientY: 5 });
-      fire(menos, 'pointerup', { pointerId: 9, clientX: 5, clientY: 5 });
-      eq(vidaDe(2), '34', 'a borda passou a contar, e devia responder na hora');
+      // The edge does NOT count: there the number already moves on each tap,
+      // and counting on top would fight "hold to repeat".
+      const minus = findAll(tiles[2], 'tap-minus')[0];
+      fire(minus, 'pointerdown', { pointerId: 9, clientX: 5, clientY: 5 });
+      fire(minus, 'pointerup', { pointerId: 9, clientX: 5, clientY: 5 });
+      eq(lifeOf(2), '34', 'the edge started counting, and should answer at once');
 
       view.destroy();
       return undefined;
     });
   }],
 
-  ['quem pede menos movimento recebe o número de uma vez', () => {
+  ['whoever asks for less motion gets the number at once', () => {
     if (!simulated) return 'skip';
-    // A regra de CSS global de prefers-reduced-motion zera transição e
-    // animação, mas não alcança uma contagem feita em JavaScript - ela tem de
-    // se recusar sozinha.
+    // The global CSS rule for prefers-reduced-motion zeroes transitions and
+    // animations, but does not reach a count done in JavaScript - that one has
+    // to refuse on its own.
     const real = globalThis.matchMedia;
     globalThis.matchMedia = (q) => ({
       matches: String(q).includes('reduced-motion'),
       addEventListener() {}, removeEventListener() {},
     });
     try {
-      return comRelogioFalso((avancar) => {
-        const m = mesa(4);
-        const { root, tiles, view } = mesaNaTela(m);
-        const vidaDe = (i) => textOf(findAll(tiles[i], 'tile-life')[0]);
+      return withFakeClock((advance) => {
+        const m = makeMatch(4);
+        const { root, tiles, view } = tableOnScreen(m);
+        const lifeOf = (i) => textOf(findAll(tiles[i], 'tile-life')[0]);
 
-        const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
-        const tocar = (id) => {
-          fire(centro, 'pointerdown', { pointerId: id, clientX: 50, clientY: 50 });
-          fire(centro, 'pointerup', { pointerId: id, clientX: 50, clientY: 50 });
+        const center = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+        const tap = (id) => {
+          fire(center, 'pointerdown', { pointerId: id, clientX: 50, clientY: 50 });
+          fire(center, 'pointerup', { pointerId: id, clientX: 50, clientY: 50 });
         };
-        tocar(1);
-        tocar(2);
+        tap(1);
+        tap(2);
 
-        const cinco = findAll(root, 'pad-chip').find((c) => textOf(c) === '5');
-        ok(cinco, 'não há atalho de 5');
-        fire(cinco, 'click');
+        const five = findAll(root, 'pad-chip').find((c) => textOf(c) === '5');
+        ok(five, 'there is no 5 shortcut');
+        fire(five, 'click');
 
-        // Sem esperar nada: o número já está no valor final.
-        eq(vidaDe(1), '35', 'contou mesmo com movimento reduzido pedido');
-        avancar(CONTAGEM_MS * 2);
-        eq(vidaDe(1), '35', 'o número andou depois de já estar certo');
+        // Without waiting at all: the number is already at the final value.
+        eq(lifeOf(1), '35', 'it counted even with reduced motion requested');
+        advance(COUNT_MS * 2);
+        eq(lifeOf(1), '35', 'the number moved after already being right');
 
         view.destroy();
         return undefined;
@@ -4442,219 +4548,1294 @@ export const cases = [
     }
   }],
 
-  ['sobrando um vivo, o cartaz de vitória aparece', () => {
+  ['with one left alive, the victory poster shows', () => {
     if (!simulated) return 'skip';
-    return comRelogioFalso((avancar) => {
-      // Dois jogadores, um morre: a partida terminou e a mesa tem de dizer
-      // isso. Era o sintoma relatado - a partida não encerrava sozinha.
-      const m = mesa(2);
+    return withFakeClock((advance) => {
+      // Two players, one dies: the match is over and the table has to say so.
+      // That was the reported symptom - the match did not end by itself.
+      const m = makeMatch(2);
       push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
-      ok(replay(m).finished, 'o motor não considerou a partida encerrada');
+      ok(replay(m).finished, 'the engine did not consider the match over');
 
-      const { root, view } = mesaNaTela(m);
+      const { root, view } = tableOnScreen(m);
 
-      // O cartaz entra com um atraso curto, para a mesa não sumir no mesmo
-      // quadro em que o último ponto de vida saiu. Vai em `root`, e não no
-      // corpo: ele cobre a mesa, não a página.
-      eq(findAll(root, 'victory').length, 0, 'o cartaz veio sem espera');
-      avancar(500);
+      // The poster comes in with a short delay, so the table does not vanish
+      // in the same frame the last life point went out. It goes in `root`, not
+      // the body: it covers the table, not the page.
+      eq(findAll(root, 'victory').length, 0, 'the poster came with no wait');
+      advance(500);
 
-      const cartaz = findAll(root, 'victory');
-      eq(cartaz.length, 1, 'a partida terminou e o cartaz não apareceu');
-      ok(textOf(cartaz[0]).includes('P0'), 'o cartaz não diz quem ganhou');
+      const poster = findAll(root, 'victory');
+      eq(poster.length, 1, 'the match ended and the poster did not show');
+      ok(textOf(poster[0]).includes('P0'), 'the poster does not say who won');
 
       view.destroy();
       return undefined;
     });
   }],
 
-  ['declarar vencedor pelo menu abre a escolha', () => {
+  ['declaring a winner through the menu opens the choice', () => {
     if (!simulated) return 'skip';
-    return comRelogioFalso((avancar) => {
-      // O outro sintoma: o botão não fazia nada. Fazia-se nada porque
-      // `mesa.pickWinner` era undefined - o menu chamava um buraco.
-      const m = mesa(4);
-      const { root, view } = mesaNaTela(m);
+    return withFakeClock((advance) => {
+      // The other symptom: the button did nothing. It did nothing because
+      // `table.pickWinner` was undefined - the menu called a hole.
+      const m = makeMatch(4);
+      const { root, view } = tableOnScreen(m);
 
       const menu = findAll(root, 'hub-btn')
         .find((b) => b.attributes['aria-label'] === 'Menu');
-      ok(menu, 'a mesa não tem o botão de menu');
+      ok(menu, 'the table has no menu button');
       fire(menu, 'click');
 
-      const telaAtiva = () => {
+      const activePane = () => {
         const p = findAll(document.body, 'flow-pane');
         return p[p.length - 1];
       };
-      const declarar = findAll(telaAtiva(), 'menu-item')
+      const declare = findAll(activePane(), 'menu-item')
         .find((x) => textOf(x).includes('vencedor'));
-      ok(declarar, 'o menu não oferece declarar vencedor');
+      ok(declare, 'the menu does not offer declaring a winner');
 
-      // Aqui é onde o defeito aparecia: o item existia, estava habilitado, e
-      // tocar nele não fazia absolutamente nada.
-      fire(declarar, 'click');
-      avancar(400);
+      // This is where the defect showed: the item existed, was enabled, and
+      // tapping it did absolutely nothing.
+      fire(declare, 'click');
+      advance(400);
 
-      const escolhas = findAll(telaAtiva(), 'menu-label').map(textOf);
-      ok(escolhas.includes('P0') && escolhas.includes('P3'),
-        'a escolha de vencedor não abriu com os jogadores da mesa');
-
-      view.destroy();
-      return undefined;
-    });
-  }],
-
-  ['segurar -1 no painel do jogador repete, e vira um evento só', () => {
-    if (!simulated) return 'skip';
-    return comRelogioFalso((avancar) => {
-      const m = mesa(4);
-      const { tiles, view } = mesaNaTela(m);
-
-      // Toque rápido no centro abre o painel do jogador - depois da janela do
-      // duplo toque, que é o que separa "abrir painel" de "ação em área".
-      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
-      fire(centro, 'pointerdown', { pointerId: 1, clientX: 50, clientY: 50 });
-      fire(centro, 'pointerup', { pointerId: 1, clientX: 50, clientY: 50 });
-      avancar(DOUBLE_TAP_MS + 10);
-
-      const botaoDe = (texto) => findAll(document.body, 'step-btn')
-        .find((b) => textOf(b) === texto);
-      const menos = botaoDe('-1');
-      ok(menos, 'o painel do jogador não tem o botão de -1');
-
-      // O número que o painel mostra. Ele tem de andar durante a seguradinha,
-      // e sem o painel ser remontado - remontar destruiria o botão segurado.
-      const noPainel = () => textOf(findAll(document.body, 'stepper-value')[0]);
-      eq(noPainel(), '40', 'o painel não abriu em 40');
-
-      // Segurar: um passo no toque, e a repetição depois do atraso.
-      fire(menos, 'pointerdown', { pointerId: 2 });
-      eq(noPainel(), '39', 'o toque não valeu um ponto na hora');
-
-      avancar(HOLD_DELAY + REPEAT_MS * 2);
-      eq(noPainel(), '37', 'a repetição não andou enquanto o dedo segurava');
-      ok(menos.classList.contains('is-held'), 'o botão não mostra que repete');
-
-      // E o painel NÃO pode ter sido remontado no caminho. Num navegador o
-      // botão segurado seria destruído, o `pointerup` do dedo iria para o
-      // botão NOVO, e o intervalo do antigo nunca pararia: a vida continuaria
-      // caindo depois de soltar. O stub não modela isso, então a invariante
-      // é afirmada direto.
-      ok(botaoDe('-1') === menos, 'o painel foi remontado durante a seguradinha');
-
-      fire(menos, 'pointerup', { pointerId: 2 });
-      ok(!menos.classList.contains('is-held'), 'soltar não apagou o realce');
-
-      // Nada gravado ainda: a coalescência é o que faz desfazer voltar o gesto
-      // inteiro num toque, em vez de ponto por ponto.
-      eq(eventosDeVida(m).length, 0, 'gravou antes da coalescência fechar');
-
-      avancar(COMMIT_MS + 10);
-      const vida = eventosDeVida(m);
-      eq(vida.length, 1, 'a seguradinha inteira virou um evento só');
-      eq(vida[0].delta, -3, 'o evento não soma os três passos');
-      eq(vida[0].sourceId, null, 'ajuste no próprio painel não tem autor');
-      eq(replay(m).players.s0.life, 37, 'e a vida terminou em 37');
+      const choices = findAll(activePane(), 'menu-label').map(textOf);
+      ok(choices.includes('P0') && choices.includes('P3'),
+        'the winner choice did not open with the table\'s players');
 
       view.destroy();
       return undefined;
     });
   }],
 
-  ['o passo de 5 não repete ao segurar', () => {
+  ['holding -1 on the player panel repeats, and becomes a single event', () => {
     if (!simulated) return 'skip';
-    return comRelogioFalso((avancar) => {
-      const m = mesa(4);
-      const { tiles, view } = mesaNaTela(m);
+    return withFakeClock((advance) => {
+      const m = makeMatch(4);
+      const { tiles, view } = tableOnScreen(m);
 
-      const centro = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
-      fire(centro, 'pointerdown', { pointerId: 1, clientX: 50, clientY: 50 });
-      fire(centro, 'pointerup', { pointerId: 1, clientX: 50, clientY: 50 });
-      avancar(DOUBLE_TAP_MS + 10);
+      // A quick tap in the center opens the player panel - after the
+      // double-tap window, which is what separates "open panel" from "area
+      // action".
+      const center = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+      fire(center, 'pointerdown', { pointerId: 1, clientX: 50, clientY: 50 });
+      fire(center, 'pointerup', { pointerId: 1, clientX: 50, clientY: 50 });
+      advance(DOUBLE_TAP_MS + 10);
 
-      const cinco = findAll(document.body, 'step-btn')
+      const buttonOf = (text) => findAll(document.body, 'step-btn')
+        .find((b) => textOf(b) === text);
+      const minus = buttonOf('-1');
+      ok(minus, 'the player panel has no -1 button');
+
+      // The number the panel shows. It has to move during the hold, and
+      // without the panel being rebuilt - rebuilding would destroy the held
+      // button.
+      const onPanel = () => textOf(findAll(document.body, 'stepper-value')[0]);
+      eq(onPanel(), '40', 'the panel did not open at 40');
+
+      // Holding: one step on the tap, and the repetition after the delay.
+      fire(minus, 'pointerdown', { pointerId: 2 });
+      eq(onPanel(), '39', 'the tap was not worth one point right away');
+
+      advance(HOLD_DELAY + REPEAT_MS * 2);
+      eq(onPanel(), '37', 'the repetition did not move while the finger held');
+      ok(minus.classList.contains('is-held'), 'the button does not show it repeats');
+
+      // And the panel can NOT have been rebuilt on the way. In a browser the
+      // held button would be destroyed, the finger's `pointerup` would go to
+      // the NEW button, and the old one's interval would never stop: the life
+      // would keep falling after letting go. The stub does not model that, so
+      // the invariant is asserted directly.
+      ok(buttonOf('-1') === minus, 'the panel was rebuilt during the hold');
+
+      fire(minus, 'pointerup', { pointerId: 2 });
+      ok(!minus.classList.contains('is-held'), 'letting go did not clear the highlight');
+
+      // Nothing saved yet: coalescing is what makes undo bring back the whole
+      // gesture in one tap, instead of point by point.
+      eq(lifeEvents(m).length, 0, 'it saved before the coalescing closed');
+
+      advance(COMMIT_MS + 10);
+      const life = lifeEvents(m);
+      eq(life.length, 1, 'the whole hold became a single event');
+      eq(life[0].delta, -3, 'the event does not add up the three steps');
+      eq(life[0].sourceId, null, 'an adjustment on your own panel has no dealer');
+      eq(replay(m).players.s0.life, 37, 'and the life ended at 37');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['the step of 5 does not repeat when held', () => {
+    if (!simulated) return 'skip';
+    return withFakeClock((advance) => {
+      const m = makeMatch(4);
+      const { tiles, view } = tableOnScreen(m);
+
+      const center = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+      fire(center, 'pointerdown', { pointerId: 1, clientX: 50, clientY: 50 });
+      fire(center, 'pointerup', { pointerId: 1, clientX: 50, clientY: 50 });
+      advance(DOUBLE_TAP_MS + 10);
+
+      const five = findAll(document.body, 'step-btn')
         .find((b) => textOf(b) === '-5');
-      ok(cinco, 'o painel não tem o botão de -5');
+      ok(five, 'the panel has no -5 button');
 
-      // Na cadência acelerada seriam noventa pontos por segundo: o alvo
-      // passaria sempre. O passo de cinco já é o atalho rápido do toque.
-      fire(cinco, 'click');
-      avancar(HOLD_DELAY + REPEAT_MS * 8);
-      avancar(COMMIT_MS + 10);
-      eq(replay(m).players.s0.life, 35, 'o passo de 5 repetiu ao segurar');
+      // At the fast cadence that would be ninety points per second: the target
+      // would always be overshot. The step of five already is the quick tap
+      // shortcut.
+      fire(five, 'click');
+      advance(HOLD_DELAY + REPEAT_MS * 8);
+      advance(COMMIT_MS + 10);
+      eq(replay(m).players.s0.life, 35, 'the step of 5 repeated when held');
 
       view.destroy();
       return undefined;
     });
   }],
 
-  ['segurar na borda não arma ataque, e o toque curto ainda vale 1', () => {
+  ['holding the edge does not arm an attack, and a short tap is still worth 1', () => {
     if (!simulated) return 'skip';
-    return comRelogioFalso((avancar) => {
-      const m = mesa(4);
-      const { root, tiles, view } = mesaNaTela(m);
-      const mais = findAll(tiles[0], 'tap-plus')[0];
+    return withFakeClock((advance) => {
+      const m = makeMatch(4);
+      const { root, tiles, view } = tableOnScreen(m);
+      const plus = findAll(tiles[0], 'tap-plus')[0];
       const wrap = findAll(root, 'table-wrap')[0];
-      ok(mais && wrap, 'a mesa não montou as faixas');
+      ok(plus && wrap, 'the table did not mount the strips');
 
-      // Segurar muito na borda: antes isso virava ataque. Agora repete, e a
-      // mesa não pode entrar em modo arraste - o gesto já é ajuste de vida.
-      fire(mais, 'pointerdown', { pointerId: 1, clientX: 5, clientY: 5 });
-      avancar(HOLD_DELAY + REPEAT_MS * 2);
-      ok(!wrap.classList.contains('is-dragging'), 'segurar na borda armou ataque');
-      fire(mais, 'pointerup', { pointerId: 1, clientX: 5, clientY: 5 });
-      avancar(COMMIT_MS + 10);
-      eq(replay(m).players.s0.life, 43, 'três passos para cima');
+      // Holding long on the edge: this used to become an attack. Now it
+      // repeats, and the table cannot go into drag mode - the gesture already
+      // is a life adjustment.
+      fire(plus, 'pointerdown', { pointerId: 1, clientX: 5, clientY: 5 });
+      advance(HOLD_DELAY + REPEAT_MS * 2);
+      ok(!wrap.classList.contains('is-dragging'), 'holding the edge armed an attack');
+      fire(plus, 'pointerup', { pointerId: 1, clientX: 5, clientY: 5 });
+      advance(COMMIT_MS + 10);
+      eq(replay(m).players.s0.life, 43, 'three steps up');
 
-      // Toque curto continua sendo um passo, aplicado só ao soltar.
-      fire(mais, 'pointerdown', { pointerId: 2, clientX: 5, clientY: 5 });
-      avancar(TOQUE_CURTO);
-      eq(replay(m).players.s0.life, 43, 'o toque curto aplicou antes de soltar');
-      fire(mais, 'pointerup', { pointerId: 2, clientX: 5, clientY: 5 });
-      avancar(COMMIT_MS + 10);
-      eq(replay(m).players.s0.life, 44, 'o toque curto não valeu 1');
+      // A short tap is still one step, applied only on release.
+      fire(plus, 'pointerdown', { pointerId: 2, clientX: 5, clientY: 5 });
+      advance(SHORT_TAP);
+      eq(replay(m).players.s0.life, 43, 'the short tap applied before release');
+      fire(plus, 'pointerup', { pointerId: 2, clientX: 5, clientY: 5 });
+      advance(COMMIT_MS + 10);
+      eq(replay(m).players.s0.life, 44, 'the short tap was not worth 1');
 
       view.destroy();
       return undefined;
     });
+  }],
+  ['player 1 sits at the top left, at every table', () => {
+    // Asked by players: with the device lying down, 1 is the top-left corner,
+    // and the round goes on clockwise (the rotation test takes care of the
+    // rest).
+    for (const n of [2, 3, 4, 5, 6]) {
+      for (const v of variantsFor(n)) {
+        for (const { name, shape } of shapesOf(v)) {
+          const first = shape.seats[0];
+          ok(first.r === 1 && first.c === 1,
+            n + ' players / ' + v.id + ' / ' + name + ': 1 is at '
+            + first.r + ':' + first.c);
+        }
+      }
+    }
+
+    // With 2, 3 and 5 the lying-down shape is the default: it is how the table
+    // was designed.
+    for (const n of [2, 3, 5]) {
+      eq(layoutFor(n, null).orient, 'landscape', n + ' players: the default is not lying down');
+    }
+  }],
+
+  ['a match opened before the change moves nobody', () => {
+    // The app updates in the middle of a game. The match already on the table
+    // does not have the `assentos` mark, and has to keep 1 at the bottom left.
+    const fresh = makeMatch(4);
+    eq(fresh.assentos, 'topo', 'a new match is not born marked');
+    eq(layoutOfMatch(fresh).seats[0], { r: 1, c: 1, rot: 180 }, 'new: 1 at the top');
+
+    const old = makeMatch(4);
+    delete old.assentos;
+    old.layoutId = 'padrao';
+    eq(layoutOfMatch(old).seats.map((x) => x.r + ':' + x.c),
+      ['2:1', '1:1', '1:2', '2:2'], 'an old 4-player match changed places');
+
+    // And it holds for every variant: the old one has the same chairs, and
+    // still turns clockwise - it just starts at another.
+    const cells = (l) => l.seats
+      .map((x) => x.r + ':' + x.c + ':' + (x.cs || 1) + ':' + x.rot).sort();
+    for (const n of [2, 3, 4, 5, 6]) {
+      for (const v of variantsFor(n)) {
+        for (const wide of [false, true]) {
+          const legacy = makeMatch(n);
+          delete legacy.assentos;
+          legacy.layoutId = v.id;
+          const shape = layoutOfMatch(legacy, wide);
+          const current = layoutFor(n, v.id, wide);
+          const where = n + '/' + v.id + (wide ? '/lying' : '');
+          eq(shape.cols + 'x' + shape.rows, current.cols + 'x' + current.rows,
+            where + ': the old shape changed grid');
+          eq(cells(shape), cells(current), where + ': the chairs are not the same');
+          const ang = shape.seats.map((x) => seatAngle(x, shape));
+          let round = 0;
+          for (let i = 0; i < n; i += 1) round += (ang[(i + 1) % n] - ang[i] + 360) % 360;
+          ok(Math.abs(round - 360) < 0.001, where + ': the old order does not turn clockwise');
+        }
+      }
+    }
+  }],
+
+  ['lifelink heals whoever dealt it, in the same event', () => {
+    const m = makeMatch(4);
+    push(m, { type: 'life', targetId: 's1', delta: -5, sourceId: 's0', gain: 5 });
+    let st = replay(m);
+    eq(st.players.s1.life, 35, 'the target did not lose');
+    eq(st.players.s0.life, 45, 'the dealer did not gain');
+
+    const k = cmdKeyOf('s0', m.seats[0].commanders[0]);
+    push(m, { type: 'cmd', targetId: 's2', sourceId: 's0', cmdKey: k, delta: 3, gain: 3 });
+    st = replay(m);
+    eq(st.players.s0.life, 48, 'lifelink on commander damage');
+    eq(st.players.s2.cmd[k], 3, 'the commander damage keeps counting');
+
+    // A single event: undo brings the healing back along.
+    undo(m);
+    eq(replay(m).players.s0.life, 45, 'undo left the healing behind');
+
+    const { players } = aggregate([m]);
+    eq(players.find((x) => x.label === 'P0').healed, 5, 'the healing did not get into the statistics');
+  }],
+
+  ['damage to every player hits the caster, without counting as damage dealt', () => {
+    const m = makeMatch(3, 4);
+    push(m, { type: 'sweep', sourceId: 's0', amount: 4, gain: 0, targets: ['s0', 's1', 's2'] });
+    const st = replay(m);
+    eq(st.players.s0.life, 0, 'the caster was left out');
+    ok(st.players.s0.dead, 'the caster did not die');
+    eq(st.players.s0.elim.byId, null, 'dying from your own damage became eliminating yourself');
+    eq(st.players.s1.elim.byId, 's0', 'the others are eliminated by the caster');
+
+    const { players } = aggregate([m]);
+    const p0 = players.find((x) => x.label === 'P0');
+    eq(p0.damageDealt, 8, 'hitting yourself counted as damage dealt');
+    eq(p0.damageTaken, 4, 'the damage taken by the caster vanished');
+  }],
+
+  ['the damage pad starts at 0, and confirming at 0 records nothing', () => {
+    if (!simulated) return 'skip';
+    return withFakeClock((advance) => {
+      const m = makeMatch(4);
+      const { root, tiles, view } = tableOnScreen(m);
+      const center = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+
+      pointAt(tiles[1]);
+      fire(center, 'pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
+      fire(center, 'pointermove', { pointerId: 1, clientX: 90, clientY: 90 });
+      fire(center, 'pointerup', { pointerId: 1, clientX: 90, clientY: 90 });
+      pointAt(null);
+
+      eq(textOf(findAll(root, 'pad-amount')[0]), '0', 'the pad did not start at 0');
+      const confirm = findAll(root, 'btn').find((b) => textOf(b) === 'Confirmar');
+      fire(confirm, 'click');
+      advance(COUNT_MS * 2);
+      eq(m.events.length, 0, 'confirming at 0 recorded an event');
+
+      // And the double tap starts at 0 too.
+      advance(300);
+      const tap = (id) => {
+        fire(center, 'pointerdown', { pointerId: id, clientX: 50, clientY: 50 });
+        fire(center, 'pointerup', { pointerId: id, clientX: 50, clientY: 50 });
+      };
+      tap(2);
+      tap(3);
+      const values = findAll(root, 'pad-amount').map(textOf);
+      eq(values[values.length - 1], '0', 'the area action did not start at 0');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['lifelink on the damage pad heals the attacker', () => {
+    if (!simulated) return 'skip';
+    return withFakeClock((advance) => {
+      const m = makeMatch(4);
+      const { root, tiles, view } = tableOnScreen(m);
+      const center = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+
+      pointAt(tiles[1]);
+      fire(center, 'pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
+      fire(center, 'pointermove', { pointerId: 1, clientX: 90, clientY: 90 });
+      fire(center, 'pointerup', { pointerId: 1, clientX: 90, clientY: 90 });
+      pointAt(null);
+
+      const mark = findAll(root, 'pad-tag')[0];
+      ok(mark && textOf(mark).includes('Lifelink'), 'the pad has no lifelink mark');
+      fire(mark, 'click');
+      fire(findAll(root, 'pad-chip').find((c) => textOf(c) === '5'), 'click');
+      advance(COUNT_MS * 3);
+
+      const st = replay(m);
+      eq(st.players.s1.life, 35, 'the target did not take the damage');
+      eq(st.players.s0.life, 45, 'the attacker did not gain the life');
+      eq(m.events.length, 1, 'lifelink became two events');
+      eq(m.events[0].gain, 5, 'the event did not keep the healing');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['dragging from the + or the − attacks, and does not touch the life', () => {
+    if (!simulated) return 'skip';
+    return withFakeClock((advance) => {
+      const m = makeMatch(4);
+      const { root, tiles, view } = tableOnScreen(m);
+      const wrap = findAll(root, 'table-wrap')[0];
+
+      for (const strip of ['tap-plus', 'tap-minus']) {
+        const edge = findAll(tiles[0], strip)[0];
+        pointAt(tiles[1]);
+        fire(edge, 'pointerdown', { pointerId: 1, clientX: 5, clientY: 5 });
+        advance(80); // well before the repetition starts
+        fire(edge, 'pointermove', { pointerId: 1, clientX: 90, clientY: 90 });
+        ok(wrap.classList.contains('is-dragging'), strip + ': dragging did not arm the attack');
+        advance(HOLD_DELAY + REPEAT_MS * 4); // the repetition cannot wake up
+        fire(edge, 'pointerup', { pointerId: 1, clientX: 90, clientY: 90 });
+        pointAt(null);
+        advance(COMMIT_MS + 10);
+
+        eq(replay(m).players.s0.life, 40, strip + ': the dragger\'s life changed');
+        eq(m.events.length, 0, strip + ': the drag recorded a life adjustment');
+        ok(findAll(root, 'pad-scrim').length >= 1, strip + ': the damage pad did not open');
+        fire(findAll(root, 'btn').find((b) => textOf(b) === 'Cancelar'), 'click');
+        advance(300);
+      }
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['the area action offers everyone, opponents and drain', () => {
+    if (!simulated) return 'skip';
+    return withFakeClock((advance) => {
+      const m = makeMatch(4);
+      const { root, tiles, view } = tableOnScreen(m);
+      const center = findAll(tiles[0], 'tile-drag')[0] || tiles[0];
+      const tap = (id) => {
+        fire(center, 'pointerdown', { pointerId: id, clientX: 50, clientY: 50 });
+        fire(center, 'pointerup', { pointerId: id, clientX: 50, clientY: 50 });
+      };
+      tap(1);
+      tap(2);
+
+      const modes = () => findAll(root, 'pad-mode');
+      eq(modes().map(textOf), ['Todos', 'Oponentes', 'Dreno'], 'the three modes');
+      const on = modes().find((b) => b.classList.contains('is-on'));
+      eq(textOf(on), 'Oponentes', 'the default is not opponents only');
+
+      fire(modes().find((b) => textOf(b) === 'Todos'), 'click');
+      eq(textOf(findAll(root, 'pad-to')[0]), '4 jogadores', 'the header does not say who gets hit');
+      fire(findAll(root, 'pad-chip').find((c) => textOf(c) === '3'), 'click');
+      advance(COUNT_MS * 3);
+
+      const st = replay(m);
+      for (const id of ['s0', 's1', 's2', 's3']) eq(st.players[id].life, 37, id + ' was left out');
+      eq(m.events[0].targets, ['s0', 's1', 's2', 's3'], 'targets out of table order');
+
+      view.destroy();
+      return undefined;
+    });
+  }],
+
+  ['on the iPhone, installing knows which browser it is in', () => {
+    const ios = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) ';
+    eq(iosBrowser(ios + 'Version/18.0 Mobile/15E148 Safari/604.1'), 'safari');
+    eq(iosBrowser(ios + 'CriOS/129.0 Mobile/15E148 Safari/604.1'), 'other');
+    eq(iosBrowser(ios + 'Mobile/15E148 Instagram 350.0'), 'in-app');
+    eq(iosBrowser(ios + 'Mobile/15E148 [FBAN/FBIOS;FBAV/480.0]'), 'in-app');
+  }],
+  ['keeping the screen on comes back on the first tap, as Safari requires', async () => {
+    if (!simulated) return 'skip';
+    // Safari only grants the lock right after a tap. Asking on returning to
+    // the app is silently refused, and the screen started turning off in the
+    // middle of the match. Here the browser refuses the first request and
+    // accepts the next.
+    const onRoute = () => document.body.dataset.route;
+    const wasRoute = onRoute();
+    const realNav = globalThis.navigator;
+    const requests = [];
+    let locks = 0;
+    const listeners = [];
+    const fake = {
+      request: () => {
+        requests.push(Date.now());
+        if (requests.length === 1) return Promise.reject(new Error('NotAllowedError'));
+        locks += 1;
+        return Promise.resolve({
+          addEventListener: (type, fn) => { if (type === 'release') listeners.push(fn); },
+          release: () => Promise.resolve(),
+        });
+      },
+    };
+    const wait = () => new Promise((r) => setTimeout(r, 0));
+    // Hung on the real navigator: an object in its place breaks the private
+    // fields Node uses to answer userAgent.
+    Object.defineProperty(realNav, 'wakeLock', { value: fake, configurable: true });
+    store.wipe();
+    try {
+      store.setCurrent(makeMatch(4));
+      // For the home screen to redraw with the open-match notice: a round trip
+      // through the statistics, which is the path the router already knows.
+      fire(statsButton(), 'click');
+      fireWindow('popstate');
+      const resume = findAll(document.getElementById('app'), 'invite-banner')[0];
+      ok(resume, 'the home screen did not offer to resume the match');
+      fire(resume, 'click');
+      eq(onRoute(), 'table', 'did not get into the table');
+      await wait();
+      const beforeTap = requests.length;
+
+      fire(document, 'pointerup', {});
+      await wait();
+      ok(requests.length > beforeTap, 'the tap on the table did not ask to keep the screen on');
+
+      // Refused (the first one always is, here): the next tap tries again.
+      while (locks === 0 && requests.length < 5) {
+        fire(document, 'pointerup', {});
+        await wait();
+      }
+      eq(locks, 1, 'after a refusal, the next tap did not ask again');
+
+      // With the lock in hand, tapping does not ask for another.
+      const withLock = requests.length;
+      fire(document, 'pointerup', {});
+      await wait();
+      eq(requests.length, withLock, 'asked again while already holding the lock');
+
+      // The system released it (locked the phone, switched apps): the tap
+      // recovers it.
+      listeners.forEach((fn) => fn());
+      fire(document, 'pointerup', {});
+      await wait();
+      eq(locks, 2, 'the lock released by the system did not come back on the tap');
+    } finally {
+      delete realNav.wakeLock;
+      closeSheet();
+      if (onRoute() !== wasRoute) document.body.dataset.route = wasRoute;
+      store.wipe();
+    }
+    return undefined;
+  }],
+  ['the table code is read the way the person types or pastes it', () => {
+    eq(normalizeCode(' k7m-2qx '), 'K7M2QX');
+    ok(isCodeValid('K7M 2QX'), 'the code as it shows on screen is not valid');
+    ok(!isCodeValid('K7M2Q'), 'five characters were valid');
+    ok(!isCodeValid('O0I1L2'), 'letters outside the alphabet were valid');
+    eq(formatCode('k7m2qx'), 'K7M 2QX');
+
+    // Pasting the whole message from the chat: the field finds the code in it.
+    const message = t('pass.shareText', {
+      code: 'K7M 2QX', link: 'https://x.github.io/hit-easy/beta/?mesa=K7M2QX',
+    });
+    eq(codeInText(message), 'K7M2QX', 'did not find the code in the message');
+    eq(codeInText('Mesa do Hit Easy: K7M 2QX'), 'K7M2QX');
+    eq(codeInText('abre aí https://a.b/?mesa=ABCDEF'), 'ABCDEF', 'did not read the link');
+    eq(codeInText('oi tudo bem'), null, 'invented a code');
+
+    // The link of whoever passed leads to the SAME channel: a beta code only
+    // opens in beta.
+    eq(tableLink('K7M2QX', { origin: 'https://x.github.io', pathname: '/hit-easy/beta/index.html' }),
+      'https://x.github.io/hit-easy/beta/?mesa=K7M2QX');
+    eq(codeFromLink('?mesa=k7m2qx'), 'K7M2QX', 'the startup did not read the link');
+    eq(codeFromLink('?outra=1'), null);
+  }],
+
+  ['passing by code only releases the table after it goes up', () => {
+    store.wipe();
+    try {
+      store.setCurrent(makeMatch(4));
+      const envelope = store.tableToSend(1000);
+      ok(envelope && envelope.partida, 'did not build the envelope');
+      ok(store.getCurrent(), 'building the envelope already released the table');
+      ok(!envelope.partida.passadaEm, 'the envelope came out stamped as handed off');
+
+      eq(store.releaseTable('K7M2QX', 2000), true);
+      eq(store.getCurrent(), null, 'the table still counts here');
+      eq(store.storedTable().passadaCodigo, 'K7M2QX', 'the table does not remember the code');
+      eq(store.tableToSend(), null, 'a table already handed off was sent again');
+
+      // Whoever receives does not inherit the code; whoever takes back does
+      // not either.
+      const arrived = receiveTable(store.storedTable(), 3000);
+      ok(!arrived.passadaCodigo, 'the code traveled to the other device');
+      store.takeTableBack();
+      ok(!store.getCurrent().passadaCodigo, 'taking back left the code behind');
+    } finally {
+      store.wipe();
+    }
+  }],
+
+  ['passing the table by code, and falling back to the file without network', async () => {
+    if (!simulated) return 'skip';
+    const realFetch = globalThis.fetch;
+    const requests = [];
+    let network = true;
+    globalThis.fetch = (u, o) => {
+      requests.push({ url: String(u), body: JSON.parse((o && o.body) || 'null') });
+      if (!network) return Promise.reject(new TypeError('Failed to fetch'));
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve('K7M2QX') });
+    };
+    const breathe = async () => { for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0)); };
+    const confirm = () => {
+      const actions = findAll(document.body, 'sheet-actions').slice(-1)[0];
+      fire(actions.childNodes[1], 'click');
+    };
+    store.wipe();
+    try {
+      store.setCurrent(makeMatch(4));
+      let left = 0;
+      const going = passTable(() => { left += 1; });
+      await breathe();
+      confirm();
+      eq(await going, true, 'the handoff did not finish');
+
+      const request = requests.find((p) => p.url.endsWith('/rpc/enviar_mesa'));
+      ok(request, 'did not upload the table');
+      eq(request.body.c, 'producao', 'uploaded without the channel');
+      eq(request.body.mesa.partida.id, store.storedTable().id, 'uploaded another table');
+      eq(left, 1, 'the caller did not learn that the table left');
+      eq(store.storedTable().passadaCodigo, 'K7M2QX');
+      const code = findAll(document.body, 'table-code').slice(-1)[0];
+      ok(code && textOf(code) === 'K7M 2QX', 'the code did not show');
+      closeSheet();
+
+      // No network: the table does NOT leave here, and the screen offers the
+      // file.
+      store.wipe();
+      store.setCurrent(makeMatch(4));
+      network = false;
+      const offline = passTable(() => { left += 1; });
+      await breathe();
+      confirm();
+      await breathe();
+      ok(store.getCurrent(), 'with no network, the table vanished from this device');
+      const offer = findAll(document.body, 'btn').find((b) => textOf(b) === t('pass.sendFile'));
+      ok(offer, 'with no network, it did not offer the file');
+      closeSheet();
+      await breathe();
+      eq(await offline, false);
+      eq(left, 1, 'with no network, the screen switched as if it had passed');
+    } finally {
+      globalThis.fetch = realFetch;
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['receiving by code peeks, confirms and only then takes', async () => {
+    if (!simulated) return 'skip';
+    const realFetch = globalThis.fetch;
+    const requests = [];
+    const original = makeMatch(4);
+    original.id = 'p-por-codigo';
+    push(original, { type: 'life', targetId: 's1', sourceId: 's0', delta: -9 });
+    const envelope = { formato: 'hit-easy/mesa', versao: 1, em: 1, partida: original };
+    let taken = false;
+    globalThis.fetch = (u, o) => {
+      const url = String(u);
+      requests.push({ url, body: JSON.parse((o && o.body) || 'null') });
+      let answer = null;
+      if (url.endsWith('/rpc/ver_mesa')) answer = taken ? null : envelope;
+      if (url.endsWith('/rpc/pegar_mesa')) { answer = taken ? null : envelope; taken = true; }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(answer) });
+    };
+    const breathe = async () => { for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0)); };
+    store.wipe();
+    try {
+      // The envelope the file uses: the format has to be the same in both.
+      store.setCurrent(makeMatch(2));
+      envelope.formato = JSON.parse(store.packTable(1)).formato;
+      store.wipe();
+
+      let opened = 0;
+      openReceiveTable(() => { opened += 1; }, 'k7m2qx');
+      const field = findAll(document.body, 'table-code-field').slice(-1)[0];
+      eq(field.value, 'K7M 2QX', 'the link code did not come filled in');
+      fire(findAll(document.body, 'btn').filter((b) => textOf(b) === t('pass.receive')).pop(), 'click');
+      await breathe();
+
+      ok(requests.some((p) => p.url.endsWith('/rpc/ver_mesa')), 'did not look for the table');
+      ok(!requests.some((p) => p.url.endsWith('/rpc/pegar_mesa')), 'took it before the person confirmed');
+
+      const actions = findAll(document.body, 'sheet-actions').slice(-1)[0];
+      fire(actions.childNodes[1], 'click');
+      await breathe();
+
+      const take = requests.find((p) => p.url.endsWith('/rpc/pegar_mesa'));
+      ok(take, 'confirmed and did not take');
+      eq(take.body.cod, 'K7M2QX');
+      eq(store.getCurrent() && store.getCurrent().id, 'p-por-codigo', 'the table was not installed');
+      eq(replay(store.getCurrent()).players.s1.life, 31, 'the table arrived without the events');
+      eq(opened, 1, 'receiving did not lead to the table');
+
+      // A second device with the same code takes nothing.
+      store.wipe();
+      openReceiveTable(() => { opened += 1; }, 'K7M2QX');
+      fire(findAll(document.body, 'btn').filter((b) => textOf(b) === t('pass.receive')).pop(), 'click');
+      await breathe();
+      const error = findAll(document.body, 'table-code-error').slice(-1)[0];
+      eq(textOf(error), t('pass.codeNotFound'), 'the used code was not refused');
+      eq(store.getCurrent(), null);
+      eq(opened, 1);
+    } finally {
+      globalThis.fetch = realFetch;
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['taking back a table the other device already took asks for one more confirmation', async () => {
+    if (!simulated) return 'skip';
+    const realFetch = globalThis.fetch;
+    const requests = [];
+    globalThis.fetch = (u) => {
+      const url = String(u);
+      requests.push(url);
+      const answer = url.endsWith('/rpc/cancelar_mesa') || url.endsWith('/rpc/situacao_mesa')
+        ? 'recebida' : null;
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(answer) });
+    };
+    const breathe = async () => { for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0)); };
+    const confirm = () => {
+      const actions = findAll(document.body, 'sheet-actions').slice(-1)[0];
+      fire(actions.childNodes[1], 'click');
+    };
+    store.wipe();
+    try {
+      store.setCurrent(makeMatch(4));
+      store.releaseTable('K7M2QX');
+      let tookBack = 0;
+      const box = handedOffBanner(() => {}, () => { tookBack += 1; });
+      await breathe();
+      ok(textOf(box).includes(t('pass.goneSubArrived', { code: 'K7M 2QX' })),
+        'the notice did not say the other device already received it');
+
+      const takeBack = findAll(box, 'btn').find((b) => textOf(b) === t('pass.takeBack'));
+      fire(takeBack, 'click');
+      await breathe();
+      confirm();
+      await breathe();
+      ok(requests.some((u) => u.endsWith('/rpc/cancelar_mesa')), 'taking back did not cancel the code');
+      eq(tookBack, 0, 'it took back without warning the other device already has the table');
+      const title = findAll(document.body, 'sheet-title').slice(-1)[0];
+      eq(textOf(title), t('pass.takeBackReceivedTitle'));
+      confirm();
+      await breathe();
+      eq(tookBack, 1, 'confirming again did not take back');
+      ok(store.getCurrent(), 'the table did not come back');
+    } finally {
+      globalThis.fetch = realFetch;
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+  ['the settings come in groups, in order of use', () => {
+    if (!simulated) return 'skip';
+    setLang('pt');
+    store.wipe();
+    document.body.childNodes.length = 0;
+    const root = document.createElement('div');
+    renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+    fire(findAll(root, 'icon-btn').find((b) => b.attributes['aria-label'] === t('common.settings')), 'click');
+
+    try {
+      // Appearance, table, app: from what is touched most to what is touched
+      // least. The account, when it exists, is a single row before everything.
+      const titles = findAll(document.body, 'sheet-legend').map(textOf);
+      eq(titles, [t('settings.appearance'), t('settings.onTable'), t('settings.app')],
+        'groups out of order');
+      eq(findAll(document.body, 'set-account').length, cloudEnabled() ? 1 : 0,
+        'the account is not a single row');
+
+      // Vibration and keep-screen-on with no caption: the label says it all.
+      const toggles = findAll(document.body, 'is-toggle');
+      ok(toggles.length >= 2, 'the table toggles are missing');
+      for (const row of toggles.slice(0, 2)) {
+        ok(findAll(row, 'set-sub').every((x) => x.hidden), textOf(row) + ': extra caption');
+      }
+
+      // The theme through the segments saves and lights the chosen one. The
+      // stored value is the Portuguese 'escuro' (see store.js).
+      const dark = findAll(document.body, 'set-segment').find((b) => textOf(b) === t('settings.themeDark'));
+      fire(dark, 'click');
+      eq(store.getDB().settings.theme, 'escuro', 'the theme was not saved');
+      const lit = findAll(document.body, 'set-segment').filter((b) => b.classList.contains('is-on'));
+      eq(lit.map(textOf), [t('settings.themeDark')], 'the chosen segment did not light up');
+    } finally {
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['the account screen does not enter a redraw loop', async () => {
+    if (!simulated || !cloudEnabled()) return 'skip';
+    // The reported defect: after signing in, the buttons flickered as if the
+    // mouse passed quickly and stopped accepting clicks. The account screen
+    // redrew on every account notice, redrawing fetched the invites, and the
+    // fetch notified again - forever, recreating the buttons under the mouse
+    // on every network round.
+    const realFetch = globalThis.fetch;
+    const realSession = account.session;
+    let fetches = 0;
+    let invites = [];
+    globalThis.fetch = (u) => {
+      if (String(u).includes('match_players')) fetches += 1;
+      const body = String(u).includes('match_players') ? invites : [];
+      // Answers on a separate tick, like the real network: answering right
+      // away, the old loop never yielded and hung the whole suite.
+      return new Promise((r) => setTimeout(() => r({
+        ok: true, status: 200, json: () => Promise.resolve(body),
+      }), 0));
+    };
+    account.session = {
+      user: { id: 'eu', email: 'eu@exemplo.com' }, access_token: 'x',
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+    };
+    const breathe = async (n = 30) => { for (let i = 0; i < n; i += 1) await new Promise((r) => setTimeout(r, 0)); };
+    document.body.childNodes.length = 0;
+    try {
+      const block = accountBlock(() => {});
+      document.body.append(block);
+      await breathe();
+      const afterMount = fetches;
+      ok(afterMount >= 1, 'the account screen did not fetch the invites');
+
+      // Any account notice: the screen redraws ONCE, and stops.
+      await pendingInvites();
+      await breathe();
+      ok(fetches - afterMount <= 3,
+        'loop: ' + (fetches - afterMount) + ' invite fetches after a single notice');
+
+      // With the screen closed, it stops listening: a real new invite
+      // notifies, and the box nobody sees cannot go fetching again.
+      block.remove();
+      await breathe();
+      invites = [{ match_id: 'm1', seat_id: 's1', status: 'pendente', handle: 'eu' }];
+      await pendingInvites();
+      await breathe();
+      const before = fetches;
+      invites = [];
+      await pendingInvites();
+      await breathe();
+      eq(fetches - before, 1, 'the closed screen kept fetching invites');
+    } finally {
+      globalThis.fetch = realFetch;
+      account.session = realSession;
+      account.invites = [];
+      document.body.childNodes.length = 0;
+    }
+    return undefined;
+  }],
+  ['an @ is current, free or someone else\'s - and yours does not show as free', () => {
+    // The search resolves an old @ to its current owner (sql/008). Finding an
+    // account is not enough to say "taken", and finding yourself is not "free".
+    eq(handleStatus('alex', null, 'eu'), 'free', 'nobody uses it');
+    eq(handleStatus('alex', { id: 'eu', handle: 'alex' }, 'eu'), 'current', 'it is my current one');
+    eq(handleStatus('@Alex', { id: 'eu', handle: 'alex' }, 'eu'), 'current', 'with @ and capitals too');
+    eq(handleStatus('alex', { id: 'eu', handle: 'alexandre' }, 'eu'), 'free',
+      'an old @ of mine: I can go back to it');
+    eq(handleStatus('alex', { id: 'outra', handle: 'alex' }, 'eu'), 'taken');
+    eq(handleStatus('alex', { id: 'outra', handle: 'alexandre' }, 'eu'), 'taken',
+      'someone else\'s old @ is still theirs');
+  }],
+
+  ['the name in matches stays the way the person wrote it', () => {
+    eq(normalizeName('  Alê   do   Rio  '), 'Alê do Rio', 'extra spaces');
+    eq(normalizeName('Dr. Strange!'), 'Dr. Strange!', 'capitals and punctuation stay');
+    eq(normalizeName('MARIA'), 'MARIA');
+    eq(normalizeName('Ana\u0000\u0007'), 'Ana', 'a control character goes');
+    eq(normalizeName('‮anA'), 'anA', 'what reverses the text goes');
+    eq(normalizeName('👨‍👩‍👧 Família'), '👨‍👩‍👧 Família',
+      'the composed emoji stays whole');
+    eq([...normalizeName('a'.repeat(30))].length, NAME_MAX, 'cuts at the panel size');
+    eq([...normalizeName('🐉'.repeat(30))].length, NAME_MAX, 'an emoji counts as one');
+    eq(normalizeName('   '), '', 'only spaces is no name at all');
+  }],
+
+  ['changing the @ does not erase the name, and the name goes normalized', async () => {
+    const realFetch = globalThis.fetch;
+    const realSession = account.session;
+    const realProfile = account.profile;
+    const requests = [];
+    globalThis.fetch = (u, o) => {
+      requests.push({ url: String(u), method: (o && o.method) || 'GET', body: JSON.parse((o && o.body) || 'null') });
+      return Promise.resolve({
+        ok: true, status: 200,
+        json: () => Promise.resolve([{ id: 'eu', handle: 'alexandre', display_name: 'Alê' }]),
+      });
+    };
+    account.session = { user: { id: 'eu', email: 'eu@x.com' }, access_token: 'x', expires_at: Math.floor(Date.now() / 1000) + 3600 };
+    account.profile = { id: 'eu', handle: 'alex', display_name: 'Alê' };
+    try {
+      await saveHandle('alexandre', null);
+      const upsert = requests.find((p) => p.method === 'POST' && p.url.includes('/profiles'));
+      ok(upsert, 'did not save the @');
+      ok(!('display_name' in upsert.body), 'changing the @ sent display_name and would erase the name');
+
+      await saveName('  Dr.   Strange  ');
+      const patch = requests.find((p) => p.method === 'PATCH');
+      eq(patch.body, { display_name: 'Dr. Strange' }, 'the name was not normalized');
+      eq(account.profile.display_name, 'Dr. Strange');
+
+      await saveName('   ');
+      eq(requests.filter((p) => p.method === 'PATCH').pop().body, { display_name: null },
+        'an empty name has to go back to the @');
+    } finally {
+      globalThis.fetch = realFetch;
+      account.session = realSession;
+      account.profile = realProfile;
+    }
+    return undefined;
+  }],
+
+  ['checking your own @ says it is already yours, and does not let you save', async () => {
+    if (!simulated) return 'skip';
+    const realFetch = globalThis.fetch;
+    const realSession = account.session;
+    const realProfile = account.profile;
+    globalThis.fetch = () => Promise.resolve({
+      ok: true, status: 200, json: () => Promise.resolve([{ id: 'eu', handle: 'alex', display_name: null }]),
+    });
+    account.session = { user: { id: 'eu', email: 'eu@x.com' }, access_token: 'x', expires_at: Math.floor(Date.now() / 1000) + 3600 };
+    account.profile = { id: 'eu', handle: 'alex', display_name: null };
+    const breathe = async () => { for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0)); };
+    try {
+      fire(handleBlock(), 'click');
+      const field = findAll(document.body, 'search-input').pop();
+      field.value = 'alex';
+      fire(findAll(document.body, 'btn').filter((b) => textOf(b) === t('handle.check')).pop(), 'click');
+      await breathe();
+
+      const message = findAll(document.body, 'handle-result').pop();
+      eq(textOf(message), t('handle.yours', { handle: '@alex' }), 'your own @ showed as free');
+      const use = findAll(document.body, 'btn').filter((b) => textOf(b) === t('handle.useThis')).pop();
+      ok(use.disabled, 'it let you save the @ that is already yours');
+    } finally {
+      globalThis.fetch = realFetch;
+      account.session = realSession;
+      account.profile = realProfile;
+      closeSheet();
+    }
+    return undefined;
+  }],
+  ['the @ only changes every 15 days', () => {
+    const day = 24 * 60 * 60 * 1000;
+    const now = Date.parse('2026-10-09T12:00:00Z');
+    const daysAgo = (days) => new Date(now - days * day).toISOString();
+
+    eq(HANDLE_CHANGE_DAYS, 15);
+    eq(nextHandleChange({ handle: 'alex', handle_trocado_em: null }, now), null,
+      'whoever already had an @ before the rule can change');
+    eq(nextHandleChange({ handle: 'alex', handle_trocado_em: daysAgo(3) }, now), now + 12 * day,
+      'changed 3 days ago: unlocks in 12');
+    eq(nextHandleChange({ handle: 'alex', handle_trocado_em: daysAgo(15) }, now), null,
+      'on the 15th day it already can');
+    eq(nextHandleChange({ handle: 'alex', handle_trocado_em: daysAgo(16) }, now), null);
+    eq(nextHandleChange(null, now), null, 'no profile, nothing to wait for');
+    eq(nextHandleChange({ handle: null, handle_trocado_em: daysAgo(1) }, now), null,
+      'with no @, picking the first one does not wait');
+  }],
+
+  ['changing too early says when it unlocks', async () => {
+    if (!simulated) return 'skip';
+    const realFetch = globalThis.fetch;
+    const realSession = account.session;
+    const realProfile = account.profile;
+    const day = 24 * 60 * 60 * 1000;
+    const changed = new Date(Date.now() - 2 * day).toISOString();
+    const unlocks = new Date(Date.parse(changed) + 15 * day).toISOString();
+    account.session = { user: { id: 'eu', email: 'eu@x.com' }, access_token: 'x', expires_at: Math.floor(Date.now() / 1000) + 3600 };
+    account.profile = { id: 'eu', handle: 'alex', display_name: null, handle_trocado_em: changed };
+    globalThis.fetch = () => Promise.resolve({
+      ok: false, status: 400,
+      json: () => Promise.resolve({ code: 'HE015', message: 'handle troca cedo', details: unlocks }),
+    });
+    try {
+      // The database refuses with HE015 and the date in details: the app reads
+      // both.
+      let error = null;
+      try { await saveHandle('alexandre', null); } catch (e) { error = e; }
+      ok(error, 'the refused change went through');
+      eq(error.message, 'handle too soon');
+      eq(error.unlockedAt, Date.parse(unlocks), 'the unlock date got lost');
+
+      // The @ row already says when it unlocks, and tapping does not open the
+      // change screen.
+      document.body.childNodes.length = 0;
+      const handleRow = handleBlock();
+      ok(!handleRow._sub.hidden, 'the row does not say when it unlocks');
+      ok(textOf(handleRow._sub).length > 0);
+      eq(handleRow._value, null, 'it still offers "Change"');
+      fire(handleRow, 'click');
+      eq(findAll(document.body, 'search-input').length, 0, 'it opened the change screen within the waiting period');
+    } finally {
+      globalThis.fetch = realFetch;
+      account.session = realSession;
+      account.profile = realProfile;
+      closeSheet();
+    }
+    return undefined;
+  }],
+  ['whoever changes @ is still a single person in the statistics', () => {
+    store.wipe();
+    try {
+      // Two matches, the same person: in the first they were @alex, in the
+      // second they had already become @alexandre. The history is not
+      // rewritten.
+      const withSeats = (handle0) => {
+        const m = makeMatch(2);
+        m.seats[0].handle = handle0;
+        m.seats[1].handle = 'bia';
+        push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
+        return m;
+      };
+      const old = withSeats('alex');
+      const fresh = withSeats('alexandre');
+      fresh.startedAt = old.startedAt + 1000;
+
+      // Without knowing about the change, they are two people - that was the
+      // defect.
+      const noMap = aggregate([old, fresh], store.knownHandles()).players;
+      ok(noMap.some((p) => p.key === '@alex') && noMap.some((p) => p.key === '@alexandre'),
+        'the test scenario does not split the person');
+
+      eq(store.learnCurrentHandles({ alex: 'alexandre' }), 1);
+      const aliases = store.knownHandles();
+
+      const players = aggregate([old, fresh], aliases).players;
+      const alex = players.filter((p) => p.key.startsWith('@alex'));
+      eq(alex.length, 1, 'the @ change split the person into two rows');
+      eq(alex[0].key, '@alexandre', 'the row does not use the current @');
+      eq(alex[0].label, '@alexandre');
+      eq(alex[0].games, 2, 'the matches with the old @ were left out');
+      eq(alex[0].wins, 2);
+
+      const pairs = rivalries([old, fresh], aliases);
+      eq(pairs.length, 1, 'the rivalry with Bia became two');
+      eq(pairs[0].games, 2);
+
+      const colors = playerColorOrder([old, fresh], aliases);
+      ok(!colors.has('@alex'), 'the old @ got its own color');
+
+      // The history still says what happened that day.
+      eq(old.seats[0].handle, 'alex', 'the old match was rewritten');
+    } finally {
+      store.wipe();
+    }
+  }],
+
+  ['the @ map follows chained changes, accepts going back and does not hang on a cycle', () => {
+    const withMap = (map) => ({ [CURRENT_HANDLES]: map });
+    eq(currentHandle('a', withMap({ a: 'b', b: 'c' })), 'c', 'changed twice');
+    eq(currentHandle('x', withMap({ a: 'b' })), 'x', 'whoever never changed');
+    eq(currentHandle('a', withMap({ a: 'b', b: 'a' })).length, 1, 'the cycle hung');
+    eq(identityOf({ handle: 'A' }, withMap({ a: 'b' })), '@b', 'the seat with the old @');
+
+    store.wipe();
+    try {
+      store.rememberHandle('Alex', 'alex');
+      store.hidePlayer('@alex');
+      store.learnCurrentHandles({ alex: 'alexandre' });
+      // What the device STORES follows too: the remembered name and whoever
+      // was hidden.
+      eq(store.knownHandles().alex, 'alexandre', 'the remembered name kept the old @');
+      ok(store.isPlayerHidden('@alexandre'), 'whoever was hidden reappeared after the change');
+
+      // Changed again, and then went back to the first.
+      store.learnCurrentHandles({ alexandre: 'alex_m' });
+      eq(currentHandle('alex', store.knownHandles()), 'alex_m', 'the chain was not followed');
+      store.learnCurrentHandles({ alex_m: 'alex' });
+      eq(currentHandle('alex', store.knownHandles()), 'alex', 'going back to the old @ did not work');
+      eq(currentHandle('alexandre', store.knownHandles()), 'alex');
+    } finally {
+      store.wipe();
+    }
+  }],
+
+  ['the sync asks the server who changed @ and what name they chose', async () => {
+    const realFetch = globalThis.fetch;
+    const realSession = account.session;
+    const requests = [];
+    let has011 = true;
+    globalThis.fetch = (u, o) => {
+      const url = String(u);
+      requests.push({ url, body: JSON.parse((o && o.body) || 'null') });
+      if (url.endsWith('/rpc/perfis_por_handle')) {
+        if (!has011) return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+        return Promise.resolve({
+          ok: true, status: 200,
+          json: () => Promise.resolve([
+            { pedido: 'bia', atual: 'beatriz', nome: 'Bia Souza' },
+            { pedido: 'eu_mesmo', atual: 'eu_mesmo', nome: null },
+          ]),
+        });
+      }
+      return Promise.resolve({
+        ok: true, status: 200,
+        json: () => Promise.resolve([{ pedido: 'bia', atual: 'beatriz' }]),
+      });
+    };
+    account.session = { user: { id: 'eu', email: 'eu@x.com' }, access_token: 'x', expires_at: Math.floor(Date.now() / 1000) + 3600 };
+    store.wipe();
+    try {
+      const m = makeMatch(2);
+      m.seats[0].handle = 'eu_mesmo';
+      m.seats[1].handle = 'bia';
+      store.archive(m);
+
+      const learned = await refreshHandles();
+      eq(learned.handles, 1, 'it did not learn Bia\'s change of @');
+      eq(learned.names, 1, 'it did not learn the name Bia chose');
+      const request = requests.find((p) => p.url.endsWith('/rpc/perfis_por_handle'));
+      ok(request, 'it did not ask the server');
+      eq(request.body.hs.sort(), ['bia', 'eu_mesmo'], 'it did not send the @s of the history');
+      eq(identityOf(m.seats[1], store.knownHandles()), '@beatriz');
+      eq(labelOf(m.seats[1], store.knownHandles()), 'Bia Souza', 'the statistics still show the @');
+
+      // A database without sql/011 still answers the @ changes through 010.
+      store.wipe();
+      store.archive(m);
+      has011 = false;
+      const fallback = await refreshHandles();
+      eq(fallback.handles, 1, 'without 011 the @ change was lost');
+      ok(requests.some((p) => p.url.endsWith('/rpc/handles_atuais')), 'it did not fall back to 010');
+    } finally {
+      globalThis.fetch = realFetch;
+      account.session = realSession;
+      store.wipe();
+    }
+    return undefined;
+  }],
+  ['the chosen name labels the person in the statistics and inside the match', () => {
+    store.wipe();
+    try {
+      const m = makeMatch(2);
+      m.seats[0].handle = 'alex';
+      m.seats[0].name = 'Alex';
+      push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
+
+      // Before any name is known: the @, as always.
+      eq(labelOf(m.seats[0], store.knownHandles()), '@alex');
+
+      store.learnDisplayNames({ alex: 'Alê Parma' });
+      const aliases = store.knownHandles();
+      eq(labelOf(m.seats[0], aliases), 'Alê Parma', 'the statistics still show the @');
+      eq(seatName(m.seats[0], aliases), 'Alê Parma');
+      eq(seatName(m.seats[1], aliases), m.seats[1].name, 'a seat without account keeps its typed name');
+      eq(aggregate([m], aliases).players.find((p) => p.key === '@alex').label, 'Alê Parma');
+      ok(timeline(m, aliases).some((ev) => ev.text.includes('Alê Parma')),
+        'the timeline still uses the typed name');
+
+      // The identity is still the @: the name only labels it.
+      eq(identityOf(m.seats[0], aliases), '@alex');
+
+      // An old @ finds the chosen name of today's account.
+      store.learnCurrentHandles({ alex: 'alexandre' });
+      store.learnDisplayNames({ alexandre: 'Alê Parma' });
+      eq(labelOf(m.seats[0], store.knownHandles()), 'Alê Parma', 'the old @ lost the name');
+
+      // Clearing the name goes back to the @.
+      store.learnDisplayNames({ alexandre: null });
+      eq(labelOf(m.seats[0], store.knownHandles()), '@alexandre');
+      eq(m.seats[0].name, 'Alex', 'the finished match was rewritten');
+    } finally {
+      store.wipe();
+    }
+  }],
+
+  ['a chosen name reaches the open table, but not finished matches', () => {
+    store.wipe();
+    try {
+      const finished = makeMatch(2);
+      finished.seats[0].handle = 'alex';
+      finished.seats[0].name = 'Alex';
+      store.archive(finished);
+
+      const open = makeMatch(2);
+      open.seats[0].handle = 'alex';
+      open.seats[0].name = 'Alex';
+      store.setCurrent(open);
+
+      const learned = store.learnDisplayNames({ alex: 'Alê Parma' });
+      eq(learned.table, true, 'the caller was not told to redraw the table');
+      eq(store.getCurrent().seats[0].name, 'Alê Parma', 'the open table kept the old name');
+      eq(store.getDB().history[0].seats[0].name, 'Alex', 'a finished match was rewritten');
+
+      // Learning the same name again changes nothing and redraws nothing.
+      eq(store.learnDisplayNames({ alex: 'Alê Parma' }).changed, 0);
+
+      // A seat reused from the previous table carries only the typed name;
+      // the account comes from the remembered alias - and the seat keeps it.
+      store.rememberHandle('Alex', 'alex');
+      const reused = { id: 'x', name: 'Alex', commanders: [] };
+      eq(store.applyDisplayNames([reused]), 1);
+      eq(reused.name, 'Alê Parma');
+      eq(reused.handle, 'alex', 'renaming the seat lost its account');
+
+      // Long names are cut to what fits on the panel.
+      store.learnDisplayNames({ alex: 'Alê Parma da Silva Sauro' });
+      eq([...store.nameForSeat(reused)].length, 18);
+    } finally {
+      store.wipe();
+    }
+  }],
+
+  ['my own chosen name reaches the open table as soon as the profile says it', () => {
+    if (!simulated) return 'skip';
+    const realProfile = account.profile;
+    const realSession = account.session;
+    store.wipe();
+    try {
+      const open = makeMatch(2);
+      open.seats[0].handle = 'alex';
+      open.seats[0].name = 'Alex';
+      store.setCurrent(open);
+
+      account.session = { user: { id: 'eu', email: 'eu@x.com' }, access_token: 'x', expires_at: Math.floor(Date.now() / 1000) + 3600 };
+      account.profile = { id: 'eu', handle: 'alex', display_name: 'Alê' };
+      notifyAccount(); // what loading or saving the profile does
+
+      eq(store.getCurrent().seats[0].name, 'Alê', 'the open table did not get my chosen name');
+      eq(labelOf({ handle: 'alex' }, store.knownHandles()), 'Alê');
+    } finally {
+      account.profile = realProfile;
+      account.session = realSession;
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['the match details open, with the chosen name in the timeline', () => {
+    if (!simulated) return 'skip';
+    store.wipe();
+    try {
+      const m = makeMatch(2);
+      m.seats[0].handle = 'alex';
+      m.seats[0].name = 'Alex';
+      push(m, { type: 'life', targetId: 's1', delta: -40, sourceId: 's0' });
+      store.learnDisplayNames({ alex: 'Alê Parma' });
+
+      const card = matchCard(m, () => {});
+      ok(textOf(findAll(card, 'card-name')[0]).includes('Alê Parma'), 'the winner shows the typed name');
+      const details = findAll(card, 'icon-btn').find((b) => b.attributes['aria-label'] === t('stats.details'));
+      fire(details, 'click');
+      const rows = findAll(document.body, 'timeline-text').map(textOf);
+      ok(rows.length > 0, 'the details did not open');
+      ok(rows.some((x) => x.includes('Alê Parma')), 'the timeline still uses the typed name: ' + rows.join(' | '));
+    } finally {
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+  ['the @ search lists the accounts already tagged here, one tap away', () => {
+    if (!simulated) return 'skip';
+    const realFetch = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = () => { calls += 1; return Promise.reject(new Error('offline')); };
+    store.wipe();
+    try {
+      // What tagging does on this device: the name on the list, and its @.
+      for (const [name, handle] of [['Alex', 'alienpls'], ['Bruno', 'bruno_b'], ['Caio', 'caio99']]) {
+        store.rememberPlayer(name);
+        store.rememberHandle(name, handle);
+      }
+      store.rememberPlayer('Ana'); // no account: never on the @ screen
+      store.learnDisplayNames({ alienpls: 'Alê Parma' });
+
+      const d = ensureDraft();
+      d.seats[1].name = 'Caio';
+      d.seats[1].handle = 'caio99'; // already at this table
+      const seat = d.seats[0];
+      openFlow(findHandleStep(seat, () => {}, { adoptName: true, then: 'close' }));
+
+      const rows = () => findAll(document.body, 'is-tagged');
+      const names = () => rows().map((r) => textOf(findAll(r, 'player-name')[0]));
+      eq(names().sort(), ['@alienpls', '@bruno_b'],
+        'the tagged accounts are missing, or someone at the table is offered again');
+      // Here the @ leads, with the name under it.
+      ok(textOf(rows().find((r) => textOf(r).includes('@alienpls'))).includes('Alê Parma'),
+        'the chosen name is not next to the @');
+
+      // Typing filters - by @ or by name.
+      const input = findAll(document.body, 'search-input').pop();
+      input.value = 'bru';
+      fire(input, 'input');
+      eq(names(), ['@bruno_b'], 'typing does not filter');
+      input.value = 'alê';
+      fire(input, 'input');
+      eq(names(), ['@alienpls'], 'the name does not filter');
+
+      // One tap: linked, under the chosen name, without the network.
+      fire(rows()[0], 'click');
+      eq(seat.handle, 'alienpls', 'the tap did not link the account');
+      eq(seat.name, 'Alê Parma', 'the seat did not take the chosen name');
+      eq(calls, 0, 'picking a tagged account went to the network');
+      eq(displayNameOf('alienpls', store.knownHandles()), 'Alê Parma',
+        'picking from the list forgot the known name');
+    } finally {
+      globalThis.fetch = realFetch;
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
   }],
 ];
 
-/** Roda tudo e devolve o resultado. Quem chama decide como mostrar. */
 /**
- * Roda todos os casos. Devolve uma PROMESSA.
+ * Runs every case. Returns a PROMISE.
  *
- * Um caso pode devolver promessa, e entao ele e esperado antes do proximo -
- * nunca em paralelo, porque os casos compartilham `document`, `store` e a
- * folha aberta, e dois correndo juntos se pisariam.
+ * A case may return a promise, and then it is awaited before the next one -
+ * never in parallel, because the cases share `document`, `store` and the open
+ * sheet, and two running together would step on each other.
  *
- * Isto existe porque dois defeitos chegaram ao usuario por caminhos que
- * passam por `await confirmAction`: o runner sincrono nao conseguia observar
- * nada depois do await, entao aquelas linhas eram inalcancaveis por teste.
+ * This exists because two defects reached the user through paths that go
+ * through `await confirmAction`: the synchronous runner could not observe
+ * anything after the await, so those lines were unreachable by any test.
  */
 export async function runAll() {
-  const resultados = [];
+  const results = [];
   for (const [name, fn] of cases) {
-    resultados.push(await rodarUm(name, fn));
+    results.push(await runOne(name, fn));
   }
-  return resultados;
+  return results;
 }
 
-async function rodarUm(name, fn) {
+async function runOne(name, fn) {
   {
     try {
-      // Cada caso comeca do zero.
+      // Each case starts from scratch.
       //
-      // Sem isto o teste herda o idioma do SISTEMA. No Windows, em portugues,
-      // os cem passavam; no Ubuntu do CI, em ingles, seis quebravam comparando
-      // "Numero secreto" com "Secret number". Passar por acidente e pior que
-      // falhar: o conjunto parecia verde sem provar nada sobre o idioma.
+      // Without this the test inherits the SYSTEM language. On Windows, in
+      // Portuguese, all hundred passed; on the CI Ubuntu, in English, six broke
+      // comparing "Número secreto" with "Secret number". Passing by accident is
+      // worse than failing: the set looked green without proving anything
+      // about the language.
       //
-      // O painel aberto vazava junto: um caso que falhava no meio deixava a
-      // folha de pe e derrubava o seguinte, que acusava um erro que nao era
-      // dele.
+      // The open panel leaked too: a case that failed halfway left the sheet
+      // standing and took down the next one, which reported an error that was
+      // not its own.
       setLang('pt');
       if (typeof closeSheet === 'function') closeSheet();
-      esquecerSessao();
+      forgetSession();
 
       const r = await fn();
       if (r === 'skip') return { name, ok: true, skipped: true };

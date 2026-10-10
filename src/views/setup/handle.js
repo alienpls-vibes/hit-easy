@@ -1,73 +1,86 @@
 /**
- * O proprio @: como amigos marcam voce na mesa deles.
+ * Your own @: how friends tag you at their table.
  *
- * Quem nao escolher um @ continua usando o app inteiro normalmente - so nao
- * pode ser convidado. E opcional de proposito.
+ * Whoever does not pick an @ keeps using the whole app normally - they just
+ * cannot be invited. It is optional on purpose.
  */
 
 import { el, clear, openFlow, closeSheet, toast } from '../../ui.js';
 import { t } from '../../i18n.js';
 import * as cloud from '../../cloud.js';
-import { handleValido, exibirHandle, normalizarHandle } from '../../cloud.js';
+import {
+  isHandleValid, displayHandle, normalizeHandle, nextHandleChange, HANDLE_CHANGE_DAYS,
+} from '../../cloud.js';
+import { formatDate } from '../../stats.js';
+import * as store from '../../store.js';
+import { row } from './rows.js';
 
-/**
- * O proprio @: como amigos marcam voce na mesa deles.
- *
- * Quem nao escolher um @ continua usando o app inteiro normalmente - so nao
- * pode ser convidado. E opcional de proposito.
- */
-export function handleBlock() {
-  const caixa = el('div', { class: 'account-handle' });
-  const perfil = cloud.meuPerfil();
+export function handleBlock(api, onChange) {
+  const profile = cloud.myProfile();
+  // Inside the settings, the choice comes in as one more screen (with back);
+  // outside them, it opens its own panel.
+  const open = () => {
+    const step = changeHandleStep(api, onChange);
+    if (api) api.next(step);
+    else openFlow(step);
+  };
 
-  caixa.append(el('p', { class: 'sheet-legend', text: t('account.yourHandle') }));
-
-  if (perfil && perfil.handle) {
-    // Ja criado: nao e um campo de texto.
+  if (profile && profile.handle) {
+    // Already created: it is not a text field.
     //
-    // O @ e por onde os amigos marcam a pessoa na mesa deles. Deixar isso como
-    // um input com botao de salvar convida a trocar sem querer - e trocar de @
-    // quebra a marcacao que os outros ja tinham guardado. Trocar continua
-    // possivel, mas por uma porta separada, que confere se o nome esta livre
-    // antes de deixar salvar.
-    caixa.append(el('div', { class: 'account-row' }, [
-      el('span', { class: 'account-handle-fixo', text: exibirHandle(perfil.handle) }),
-      el('button', {
-        class: 'account-out',
-        onClick: () => openFlow(trocarHandleStep()),
-      }, [t('account.handleChange')]),
-    ]));
-    caixa.append(el('p', { class: 'account-note', text: t('account.handleLocked') }));
-    return caixa;
+    // The @ is how friends tag the person at their table. Leaving it as an
+    // input with a save button invites changing it by accident - and changing
+    // the @ breaks the tagging others had already saved. Changing is still
+    // possible, but through a separate door, which checks whether the name is
+    // free before allowing a save - and warns about the cost in there.
+    // Changed less than 15 days ago: the row says when it unlocks, and tapping
+    // explains instead of opening a screen that would only end in a refusal.
+    const unlocksAt = nextHandleChange(profile);
+    if (unlocksAt) {
+      return row({
+        label: displayHandle(profile.handle),
+        sub: t('account.handleNextChange', { date: formatDate(unlocksAt) }),
+        className: 'account-handle-fixed',
+        onTap: () => toast(t('account.handleTooSoon', { date: formatDate(unlocksAt) })),
+      });
+    }
+
+    return row({
+      label: displayHandle(profile.handle),
+      value: t('account.handleChange'),
+      arrow: true,
+      className: 'account-handle-fixed',
+      onTap: open,
+    });
   }
 
-  caixa.append(el('button', {
-    class: 'btn primary block',
-    onClick: () => openFlow(trocarHandleStep()),
-  }, [t('account.handleCreate')]));
-  caixa.append(el('p', { class: 'account-note', text: t('account.handleHint') }));
-  return caixa;
+  return row({
+    label: t('account.handleCreate'),
+    sub: t('account.handleCreateSub'),
+    arrow: true,
+    onTap: open,
+  });
 }
 
 /**
- * Escolher ou trocar o proprio @, conferindo antes se esta livre.
+ * Picking or changing your own @, checking first whether it is free.
  *
- * A conferencia e uma consulta, nao uma reserva: entre a resposta e o
- * salvamento alguem pode pegar o mesmo nome. Quem decide de verdade e o indice
- * unico do banco. O valor disto e nao deixar a pessoa digitar, confirmar e so
- * entao descobrir que o nome era de outro.
+ * The check is a query, not a reservation: between the answer and the save
+ * someone may take the same name. The database's unique index is what really
+ * decides. The value of this is not letting the person type, confirm and only
+ * then find out the name was someone else's.
  */
-function trocarHandleStep() {
-  const perfil = cloud.meuPerfil();
+function changeHandleStep(api, onChange) {
+  const profile = cloud.myProfile();
   return {
-    title: perfil && perfil.handle ? t('handle.changeTitle') : t('handle.chooseTitle'),
+    title: profile && profile.handle ? t('handle.changeTitle') : t('handle.chooseTitle'),
     subtitle: t('account.handleHint'),
     build: (pane) => {
-      const recado = el('div', { class: 'handle-result' });
-      let livre = null;   // o @ conferido e aprovado, se houver
+      const message = el('div', { class: 'handle-result' });
+      let free = null;   // the checked and approved @, if any
 
-      const usar = el('button', { class: 'btn primary block' }, [t('handle.useThis')]);
-      usar.disabled = true;
+      const use = el('button', { class: 'btn primary block' }, [t('handle.useThis')]);
+      use.disabled = true;
 
       const input = el('input', {
         class: 'search-input',
@@ -79,67 +92,100 @@ function trocarHandleStep() {
         'aria-label': t('account.yourHandle'),
       });
 
-      // Qualquer letra nova invalida a conferencia anterior: sem isto daria
-      // para conferir um nome livre, digitar outro e salvar o segundo sem
-      // nunca ter perguntado nada sobre ele.
+      // Any new letter invalidates the previous check: without this you could
+      // check a free name, type another and save the second without ever
+      // having asked anything about it.
       input.addEventListener('input', () => {
-        livre = null;
-        usar.disabled = true;
-        clear(recado);
+        free = null;
+        use.disabled = true;
+        clear(message);
       });
 
-      const conferir = async () => {
-        clear(recado);
-        livre = null;
-        usar.disabled = true;
-        const bruto = normalizarHandle(input.value);
-        if (!handleValido(bruto)) {
-          recado.append(el('p', { class: 'account-note', text: t('handle.invalid') }));
+      const check = async () => {
+        clear(message);
+        free = null;
+        use.disabled = true;
+        const raw = normalizeHandle(input.value);
+        if (!isHandleValid(raw)) {
+          message.append(el('p', { class: 'account-note', text: t('handle.invalid') }));
           return;
         }
-        recado.append(el('p', { class: 'account-note', text: t('handle.searching') }));
+        message.append(el('p', { class: 'account-note', text: t('handle.searching') }));
         try {
-          const ok = await cloud.handleDisponivel(bruto);
-          clear(recado);
-          recado.append(el('p', {
-            class: ok ? 'account-sent' : 'account-note',
-            text: ok
-              ? t('handle.free', { handle: exibirHandle(bruto) })
-              : t('handle.taken', { handle: exibirHandle(bruto) }),
+          const status = await cloud.handleStatusNow(raw);
+          clear(message);
+          // Your own @ is not "free": there is nothing to change, and offering
+          // the use button would make the person save what they already have.
+          const text = {
+            free: 'handle.free',
+            current: 'handle.yours',
+            taken: 'handle.taken',
+          }[status];
+          message.append(el('p', {
+            class: status === 'free' ? 'account-sent' : 'account-note',
+            text: t(text, { handle: displayHandle(raw) }),
           }));
-          if (ok) { livre = bruto; usar.disabled = false; }
+          if (status === 'free') { free = raw; use.disabled = false; }
         } catch {
-          clear(recado);
-          recado.append(el('p', { class: 'account-note', text: t('account.failed') }));
+          clear(message);
+          message.append(el('p', { class: 'account-note', text: t('account.failed') }));
         }
       };
 
-      usar.addEventListener('click', async () => {
-        if (!livre) return;
-        usar.disabled = true;
+      use.addEventListener('click', async () => {
+        if (!free) return;
+        use.disabled = true;
         try {
-          const novo = await cloud.salvarHandle(livre, null);
-          toast(t('account.handleSaved', { handle: exibirHandle(novo.handle) }));
-          closeSheet();
+          const old = profile && profile.handle;
+          const saved = await cloud.saveHandle(free, null);
+          // Old matches keep the previous @. Teaching the device right away
+          // keeps the statistics seeing a single person, without waiting for
+          // the next sync (see currentHandle in stats).
+          if (old && old !== saved.handle) {
+            store.learnCurrentHandles({ [old]: saved.handle });
+          }
+          toast(t('account.handleSaved', { handle: displayHandle(saved.handle) }));
+          // In the settings, go back to the account already with the new @;
+          // on its own, close the panel.
+          if (api) {
+            api.back();
+            if (onChange) onChange();
+          } else {
+            closeSheet();
+          }
         } catch (err) {
-          usar.disabled = false;
-          // O 409 do banco e a unica resposta confiavel: alguem pode ter pegado
-          // o nome entre a conferencia e o salvamento.
-          toast(String(err && err.message) === 'handle ocupado'
+          use.disabled = false;
+          // The database's 409 is the only reliable answer: someone may have
+          // taken the name between the check and the save.
+          const reason = String(err && err.message);
+          if (reason === 'handle too soon') {
+            toast(err.unlockedAt
+              ? t('account.handleTooSoon', { date: formatDate(err.unlockedAt) })
+              : t('account.handleCooldown', { n: HANDLE_CHANGE_DAYS }));
+            return;
+          }
+          toast(reason === 'handle taken'
             ? t('account.handleTaken')
             : t('account.failed'));
         }
       });
 
-      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') conferir(); });
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') check(); });
 
       pane.append(el('div', { class: 'name-row' }, [
         input,
-        el('button', { class: 'btn primary', onClick: conferir }, [t('handle.check')]),
+        el('button', { class: 'btn primary', onClick: check }, [t('handle.check')]),
       ]));
-      pane.append(recado);
-      pane.append(usar);
-      pane.append(el('p', { class: 'account-note', text: t('account.handleWarn') }));
+      pane.append(message);
+      pane.append(use);
+      // Before saving, not after: picking already starts the 15 days.
+      pane.append(el('p', {
+        class: 'account-note',
+        text: t('account.handleCooldown', { n: HANDLE_CHANGE_DAYS }),
+      }));
+      if (profile && profile.handle) {
+        pane.append(el('p', { class: 'account-note', text: t('account.handleWarn') }));
+      }
     },
   };
 }

@@ -1,0 +1,123 @@
+/* ==========================================================================
+   The central core - turn, undo and menu - and the pause.
+
+   The pass-turn button is big on purpose: it is the most repeated action of
+   the match, often with a busy hand. The pause really blocks: a pause that
+   lets you touch the score is no pause.
+   ========================================================================== */
+
+/* Central core: turn, undo and menu. */
+.hub {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 40px;
+  background: var(--glass);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 40px -12px var(--shadow);
+}
+
+.hub-btn {
+  width: 38px; height: 38px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  color: var(--text-dim);
+  transition: color var(--fast), background var(--fast);
+}
+.hub-btn:hover:not(:disabled) { color: var(--text); background: var(--surface); }
+.hub-btn:disabled { opacity: 0.3; cursor: default; }
+.hub-btn .icon { width: 17px; height: 17px; }
+
+/* Passing the turn is the most repeated action at the table — dozens of
+   times per match, many with the hand on something else. It gets a target
+   size proportional to that: twice the area of the neighboring buttons. */
+.hub-ring {
+  width: 92px; height: 92px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  transition: transform var(--fast), box-shadow var(--slow), border-color var(--slow);
+}
+.hub-ring:active { transform: scale(0.94); }
+.hub-ring:hover { box-shadow: 0 0 34px -6px var(--accent); }
+
+.hub-label {
+  font-size: 0.5rem;
+  letter-spacing: 0.22em;
+  color: var(--text-dim);
+  line-height: 1;
+}
+.hub-turn {
+  font-size: 2.15rem;
+  font-weight: 250;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- pause ---------- */
+
+/* It really blocks: a pause that allows touching is no pause, and the score
+   would move with the clock stopped. */
+.table-wrap.is-paused .tile,
+.table-wrap.is-paused .hub { pointer-events: none; }
+.table-wrap.is-paused .tile { filter: saturate(0.4) brightness(0.75); }
+
+.pause {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: var(--scrim-strong);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--slow);
+}
+.pause.is-open { opacity: 1; pointer-events: auto; }
+
+.pause-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 26px 30px;
+  border-radius: var(--r-lg);
+  background: var(--sheet-bg);
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 60px -20px var(--shadow);
+  text-align: center;
+}
+.pause-eyebrow {
+  font-size: 0.58rem;
+  letter-spacing: 0.24em;
+  color: var(--text-dim);
+}
+.pause-clock {
+  font-size: 2.6rem;
+  font-weight: 200;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.pause-note {
+  margin: 0 0 14px;
+  font-size: 0.76rem;
+  color: var(--text-mid);
+  max-width: 26ch;
+  line-height: 1.45;
+}
+.pause-card .btn { min-width: 180px; }

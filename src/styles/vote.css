@@ -1,0 +1,131 @@
+/* ==========================================================================
+   Secret vote, and the centered panel it uses.
+
+   On a phone the vote asks for the screen standing up - the device leaves the
+   middle of the table and goes into each person's hand. On tablets and
+   computers the request is ignored on purpose, and the panel shows centered
+   instead of stuck to the edge.
+   ========================================================================== */
+
+.vote-presets { display: flex; gap: 5px; flex-wrap: wrap; }
+.vote-presets .pad-mode { flex: 1 1 44%; }
+
+.vote-body { display: flex; flex-direction: column; gap: 8px; }
+
+.vote-options { display: flex; flex-direction: column; gap: 6px; }
+.vote-option-row { display: flex; align-items: center; gap: 8px; }
+.vote-option-row .search-input { flex: 1; min-width: 0; height: 44px; }
+
+.vote-voters { display: flex; flex-wrap: wrap; gap: 6px; }
+.vote-voter {
+  flex: 1 1 46%;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-soft);
+  text-align: left;
+  opacity: 0.5;
+  transition: all var(--fast);
+}
+.vote-voter.is-on { opacity: 1; border-color: var(--accent); background: var(--surface); }
+.vote-voter-name { font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vote-voter-count { font-size: 0.66rem; color: var(--text-dim); }
+
+/* Ballot: big targets, because the device is passing from hand to hand. */
+.vote-choices { display: flex; flex-direction: column; gap: 8px; }
+.vote-choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 62px;
+  padding: 0 20px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 1.05rem;
+  transition: all var(--fast);
+}
+.vote-choice:hover { background: var(--surface-strong); }
+.vote-choice:active { transform: scale(0.98); }
+.vote-choice.is-on { border-color: var(--contrast); }
+.vote-choice-count { font-variant-numeric: tabular-nums; color: var(--text-mid); }
+
+.vote-number { height: 64px; font-size: 1.6rem; text-align: center; }
+
+.vote-result { display: flex; flex-direction: column; gap: 4px; }
+.vote-result-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  border: 1px solid transparent;
+}
+.vote-result-row.is-high { border-color: var(--contrast-soft); background: var(--surface-strong); }
+.vote-result-row.is-low { border-color: rgba(226, 97, 74, 0.3); }
+.vote-result-label { font-size: 1rem; flex: none; }
+.vote-result-tag {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.vote-result-value {
+  font-size: 1.5rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+.vote-verdict {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--accent);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+/* ==========================================================================
+   Centered panel
+
+   On a tablet or computer, a panel stuck to the bottom edge forces you to
+   look at one corner of a wide screen. The vote passes the device from hand
+   to hand and deserves the center. On a phone nothing changes: there the
+   bottom panel is right, and the orientation was already asked to be
+   standing.
+
+   The cut is by the SHORT SIDE of the screen — a phone lying down has a small
+   height and does not get in here, a tablet in any orientation does.
+   ========================================================================== */
+
+@media (min-width: 700px) and (min-height: 560px) {
+  .sheet-scrim.is-centered { align-items: center; }
+
+  .sheet-scrim.is-centered .sheet {
+    width: min(460px, 92vw);
+    max-height: min(84vh, 100%);
+    border-radius: var(--r-lg);
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0;
+    box-shadow: 0 30px 70px -24px var(--shadow);
+    transform: translateY(18px) scale(0.98);
+  }
+  .sheet-scrim.is-centered.is-open .sheet { transform: none; }
+
+  /* The grip is the affordance for dragging a bottom panel; centered has none. */
+  .sheet-scrim.is-centered .sheet-grip { display: none; }
+  .sheet-scrim.is-centered .sheet-head { padding-top: 18px; }
+  .sheet-scrim.is-centered .sheet-body { padding-bottom: 22px; }
+}
+
+/* Ballot standing on a phone: bigger targets, since the screen is all its own. */
+@media (orientation: portrait) {
+  .vote-choice { min-height: 74px; font-size: 1.12rem; }
+  .vote-number { height: 72px; font-size: 1.8rem; }
+}

@@ -1,12 +1,12 @@
 """
-Verificacao estatica dos modulos ES, sem Node instalado.
+Static check of the ES modules, without Node installed.
 
-Nao substitui rodar o app, mas pega a classe de erro mais provavel num projeto
-de modulos nativos: caminho de import que nao existe, nome importado que o
-outro arquivo nao exporta, export declarado e nunca usado, e delimitador
-desbalanceado.
+It does not replace running the app, but it catches the most likely class of
+error in a project of native modules: an import path that does not exist, an
+imported name the other file does not export, an export declared and never
+used, and unbalanced delimiters.
 
-Uso:  python tools/check_modules.py
+Usage:  python tools/check_modules.py
 """
 
 import re
@@ -24,61 +24,61 @@ EXPORT_RE = re.compile(
     r"^export\s+(?:async\s+)?(?:function|const|let|class)\s+(?P<name>\w+)", re.M
 )
 
-# `export { a, b as c } from './x.js'` - o barril de uma pasta.
+# `export { a, b as c } from './x.js'` - a folder's barrel.
 #
-# Sem isto, um index.js que so reexporta nao tem export NENHUM aos olhos deste
-# script, e todo importador dele viraria erro "nao exporta esse nome". O barril
-# e o que deixa a pasta ter uma porta de entrada so, entao a ferramenta precisa
-# enxerga-lo.
+# Without this, an index.js that only re-exports has NO export at all in the
+# eyes of this script, and every importer of it would become a "does not
+# export that name" error. The barrel is what gives the folder a single entry
+# point, so the tool has to see it.
 REEXPORT_RE = re.compile(
     r"export\s+\{(?P<named>[^}]*)\}\s+from\s+['\"](?P<path>[^'\"]+)['\"]", re.S
 )
-# `export * from './x.js'`: a porta fica aberta para tudo que o outro exporta.
+# `export * from './x.js'`: the door stays open to everything the other exports.
 EXPORT_STAR_RE = re.compile(r"export\s+\*\s+from\s+['\"](?P<path>[^'\"]+)['\"]")
-# `export { a, b }` sem `from`: reexporta o que foi importado acima.
+# `export { a, b }` without `from`: re-exports what was imported above.
 EXPORT_LIST_RE = re.compile(r"^export\s+\{(?P<named>[^}]*)\}\s*;?\s*$", re.M)
 
 
-def nomes(lista):
-    """Separa 'a, b as c' em pares (original, nome_exportado)."""
-    for parte in lista.split(","):
-        parte = parte.strip()
-        if not parte:
+def names(listing):
+    """Splits 'a, b as c' into pairs (original, exported_name)."""
+    for part in listing.split(","):
+        part = part.strip()
+        if not part:
             continue
-        if " as " in parte:
-            origem, alias = parte.split(" as ", 1)
-            yield origem.strip(), alias.strip()
+        if " as " in part:
+            origin, alias = part.split(" as ", 1)
+            yield origin.strip(), alias.strip()
         else:
-            yield parte, parte
+            yield part, part
 
 
-# @import do CSS: e por ele que a folha de entrada diz a ordem da cascata.
+# CSS @import: it is how the entry sheet states the cascade order.
 IMPORT_CSS_RE = re.compile(r"@import\s+(?:url\()?['\"](?P<path>[^'\"]+)['\"]\)?\s*;")
 
 
-def mostrar(caminho):
+def show(path):
     """
-    Caminho relativo a raiz, e nao so o nome do arquivo.
+    The path relative to the root, not just the file name.
 
-    Com uma pasta por tela, `index.js` aparece meia duzia de vezes e o nome
-    solto deixa de identificar qualquer coisa.
+    With one folder per screen, `index.js` shows up half a dozen times and the
+    bare name stops identifying anything.
     """
     try:
-        return Path(caminho).resolve().relative_to(ROOT).as_posix()
+        return Path(path).resolve().relative_to(ROOT).as_posix()
     except ValueError:
-        return Path(caminho).name
+        return Path(path).name
 
 
 def scan(text):
     """
-    Varre o arquivo uma vez separando codigo de comentario e de string.
+    Walks the file once separating code from comments and from strings.
 
-    Precisa ser um scanner com estado, e nao regex solta: ' // ' (em deckNameOf)
-    e 'http://www.w3.org/2000/svg' (em icon) sao STRINGS, nao comentarios, e um
-    stripper ingenuo cortaria a linha no meio, desbalanceando o arquivo.
+    It has to be a stateful scanner, not a loose regex: ' // ' (in deckNameOf)
+    and 'http://www.w3.org/2000/svg' (in icon) are STRINGS, not comments, and a
+    naive stripper would cut the line in half, unbalancing the file.
 
-    Devolve (com_strings, sem_strings): o primeiro so sem comentarios, para ler
-    os imports; o segundo tambem sem literais, para contar delimitadores.
+    Returns (with_strings, no_strings): the first only without comments, to
+    read the imports; the second also without literals, to count delimiters.
     """
     with_str, no_str = [], []
     i, n = 0, len(text)
@@ -142,234 +142,235 @@ def balance(text, path, problems):
             stack.append((ch, line))
         elif ch in ")]}":
             if not stack or stack[-1][0] != pairs[ch]:
-                problems.append(f"{mostrar(path)}:{line}: '{ch}' sem par correspondente")
+                problems.append(f"{show(path)}:{line}: '{ch}' without a matching pair")
                 return
             stack.pop()
     for ch, ln in stack:
-        problems.append(f"{mostrar(path)}:{ln}: '{ch}' aberto e nunca fechado")
+        problems.append(f"{show(path)}:{ln}: '{ch}' opened and never closed")
 
 
-def folhas(problems):
+def sheets(problems):
     """
-    As folhas de estilo na ordem em que o navegador as aplica.
+    The stylesheets in the order the browser applies them.
 
-    Segue os @import de src/styles.css em vez de guardar uma lista fixa: a
-    ordem do arquivo E a regra de desempate da cascata, entao ler a ordem real
-    e a unica forma de o aviso de colisao dizer a verdade sobre quem vence.
+    It follows the @imports of src/styles.css instead of keeping a fixed list:
+    the order of the file IS the cascade tiebreak rule, so reading the real
+    order is the only way the collision warning tells the truth about who wins.
 
-    Um @import apontando para arquivo que nao existe e ERRO, e nao aviso: o
-    navegador ignora em silencio e a area inteira daquela folha fica sem
-    estilo nenhum, sem nada acusar no console.
+    An @import pointing to a file that does not exist is an ERROR, not a
+    warning: the browser ignores it silently and the whole area of that sheet
+    gets no style at all, with nothing reported in the console.
     """
-    entrada = SRC / "styles.css"
-    if not entrada.exists():
-        problems.append("src/styles.css: a folha de entrada nao existe")
+    entry = SRC / "styles.css"
+    if not entry.exists():
+        problems.append("src/styles.css: the entry sheet does not exist")
         return []
 
-    texto = entrada.read_text(encoding="utf-8")
-    sem_comentario = re.sub(r"/\*.*?\*/", "", texto, flags=re.S)
+    text = entry.read_text(encoding="utf-8")
+    without_comments = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
 
-    encontradas = []
-    for m in IMPORT_CSS_RE.finditer(sem_comentario):
-        caminho = (entrada.parent / m.group("path")).resolve()
-        if not caminho.exists():
+    found = []
+    for m in IMPORT_CSS_RE.finditer(without_comments):
+        path = (entry.parent / m.group("path")).resolve()
+        if not path.exists():
             problems.append(
-                f"src/styles.css: @import de '{m.group('path')}' nao existe"
+                f"src/styles.css: @import of '{m.group('path')}' does not exist"
             )
             continue
-        encontradas.append((caminho, caminho.read_text(encoding="utf-8")))
+        found.append((path, path.read_text(encoding="utf-8")))
 
-    # O que sobra na entrada depois dos @import entra por ULTIMO na cascata,
-    # que e exatamente onde o navegador o aplica.
-    resto = IMPORT_CSS_RE.sub("", texto)
-    if "{" in re.sub(r"/\*.*?\*/", "", resto, flags=re.S):
-        encontradas.append((entrada, resto))
+    # Whatever is left in the entry after the @imports comes LAST in the
+    # cascade, which is exactly where the browser applies it.
+    rest = IMPORT_CSS_RE.sub("", text)
+    if "{" in re.sub(r"/\*.*?\*/", "", rest, flags=re.S):
+        found.append((entry, rest))
 
-    # Nenhum @import: a folha unica e ela mesma.
-    if not encontradas:
-        encontradas.append((entrada, texto))
+    # No @import: the single sheet is itself.
+    if not found:
+        found.append((entry, text))
 
-    return encontradas
+    return found
 
 
-def check_css(folhas_css, problems):
+def check_css(css_sheets, problems):
     """
-    Balanceamento de chaves e comentarios do CSS, folha por folha.
+    Balance of the CSS braces and comments, sheet by sheet.
 
-    Existe porque a folha vem crescendo por script: uma chave a mais engole a
-    regra seguinte, e um /* sem fechar apaga o resto do arquivo - as duas
-    coisas em silencio, sem erro nenhum no navegador.
+    It exists because the sheet has been growing through scripts: one extra
+    brace swallows the next rule, and an unclosed /* erases the rest of the
+    file - both silently, with no error at all in the browser.
 
-    Confere cada arquivo separado, e nao a concatenacao: um bloco sem fechar
-    numa folha se cancelaria contra um '}' a mais em outra, e as duas passariam
-    com o numero de linha apontando para o arquivo errado.
+    It checks each file separately, not the concatenation: an unclosed block
+    in one sheet would cancel out against an extra '}' in another, and both
+    would pass with the line number pointing to the wrong file.
     """
-    regras = 0
-    for caminho, texto in folhas_css:
-        nome = mostrar(caminho)
-        limpo = re.sub(r"/\*.*?\*/", "", texto, flags=re.S)
-        if "/*" in limpo:
-            linha = texto[: texto.rindex("/*")].count("\n") + 1
-            problems.append(f"{nome}:{linha}: comentario /* sem fechar")
+    rules = 0
+    for path, text in css_sheets:
+        name = show(path)
+        clean = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+        if "/*" in clean:
+            line = text[: text.rindex("/*")].count("\n") + 1
+            problems.append(f"{name}:{line}: unclosed /* comment")
             continue
 
-        nivel = 0
-        linha = 1
-        ruim = False
-        for ch in limpo:
+        level = 0
+        line = 1
+        bad = False
+        for ch in clean:
             if ch == "\n":
-                linha += 1
+                line += 1
             elif ch == "{":
-                nivel += 1
+                level += 1
             elif ch == "}":
-                nivel -= 1
-                if nivel < 0:
-                    problems.append(f"{nome}:{linha}: '}}' a mais")
-                    ruim = True
+                level -= 1
+                if level < 0:
+                    problems.append(f"{name}:{line}: extra '}}'")
+                    bad = True
                     break
-        if ruim:
+        if bad:
             continue
-        if nivel:
-            problems.append(f"{nome}: {nivel} bloco(s) sem fechar")
+        if level:
+            problems.append(f"{name}: {level} unclosed block(s)")
             continue
-        regras += limpo.count("{")
-    return regras
+        rules += clean.count("{")
+    return rules
 
 
-def regras_por_classe(css):
+def rules_per_class(css):
     """
-    Propriedades que cada classe define em regra de UMA classe so, no nivel de
-    topo (fora de media query). So esse recorte importa aqui: e onde duas
-    classes com a mesma especificidade brigam e a ordem do arquivo decide.
+    The properties each class defines in a rule with a SINGLE class, at the top
+    level (outside media queries). Only that slice matters here: it is where two
+    classes with the same specificity fight and the file order decides.
     """
-    limpo = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    clean = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
     props = {}
-    ordem = {}
-    nivel = 0
+    order = {}
+    level = 0
     i = 0
-    n = len(limpo)
-    inicio_seletor = 0
+    n = len(clean)
+    selector_start = 0
 
     while i < n:
-        ch = limpo[i]
+        ch = clean[i]
         if ch == "{":
-            if nivel == 0:
-                seletor = limpo[inicio_seletor:i].strip()
-                fim = limpo.find("}", i)
-                corpo = limpo[i + 1:fim] if fim > 0 else ""
-                m = re.fullmatch(r"\.([\w-]+)", seletor)
-                if m and "@" not in seletor:
-                    nome = m.group(1)
-                    props.setdefault(nome, set())
-                    ordem.setdefault(nome, i)
-                    for decl in corpo.split(";"):
+            if level == 0:
+                selector = clean[selector_start:i].strip()
+                end = clean.find("}", i)
+                body = clean[i + 1:end] if end > 0 else ""
+                m = re.fullmatch(r"\.([\w-]+)", selector)
+                if m and "@" not in selector:
+                    name = m.group(1)
+                    props.setdefault(name, set())
+                    order.setdefault(name, i)
+                    for decl in body.split(";"):
                         if ":" in decl:
-                            props[nome].add(decl.split(":", 1)[0].strip())
-            nivel += 1
+                            props[name].add(decl.split(":", 1)[0].strip())
+            level += 1
         elif ch == "}":
-            nivel -= 1
-            if nivel == 0:
-                inicio_seletor = i + 1
+            level -= 1
+            if level == 0:
+                selector_start = i + 1
         i += 1
-    return props, ordem
+    return props, order
 
 
-def classes_combinadas(arquivos):
-    """Conjuntos de classes que aparecem juntas no mesmo elemento, vindas do JS."""
+def combined_classes(files):
+    """Sets of classes that show up together on the same element, from the JS."""
     combos = set()
-    for f in arquivos:
-        texto = f.read_text(encoding="utf-8")
-        for m in re.finditer(r"class:\s*'([a-z][\w-]*(?:\s+[a-z][\w-]+)+)'", texto):
+    for f in files:
+        text = f.read_text(encoding="utf-8")
+        for m in re.finditer(r"class:\s*'([a-z][\w-]*(?:\s+[a-z][\w-]+)+)'", text):
             combos.add(tuple(sorted(m.group(1).split())))
     return combos
 
 
-def check_cascata(folhas_css, problems):
+def check_cascade(css_sheets, problems):
     """
-    Duas classes no mesmo elemento definindo a MESMA propriedade e um empate
-    resolvido pela ordem do arquivo - fragil e invisivel.
+    Two classes on the same element defining the SAME property is a tie
+    resolved by the file order - fragile and invisible.
 
-    Foi assim que a home quebrou: `class: 'seat-spot layout-mini'`, as duas
-    definindo `width`, e a que estava 950 linhas abaixo venceu. Nada acusava.
+    That is how the home screen broke: `class: 'seat-spot layout-mini'`, both
+    defining `width`, and the one 950 lines below won. Nothing reported it.
 
-    Nem todo aviso e defeito: modificador definido DEPOIS da base e o padrao
-    certo (.chips-fill sobre .chips, .vote-number sobre .search-input). O que
-    denuncia problema e a BASE generica vencendo a classe especifica - foi
-    exatamente o caso do .layout-mini sobre o .seat-spot.
+    Not every warning is a defect: a modifier defined AFTER the base is the
+    right pattern (.chips-fill over .chips, .vote-number over .search-input).
+    What signals a problem is the generic BASE beating the specific class -
+    which was exactly the case of .layout-mini over .seat-spot.
     """
-    if not folhas_css:
+    if not css_sheets:
         return
-    # Concatena na ordem de carga: o desempate que se quer medir e justamente
-    # a posicao final, e uma classe pode perder para outra de OUTRO arquivo.
-    props, ordem = regras_por_classe("\n".join(t for _, t in folhas_css))
-    combos = classes_combinadas(sorted(SRC.rglob("*.js")))
+    # Concatenated in load order: the tiebreak we want to measure is precisely
+    # the final position, and a class can lose to another from ANOTHER file.
+    props, order = rules_per_class("\n".join(t for _, t in css_sheets))
+    combos = combined_classes(sorted(SRC.rglob("*.js")))
 
     for combo in sorted(combos):
-        presentes = [c for c in combo if c in props]
-        for i, a in enumerate(presentes):
-            for b in presentes[i + 1:]:
-                comuns = props[a] & props[b]
-                # `class` e `style` inline nao entram; so propriedades de layout.
-                comuns.discard("")
-                if not comuns:
+        present = [c for c in combo if c in props]
+        for i, a in enumerate(present):
+            for b in present[i + 1:]:
+                common = props[a] & props[b]
+                # Inline `class` and `style` do not count; only layout properties.
+                common.discard("")
+                if not common:
                     continue
-                vencedora = a if ordem[a] > ordem[b] else b
+                winner = a if order[a] > order[b] else b
                 print(
-                    "  aviso  css: .%s e .%s juntas definem %s - vence .%s por ordem"
-                    % (a, b, ", ".join(sorted(comuns)), vencedora)
+                    "  warning  css: .%s and .%s together define %s - .%s wins by order"
+                    % (a, b, ", ".join(sorted(common)), winner)
                 )
 
 
-def achar_ciclos(grafo):
+def find_cycles(graph):
     """
-    Ciclos no grafo de import.
+    Cycles in the import graph.
 
-    Modulo ES aguenta ciclo em alguns casos - declaracao de funcao e elevada,
-    entao A e B podem se chamar. Mas se um dos dois LE um valor do outro
-    enquanto ainda esta sendo avaliado, o resultado e `undefined` ou
-    ReferenceError de TDZ, dependendo de ser `var` ou `const`. E depende da
-    ORDEM em que o navegador avaliou, o que muda com quem importou primeiro.
+    ES modules cope with a cycle in some cases - function declarations are
+    hoisted, so A and B can call each other. But if one of the two READS a
+    value from the other while it is still being evaluated, the result is
+    `undefined` or a TDZ ReferenceError, depending on `var` or `const`. And it
+    depends on the ORDER in which the browser evaluated, which changes with who
+    imported first.
 
-    Com pastas em camadas e um barril por subsistema isso passa a importar:
-    uma peca que importe a propria porta da pasta fecha um ciclo sem que nada
-    no arquivo pareca errado. Por isso aqui e aviso barulhento - nem todo ciclo
-    quebra, mas todo ciclo e um lugar onde a ordem de avaliacao passou a
-    importar, e ninguem quer descobrir isso pela tela preta.
+    With layered folders and one barrel per subsystem this starts to matter: a
+    piece that imports its own folder's door closes a cycle without anything
+    in the file looking wrong. That is why this is a loud warning here - not
+    every cycle breaks, but every cycle is a place where evaluation order
+    started to matter, and nobody wants to find out through the black screen.
     """
-    ciclos = []
-    estado = {}   # 0 = nao visitado, 1 = na pilha, 2 = fechado
-    pilha = []
+    cycles = []
+    state = {}   # 0 = not visited, 1 = on the stack, 2 = closed
+    stack = []
 
-    def visitar(no):
-        estado[no] = 1
-        pilha.append(no)
-        for vizinho in sorted(grafo.get(no, ())):
-            if estado.get(vizinho, 0) == 0:
-                visitar(vizinho)
-            elif estado.get(vizinho) == 1:
-                # Fechou: recorta o trecho da pilha que forma o ciclo.
-                corte = pilha[pilha.index(vizinho):]
-                ciclos.append(corte + [vizinho])
-        pilha.pop()
-        estado[no] = 2
+    def visit(node):
+        state[node] = 1
+        stack.append(node)
+        for neighbor in sorted(graph.get(node, ())):
+            if state.get(neighbor, 0) == 0:
+                visit(neighbor)
+            elif state.get(neighbor) == 1:
+                # Closed: cuts the slice of the stack that forms the cycle.
+                cut = stack[stack.index(neighbor):]
+                cycles.append(cut + [neighbor])
+        stack.pop()
+        state[node] = 2
 
-    for no in sorted(grafo):
-        if estado.get(no, 0) == 0:
-            visitar(no)
-    return ciclos
+    for node in sorted(graph):
+        if state.get(node, 0) == 0:
+            visit(node)
+    return cycles
 
 
 def main():
     files = sorted(SRC.rglob("*.js"))
     if not files:
-        print("nenhum modulo encontrado em src/")
+        print("no module found in src/")
         return 1
 
-    code = {}      # sem comentarios, com strings: para ler imports/exports
-    skeleton = {}  # sem comentarios e sem strings: para contar delimitadores
+    code = {}      # without comments, with strings: to read imports/exports
+    skeleton = {}  # without comments and without strings: to count delimiters
     exports = {}
-    reexports = {}  # arquivo -> [(destino, original, nome_exportado)]
-    estrelas = {}   # arquivo -> [destino] de `export * from`
+    reexports = {}  # file -> [(target, original, exported_name)]
+    stars = {}      # file -> [target] of `export * from`
 
     problems = []
 
@@ -377,64 +378,67 @@ def main():
         with_str, no_str = scan(f.read_text(encoding="utf-8"))
         code[f] = with_str
         skeleton[f] = no_str
-        alvo = f.resolve()
-        exports[alvo] = set(EXPORT_RE.findall(with_str))
+        target = f.resolve()
+        exports[target] = set(EXPORT_RE.findall(with_str))
 
-        reexports[alvo] = []
+        reexports[target] = []
         for m in REEXPORT_RE.finditer(with_str):
-            destino = (f.parent / m.group("path")).resolve()
-            for origem, nome in nomes(m.group("named")):
-                exports[alvo].add(nome)
-                reexports[alvo].append((destino, origem, nome))
+            dest = (f.parent / m.group("path")).resolve()
+            for origin, name in names(m.group("named")):
+                exports[target].add(name)
+                reexports[target].append((dest, origin, name))
 
-        # `export { a, b }` sem `from` reexporta o que foi importado acima; o
-        # nome ja esta no corpo, entao basta contar como export deste arquivo.
+        # `export { a, b }` without `from` re-exports what was imported above;
+        # the name is already in the body, so it is enough to count it as an
+        # export of this file.
         for m in EXPORT_LIST_RE.finditer(with_str):
-            for _, nome in nomes(m.group("named")):
-                exports[alvo].add(nome)
+            for _, name in names(m.group("named")):
+                exports[target].add(name)
 
-        estrelas[alvo] = [
+        stars[target] = [
             (f.parent / m.group("path")).resolve()
             for m in EXPORT_STAR_RE.finditer(with_str)
         ]
 
-    # `export *` e transitivo: um barril pode reexportar outro barril. Roda ate
-    # nada mudar, em vez de um nivel so, senao a cadeia quebra no segundo salto.
-    mudou = True
-    while mudou:
-        mudou = False
-        for alvo, destinos in estrelas.items():
-            for destino in destinos:
-                if destino not in exports:
+    # `export *` is transitive: a barrel can re-export another barrel. It runs
+    # until nothing changes, instead of a single level, otherwise the chain
+    # breaks on the second hop.
+    changed = True
+    while changed:
+        changed = False
+        for target, dests in stars.items():
+            for dest in dests:
+                if dest not in exports:
                     continue
-                novos = exports[destino] - exports[alvo]
-                if novos:
-                    exports[alvo] |= novos
-                    mudou = True
+                fresh = exports[dest] - exports[target]
+                if fresh:
+                    exports[target] |= fresh
+                    changed = True
 
     used = {f.resolve(): set() for f in files}
 
-    # Reexportar E usar: sem isto todo modulo atras de um barril apareceria
-    # como "export sem uso", e o aviso perderia o sentido justo onde importa.
-    for alvo, lista in reexports.items():
-        for destino, origem, _ in lista:
-            if destino in used:
-                used[destino].add(origem)
-                if origem not in exports.get(destino, set()):
+    # Re-exporting IS using: without this every module behind a barrel would
+    # show up as an "unused export", and the warning would lose its meaning
+    # exactly where it matters.
+    for target, listing in reexports.items():
+        for dest, origin, _ in listing:
+            if dest in used:
+                used[dest].add(origin)
+                if origin not in exports.get(dest, set()):
                     problems.append(
-                        f"{mostrar(alvo)}: reexporta '{origem}' de "
-                        f"{mostrar(destino)}, que nao exporta esse nome"
+                        f"{show(target)}: re-exports '{origin}' from "
+                        f"{show(dest)}, which does not export that name"
                     )
-    for alvo, destinos in estrelas.items():
-        for destino in destinos:
-            if destino in used:
-                used[destino] |= exports.get(destino, set())
+    for target, dests in stars.items():
+        for dest in dests:
+            if dest in used:
+                used[dest] |= exports.get(dest, set())
 
-    grafo = {}
+    graph = {}
     for f in files:
         clean = code[f]
         balance(skeleton[f], f, problems)
-        grafo.setdefault(mostrar(f), set())
+        graph.setdefault(show(f), set())
 
         for m in IMPORT_RE.finditer(clean):
             rel = m.group("path")
@@ -442,11 +446,11 @@ def main():
                 continue
             target = (f.parent / rel).resolve()
             if not target.exists():
-                problems.append(f"{mostrar(f)}: import de '{rel}' nao existe")
+                problems.append(f"{show(f)}: import of '{rel}' does not exist")
                 continue
-            grafo[mostrar(f)].add(mostrar(target))
+            graph[show(f)].add(show(target))
             if m.group("ns"):
-                used[target] |= exports[target]  # 'import * as x' usa tudo
+                used[target] |= exports[target]  # 'import * as x' uses everything
                 continue
             for name in m.group("named").split(","):
                 name = name.strip().split(" as ")[0].strip()
@@ -454,40 +458,40 @@ def main():
                     continue
                 if name not in exports[target]:
                     problems.append(
-                        f"{mostrar(f)}: importa '{name}' de {mostrar(target)}, "
-                        f"que nao exporta esse nome"
+                        f"{show(f)}: imports '{name}' from {show(target)}, "
+                        f"which does not export that name"
                     )
                 else:
                     used[target].add(name)
 
-    # Reexport tambem e aresta: o barril depende das pecas.
-    for alvo, lista in reexports.items():
-        origem = mostrar(alvo)
-        grafo.setdefault(origem, set())
-        for destino, _, _ in lista:
-            grafo[origem].add(mostrar(destino))
-    for alvo, destinos in estrelas.items():
-        origem = mostrar(alvo)
-        grafo.setdefault(origem, set())
-        for destino in destinos:
-            grafo[origem].add(mostrar(destino))
+    # A re-export is an edge too: the barrel depends on the pieces.
+    for target, listing in reexports.items():
+        origin = show(target)
+        graph.setdefault(origin, set())
+        for dest, _, _ in listing:
+            graph[origin].add(show(dest))
+    for target, dests in stars.items():
+        origin = show(target)
+        graph.setdefault(origin, set())
+        for dest in dests:
+            graph[origin].add(show(dest))
 
-    ciclos = achar_ciclos(grafo)
+    cycles = find_cycles(graph)
 
-    folhas_css = folhas(problems)
-    regras = check_css(folhas_css, problems)
-    check_cascata(folhas_css, problems)
+    css_sheets = sheets(problems)
+    rules = check_css(css_sheets, problems)
+    check_cascade(css_sheets, problems)
     print(
-        f"{len(files)} modulos e {regras} regras em "
-        f"{len(folhas_css)} folha(s) de CSS verificados\n"
+        f"{len(files)} modules and {rules} rules in "
+        f"{len(css_sheets)} CSS sheet(s) checked\n"
     )
 
     for f in files:
         unused = exports[f.resolve()] - used[f.resolve()]
         if unused:
-            print(f"  aviso  {mostrar(f)}: export sem uso -> {', '.join(sorted(unused))}")
+            print(f"  warning  {show(f)}: unused export -> {', '.join(sorted(unused))}")
 
-    # Import declarado mas nunca referenciado no corpo do arquivo.
+    # An import declared but never referenced in the file body.
     for f in files:
         clean = code[f]
         body = IMPORT_RE.sub("", clean)
@@ -497,19 +501,19 @@ def main():
             for name in m.group("named").split(","):
                 name = name.strip().split(" as ")[-1].strip()
                 if name and not re.search(rf"\b{re.escape(name)}\b", body):
-                    print(f"  aviso  {mostrar(f)}: importa '{name}' e nao usa")
+                    print(f"  warning  {show(f)}: imports '{name}' and does not use it")
 
-    for ciclo in ciclos:
-        print("  aviso  ciclo de import: " + " -> ".join(ciclo))
+    for cycle in cycles:
+        print("  warning  import cycle: " + " -> ".join(cycle))
 
     print()
     if problems:
-        print(f"{len(problems)} PROBLEMA(S):")
+        print(f"{len(problems)} PROBLEM(S):")
         for p in problems:
-            print("  ERRO   " + p)
+            print("  ERROR    " + p)
         return 1
 
-    print("OK: imports, exports e delimitadores consistentes.")
+    print("OK: imports, exports and delimiters are consistent.")
     return 0
 
 
