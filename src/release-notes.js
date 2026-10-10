@@ -24,8 +24,8 @@
 export const RELEASE_NOTES = [
   {
     version: '1.9.0',
-    date: '2026-10-04',
-    title: 'Passar a mesa por código, lifelink, e instalar no iPhone',
+    date: '2026-10-10',
+    title: 'Mesa por código, seu nome nas partidas e lifelink',
     items: [
       {
         type: 'new',
