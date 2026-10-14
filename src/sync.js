@@ -1,25 +1,25 @@
 /**
  * Taking the matches to the cloud, and bringing them back.
  *
- * The design in one sentence: the device keeps having everything, and the
- * cloud gets to have everything too. We do not delete the local history after
- * uploading.
+ * The design in one sentence: the device keeps only what has not reached the
+ * cloud yet. A finished match waits on the device until there is an account
+ * to send it to; once the server confirms it, it leaves the device, and the
+ * statistics read the account's history from the cloud.
  *
- * We could delete it - the paywall already blocks reading the statistics even
- * offline, so keeping the local copy opens no door. But deleting someone's
- * data to prove a point that is already proven trades risk for nothing: a
- * sync defect would become permanent loss, and there is no undo.
+ * The reason is the borrowed phone. Commander is played on whoever's device
+ * is at hand, and a history that stays behind after signing out is someone
+ * else's data on that phone. Nothing is lost on the way: a match only leaves
+ * after the server said it has it, and without an account it stays, however
+ * long that takes.
  *
- * The resend queue does not exist as a separate structure. It is derived: a
- * match that is here and is not marked as uploaded is, by definition, a match
- * that still needs to go up. A real queue could diverge from the history; this
- * one cannot.
+ * The resend queue does not exist as a separate structure. It is the local
+ * history itself: what is still here is, by definition, what still needs to
+ * go up.
  *
  * Non-subscribers CAN upload (the database allows inserting without a
  * subscription, on purpose) but cannot download - the read returns an empty
- * list. That is why what already went up is noted on the device: without that
- * note, a non-subscriber would resend the whole history on every open,
- * forever.
+ * list. Their matches are safe in the cloud and show up the day they
+ * subscribe.
  */
 
 import * as store from './store.js';
@@ -48,32 +48,6 @@ export function toUpload(local, uploaded, remoteIds) {
 export function toDownload(local, remote) {
   const here = new Set((local || []).map((m) => m && m.id).filter(Boolean));
   return (remote || []).filter((m) => m && m.id && !here.has(m.id));
-}
-
-/**
- * What to delete here because it vanished from there.
- *
- * Only what this device KNOWS it uploaded counts: a match that never went to
- * the cloud cannot be judged by its absence from the cloud.
- *
- * `canTrust` is the lock that prevents a disaster. The cloud read returns an
- * empty list for non-subscribers - identical to what it would return if
- * everything had been deleted. Confusing the two cases would delete the whole
- * history of someone who just stopped paying, and there is no undo.
- *
- * The second lock: an empty remote list with things marked as uploaded is too
- * suspicious to act on. It could be a subscription expired within the one-day
- * grace, it could be a truncated answer. When in doubt, do not delete - the
- * worst that happens is one extra match left on a device, and leftovers are
- * recoverable.
- */
-export function toDelete(uploaded, remoteIds, canTrust) {
-  if (!canTrust) return [];
-  const marked = uploaded || [];
-  const remote = new Set(remoteIds || []);
-  if (!marked.length) return [];
-  if (!remote.size) return []; // completely empty: too suspicious
-  return marked.filter((id) => !remote.has(id));
 }
 
 /**
@@ -214,56 +188,56 @@ export async function refreshHandles() {
 /**
  * One complete pass: uploads what is missing, downloads what is not here.
  *
- * Uploads BEFORE downloading. On a device that just signed into an account,
- * the reverse order could bring the cloud history, merge, and only then upload
- * - and an error in the middle would leave the device looking synced without
- * being so.
+ * Uploads BEFORE downloading, so the history that comes down already has
+ * what this device just sent.
  *
  * An error in one match does not interrupt the others: a bar table's network
  * drops in the middle of anything, and a match that failed today goes up
- * tomorrow on its own, because it still lacks the uploaded mark.
+ * tomorrow on its own, because it is still on the device.
  *
- * One run at a time. The app calls this at startup, when archiving a match and
- * from the settings button - two at the same time would upload the same match
- * twice and fight over writing to the disk.
+ * One run at a time. The app calls this at startup, when archiving a match,
+ * when someone signs in and from the settings button - two at the same time
+ * would upload the same match twice and fight over writing to the disk.
  */
 export async function sync({ onProgress } = {}) {
   if (!canSync(cloudEnabled(), cloud.state())) {
-    return { uploaded: 0, downloaded: 0, deleted: 0, failed: 0, skipped: true };
+    return { uploaded: 0, downloaded: 0, failed: 0, skipped: true };
   }
   if (running) return running;
 
   running = (async () => {
-    const summary = { uploaded: 0, downloaded: 0, deleted: 0, failed: 0, skipped: false };
+    const summary = { uploaded: 0, downloaded: 0, failed: 0, skipped: false };
     const report = () => { if (onProgress) onProgress({ ...summary }); };
 
-    // 1. Upload. No remote ids yet: the local uploaded list already prevents
-    //    resending, and a non-subscriber would not even receive the ids.
+    // 0. What an older version uploaded and kept on the device goes now: the
+    //    server already has it.
+    store.dropUploaded();
+
+    // 1. Upload. Each confirmed match leaves the device right away, so a
+    //    network that drops halfway leaves the rest waiting here, intact.
     const pending = toUpload(store.getDB().history, store.uploadedIds(), []);
     for (const match of pending) {
       try {
         await cloud.uploadMatch(match);
-        store.markUploaded(match.id);
+        store.moveToCloud(match);
         summary.uploaded += 1;
       } catch {
-        summary.failed += 1; // stays unmarked: tries again next time
+        summary.failed += 1; // stays on the device: tries again next time
       }
       report();
     }
 
-    // 2. Download. Without a subscription the server returns an empty list -
-    //    it is not an error, it is the gate working, and nothing here needs to
-    //    know the difference.
+    // 2. Download, into memory only. Without a subscription the server
+    //    returns an empty list - it is not an error, it is the gate working.
+    //
+    //    The whole list replaces the previous one, so a match deleted on
+    //    another device simply stops coming: there is no local copy left to
+    //    reconcile.
+    if (store.cloudStatus() !== 'ok') store.setCloudStatus('loading');
     try {
       const remote = await cloud.downloadMatches();
-      const fresh = toDownload(store.getDB().history, remote);
-      if (fresh.length) {
-        store.mergeMatches(fresh);
-        summary.downloaded = fresh.length;
-      }
-      // What came from there is already there: marking it avoids sending it
-      // back on the next pass.
-      for (const m of remote) store.markUploaded(m.id);
+      summary.downloaded = toDownload(store.matches(), remote).length;
+      store.setCloudMatches(remote);
 
       // The account's own decks, in both directions.
       await syncMyDecks();
@@ -275,6 +249,7 @@ export async function sync({ onProgress } = {}) {
       // that is precisely the information we want.
       await learnWhoIsWho(remote);
     } catch {
+      if (store.cloudStatus() !== 'ok') store.setCloudStatus('failed');
       summary.failed += 1;
     }
 
@@ -291,25 +266,6 @@ export async function sync({ onProgress } = {}) {
       /* next time */
     }
 
-    // 3. Reconcile deletions: what vanished from the cloud leaves here too.
-    //
-    // Only for whoever can REALLY read. For non-subscribers the server returns
-    // an empty list, which is indistinguishable from "they deleted everything"
-    // - and acting on that ambiguity would destroy the history of someone who
-    // just stopped paying.
-    if (cloud.state() === 'subscriber') {
-      try {
-        const { ids, complete } = await cloud.remoteIds();
-        for (const id of toDelete(store.uploadedIds(), ids, complete)) {
-          store.deleteMatch(id);
-          store.forgetUploaded(id);
-          summary.deleted += 1;
-        }
-      } catch {
-        summary.failed += 1;
-      }
-    }
-
     report();
     return summary;
   })();
@@ -324,8 +280,8 @@ export async function sync({ onProgress } = {}) {
 /**
  * My decks follow my account.
  *
- * Downloads first: on a new device it is the only source, because the local
- * history is empty. Then uploads what this device saw, already merged with
+ * Downloads first: the device keeps no history of its own once it is in the
+ * cloud, and before the first download this is the only source. Then uploads what this device saw, already merged with
  * what came down - the union is what stays in the profile.
  *
  * Failing here does not take down the sync. The most likely failure is the
@@ -383,9 +339,9 @@ async function learnWhoIsWho(remote) {
  * app actually asks. Deleting only on the device would leave the cloud copy
  * alive, contradicting the text.
  *
- * The local one goes first: if the network fails, the person sees the result
- * they asked for, and the cloud row waits for the next attempt instead of
- * blocking the action.
+ * The local one goes first - the waiting copy or the one in memory: if the
+ * network fails, the person sees the result they asked for, and the cloud row
+ * waits for the next attempt instead of blocking the action.
  */
 export async function deleteMatchEverywhere(matchId) {
   store.deleteMatch(matchId);
@@ -408,8 +364,8 @@ export async function deleteMatchEverywhere(matchId) {
  * the other device those matches stayed orphaned, because the map is local and
  * their payload never got the handle.
  *
- * Now the handle is written into EVERY local match where the person shows up,
- * and the ones already in the cloud are resent. The link moves into the data,
+ * Now the handle is written into EVERY match where the person shows up, and
+ * the ones already in the cloud are resent. The link moves into the data,
  * and the data travels - and the other device learns it when downloading (see
  * learnedAliases).
  *
@@ -423,8 +379,9 @@ export async function deleteMatchEverywhere(matchId) {
  *
  *   - the invite IS sent. That is the part that matters: the person receives
  *     the match and decides whether to accept. It works even for old matches;
- *   - the mark in the match BODY stays only on this device for matches that
- *     are already in the cloud. The matches table has no update policy, on
+ *   - the mark in the match BODY lasts only this session for matches that are
+ *     already in the cloud - the device's alias map is what keeps joining
+ *     them in the statistics. The matches table has no update policy, on
  *     purpose - a finished match is not rewritten, and that is what makes the
  *     statistics trustworthy. Opening an exception for a label would open it
  *     for the rest.
@@ -478,13 +435,13 @@ export async function linkAccount(name, profile) {
   // key.
   //
   // One failure per match cannot take down the others: what does not go up
-  // now stays without the uploaded mark, and the next sync picks it up.
+  // now stays on the device, and the next sync picks it up.
   let invited = false;
   for (const m of changed) {
     if (inProgress && m.id === inProgress.id) continue; // table not finished
     try {
       await cloud.uploadMatch(m);
-      store.markUploaded(m.id);
+      store.moveToCloud(m);
       invited = true;
     } catch { /* next sync */ }
   }

@@ -21,14 +21,13 @@ export function syncBlock() {
 
   const paint = () => {
     clear(box);
-    const history = store.getDB().history || [];
-    const uploaded = new Set(store.uploadedIds());
-    const missing = history.filter((m) => m && m.id && !uploaded.has(m.id)).length;
+    // What is still on the device is exactly what has not gone up.
+    const missing = store.pendingMatches().length;
 
     const button = row({
       label: missing
         ? (missing === 1 ? t('sync.pendingOne') : t('sync.pendingMany', { n: missing }))
-        : t('sync.allUp', { n: history.length }),
+        : t('sync.allUp'),
       sub: t('sync.auto'),
       value: missing ? t('sync.now') : t('sync.check'),
       className: missing ? 'is-pending' : 'is-good',

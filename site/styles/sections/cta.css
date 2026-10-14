@@ -1,0 +1,27 @@
+/* Closing call to action. */
+
+.cta { padding-top: 0; }
+
+.cta-box {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  padding: clamp(40px, 7vw, 80px) clamp(20px, 5vw, 64px);
+  border-radius: var(--r-xl);
+  text-align: center;
+  background:
+    radial-gradient(60% 80% at 50% 0%, var(--glow-a), transparent 70%),
+    var(--surface);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.cta-box::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
+  background: var(--brand-gradient);
+}
+.cta-logo { width: 64px; height: 64px; margin-bottom: 22px; border-radius: 18px; }

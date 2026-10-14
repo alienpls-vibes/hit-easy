@@ -6,6 +6,10 @@ Life counter for Commander tables, with statistics tied to the deck.
 Installable PWA, works offline, no build and no dependencies — only native ES
 modules.
 
+> **Not open source.** © 2026 Alexandre Parma, all rights reserved. The code is
+> public to read, not to reuse: copying, modifying, hosting or redistributing
+> it needs written permission. See [LICENSE](LICENSE).
+
 ## Running
 
 ```bash
@@ -76,6 +80,41 @@ because that is exactly where it changes.
    refuses without it.
 3. Which digit: `new` or `changed` in the notes bumps the middle one; only
    `fixed` bumps the last one.
+4. The release commit on `main` gets an annotated tag with the version
+   (`git tag -a v1.10.0 -m "Hit Easy 1.10.0"`, then `git push origin v1.10.0`).
+   The tag is the restore point — see below.
+
+### Rolling back production
+
+Every production release since 1.1.0 has a tag (`git tag -l 'v*'`). If a
+release goes wrong, production goes back to the previous tag **without
+touching git history**:
+
+1. On GitHub: **Settings → Secrets and variables → Actions → Variables → New
+   repository variable**. Name `PRODUCTION_REF`, value the tag to go back to,
+   for example `v1.9.0`.
+2. **Actions → Publish → Run workflow** (branch `main`). In about a minute
+   `/hit-easy/` serves that tag. Beta keeps coming from `beta`.
+
+It holds: every later run — a push to beta included — keeps publishing the
+pinned tag, and each one shows a warning saying production is pinned, so the
+pin cannot be forgotten silently.
+
+**Undoing the rollback** is deleting the variable and running the workflow
+again: production comes from `main` once more. Fix the problem in beta, promote
+as usual, and only then delete the variable — otherwise `main` goes live with
+the defect still in it.
+
+What the devices see: the service worker of the older version has a different
+cache name, so it replaces the newer one on the next open, like any update.
+The what's-new screen may open showing the whole history, because the version
+the device saw last is not in the older version's notes.
+
+**Data is not rolled back.** Matches live in Supabase, and a rollback only
+changes which app code is served. Before 1.10.0 the app kept a full copy on the
+device and refilled it from the cloud for subscribers; non-subscribers going
+back to an older version see an empty history until they subscribe, but
+nothing is lost — it is all in the cloud.
 
 ## Publishing
 
@@ -563,7 +602,7 @@ learned.
 
 ## Decks follow the account
 
-Someone's deck list is **derived** from the local history — nothing is stored
+Someone's deck list is **derived** from the match history — nothing is stored
 separately, and that is what avoids a second truth about what the person plays.
 But on a new device that history is empty: whoever had just signed in did not
 find their own deck and had to search Scryfall for the commander the app already
@@ -1402,7 +1441,43 @@ there is no build: the app is still static files served directly.
 
 ## Data
 
-Everything stays in `localStorage`, on this device. There is no server and
-nothing is sent anywhere — the only external call is the card search on
-Scryfall. Clearing the site data erases the history, so use **Export JSON** in
-Statistics → menu to keep a backup.
+**The device keeps only what has not reached the cloud yet.** A finished match
+is saved in `localStorage` and waits there until there is an account to send it
+to — signed out, that can be weeks, and nothing is lost meanwhile. Once the
+server confirms the upload, the match leaves the device. The statistics of
+whoever is signed in read the account's history from the cloud, kept in memory
+only while the app is open; signing out forgets it.
+
+The reason is the borrowed phone: Commander is played on whatever device is at
+hand, and a history left behind after signing out is someone else's data on
+that phone. Signed out, the statistics screen only says how many matches are
+waiting to go up.
+
+- **Signing in sends what was waiting**, without anyone looking for a button.
+- **Older versions kept the uploaded matches** and noted them in `enviadas`.
+  The app clears those at startup, with or without an account: being in that
+  list means the server already has them.
+- **Offline, the statistics show only what is still on the device**, and say
+  so. They ask the cloud again on the next sync.
+- **Deleting on another device needs no reconciling.** Each download replaces
+  the in-memory history whole, so a deleted match simply stops coming.
+- **Export JSON** in Statistics → menu carries the whole history, the cloud
+  part included.
+
+With no cloud configured (`cloudEnabled()` false) nothing is ever uploaded, so
+everything stays on the device as it always did — the only external call is
+the card search on Scryfall.
+
+## License
+
+Proprietary — © 2026 Alexandre Parma, all rights reserved. The repository is
+public so the code can be read, which does **not** make it reusable: without a
+license, copyright law already reserves every right to the author, and
+[LICENSE](LICENSE) says so explicitly, so nobody mistakes "public on GitHub"
+for "free to copy". Using the published app is free; copying, modifying,
+hosting or redistributing the code needs written permission.
+
+Magic: The Gathering belongs to Wizards of the Coast, and card data and images
+come from Scryfall; Hit Easy is not affiliated with either.
+
+The settings screen ends with the same copyright line, under the version.

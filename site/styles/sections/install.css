@@ -1,0 +1,61 @@
+/* Install guide, with tabs per device. */
+
+.install.is-page { padding-top: clamp(40px, 7vw, 80px); }
+
+.install-card {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: clamp(12px, 3vw, 28px);
+  background: var(--bg-lift);
+  box-shadow: var(--shadow);
+}
+
+/* A green dot on the visitor's own device, when another tab is open. */
+.tab.is-detected:not([aria-selected="true"])::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.install-panel { padding: clamp(16px, 3vw, 24px) clamp(4px, 1.5vw, 12px) 4px; }
+.install-panel .tag { margin-bottom: 12px; }
+.install-title { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.015em; }
+
+.install-steps { display: grid; gap: 14px; margin-top: 20px; }
+.install-step { display: flex; gap: 16px; align-items: center; }
+
+.install-step-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--surface-strong);
+}
+.install-step-n {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--contrast);
+  color: var(--on-contrast);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.install-done { display: flex; gap: 10px; align-items: center; font-weight: 600; }
+.install-done .icon { color: var(--ok); }
+
+/* Phones: tab labels shrink so the three fit. */
+@media (max-width: 420px) {
+  .install-card .tab { padding: 8px 10px; font-size: 0.86rem; gap: 6px; }
+  .install-card .tab .icon { display: none; }
+}

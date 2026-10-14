@@ -23,6 +23,47 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '1.10.0',
+    date: '2026-10-14',
+    title: 'Seu histórico mora na nuvem',
+    items: [
+      {
+        type: 'changed',
+        text: 'Com conta, a partida sai do aparelho assim que chega à nuvem, e '
+          + 'as estatísticas passam a vir de lá. Quem empresta o celular para '
+          + 'alguém da mesa não deixa o histórico para trás ao sair da conta.',
+      },
+      {
+        type: 'changed',
+        text: 'Sem conta, as partidas continuam guardadas no aparelho até alguém '
+          + 'entrar numa conta, e aí sobem sozinhas. A tela de estatísticas '
+          + 'mostra quantas estão esperando, e só elas.',
+      },
+      {
+        type: 'new',
+        text: 'Sem internet, as estatísticas avisam que estão mostrando só as '
+          + 'partidas que ainda estão no aparelho, em vez de parecer que o '
+          + 'histórico sumiu.',
+      },
+      {
+        type: 'changed',
+        text: 'Esta tela foi reorganizada: cada versão com título e data, e as '
+          + 'notas agrupadas em novo, mudou e corrigido.',
+      },
+      {
+        type: 'fixed',
+        text: 'Na tela de estatísticas sem acesso, a seta de voltar apontava '
+          + 'para a direita.',
+      },
+      {
+        type: 'fixed',
+        text: 'Alguns textos de apoio saíam com a cor errada: a data e a '
+          + 'etiqueta "mudou" nesta tela, o link da conta, o @ da cadeira e a '
+          + 'versão no fim das configurações.',
+      },
+    ],
+  },
+  {
     version: '1.9.0',
     date: '2026-10-10',
     title: 'Mesa por código, seu nome nas partidas e lifelink',

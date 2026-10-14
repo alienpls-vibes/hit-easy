@@ -1,0 +1,26 @@
+/* ==========================================================================
+   Entry stylesheet: only the cascade order.
+
+   tokens.css      every color, font and measure - change the look here
+   base.css        reset and page-wide defaults
+   components.css  pieces shared by sections (buttons, cards, forms, tabs)
+   sections/*.css  one file per section in sections/, same name
+
+   A new section gets its own file and one @import line below.
+   ========================================================================== */
+
+@import url("./tokens.css");
+@import url("./base.css");
+@import url("./components.css");
+
+@import url("./sections/nav.css");
+@import url("./sections/hero.css");
+@import url("./sections/features.css");
+@import url("./sections/how.css");
+@import url("./sections/stats-teaser.css");
+@import url("./sections/install.css");
+@import url("./sections/faq.css");
+@import url("./sections/cta.css");
+@import url("./sections/footer.css");
+@import url("./sections/account.css");
+@import url("./sections/stats.css");

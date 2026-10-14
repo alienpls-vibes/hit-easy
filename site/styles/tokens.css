@@ -1,0 +1,118 @@
+/* ==========================================================================
+   Tokens: the whole look of the site in one place.
+
+   Dark by default, like the app. Light comes from the app's own theme setting
+   (data-theme, set by lib/head.js) or, without one, from the system. No
+   component knows which theme it is in - they only read these variables.
+   ========================================================================== */
+
+:root {
+  /* Type */
+  --font: "Segoe UI Variable Display", "SF Pro Display", -apple-system,
+    BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --fs-hero: clamp(2.5rem, 1.2rem + 5.4vw, 4.6rem);
+  --fs-h2: clamp(1.85rem, 1.2rem + 2.4vw, 2.9rem);
+  --fs-h3: 1.125rem;
+  --fs-body: 1rem;
+  --fs-lead: clamp(1.05rem, 0.98rem + 0.4vw, 1.25rem);
+  --fs-small: 0.875rem;
+
+  /* Layout */
+  --container: 1140px;
+  --container-narrow: 760px;
+  --gutter: clamp(16px, 4vw, 32px);
+  --section-space: clamp(64px, 9vw, 120px);
+  --nav-h: 64px;
+
+  /* Shape and motion */
+  --r-xl: 28px;
+  --r-lg: 22px;
+  --r-md: 16px;
+  --r-sm: 11px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --fast: 160ms var(--ease);
+  --slow: 480ms var(--ease);
+
+  /* Magic color identity, the same tones as the app (src/colors.js) */
+  --mana-w: #E8DCBE;
+  --mana-u: #5C9FD6;
+  --mana-b: #9B82B8;
+  --mana-r: #D9604C;
+  --mana-g: #4FA97C;
+  --brand-gradient: linear-gradient(90deg, var(--mana-w), var(--mana-u), var(--mana-b), var(--mana-r), var(--mana-g));
+
+  /* Colors (dark) */
+  color-scheme: dark;
+  --bg: #08080a;
+  --bg-lift: #0f0f12;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-strong: rgba(255, 255, 255, 0.075);
+  --press: rgba(255, 255, 255, 0.12);
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --text: rgba(255, 255, 255, 0.94);
+  --text-mid: rgba(255, 255, 255, 0.64);
+  --text-dim: rgba(255, 255, 255, 0.42);
+  --contrast: #ffffff;
+  --on-contrast: #0a0a0c;
+  --glass: rgba(8, 8, 10, 0.78);
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  --ok: #5fc08e;
+  --danger: #ef7a64;
+  --focus: #8fc2ee;
+  --glow-a: rgba(92, 159, 214, 0.22);
+  --glow-b: rgba(155, 130, 184, 0.18);
+  --glow-c: rgba(79, 169, 124, 0.14);
+}
+
+/* Light: the same variables, other values. Two selectors because the theme
+   can come from the app setting (data-theme) or from the system. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f4f2;
+  --bg-lift: #ffffff;
+  --surface: rgba(12, 14, 20, 0.035);
+  --surface-strong: rgba(12, 14, 20, 0.07);
+  --press: rgba(12, 14, 20, 0.12);
+  --line: rgba(12, 14, 20, 0.12);
+  --line-strong: rgba(12, 14, 20, 0.2);
+  --text: rgba(12, 14, 20, 0.92);
+  --text-mid: rgba(12, 14, 20, 0.64);
+  --text-dim: rgba(12, 14, 20, 0.46);
+  --contrast: #16181e;
+  --on-contrast: #fdfdfc;
+  --glass: rgba(244, 244, 242, 0.82);
+  --shadow: 0 24px 60px rgba(20, 24, 40, 0.16);
+  --ok: #24804f;
+  --danger: #b93a25;
+  --focus: #2a6ba6;
+  --glow-a: rgba(42, 107, 166, 0.14);
+  --glow-b: rgba(103, 74, 130, 0.1);
+  --glow-c: rgba(43, 117, 80, 0.1);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --bg: #f4f4f2;
+    --bg-lift: #ffffff;
+    --surface: rgba(12, 14, 20, 0.035);
+    --surface-strong: rgba(12, 14, 20, 0.07);
+    --press: rgba(12, 14, 20, 0.12);
+    --line: rgba(12, 14, 20, 0.12);
+    --line-strong: rgba(12, 14, 20, 0.2);
+    --text: rgba(12, 14, 20, 0.92);
+    --text-mid: rgba(12, 14, 20, 0.64);
+    --text-dim: rgba(12, 14, 20, 0.46);
+    --contrast: #16181e;
+    --on-contrast: #fdfdfc;
+    --glass: rgba(244, 244, 242, 0.82);
+    --shadow: 0 24px 60px rgba(20, 24, 40, 0.16);
+    --ok: #24804f;
+    --danger: #b93a25;
+    --focus: #2a6ba6;
+    --glow-a: rgba(42, 107, 166, 0.14);
+    --glow-b: rgba(103, 74, 130, 0.1);
+    --glow-c: rgba(43, 117, 80, 0.1);
+  }
+}

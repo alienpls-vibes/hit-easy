@@ -13,7 +13,7 @@
 
 // The same string as APP_VERSION in src/version.js - a worker does not import
 // modules. If it changes there, change it here; check-syntax.js compares both.
-const VERSION = '1.9.0';
+const VERSION = '1.10.0';
 
 /**
  * Production and beta share the same origin, and Cache Storage is per origin.
@@ -253,6 +253,12 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (url.origin !== self.location.origin) return;
+
+  // The promotional site (site/) lives inside this worker's scope but is not
+  // part of the app. Serving it from the shell cache would show visitors the
+  // previous version of every page edit, and its offline fallback would answer
+  // a site page with the app's index.html.
+  if (/\/site\//.test(url.pathname)) return;
 
   // The build stamp: always network, never cache.
   //

@@ -26,12 +26,16 @@ const KEY = storageKey('mtglc.db.v1');
 const EMPTY = {
   version: 1,
   current: null,
+  // Matches that have NOT reached the cloud yet: played signed out, or whose
+  // upload failed. Once the server confirms a match it leaves this list (see
+  // moveToCloud) - the statistics of whoever is signed in come from the
+  // cloud, and a borrowed phone keeps nobody else's history.
   history: [],
   // Ids of matches that have already gone to the cloud.
   //
-  // It exists because non-subscribers CAN upload but cannot download: without
-  // this note, on every open the device would think the cloud was empty and
-  // resend the whole history, forever.
+  // Older versions kept the uploaded matches on the device and noted them
+  // here. dropUploaded() reads it to clear those leftovers, and it stays as
+  // the guard against sending the same match twice.
   enviadas: [],
   commanders: {}, // oracleId -> commander (offline reuse)
   playerNames: [],
@@ -131,6 +135,10 @@ export function save() {
   } catch (err) {
     console.warn('Failed to save local data', err);
   }
+  notify();
+}
+
+function notify() {
   listeners.forEach((fn) => fn(db));
 }
 
@@ -193,16 +201,99 @@ export function archive(match) {
 }
 
 /**
- * The history, with only what has the shape of a match.
+ * The history from the cloud, in memory only.
  *
- * The ENTRY door already filters and reading from disk also heals what got
- * through before. This is the third layer, and it exists because the first two
- * cover known paths: a broken record through a path that does not exist yet
- * would take the whole screen down, and a black screen tells nobody anything.
- * Whoever READS the history to draw it should use this.
+ * Never written to the device: it is the account's history, and it lives as
+ * long as the app is open and the account is signed in. `status` tells the
+ * statistics screen whether an empty list means "nothing there" or "not
+ * fetched yet":
+ *
+ *   idle      not asked yet in this session
+ *   loading   asking
+ *   ok        `list` is what the cloud returned
+ *   failed    asked and the network said no - the screen shows what is here
+ */
+let cloudHistory = { status: 'idle', list: [] };
+
+/**
+ * The whole history: what is waiting on the device plus what came from the
+ * cloud, newest first, without repeating a match that is in both.
+ *
+ * Only what has the shape of a match. The ENTRY door already filters and
+ * reading from disk also heals what got through before. This is the third
+ * layer, and it exists because the first two cover known paths: a broken
+ * record through a path that does not exist yet would take the whole screen
+ * down, and a black screen tells nobody anything. Whoever READS the history to
+ * draw it should use this.
  */
 export function matches() {
-  return (db.history || []).filter(isValidMatch);
+  const local = (db.history || []).filter(isValidMatch);
+  const here = new Set(local.map((m) => m.id));
+  const remote = cloudHistory.list.filter((m) => isValidMatch(m) && !here.has(m.id));
+  if (!remote.length) return local;
+  return [...local, ...remote].sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
+}
+
+/** The matches that only exist on this device - the ones waiting to go up. */
+export function pendingMatches() {
+  const uploaded = new Set(db.enviadas || []);
+  return (db.history || []).filter((m) => isValidMatch(m) && !uploaded.has(m.id));
+}
+
+/** Replaces the cloud history with what the server just returned. */
+export function setCloudMatches(list) {
+  cloudHistory = { status: 'ok', list: (list || []).filter(isValidMatch) };
+  notify();
+}
+
+export function setCloudStatus(status) {
+  cloudHistory = { ...cloudHistory, status };
+  notify();
+}
+
+export function cloudStatus() {
+  return cloudHistory.status;
+}
+
+/**
+ * Forgets the cloud history. On signing out: the next person on this device
+ * must not find the previous account's matches in the deck picker.
+ */
+export function forgetCloudMatches() {
+  cloudHistory = { status: 'idle', list: [] };
+  notify();
+}
+
+/**
+ * The server confirmed the match: it leaves the device and joins the cloud
+ * history in memory, so the statistics keep showing it without waiting for
+ * the next download.
+ */
+export function moveToCloud(match) {
+  if (!match || !match.id) return;
+  db.history = db.history.filter((m) => m.id !== match.id);
+  db.enviadas = (db.enviadas || []).filter((x) => x !== match.id);
+  if (isValidMatch(match) && !cloudHistory.list.some((m) => m.id === match.id)) {
+    cloudHistory = { ...cloudHistory, list: [match, ...cloudHistory.list] };
+  }
+  save();
+}
+
+/**
+ * Removes from the device what an older version uploaded and kept.
+ *
+ * Those versions noted every uploaded match in `enviadas` and left it in the
+ * history. Being in that list means the server already has it, so leaving
+ * the device loses nothing. Returns how many left.
+ */
+export function dropUploaded() {
+  const uploaded = new Set(db.enviadas || []);
+  if (!uploaded.size) return 0;
+  const before = db.history.length;
+  db.history = db.history.filter((m) => !uploaded.has(m.id));
+  db.enviadas = [];
+  save();
+  return before - db.history.length;
 }
 
 /** Ids already uploaded to the cloud. */
@@ -227,7 +318,8 @@ export function forgetUploaded(matchId) {
 }
 
 /**
- * Merges matches coming from the cloud into the local history.
+ * Merges matches into the local history - the queue of what waits to go up.
+ * The cloud's own history does not come through here (see setCloudMatches).
  *
  * By id, and without overwriting what already exists: a finished match is
  * immutable, and the local copy may have something the remote one does not if
@@ -265,6 +357,7 @@ export function updateMatch(match) {
 
 export function deleteMatch(matchId) {
   db.history = db.history.filter((m) => m.id !== matchId);
+  cloudHistory = { ...cloudHistory, list: cloudHistory.list.filter((m) => m.id !== matchId) };
   save();
 }
 
@@ -479,7 +572,7 @@ export function learnCurrentHandles(pairs) {
 export function allKnownHandles() {
   const clean = (h) => String(h || '').trim().replace(/^@+/, '').toLowerCase();
   const all = new Set();
-  for (const m of db.history || []) {
+  for (const m of matches()) {
     for (const s of m.seats || []) if (s && s.handle) all.add(clean(s.handle));
   }
   for (const s of (db.current && db.current.seats) || []) if (s && s.handle) all.add(clean(s.handle));
@@ -617,7 +710,7 @@ export function decksOfPlayer(name, handle) {
   if (!key || key === '?') return [];
 
   const local = [];
-  for (const match of db.history) { // history already comes most recent first
+  for (const match of matches()) { // already comes most recent first
     for (const seat of match.seats || []) {
       if (identityOf(seat, aliases) !== key) continue;
       if (!(seat.commanders || []).length) continue;
@@ -814,8 +907,13 @@ export function takeTableBack() {
   return true;
 }
 
+/**
+ * The backup carries the whole history - the cloud part too. A backup with
+ * only what is still waiting on the device would be a backup of nothing for
+ * whoever is signed in.
+ */
 export function exportJSON() {
-  return JSON.stringify(db, null, 2);
+  return JSON.stringify({ ...db, history: matches() }, null, 2);
 }
 
 /** Imports a backup. Merges the history by id, without duplicating matches. */
@@ -841,5 +939,6 @@ export function importJSON(text) {
 
 export function wipe() {
   db = structuredClone(EMPTY);
+  cloudHistory = { status: 'idle', list: [] };
   save();
 }

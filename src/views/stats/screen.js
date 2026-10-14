@@ -12,6 +12,7 @@ import {
   playerColor, SORTS, sortRows,
 } from '../../stats.js';
 import * as store from '../../store.js';
+import { cloudEnabled } from '../../config.js';
 import { t } from '../../i18n.js';
 import { openData } from './backup.js';
 import { deckCard } from './deck.js';
@@ -168,10 +169,22 @@ export function renderStats(root, { onBack }) {
     }, [t(tab.key)]),
   ));
 
+  // The account's history comes from the cloud. Until it arrives - or when
+  // the network refused it - an empty or short list is not the whole story,
+  // and the screen says so instead of claiming there is nothing.
+  const cloudState = cloudEnabled() ? store.cloudStatus() : 'ok';
+  const fetching = cloudState === 'idle' || cloudState === 'loading';
+  const cloudNote = fetching || cloudState === 'failed'
+    ? el('p', {
+      class: 'stats-cloud-note' + (fetching ? ' is-loading' : ''),
+      text: t(fetching ? 'stats.cloudLoading' : 'stats.cloudOffline'),
+    })
+    : null;
+
   function paint() {
     clear(panel);
     if (!matches.length) {
-      panel.append(emptyState());
+      if (!fetching) panel.append(emptyState());
       return;
     }
     if (activeTab === 'decks') {
@@ -217,6 +230,7 @@ export function renderStats(root, { onBack }) {
       el('h1', { class: 'stats-title', text: t('stats.title') }),
       el('button', { class: 'icon-btn', 'aria-label': t('data.title'), onClick: () => openData(root, onBack, () => renderStats(root, { onBack })) }, [icon('more')]),
     ]),
+    cloudNote,
     el('div', { class: 'stats-summary' }, [
       miniStat(String(matches.length), t(matches.length === 1 ? 'stats.match' : 'stats.matchesLower')),
       miniStat(String(agg.decks.length), t(agg.decks.length === 1 ? 'stats.deck' : 'stats.decksLower')),

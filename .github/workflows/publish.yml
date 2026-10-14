@@ -11,6 +11,12 @@
 # A failing test does not publish. Since production is already live, blocking
 # the deploy never takes anything down: at worst the table keeps the previous
 # version.
+#
+# Rolling back: every production release is tagged (v1.9.0, v1.10.0, ...).
+# Setting the repository variable PRODUCTION_REF to one of those tags makes
+# production come from it instead of `main`, on this run and on every run
+# after it - a push to beta cannot undo the rollback by accident. Deleting the
+# variable puts `main` back. See README, "Rolling back production".
 
 name: Publish
 
@@ -62,10 +68,22 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - name: Production (main) at the root
+      # Says which code production is about to get, and shouts when it is
+      # pinned: a forgotten pin would silently hold back every later release.
+      - name: Which ref is production?
+        run: |
+          if [ -n "$PINNED" ]; then
+            echo "::warning::Production is pinned to $PINNED (variable PRODUCTION_REF). Delete the variable to publish main again."
+          else
+            echo "Production comes from main."
+          fi
+        env:
+          PINNED: ${{ vars.PRODUCTION_REF }}
+
+      - name: Production at the root
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ vars.PRODUCTION_REF || 'main' }}
           path: site
 
       - name: Does the beta branch exist?

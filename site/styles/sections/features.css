@@ -1,0 +1,34 @@
+/* Feature grid. */
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 16px;
+}
+
+.feature {
+  padding: 26px 24px;
+  transition: border-color var(--fast), background var(--fast);
+}
+.feature:hover { border-color: var(--line-strong); background: var(--surface-strong); }
+
+.feature-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  background: var(--surface-strong);
+  color: var(--text);
+}
+/* The icons take turns through the five mana colors. */
+.feature:nth-child(5n + 1) .feature-icon { color: var(--mana-u); }
+.feature:nth-child(5n + 2) .feature-icon { color: var(--mana-r); }
+.feature:nth-child(5n + 3) .feature-icon { color: var(--mana-g); }
+.feature:nth-child(5n + 4) .feature-icon { color: var(--mana-b); }
+.feature:nth-child(5n + 5) .feature-icon { color: var(--mana-w); }
+:root[data-theme="light"] .feature-icon { filter: brightness(0.7) saturate(1.3); }
+
+.feature-title { font-size: var(--fs-h3); font-weight: 700; letter-spacing: -0.01em; }
+.feature-text { margin-top: 8px; color: var(--text-mid); font-size: 0.97rem; }

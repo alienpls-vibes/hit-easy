@@ -1,0 +1,39 @@
+/* Account page: forms and profile. */
+
+.account-page { padding-top: clamp(36px, 6vw, 72px); }
+
+.account-card {
+  padding: clamp(18px, 4vw, 36px);
+  background: var(--bg-lift);
+  box-shadow: var(--shadow);
+}
+
+.profile-head { display: flex; gap: 16px; align-items: center; }
+.profile-head .muted { margin-top: 2px; font-size: var(--fs-small); word-break: break-all; }
+
+.profile-block {
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.profile-block > .muted { margin-top: 6px; font-size: 0.95rem; }
+
+.handle-big { margin-top: 8px; font-size: 1.6rem; font-weight: 750; letter-spacing: -0.02em; }
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-weight: 650;
+  font-size: var(--fs-small);
+}
+.status .icon { width: 16px; height: 16px; }
+.status.is-on { background: rgba(95, 192, 142, 0.14); color: var(--ok); }
+.status.is-off { background: var(--surface-strong); color: var(--text-mid); }
+
+.profile-foot { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); }
+.account-card .form .link-btn { justify-self: center; }
+.social-buttons { display: grid; gap: 10px; }
