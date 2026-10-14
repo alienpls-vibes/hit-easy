@@ -15,6 +15,7 @@ import { accentOf, pips } from '../../colors.js';
 import { searchCommanders, isOffline } from '../../scryfall.js';
 import * as store from '../../store.js';
 import { t, tn } from '../../i18n.js';
+import { thumbOf } from '../../engine.js';
 
 /** Choosing the commander: the player's decks from the history, then Scryfall. */
 export function commanderStep(seat, slot, refresh) {
@@ -118,6 +119,7 @@ export function commanderStep(seat, slot, refresh) {
 }
 
 function resultRow(commander, choose) {
+  const thumb = thumbOf(commander);
   return el('button', {
     class: 'result-row',
     style: { '--accent': accentOf(commander.colors) },
@@ -125,7 +127,7 @@ function resultRow(commander, choose) {
   }, [
     el('span', {
       class: 'result-art',
-      style: commander.thumb ? { backgroundImage: 'url(' + commander.thumb + ')' } : {},
+      style: thumb ? { backgroundImage: 'url(' + thumb + ')' } : {},
     }),
     el('span', { class: 'result-text' }, [
       el('span', { class: 'result-name', text: commander.name }),

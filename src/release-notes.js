@@ -38,6 +38,12 @@ export const RELEASE_NOTES = [
         text: 'Jogador sem conta também encontra os próprios decks: basta o nome '
           + 'bater com alguém com quem você já jogou.',
       },
+      {
+        type: 'fixed',
+        text: 'Decks trazidos da sua conta apareciam sem a imagem do comandante, '
+          + 'e as imagens agora ficam guardadas no aparelho para aparecer mesmo '
+          + 'sem internet.',
+      },
     ],
   },
   {

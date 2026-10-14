@@ -13,7 +13,7 @@ import {
 } from './dom-stub.js';
 import {
   createMatch, replay, push, undo, standings, elapsedOf, duplicatePerson, isValidMatch,
-  leaveTable, returnToTable, awayBetween, mergeDecks, deckKeyOf,
+  leaveTable, returnToTable, awayBetween, mergeDecks, deckKeyOf, thumbOf,
   handOffTable, reclaimTable, isHandedOff, receiveTable, tableNow,
   cmdKeyOf, CMD_LETHAL, POISON_LETHAL,
 } from '../src/engine.js';
@@ -1834,6 +1834,16 @@ export const cases = [
       store.wipe();
     }
     return undefined;
+  }],
+
+  ['a deck kept in the profile still shows its picture', () => {
+    // The profile used to keep `art` only. A list that read `thumb` alone
+    // drew those decks - and every match played with them - with no picture.
+    eq(thumbOf({ oracleId: 'x', art: 'big.jpg' }), 'big.jpg', 'no fallback to the big picture');
+    eq(thumbOf({ oracleId: 'x', art: 'big.jpg', thumb: 'small.jpg' }), 'small.jpg',
+      'the small picture lost to the big one');
+    eq(thumbOf({ oracleId: 'x', art: null, thumb: null }), '', 'a missing picture is not empty');
+    eq(thumbOf(undefined), '', 'no commander broke it');
   }],
 
   ['a player without an account finds their decks by name in the history', () => {

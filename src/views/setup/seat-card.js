@@ -8,7 +8,7 @@
 
 import { el, icon, openFlow, buzz, toast } from '../../ui.js';
 import { accentOf, pips } from '../../colors.js';
-import { deckNameOf } from '../../engine.js';
+import { deckNameOf, thumbOf } from '../../engine.js';
 import { t } from '../../i18n.js';
 import { isHandleValid, displayHandle } from '../../cloud.js';
 import { seatSpot } from './pre-game.js';
@@ -19,10 +19,11 @@ import { MIN_SEATS, ensureDraft, canLinkAccounts } from './draft.js';
 export function seatCard(seat, index, refresh) {
   const commander = seat.commanders[0];
   const accent = commander ? accentOf(commander.colors) : 'var(--line)';
+  const thumb = thumbOf(commander);
 
   const art = el('button', {
     class: 'seat-art' + (commander ? '' : ' is-empty'),
-    style: commander && commander.thumb ? { backgroundImage: 'url(' + commander.thumb + ')' } : {},
+    style: thumb ? { backgroundImage: 'url(' + thumb + ')' } : {},
     onClick: () => openFlow(commanderStep(seat, 0, refresh)),
     'aria-label': t('setup.chooseCommander'),
   }, commander ? [] : [icon('plus')]);

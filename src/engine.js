@@ -90,6 +90,18 @@ export function deckKeyOf(commanders) {
   return (commanders || []).map((c) => c.oracleId).sort().join('+');
 }
 
+/**
+ * The commander's small picture, for lists and seat cards.
+ *
+ * Falls back to the big one. Decks kept in the account profile used to be
+ * stored with `art` only, and a commander picked from that list went into the
+ * match the same way - a list that reads `thumb` alone showed those decks
+ * with no picture at all. Both are Scryfall's art crop anyway.
+ */
+export function thumbOf(commander) {
+  return (commander && (commander.thumb || commander.art)) || '';
+}
+
 export function deckNameOf(commanders) {
   return (commanders || []).map((c) => c.name).join(' // ') || t('tl.noCommander');
 }
