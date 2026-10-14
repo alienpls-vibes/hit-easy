@@ -23,6 +23,24 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '1.11.0',
+    date: '2026-10-14',
+    title: 'Decks que vêm do histórico',
+    items: [
+      {
+        type: 'changed',
+        text: 'Ao escolher o comandante, aparecem só os decks que aquele jogador '
+          + 'já usou no histórico. Saiu a lista de decks salvos no aparelho, que '
+          + 'misturava os comandantes de todo mundo que já jogou ali.',
+      },
+      {
+        type: 'new',
+        text: 'Jogador sem conta também encontra os próprios decks: basta o nome '
+          + 'bater com alguém com quem você já jogou.',
+      },
+    ],
+  },
+  {
     version: '1.10.0',
     date: '2026-10-14',
     title: 'Seu histórico mora na nuvem',

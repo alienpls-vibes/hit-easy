@@ -1,8 +1,13 @@
 /**
- * This seat's deck: the player's decks, then recent ones, then Scryfall.
+ * This seat's deck: the decks this player brought in the history, then Scryfall.
  *
  * In that order because in practice people repeat decks, so the choice is
  * almost always on the first row - and that part works without internet.
+ *
+ * Only THIS player's decks. There used to be a second list, every commander
+ * ever picked on this device, but matches no longer stay on the device: what
+ * a player brought is in the history (see decksOfPlayer), and a borrowed
+ * phone has no business suggesting a stranger's decks.
  */
 
 import { el, clear, buzz } from '../../ui.js';
@@ -11,7 +16,7 @@ import { searchCommanders, isOffline } from '../../scryfall.js';
 import * as store from '../../store.js';
 import { t, tn } from '../../i18n.js';
 
-/** Choosing the commander: the player's decks, then recent ones, then Scryfall. */
+/** Choosing the commander: the player's decks from the history, then Scryfall. */
 export function commanderStep(seat, slot, refresh) {
   return {
     title: slot === 0 ? t('commander.title') : t('commander.partnerTitle'),
@@ -32,45 +37,56 @@ export function commanderStep(seat, slot, refresh) {
 
       const choose = (commander) => {
         seat.commanders[slot] = commander;
-        store.rememberCommander(commander);
         buzz(12);
         api.close();
         refresh();
       };
 
-      const showSaved = () => {
-        clear(results);
-        const mine = store.decksOfPlayer(seat.name, seat.handle);
+      /** Appends this player's decks to the list; returns how many went in. */
+      const appendHistory = () => {
         const listed = new Set();
-
-        if (mine.length) {
-          results.append(el('p', { class: 'sheet-legend', text: t('commander.decksOf', { name: seat.name }) }));
-          mine.forEach(({ commanders }) => {
-            const c = commanders[slot] || commanders[0];
-            if (!c || listed.has(c.oracleId)) return;
-            listed.add(c.oracleId);
-            results.append(resultRow(c, choose));
-          });
+        const rows = [];
+        store.decksOfPlayer(seat.name, seat.handle).forEach(({ commanders }) => {
+          const c = commanders[slot] || commanders[0];
+          if (!c || listed.has(c.oracleId)) return;
+          listed.add(c.oracleId);
+          rows.push(resultRow(c, choose));
+        });
+        if (rows.length) {
+          results.append(el('p', { class: 'sheet-legend', text: t('commander.decksOf', { name: seat.name }) }), ...rows);
         }
+        return rows.length;
+      };
 
-        const others = store.recentCommanders(12).filter((c) => !listed.has(c.oracleId));
-        if (others.length) {
-          results.append(el('p', {
-            class: 'sheet-legend',
-            text: mine.length ? t('commander.otherDecks') : t('commander.recentDecks'),
-          }));
-          others.forEach((c) => results.append(resultRow(c, choose)));
+      const showHistory = () => {
+        clear(results);
+        const found = appendHistory();
+        const name = { name: seat.name };
+        let text = '';
+        if (!found) {
+          // The cloud history arrives a moment after the app opens. Saying
+          // "no decks" while it is on its way would be a lie that fixes
+          // itself a second later - see the subscription below.
+          if (store.cloudStatus() === 'loading') text = t('stats.cloudLoading');
+          else text = isOffline() ? t('commander.offline', name) : t('commander.noHistory', name);
         }
-
-        status.textContent = (mine.length || others.length)
-          ? t('commander.savedHere')
-          : (isOffline() ? t('commander.offline') : t('commander.typeTwo'));
+        status.textContent = text;
+        status.hidden = !text;
         api.remeasure();
       };
+
+      // Redraws when the history changes (the cloud download landing), while
+      // nothing is typed. The sheet has no per-screen close hook, so the
+      // listener drops itself once this screen is gone.
+      const stop = store.subscribe(() => {
+        if (!pane.isConnected) { stop(); return; }
+        if (input.value.trim().length < 2) showHistory();
+      });
 
       const run = async (q) => {
         if (controller) controller.abort();
         controller = new AbortController();
+        status.hidden = false;
         status.textContent = t('commander.searching');
         try {
           const list = await searchCommanders(q, { signal: controller.signal });
@@ -83,7 +99,7 @@ export function commanderStep(seat, slot, refresh) {
           if (err.name === 'AbortError') return;
           clear(results);
           status.textContent = t('commander.searchFailed');
-          store.recentCommanders(12).forEach((c) => results.append(resultRow(c, choose)));
+          appendHistory();
         }
         api.remeasure();
       };
@@ -91,12 +107,12 @@ export function commanderStep(seat, slot, refresh) {
       input.addEventListener('input', () => {
         const q = input.value.trim();
         clearTimeout(debounce);
-        if (q.length < 2) { showSaved(); return; }
+        if (q.length < 2) { showHistory(); return; }
         debounce = setTimeout(() => run(q), 280);
       });
 
       pane.append(input, status, results);
-      showSaved();
+      showHistory();
     },
   };
 }

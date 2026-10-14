@@ -1836,6 +1836,40 @@ export const cases = [
     return undefined;
   }],
 
+  ['a player without an account finds their decks by name in the history', () => {
+    // The seat only has a name. The signed-in account already played with
+    // someone called Bruno - once without an @, once tagged - and both decks
+    // are his. Nobody else's deck comes along.
+    store.wipe();
+    try {
+      const older = createMatch([
+        { id: 's0', name: 'Alex', handle: 'alienpls', commanders: [commander(1)] },
+        { id: 's1', name: 'Bruno', commanders: [commander(2)] },
+      ], 40);
+      older.startedAt = 100;
+      const newer = createMatch([
+        { id: 's0', name: 'Alex', handle: 'alienpls', commanders: [commander(1)] },
+        { id: 's1', name: 'bruno ', handle: 'brunao', commanders: [commander(3)] },
+        { id: 's2', name: 'Carla', commanders: [commander(4)] },
+      ], 40);
+      newer.startedAt = 900;
+      // One from the cloud, one still waiting on the device: both are history.
+      store.setCloudMatches([newer]);
+      store.mergeMatches([older]);
+
+      const decks = store.decksOfPlayer('Bruno', '');
+      eq(decks.map((d) => deckKeyOf(d.commanders)).join(','),
+        [deckKeyOf([commander(3)]), deckKeyOf([commander(2)])].join(','),
+        'the name did not find both of Bruno\'s decks, newest first');
+
+      eq(store.decksOfPlayer('Daniel', '').length, 0,
+        'a name nobody played with found decks');
+    } finally {
+      store.wipe();
+    }
+    return undefined;
+  }],
+
   ['the deck row knows who brought it', () => {
     // The row aggregates everyone who played that deck, and that is how it has
     // to be - in Commander the same deck passes from hand to hand. But without
