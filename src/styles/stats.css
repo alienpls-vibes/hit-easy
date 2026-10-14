@@ -212,3 +212,31 @@
 .empty { padding: 60px 20px; text-align: center; }
 .empty-title { margin: 0 0 6px; font-size: 1rem; }
 .empty-sub { margin: 0; font-size: 0.84rem; color: var(--text-dim); line-height: 1.5; }
+
+/* The account's history is still coming from the cloud, or could not come.
+   A quiet line, not an error box: the screen still shows what it has. */
+.stats-cloud-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 0.78rem;
+  color: var(--text-mid);
+}
+.stats-cloud-note::before {
+  content: '';
+  flex: none;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+.stats-cloud-note.is-loading::before {
+  background: var(--text-mid);
+  animation: cloud-note-pulse 1.2s ease-in-out infinite;
+}
+@keyframes cloud-note-pulse {
+  50% { opacity: 0.25; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stats-cloud-note.is-loading::before { animation: none; }
+}

@@ -67,7 +67,7 @@ import { installBlock } from '../src/views/setup/install.js';
 import { iosBrowser } from '../src/install.js';
 import { APP_VERSION } from '../src/version.js';
 import {
-  toUpload, toDownload, toDelete, canSync,
+  toUpload, toDownload, canSync,
   seatsToLink, learnedAliases, linkAccount, decksChanged, refreshHandles,
 } from '../src/sync.js';
 import { rotatesWithSeat, tableRotation, rotatesToSeat } from '../src/orientation.js';
@@ -2847,27 +2847,25 @@ export const cases = [
     ok(!store.updateMatch({ id: 'x' }), 'nor accepts something malformed');
   }],
 
-  ['deleting on one device deletes on all - and never by mistake', () => {
-    // Device B had the match and marked it as uploaded when downloading it.
-    // Device A deleted it. Without reconciling, it stayed on B forever: nothing
-    // in the upload or download flow reached it.
-    eq(toDelete(['p1', 'p2'], ['p2'], true), ['p1'], 'what vanished there goes here');
-    eq(toDelete(['p1', 'p2'], ['p1', 'p2'], true), [], 'what is still there, stays');
+  ['deleting on one device deletes on all, because the cloud copy is replaced whole', () => {
+    if (!simulated) return 'skip';
+    store.wipe();
+    const p1 = { ...makeMatch(3), id: 'p1' };
+    const p2 = { ...makeMatch(3), id: 'p2' };
+    store.setCloudMatches([p1, p2]);
+    eq(store.matches().map((m) => m.id).sort(), ['p1', 'p2']);
 
-    // A match that never went up cannot be judged by its absence from the cloud.
-    eq(toDelete([], ['p9'], true), [], 'nothing marked, nothing to delete');
+    // Device A deleted p1. B keeps no copy of its own to reconcile: the next
+    // download simply does not bring it.
+    store.setCloudMatches([p2]);
+    eq(store.matches().map((m) => m.id), ['p2'], 'what vanished there is gone here');
 
-    // The two locks against disaster. The read returns an empty list for
-    // NON-subscribers - identical to what it would return if everything had
-    // been deleted. Confusing the two cases would destroy the history of
-    // someone who just stopped paying, and there is no undo.
-    eq(toDelete(['p1', 'p2'], [], false), [], 'without really being able to read, does not delete');
-    eq(toDelete(['p1', 'p2'], [], true), [],
-      'an empty remote list with things uploaded is too suspicious to act on');
-
-    // Erring on the side of leftovers is recoverable; erring on the side of
-    // deleting is not.
-    eq(toDelete(['p1'], ['p1', 'p2', 'p3'], true), [], 'the cloud having more deletes nothing here');
+    // And what is still waiting on the device is never judged by the cloud.
+    const waiting = makeMatch(4);
+    store.archive(waiting);
+    store.setCloudMatches([]);
+    eq(store.matches().map((m) => m.id), [waiting.id], 'an empty cloud takes nothing from the device');
+    store.wipe();
   }],
 
   ['downloading brings only what this device does not have', () => {
@@ -2886,34 +2884,59 @@ export const cases = [
     ok(canSync(true, 'subscriber'));
   }],
 
-  ['the local history is not deleted on upload, and merging does not overwrite', () => {
+  ['a match leaves the device once the cloud has it, and stays until then', () => {
     if (!simulated) return 'skip';
     store.wipe();
     const m = makeMatch(4);
     push(m, { type: 'life', targetId: 's1', delta: -7, sourceId: 's0' });
     store.archive(m);
 
-    eq(store.getDB().history.length, 1, 'the match is here');
-    store.markUploaded(m.id);
-    eq(store.uploadedIds(), [m.id], 'noted as uploaded');
-    eq(store.getDB().history.length, 1, 'and it is still here: uploading deletes nothing');
+    // Signed out, or before the upload: the device is the only copy.
+    eq(store.pendingMatches().map((x) => x.id), [m.id], 'waiting to go up');
+    eq(store.matches().length, 1, 'and the history shows it');
 
-    // A finished match is immutable, and the local copy may have something the
-    // remote one does not if an upload failed halfway. When in doubt, what is
-    // already here wins.
-    const forged = { ...m, seats: [] };
-    eq(store.mergeMatches([forged]), 0, 'does not bring what already exists');
-    eq(store.getDB().history[0].seats.length, 4, 'and does not overwrite what was here');
+    // The server confirmed: it leaves the device and joins the cloud history
+    // in memory, so the statistics do not lose it until the next download.
+    store.moveToCloud(m);
+    eq(store.getDB().history.length, 0, 'nothing of it is left on the device');
+    eq(store.pendingMatches().length, 0, 'nothing waiting');
+    eq(store.matches().map((x) => x.id), [m.id], 'the statistics still see it');
+    ok(JSON.parse(store.exportJSON()).history.some((x) => x.id === m.id),
+      'the backup carries the cloud part too');
 
+    // Signing out forgets the cloud history: the next person on this device
+    // finds nothing of the previous account.
+    store.forgetCloudMatches();
+    eq(store.matches().length, 0, 'signed out, the account history is gone from the device');
+    eq(store.cloudStatus(), 'idle', 'and the next sign-in asks again');
+
+    // Merging into the queue does not overwrite: a finished match is
+    // immutable, and when in doubt what is already here wins.
     const other = makeMatch(3);
-    eq(store.mergeMatches([other]), 1, 'brings what is new');
-    eq(store.getDB().history.length, 2);
+    store.archive(other);
+    const forged = { ...other, seats: [] };
+    eq(store.mergeMatches([forged]), 0, 'does not bring what already exists');
+    eq(store.getDB().history[0].seats.length, 3, 'and does not overwrite what was here');
+    store.wipe();
+  }],
 
-    // Deleting takes the mark along, otherwise the match could never go up
-    // again.
-    store.deleteMatch(m.id);
-    store.forgetUploaded(m.id);
-    eq(store.uploadedIds().includes(m.id), false, 'the mark goes with the match');
+  ['what an older version uploaded and kept leaves the device', () => {
+    if (!simulated) return 'skip';
+    store.wipe();
+    const sent = makeMatch(4);
+    const notYet = makeMatch(3);
+    store.archive(sent);
+    store.archive(notYet);
+    // Older versions noted the upload and kept the match.
+    store.markUploaded(sent.id);
+
+    eq(store.pendingMatches().map((x) => x.id), [notYet.id],
+      'only what never went up counts as waiting');
+    eq(store.dropUploaded(), 1, 'the uploaded one leaves');
+    eq(store.getDB().history.map((x) => x.id), [notYet.id], 'the one that never went up stays');
+    eq(store.uploadedIds(), [], 'the old marks go with it');
+    eq(store.dropUploaded(), 0, 'running again changes nothing');
+    store.wipe();
   }],
 
   ['without a subscription, the history stays closed', () => {

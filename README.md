@@ -563,7 +563,7 @@ learned.
 
 ## Decks follow the account
 
-Someone's deck list is **derived** from the local history — nothing is stored
+Someone's deck list is **derived** from the match history — nothing is stored
 separately, and that is what avoids a second truth about what the person plays.
 But on a new device that history is empty: whoever had just signed in did not
 find their own deck and had to search Scryfall for the commander the app already
@@ -1402,7 +1402,29 @@ there is no build: the app is still static files served directly.
 
 ## Data
 
-Everything stays in `localStorage`, on this device. There is no server and
-nothing is sent anywhere — the only external call is the card search on
-Scryfall. Clearing the site data erases the history, so use **Export JSON** in
-Statistics → menu to keep a backup.
+**The device keeps only what has not reached the cloud yet.** A finished match
+is saved in `localStorage` and waits there until there is an account to send it
+to — signed out, that can be weeks, and nothing is lost meanwhile. Once the
+server confirms the upload, the match leaves the device. The statistics of
+whoever is signed in read the account's history from the cloud, kept in memory
+only while the app is open; signing out forgets it.
+
+The reason is the borrowed phone: Commander is played on whatever device is at
+hand, and a history left behind after signing out is someone else's data on
+that phone. Signed out, the statistics screen only says how many matches are
+waiting to go up.
+
+- **Signing in sends what was waiting**, without anyone looking for a button.
+- **Older versions kept the uploaded matches** and noted them in `enviadas`.
+  The app clears those at startup, with or without an account: being in that
+  list means the server already has them.
+- **Offline, the statistics show only what is still on the device**, and say
+  so. They ask the cloud again on the next sync.
+- **Deleting on another device needs no reconciling.** Each download replaces
+  the in-memory history whole, so a deleted match simply stops coming.
+- **Export JSON** in Statistics → menu carries the whole history, the cloud
+  part included.
+
+With no cloud configured (`cloudEnabled()` false) nothing is ever uploaded, so
+everything stays on the device as it always did — the only external call is
+the card search on Scryfall.

@@ -15,10 +15,11 @@ import { t } from '../../i18n.js';
 /**
  * The screen of someone who has no access yet.
  *
- * It counts how many matches are already stored, on purpose. It is not
- * decoration: it is the difference between "pay to use" and "what is yours is
- * here, waiting". Playing on and saving on were never blocked - only reading
- * the history is.
+ * It counts the matches still waiting on this device to go up, on purpose.
+ * Only those: what already reached the cloud left the device, and counting it
+ * here would show the previous account's history to whoever borrowed the
+ * phone. The number is the difference between "pay to use" and "what you
+ * played is safe, waiting for an account".
  *
  * The check-again button exists because unlocking happens OUTSIDE the app, by
  * hand. Without it, the unlocked person would have to close and open the app
@@ -27,7 +28,7 @@ import { t } from '../../i18n.js';
  */
 export function renderPaywall(root, { onBack, onUnlock, checking = false }) {
   clear(root);
-  const count = (store.getDB().history || []).length;
+  const count = store.pendingMatches().length;
   const repaint = () => (onUnlock ? onUnlock() : null);
   const state = cloud.state();
 
@@ -56,7 +57,7 @@ export function renderPaywall(root, { onBack, onUnlock, checking = false }) {
           class: 'icon-btn',
           'aria-label': t('common.back'),
           onClick: () => onBack && onBack(),
-        }, [icon('arrow')]),
+        }, [icon('back')]),
         el('h1', { class: 'stats-title', text: t('stats.title') }),
       ]),
       el('div', { class: 'paywall' }, [
@@ -90,7 +91,7 @@ export function renderPaywall(root, { onBack, onUnlock, checking = false }) {
         class: 'icon-btn',
         'aria-label': t('common.back'),
         onClick: () => onBack && onBack(),
-      }, [icon('arrow')]),
+      }, [icon('back')]),
       el('h1', { class: 'stats-title', text: t('stats.title') }),
     ]),
     body,

@@ -52,7 +52,7 @@ export function deckCard(row, reload) {
 
 /** Readable name of a hidden deck, looked up in the history by its key. */
 export function deckNameByKey(key) {
-  for (const match of store.getDB().history || []) {
+  for (const match of store.matches()) {
     for (const seat of match.seats || []) {
       const k = (seat.commanders || []).map((c) => c.oracleId).sort().join('+');
       if (k === key) return deckNameOf(seat.commanders);

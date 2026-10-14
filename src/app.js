@@ -197,6 +197,12 @@ function draw() {
     // hands over no match from the cloud.
     const back = leaveStats;
     if (canSeeStats(cloudEnabled(), cloud.state())) {
+      // The history lives in the cloud and only in memory: the first visit
+      // of the session asks for it. The screen draws what it has now and
+      // redraws when the answer comes.
+      if (cloudEnabled() && store.cloudStatus() === 'idle') {
+        sync.sync().finally(() => { if (route === 'stats') render(); });
+      }
       renderStats(root, { onBack: back });
     } else {
       renderPaywall(root, {
@@ -498,6 +504,10 @@ export function announceVersion(now = APP_VERSION) {
   return releaseNotesSince(seen);
 }
 
+// What an older version uploaded and kept goes before anything is drawn - with
+// or without an account, the server already has it.
+store.dropUploaded();
+
 const newInThisStartup = announceVersion();
 if (newInThisStartup.length) {
   setTimeout(() => openReleaseNotes(newInThisStartup), 700);
@@ -511,15 +521,27 @@ cloud.boot().then((state) => {
   // Syncs after knowing who the person is. Failing here gets in the way of
   // nothing: what did not go up stays unmarked and goes up on the next open.
   sync.sync().then((r) => {
-    if (r && (r.downloaded || r.uploaded || r.people)) render();
+    if (r && (r.downloaded || r.uploaded || r.people || route === 'stats')) render();
   }).catch(() => {});
 });
+
+let accountBefore = cloud.state();
 
 // The account may change after the first screen - the subscription arrives
 // from the network, and signing in happens inside the settings. Whoever is
 // looking at the statistics needs to see the change without leaving and
 // coming back.
-cloud.onAccountChange(() => {
+cloud.onAccountChange((now) => {
+  // Signing out takes the account's history out of memory: the next person
+  // on this device sees what is waiting here and nothing else. Signing in
+  // sends what was waiting, without making anyone look for a button.
+  const before = accountBefore;
+  accountBefore = now;
+  if (now === 'signed-out' && before !== 'signed-out') store.forgetCloudMatches();
+  if (before === 'signed-out' && now !== 'signed-out') {
+    sync.sync().then(() => render()).catch(() => {});
+  }
+
   // My own chosen name, as soon as the profile says it: the open table, the
   // statistics and the next seats use it without waiting for a sync.
   const profile = cloud.myProfile();
