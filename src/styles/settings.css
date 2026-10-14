@@ -286,3 +286,8 @@
 .set-row.is-form .name-row .btn { height: 44px; }
 
 .settings-note { margin: 14px 4px 0; text-align: center; }
+
+/* The copyright line under the version. It reuses the version's look, but as
+   a paragraph it would bring the browser's default margins and float away
+   from the line it belongs to. */
+p.settings-version { margin: 0; padding-top: 0; }

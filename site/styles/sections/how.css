@@ -1,0 +1,25 @@
+/* Numbered steps. */
+
+.how { background: linear-gradient(180deg, transparent, var(--surface) 30%, var(--surface) 70%, transparent); }
+
+.how-steps { display: grid; gap: 28px; }
+@media (min-width: 820px) {
+  .how-steps { grid-template-columns: repeat(3, 1fr); }
+}
+
+.how-step { position: relative; padding: 4px; }
+
+.how-number {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 18px;
+  border-radius: 50%;
+  background: var(--brand-gradient);
+  color: #0a0a0c;
+  font-weight: 800;
+  font-size: 1.15rem;
+}
+.how-title { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.015em; }
+.how-text { margin-top: 8px; color: var(--text-mid); }

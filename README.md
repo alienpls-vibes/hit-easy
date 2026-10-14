@@ -6,6 +6,10 @@ Life counter for Commander tables, with statistics tied to the deck.
 Installable PWA, works offline, no build and no dependencies — only native ES
 modules.
 
+> **Not open source.** © 2026 Alexandre Parma, all rights reserved. The code is
+> public to read, not to reuse: copying, modifying, hosting or redistributing
+> it needs written permission. See [LICENSE](LICENSE).
+
 ## Running
 
 ```bash
@@ -1428,3 +1432,17 @@ waiting to go up.
 With no cloud configured (`cloudEnabled()` false) nothing is ever uploaded, so
 everything stays on the device as it always did — the only external call is
 the card search on Scryfall.
+
+## License
+
+Proprietary — © 2026 Alexandre Parma, all rights reserved. The repository is
+public so the code can be read, which does **not** make it reusable: without a
+license, copyright law already reserves every right to the author, and
+[LICENSE](LICENSE) says so explicitly, so nobody mistakes "public on GitHub"
+for "free to copy". Using the published app is free; copying, modifying,
+hosting or redistributing the code needs written permission.
+
+Magic: The Gathering belongs to Wizards of the Coast, and card data and images
+come from Scryfall; Hit Easy is not affiliated with either.
+
+The settings screen ends with the same copyright line, under the version.

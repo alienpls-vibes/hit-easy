@@ -254,6 +254,12 @@ self.addEventListener('fetch', (event) => {
 
   if (url.origin !== self.location.origin) return;
 
+  // The promotional site (site/) lives inside this worker's scope but is not
+  // part of the app. Serving it from the shell cache would show visitors the
+  // previous version of every page edit, and its offline fallback would answer
+  // a site page with the app's index.html.
+  if (/\/site\//.test(url.pathname)) return;
+
   // The build stamp: always network, never cache.
   //
   // It exists precisely to say WHICH code is on the device, and serving it

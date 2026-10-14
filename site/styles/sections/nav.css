@@ -1,0 +1,82 @@
+/* Top bar. Sticky, translucent; on phones the links fold into a menu. */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  padding-top: env(safe-area-inset-top);
+  background: var(--glass);
+  -webkit-backdrop-filter: saturate(160%) blur(16px);
+  backdrop-filter: saturate(160%) blur(16px);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--fast);
+}
+.nav.is-scrolled, .nav.is-open { border-bottom-color: var(--line); }
+
+.nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: var(--nav-h);
+}
+
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 750; letter-spacing: -0.01em; }
+.brand-logo { width: 32px; height: 32px; border-radius: 9px; }
+.brand-name { font-size: 1.08rem; }
+
+.nav-links { display: flex; align-items: center; gap: 4px; }
+
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  color: var(--text-mid);
+  font-size: 0.95rem;
+  font-weight: 550;
+  transition: color var(--fast), background var(--fast);
+}
+.nav-link:hover, .nav-link[aria-current="page"] { color: var(--text); background: var(--surface); }
+.nav-link .icon { width: 18px; height: 18px; }
+.nav-cta { margin-left: 8px; }
+
+.nav-toggle {
+  display: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-right: -8px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+}
+.nav-toggle-close { display: none; }
+
+@media (max-width: 899px) {
+  .nav-toggle { display: grid; }
+  .nav.is-open .nav-toggle-open { display: none; }
+  .nav.is-open .nav-toggle-close { display: block; }
+
+  .nav-links {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    padding: 10px max(var(--gutter), env(safe-area-inset-left)) 20px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    max-height: calc(100vh - var(--nav-h));
+    overflow-y: auto;
+  }
+  .nav.is-open .nav-links { display: flex; }
+  .nav-link { min-height: 50px; padding: 12px 14px; font-size: 1.05rem; border-radius: var(--r-sm); }
+  .nav-cta { margin: 10px 0 0; min-height: 50px; }
+}

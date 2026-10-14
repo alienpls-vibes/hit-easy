@@ -121,6 +121,13 @@ export function openSettings(onRefresh) {
       });
       pane.append(versionLine);
 
+      // The copyright notice, the same one as in LICENSE. Only the phrase is
+      // translated: the name and the year are not language.
+      pane.append(el('p', {
+        class: 'settings-version',
+        text: '© 2026 Alexandre Parma. ' + t('settings.rights'),
+      }));
+
       // In beta, which commit is live. The version alone does not tell two
       // beta pushes apart, because it only moves with a production release.
       if (channel() === 'beta') {

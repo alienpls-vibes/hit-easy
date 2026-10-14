@@ -561,6 +561,7 @@ export const ES = {
   'settings.showHint': 'Ver de nuevo el consejo de daño',
   'settings.hintBack': 'El aviso vuelve en la próxima partida',
   'settings.dataNote': 'La copia de seguridad y el borrado de datos están en Estadísticas.',
+  'settings.rights': 'Todos los derechos reservados.',
   'settings.installNow': 'Instalar Hit Easy',
   'settings.installNowSub': 'Pantalla completa y funciona sin internet',
   'settings.installDone': 'Hit Easy instalado',

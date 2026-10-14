@@ -561,6 +561,7 @@ export const EN = {
   'settings.showHint': 'Show the damage tip again',
   'settings.hintBack': 'The hint returns next match',
   'settings.dataNote': 'Backup and data deletion are in Stats.',
+  'settings.rights': 'All rights reserved.',
   'settings.installNow': 'Install Hit Easy',
   'settings.installNowSub': 'Full screen, and works offline',
   'settings.installDone': 'Hit Easy installed',

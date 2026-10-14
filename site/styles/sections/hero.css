@@ -1,0 +1,177 @@
+/* Opening block, with the table drawn on a phone lying flat. */
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(40px, 8vw, 96px) 0 clamp(56px, 9vw, 112px);
+}
+
+.hero-glow {
+  position: absolute;
+  top: -20%;
+  left: -10%;
+  right: -10%;
+  height: 120%;
+  background:
+    radial-gradient(40% 50% at 75% 35%, var(--glow-a), transparent 70%),
+    radial-gradient(35% 45% at 55% 60%, var(--glow-b), transparent 70%),
+    radial-gradient(30% 40% at 20% 20%, var(--glow-c), transparent 70%);
+  pointer-events: none;
+}
+
+.hero-grid {
+  position: relative;
+  display: grid;
+  gap: clamp(40px, 6vw, 64px);
+  align-items: center;
+}
+@media (min-width: 960px) {
+  .hero-grid { grid-template-columns: 1fr 1.05fr; }
+}
+
+.hero-title {
+  font-size: var(--fs-hero);
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+.hero-text {
+  max-width: 560px;
+  margin-top: 22px;
+  font-size: var(--fs-lead);
+  color: var(--text-mid);
+}
+.hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+@media (max-width: 420px) { .hero-actions .btn { flex: 1 1 100%; } }
+
+.hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin-top: 28px;
+  color: var(--text-mid);
+  font-size: var(--fs-small);
+}
+.hero-badges li { display: inline-flex; align-items: center; gap: 7px; }
+.hero-badges .icon { width: 16px; height: 16px; color: var(--ok); }
+
+/* ---------- The phone ---------- */
+
+.hero-art { display: flex; justify-content: center; }
+
+.mock-phone {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  border-radius: 34px;
+  background: linear-gradient(145deg, #2a2a30, #121215);
+  box-shadow: var(--shadow), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transform: perspective(1400px) rotateX(10deg) rotateZ(-2deg);
+}
+.mock-phone::before {
+  /* Height from width (a 19.5:9 phone), without relying on aspect-ratio. */
+  content: "";
+  display: block;
+  padding-top: 48%;
+}
+
+.mock-screen {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  bottom: 10px;
+  left: 10px;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 26px;
+  background: #050506;
+  overflow: hidden;
+}
+
+.mock-row { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; }
+
+.mock-panel {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #111114;
+}
+.mock-panel::before {
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: var(--panel-bg);
+  opacity: 0.3;
+}
+.mock-panel.is-active { box-shadow: inset 0 0 0 2px var(--panel-accent); }
+
+.mock-panel-inner {
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: #fff;
+}
+.mock-panel.is-flipped .mock-panel-inner { transform: rotate(180deg); }
+
+.mock-name {
+  font-size: clamp(9px, 2.4vw, 13px);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  opacity: 0.8;
+}
+.mock-life {
+  /* Sized by screen width: each panel is about a quarter of the phone's
+     height, and the number has to fit under the name. */
+  font-size: clamp(20px, 7vw, 46px);
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-feature-settings: "tnum" 1;
+}
+.mock-minus, .mock-plus {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: clamp(14px, 3vw, 22px);
+  font-weight: 300;
+  opacity: 0.32;
+}
+.mock-minus { left: 8%; }
+.mock-plus { right: 8%; }
+
+.mock-hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 19%;
+  border-radius: 50%;
+  background: #0b0b0d;
+  box-shadow: 0 0 0 3px #050506, 0 0 0 4px rgba(255, 255, 255, 0.12);
+  transform: translate(-50%, -50%);
+}
+.mock-hub::before { content: ""; display: block; padding-top: 100%; }
+.mock-hub span {
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: clamp(8px, 2vw, 12px);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+/* Side by side with the text, the phone is about half the screen. */
+@media (min-width: 960px) {
+  .mock-life { font-size: clamp(28px, 3.3vw, 46px); }
+  .mock-name { font-size: clamp(10px, 0.95vw, 13px); }
+  .mock-hub span { font-size: clamp(9px, 0.9vw, 12px); }
+}

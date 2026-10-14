@@ -561,6 +561,7 @@ export const DE = {
   'settings.showHint': 'Schaden-Tipp erneut zeigen',
   'settings.hintBack': 'Der Hinweis kommt in der nächsten Partie',
   'settings.dataNote': 'Sicherung und Löschen der Daten findest du unter Statistiken.',
+  'settings.rights': 'Alle Rechte vorbehalten.',
   'settings.installNow': 'Hit Easy installieren',
   'settings.installNowSub': 'Vollbild, und funktioniert offline',
   'settings.installDone': 'Hit Easy installiert',

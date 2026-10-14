@@ -565,6 +565,7 @@ export const PT = {
   'settings.showHint': 'Rever a dica de dano',
   'settings.hintBack': 'A dica aparece na próxima partida',
   'settings.dataNote': 'Backup e exclusão de dados ficam em Estatísticas.',
+  'settings.rights': 'Todos os direitos reservados.',
   'settings.installNow': 'Instalar Hit Easy',
   'settings.installNowSub': 'Tela cheia e funciona sem internet',
   'settings.installDone': 'Hit Easy instalado',
