@@ -23,6 +23,36 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '1.10.1',
+    date: '2026-10-15',
+    title: 'Decks do histórico e instalar sempre à mão',
+    items: [
+      {
+        type: 'changed',
+        text: 'Ao escolher o comandante, aparecem só os decks que aquele jogador '
+          + 'já usou no histórico. Saiu a lista de decks salvos no aparelho, que '
+          + 'misturava os comandantes de todo mundo que já jogou ali.',
+      },
+      {
+        type: 'new',
+        text: 'Jogador sem conta também encontra os próprios decks: basta o nome '
+          + 'bater com alguém com quem você já jogou.',
+      },
+      {
+        type: 'fixed',
+        text: 'Decks trazidos da sua conta apareciam sem a imagem do comandante, '
+          + 'e as imagens agora ficam guardadas no aparelho para aparecer mesmo '
+          + 'sem internet.',
+      },
+      {
+        type: 'fixed',
+        text: 'O botão de instalar da tela inicial aparecia e sumia. Agora fica '
+          + 'sempre lá no navegador, e quando o navegador não abre a instalação '
+          + 'sozinho, mostra o passo a passo pelo menu dele.',
+      },
+    ],
+  },
+  {
     version: '1.10.0',
     date: '2026-10-14',
     title: 'Seu histórico mora na nuvem',

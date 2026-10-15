@@ -9,7 +9,7 @@
 import { el } from '../../ui.js';
 import { accentOf, identityGradient, pips } from '../../colors.js';
 import { pct } from '../../stats.js';
-import { deckNameOf } from '../../engine.js';
+import { deckNameOf, thumbOf } from '../../engine.js';
 import * as store from '../../store.js';
 import { t } from '../../i18n.js';
 import { hideButton, statGrid, winBar } from './widgets.js';
@@ -20,6 +20,7 @@ export function deckCard(row, reload) {
   const commander = row.commanders && row.commanders[0];
   const colors = commander ? commander.colors : [];
   const accent = accentOf(colors);
+  const thumb = thumbOf(commander);
 
   return el('article', {
     class: 'card',
@@ -27,8 +28,8 @@ export function deckCard(row, reload) {
   }, [
     el('div', { class: 'card-tint' }),
     el('header', { class: 'card-head' }, [
-      commander && commander.thumb
-        ? el('div', { class: 'card-art', style: { backgroundImage: 'url(' + commander.thumb + ')' } })
+      thumb
+        ? el('div', { class: 'card-art', style: { backgroundImage: 'url(' + thumb + ')' } })
         : null,
       el('div', { class: 'card-titles' }, [
         el('h3', { class: 'card-name', text: row.label }),

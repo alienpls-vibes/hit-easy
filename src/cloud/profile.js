@@ -106,7 +106,10 @@ export async function saveMyDecks(decks) {
 
   const slim = decks.slice(0, 200).map((d) => ({
     commanders: (d.commanders || []).map((c) => ({
-      oracleId: c.oracleId, name: c.name, colors: c.colors, art: c.art || '',
+      // `thumb` and `typeLine` too: the deck picker draws its rows from
+      // them, and a deck that came only from here had no picture.
+      oracleId: c.oracleId, name: c.name, colors: c.colors, typeLine: c.typeLine || '',
+      art: c.art || '', thumb: c.thumb || c.art || '',
     })),
     lastUsed: d.lastUsed || 0,
   }));

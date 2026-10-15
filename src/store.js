@@ -37,7 +37,11 @@ const EMPTY = {
   // here. dropUploaded() reads it to clear those leftovers, and it stays as
   // the guard against sending the same match twice.
   enviadas: [],
-  commanders: {}, // oracleId -> commander (offline reuse)
+  // oracleId -> commander. No longer written nor read: it was the deck
+  // picker's "saved on this device" list, every commander anyone ever picked
+  // here. The picker now reads each player's decks from the history (see
+  // decksOfPlayer). Kept so older versions and backups still find the field.
+  commanders: {},
   playerNames: [],
   // Player name -> their account's @. A Commander group plays every week with
   // the same people: typing the @ again at every table would be the kind of
@@ -359,19 +363,6 @@ export function deleteMatch(matchId) {
   db.history = db.history.filter((m) => m.id !== matchId);
   cloudHistory = { ...cloudHistory, list: cloudHistory.list.filter((m) => m.id !== matchId) };
   save();
-}
-
-export function rememberCommander(commander) {
-  if (!commander || !commander.oracleId) return;
-  db.commanders[commander.oracleId] = { ...commander, lastUsed: Date.now() };
-  save();
-}
-
-/** Commanders already used, from most recent to oldest. */
-export function recentCommanders(limit = 24) {
-  return Object.values(db.commanders)
-    .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))
-    .slice(0, limit);
 }
 
 export function rememberPlayer(name) {
@@ -703,16 +694,24 @@ export function forgetPerson(key) {
  * With a linked account, the commanders follow the account: whoever was added
  * as "Alex" one Thursday and "Alexandre" the next keeps seeing their own
  * decks, because the lookup is by identity and not by the text someone typed.
+ *
+ * Without an account, the name is all there is: any seat in the history with
+ * that name counts, even one that was tagged with an @ back then. Whoever
+ * types "Bruno" today is most likely the Bruno this account already played
+ * with, and finding his commanders beats an empty list.
  */
 export function decksOfPlayer(name, handle) {
   const aliases = knownHandles(); // with the map of changed @s, like the statistics
   const key = identityOf({ name, handle }, aliases);
   if (!key || key === '?') return [];
+  const byName = !key.startsWith('@');
 
   const local = [];
   for (const match of matches()) { // already comes most recent first
     for (const seat of match.seats || []) {
-      if (identityOf(seat, aliases) !== key) continue;
+      const same = identityOf(seat, aliases) === key
+        || (byName && String(seat.name || '').trim().toLowerCase() === key);
+      if (!same) continue;
       if (!(seat.commanders || []).length) continue;
       local.push({ commanders: seat.commanders, lastUsed: match.startedAt });
     }

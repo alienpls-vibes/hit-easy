@@ -13,7 +13,7 @@ import {
 } from './dom-stub.js';
 import {
   createMatch, replay, push, undo, standings, elapsedOf, duplicatePerson, isValidMatch,
-  leaveTable, returnToTable, awayBetween, mergeDecks, deckKeyOf,
+  leaveTable, returnToTable, awayBetween, mergeDecks, deckKeyOf, thumbOf,
   handOffTable, reclaimTable, isHandedOff, receiveTable, tableNow,
   cmdKeyOf, CMD_LETHAL, POISON_LETHAL,
 } from '../src/engine.js';
@@ -64,7 +64,7 @@ import { openReleaseNotes } from '../src/views/setup.js';
 // Straight from the piece: the install block is a detail of the settings, and
 // exporting it through the door would announce it as public API of the screen.
 import { installBlock } from '../src/views/setup/install.js';
-import { iosBrowser } from '../src/install.js';
+import { iosBrowser, installGuide } from '../src/install.js';
 import { APP_VERSION } from '../src/version.js';
 import {
   toUpload, toDownload, canSync,
@@ -1830,6 +1830,50 @@ export const cases = [
       // Another account on the same device does not see the first one's decks.
       eq(store.decksOfPlayer(null, 'outra').length, 0,
         'one account\'s decks leaked to another');
+    } finally {
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['a deck kept in the profile still shows its picture', () => {
+    // The profile used to keep `art` only. A list that read `thumb` alone
+    // drew those decks - and every match played with them - with no picture.
+    eq(thumbOf({ oracleId: 'x', art: 'big.jpg' }), 'big.jpg', 'no fallback to the big picture');
+    eq(thumbOf({ oracleId: 'x', art: 'big.jpg', thumb: 'small.jpg' }), 'small.jpg',
+      'the small picture lost to the big one');
+    eq(thumbOf({ oracleId: 'x', art: null, thumb: null }), '', 'a missing picture is not empty');
+    eq(thumbOf(undefined), '', 'no commander broke it');
+  }],
+
+  ['a player without an account finds their decks by name in the history', () => {
+    // The seat only has a name. The signed-in account already played with
+    // someone called Bruno - once without an @, once tagged - and both decks
+    // are his. Nobody else's deck comes along.
+    store.wipe();
+    try {
+      const older = createMatch([
+        { id: 's0', name: 'Alex', handle: 'alienpls', commanders: [commander(1)] },
+        { id: 's1', name: 'Bruno', commanders: [commander(2)] },
+      ], 40);
+      older.startedAt = 100;
+      const newer = createMatch([
+        { id: 's0', name: 'Alex', handle: 'alienpls', commanders: [commander(1)] },
+        { id: 's1', name: 'bruno ', handle: 'brunao', commanders: [commander(3)] },
+        { id: 's2', name: 'Carla', commanders: [commander(4)] },
+      ], 40);
+      newer.startedAt = 900;
+      // One from the cloud, one still waiting on the device: both are history.
+      store.setCloudMatches([newer]);
+      store.mergeMatches([older]);
+
+      const decks = store.decksOfPlayer('Bruno', '');
+      eq(decks.map((d) => deckKeyOf(d.commanders)).join(','),
+        [deckKeyOf([commander(3)]), deckKeyOf([commander(2)])].join(','),
+        'the name did not find both of Bruno\'s decks, newest first');
+
+      eq(store.decksOfPlayer('Daniel', '').length, 0,
+        'a name nobody played with found decks');
     } finally {
       store.wipe();
     }
@@ -4980,6 +5024,48 @@ export const cases = [
     eq(iosBrowser(ios + 'CriOS/129.0 Mobile/15E148 Safari/604.1'), 'other');
     eq(iosBrowser(ios + 'Mobile/15E148 Instagram 350.0'), 'in-app');
     eq(iosBrowser(ios + 'Mobile/15E148 [FBAN/FBIOS;FBAV/480.0]'), 'in-app');
+  }],
+
+  ['without a prompt, installing knows which browser menu to explain', () => {
+    const android = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) ';
+    const win = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ';
+    const mac = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ';
+    eq(installGuide(android + 'Chrome/130.0 Mobile Safari/537.36', true), 'android-chrome');
+    eq(installGuide(android + 'SamsungBrowser/26.0 Chrome/122.0 Mobile Safari/537.36', true), 'android-samsung');
+    eq(installGuide('Mozilla/5.0 (Android 14; Mobile; rv:131.0) Gecko/131.0 Firefox/131.0', true), 'android-firefox');
+    eq(installGuide('Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 Version/4.0 Chrome/130.0 Mobile Safari/537.36', true),
+      'in-app', 'an Android WebView offered the browser menu');
+    eq(installGuide(android + 'Chrome/130.0 Mobile Safari/537.36 Instagram 350.0', true), 'in-app');
+    eq(installGuide(win + 'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36', true), 'desktop-chromium');
+    eq(installGuide(win + 'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 Edg/130.0', true), 'desktop-chromium');
+    eq(installGuide(mac + 'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15', true), 'desktop-safari');
+    eq(installGuide(win + 'rv:131.0 Gecko/20100101 Firefox/131.0', true), 'desktop-firefox');
+    eq(installGuide('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Safari/604.1', true), 'ios');
+    eq(installGuide(win + 'Chrome/130.0 Safari/537.36', false), 'insecure');
+  }],
+
+  ['the install button is on the home screen even without the browser prompt', () => {
+    if (!simulated) return 'skip';
+    // It used to exist only while Chrome held a prompt: it came and went, and
+    // vanished for good after one tap. In the browser it is always there.
+    const root = document.createElement('div');
+    renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+    eq(findAll(root, 'is-install').length, 1, 'no install button without a prompt');
+
+    // Installed, it goes away.
+    const had = Object.prototype.hasOwnProperty.call(navigator, 'standalone');
+    Object.defineProperty(navigator, 'standalone', {
+      value: true, configurable: true, writable: true,
+    });
+    try {
+      const again = document.createElement('div');
+      renderSetup(again, { onStart() {}, onStats() {}, onRefresh() {} });
+      eq(findAll(again, 'is-install').length, 0, 'the installed app offered to install itself');
+    } finally {
+      if (!had) delete navigator.standalone;
+      else navigator.standalone = false;
+    }
+    return undefined;
   }],
   ['keeping the screen on comes back on the first tap, as Safari requires', async () => {
     if (!simulated) return 'skip';

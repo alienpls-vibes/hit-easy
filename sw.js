@@ -13,7 +13,7 @@
 
 // The same string as APP_VERSION in src/version.js - a worker does not import
 // modules. If it changes there, change it here; check-syntax.js compares both.
-const VERSION = '1.10.0';
+const VERSION = '1.10.1';
 
 /**
  * Production and beta share the same origin, and Cache Storage is per origin.
@@ -239,13 +239,25 @@ self.addEventListener('fetch', (event) => {
   if (url.hostname === 'api.scryfall.com') return;
 
   // Card art: cache-first, it is immutable.
+  //
+  // Fetched in CORS mode on purpose. The art is a CSS background, so the page
+  // asks for it in no-cors mode, and a no-cors answer is opaque: status 0,
+  // `ok` false - nothing was ever stored, and without internet no commander
+  // had a picture. Scryfall's image server sends Access-Control-Allow-Origin,
+  // so a CORS fetch gives a readable answer that can be cached. If that ever
+  // stops being true, the page's own request still goes through.
   if (url.hostname.endsWith('scryfall.io')) {
     event.respondWith(
       caches.open(ART).then(async (cache) => {
-        const hit = await cache.match(request);
+        const hit = await cache.match(request.url);
         if (hit) return hit;
-        const res = await fetch(request);
-        if (res.ok) cache.put(request, res.clone());
+        let res;
+        try {
+          res = await fetch(request.url, { mode: 'cors', credentials: 'omit' });
+        } catch {
+          return fetch(request);
+        }
+        if (res.ok) cache.put(request.url, res.clone());
         return res;
       }).catch(() => Response.error()),
     );
