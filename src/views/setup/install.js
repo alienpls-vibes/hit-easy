@@ -11,7 +11,7 @@ import { el, clear, toast, openSheet } from '../../ui.js';
 import { t } from '../../i18n.js';
 import {
   state as installState, promptInstall, onInstallChange, updateApp,
-  iosBrowser,
+  iosBrowser, installGuide,
 } from '../../install.js';
 import { row } from './rows.js';
 
@@ -26,36 +26,89 @@ import { row } from './rows.js';
  */
 export function openIOSInstall() {
   const where = iosBrowser();
-  const steps = [
-    where === 'in-app' ? t('install.iosStep1Embedded')
-      : where === 'other' ? t('install.iosStep1Other')
-        : t('install.iosStep1'),
-    t('install.iosStep2'),
-    t('install.iosStep3'),
-    t('install.iosStep4'),
-  ];
-
-  openSheet({
+  guideSheet({
     title: t('install.iosTitle'),
     subtitle: t('install.iosSub'),
+    steps: [
+      where === 'in-app' ? t('install.iosStep1Embedded')
+        : where === 'other' ? t('install.iosStep1Other')
+          : t('install.iosStep1'),
+      t('install.iosStep2'),
+      t('install.iosStep3'),
+      t('install.iosStep4'),
+    ],
+    // Outside Safari step 1 is taking the address there.
+    alert: where !== 'safari',
+    copied: t('install.copied'),
+  });
+}
+
+/**
+ * The steps for each browser, when there is no prompt to fire. `alert` marks
+ * the first step as the obstacle (this browser cannot install from here), and
+ * those cases get the copy-the-address button.
+ */
+const GUIDES = {
+  'android-chrome': { steps: ['install.androidChrome1', 'install.androidChrome2', 'install.confirm'] },
+  'android-samsung': { steps: ['install.androidSamsung1', 'install.androidSamsung2', 'install.confirm'] },
+  'android-firefox': { steps: ['install.androidFirefox1', 'install.androidFirefox2', 'install.confirm'] },
+  'desktop-chromium': { steps: ['install.desktopChromium1', 'install.desktopChromium2', 'install.confirm'] },
+  'desktop-safari': { steps: ['install.desktopSafari1', 'install.confirm'] },
+  'desktop-firefox': { steps: ['install.desktopFirefox1', 'install.desktopFirefox2'], alert: true },
+  'in-app': { steps: ['install.inApp1', 'install.inApp2', 'install.confirm'], alert: true },
+  insecure: { steps: ['install.insecure1'], alert: true },
+};
+
+/** The step by step through the browser's own menu. */
+export function openInstallGuide() {
+  const where = installGuide();
+  if (where === 'ios') { openIOSInstall(); return; }
+  const guide = GUIDES[where] || GUIDES['desktop-chromium'];
+  guideSheet({
+    title: t('install.guideTitle'),
+    subtitle: t('install.guideSub'),
+    steps: guide.steps.map((key) => t(key)),
+    alert: Boolean(guide.alert),
+    copied: t('install.copiedBrowser'),
+  });
+}
+
+/**
+ * The install button's tap, wherever it is: the browser's prompt when there
+ * is one, the step by step when there is not. The button never disappears
+ * for lack of a prompt - see canOfferInstall.
+ */
+export async function startInstall(onRefresh) {
+  const { mode } = installState();
+  if (mode === 'ios') { openIOSInstall(); return; }
+  if (mode !== 'ready') { openInstallGuide(); return; }
+  const r = await promptInstall();
+  if (r === 'accepted') toast(t('settings.installDone'));
+  if (onRefresh) onRefresh();
+}
+
+function guideSheet({ title, subtitle, steps, alert, copied }) {
+  openSheet({
+    title,
+    subtitle,
     build: (pane, close) => {
       pane.append(el('ol', { class: 'install-steps' }, steps.map((text, i) => el('li', {
-        class: 'install-step' + (i === 0 && where !== 'safari' ? ' is-alert' : ''),
+        class: 'install-step' + (i === 0 && alert ? ' is-alert' : ''),
       }, [
         el('span', { class: 'install-step-n', text: String(i + 1) }),
         el('span', { class: 'install-step-text', text }),
       ]))));
 
       const actions = [el('button', { class: 'btn primary', onClick: close }, [t('common.done')])];
-      // Outside Safari step 1 is taking the address there. Copying saves the
-      // person from typing a long URL on the phone keyboard.
-      if (where !== 'safari') {
+      // Where this browser cannot install, the way out is another browser.
+      // Copying saves the person from typing a long URL on the phone keyboard.
+      if (alert) {
         actions.unshift(el('button', {
           class: 'btn ghost',
           onClick: async () => {
             try {
               await navigator.clipboard.writeText(location.href.split('#')[0]);
-              toast(t('install.copied'));
+              toast(copied);
             } catch {
               toast(location.href.split('#')[0]);
             }
@@ -178,10 +231,13 @@ export function installBlock(onRefresh) {
       return;
     }
 
+    // No prompt right now: the browser's own menu still installs, and the
+    // row says how instead of being a dead end.
     box.append(row({
       label: t('settings.installNo'),
       sub: mode === 'insecure' ? t('settings.installInsecure') : t('settings.installUnsupported'),
-      className: 'is-muted',
+      arrow: true,
+      onTap: openInstallGuide,
     }));
   };
 

@@ -9,13 +9,13 @@
  * what ties the statistics to the deck.
  */
 
-import { el, clear, icon, brandMark, buzz, toast } from '../../ui.js';
+import { el, clear, icon, brandMark, buzz } from '../../ui.js';
 import { t } from '../../i18n.js';
-import { state as installState, promptInstall } from '../../install.js';
+import { canOfferInstall, onInstallChange } from '../../install.js';
 import { openPreGame } from './pre-game.js';
 import { bindReorder, seatCard } from './seat-card.js';
 import { openSettings } from './settings.js';
-import { openIOSInstall } from './install.js';
+import { startInstall } from './install.js';
 import { invitesBanner } from './invites.js';
 import {
   resumeTableBanner, handedOffBanner, receiveTableButton,
@@ -65,27 +65,7 @@ export function renderSetup(root, {
           ]),
         ]),
         el('div', { class: 'head-actions' }, [
-          // Shows when the browser says the app can be installed now - and on
-          // the iPhone, where it never says so: there the button opens the
-          // step by step, because hiding the option is what made it look like
-          // it could not be installed.
-          installState().mode === 'ios'
-            ? el('button', {
-                class: 'icon-btn is-install',
-                'aria-label': t('setup.installApp'),
-                onClick: openIOSInstall,
-              }, [icon('download')])
-            : installState().mode === 'ready'
-            ? el('button', {
-                class: 'icon-btn is-install',
-                'aria-label': t('setup.installApp'),
-                onClick: async () => {
-                  const r = await promptInstall();
-                  if (r === 'accepted') toast(t('settings.installDone'));
-                  if (onRefresh) onRefresh();
-                },
-              }, [icon('download')])
-            : null,
+          installButton(onRefresh),
           el('button', { class: 'icon-btn', 'aria-label': t('common.settings'), onClick: () => openSettings(onRefresh) }, [icon('gear')]),
           el('button', { class: 'icon-btn', 'aria-label': t('common.stats'), onClick: onStats }, [icon('chart')]),
         ]),
@@ -141,4 +121,35 @@ export function renderSetup(root, {
   );
 
   refresh();
+}
+
+/**
+ * The install button: always there in the browser, until the app is installed.
+ *
+ * It used to exist only while Chrome held an install prompt, so it came and
+ * went with the browser's mood and vanished as soon as it was tapped. Now the
+ * tap fires the prompt when there is one, and opens the steps for the
+ * browser's menu when there is not (see startInstall).
+ *
+ * `display: contents` keeps the slot out of the header's layout. It repaints
+ * when the install state changes (installed from this tab), and drops the
+ * listener once the screen is gone - setup redraws often.
+ */
+function installButton(onRefresh) {
+  const slot = el('span', { style: { display: 'contents' } });
+  const paint = () => {
+    clear(slot);
+    if (!canOfferInstall()) return;
+    slot.append(el('button', {
+      class: 'icon-btn is-install',
+      'aria-label': t('setup.installApp'),
+      onClick: () => startInstall(onRefresh),
+    }, [icon('download')]));
+  };
+  paint();
+  const stop = onInstallChange(() => {
+    if (!slot.isConnected) { stop(); return; }
+    paint();
+  });
+  return slot;
 }

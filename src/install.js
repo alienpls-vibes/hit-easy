@@ -24,6 +24,10 @@
  * from intermittent into reliable.
  */
 let deferred = (typeof window !== 'undefined' && window.__hitEasyInstall) || null;
+// Installed from this very tab. The tab stays in the browser (display-mode is
+// still "browser"), so without this the button would keep offering what was
+// just done.
+let installedNow = Boolean(typeof window !== 'undefined' && window.__hitEasyInstalled);
 const listeners = new Set();
 
 function notify() {
@@ -38,6 +42,7 @@ if (typeof window !== 'undefined') {
   });
   window.addEventListener('appinstalled', () => {
     deferred = null;
+    installedNow = true;
     window.__hitEasyInstall = null;
     notify();
   });
@@ -104,6 +109,52 @@ export function state() {
   if (detectIOS()) return { mode: 'ios' };
   if (!isSecure()) return { mode: 'insecure' };
   return { mode: 'unavailable' };
+}
+
+/**
+ * Should the screen offer installing? Always, in the browser, until it is
+ * installed.
+ *
+ * Not tied to the browser's prompt. Chrome fires `beforeinstallprompt` when it
+ * wants - after some use, not again for a while after a "no" - and Firefox and
+ * desktop Safari never fire it. A button that only existed with the prompt in
+ * hand came and went, and disappeared for good the moment it was tapped and
+ * the prompt closed. Without a prompt, the button opens the steps for that
+ * browser's own menu (see installGuide).
+ */
+export function canOfferInstall() {
+  return !isInstalled() && !installedNow;
+}
+
+/**
+ * Which step by step fits this browser, when there is no prompt to fire.
+ *
+ * Returns 'ios' | 'in-app' | 'android-chrome' | 'android-samsung' |
+ * 'android-firefox' | 'desktop-chromium' | 'desktop-safari' |
+ * 'desktop-firefox' | 'insecure'. Takes the user agent and whether the page is
+ * secure, for the test.
+ */
+export function installGuide(ua, secure) {
+  const agent = ua !== undefined ? ua
+    : (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+  const safe = secure !== undefined ? secure : isSecure();
+  const ios = ua !== undefined ? /iphone|ipad|ipod/i.test(agent) : detectIOS();
+  if (ios) return 'ios';
+  if (!safe) return 'insecure';
+  // In-app browsers: another app's own browser, or an Android WebView,
+  // which marks itself with a 'wv' in the agent. None of them can install.
+  if (/FBAN|FBAV|FB_IAB|Instagram|LinkedInApp|Line\/|TikTok|musical_ly|Snapchat|GSA\/|Twitter/i.test(agent)
+    || agent.includes('; wv)')) {
+    return 'in-app';
+  }
+  if (/Android/i.test(agent)) {
+    if (/SamsungBrowser/i.test(agent)) return 'android-samsung';
+    if (/Firefox/i.test(agent)) return 'android-firefox';
+    return 'android-chrome';
+  }
+  if (/Firefox/i.test(agent)) return 'desktop-firefox';
+  if (/Safari/i.test(agent) && !/Chrome|Chromium|Edg|OPR/i.test(agent)) return 'desktop-safari';
+  return 'desktop-chromium';
 }
 
 /** Returns 'accepted', 'dismissed' or 'unavailable'. */

@@ -23,9 +23,9 @@
 
 export const RELEASE_NOTES = [
   {
-    version: '1.11.0',
+    version: '1.10.0',
     date: '2026-10-14',
-    title: 'Decks que vêm do histórico',
+    title: 'Seu histórico mora na nuvem',
     items: [
       {
         type: 'changed',
@@ -44,13 +44,12 @@ export const RELEASE_NOTES = [
           + 'e as imagens agora ficam guardadas no aparelho para aparecer mesmo '
           + 'sem internet.',
       },
-    ],
-  },
-  {
-    version: '1.10.0',
-    date: '2026-10-14',
-    title: 'Seu histórico mora na nuvem',
-    items: [
+      {
+        type: 'fixed',
+        text: 'O botão de instalar da tela inicial aparecia e sumia. Agora fica '
+          + 'sempre lá no navegador, e quando o navegador não abre a instalação '
+          + 'sozinho, mostra o passo a passo pelo menu dele.',
+      },
       {
         type: 'changed',
         text: 'Com conta, a partida sai do aparelho assim que chega à nuvem, e '
