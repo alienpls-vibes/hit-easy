@@ -23,9 +23,9 @@
 
 export const RELEASE_NOTES = [
   {
-    version: '1.10.0',
-    date: '2026-10-14',
-    title: 'Seu histórico mora na nuvem',
+    version: '1.10.1',
+    date: '2026-10-15',
+    title: 'Decks do histórico e instalar sempre à mão',
     items: [
       {
         type: 'changed',
@@ -50,6 +50,13 @@ export const RELEASE_NOTES = [
           + 'sempre lá no navegador, e quando o navegador não abre a instalação '
           + 'sozinho, mostra o passo a passo pelo menu dele.',
       },
+    ],
+  },
+  {
+    version: '1.10.0',
+    date: '2026-10-14',
+    title: 'Seu histórico mora na nuvem',
+    items: [
       {
         type: 'changed',
         text: 'Com conta, a partida sai do aparelho assim que chega à nuvem, e '
