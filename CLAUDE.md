@@ -38,6 +38,12 @@ in Supabase. Renaming any of these breaks existing users' data or old clients:
   concessao, outro`.
 - **Table hand-off**: envelope `{ formato: 'hit-easy/mesa', versao, em, partida }`,
   link parameter `?mesa=`, file name `mesa-hit-easy-<id>.json`.
+- **Daily challenge** (`src/daily/`): localStorage keys `mtglc.daily.v1`
+  (fields `settings.cardLang`, `settings.notify`, `settings.notifyMode`,
+  `days[YYYY-MM-DD].guesses|done|won|answer|number|card`) and
+  `mtglc.dailyCard.v1`; IndexedDB `hiteasy-daily` (`-beta` on beta), store
+  `kv`, key `notify`; periodic sync and notification tag `hiteasy-daily`;
+  link parameter `?daily=1`.
 - **Channel values** `'producao' | 'beta'`; service-worker cache prefix
   `hiteasy-`; `build.json` fields `build`, `quando`; `window.__hitEasyInstall`;
   `user_metadata.has_password`.

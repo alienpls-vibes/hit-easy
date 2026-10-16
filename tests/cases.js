@@ -92,6 +92,8 @@ import { brandMark } from '../src/ui.js';
 import * as store from '../src/store.js';
 // Importing app.js ALREADY is the test: it starts up by itself when evaluated.
 import { announceVersion, codeFromLink } from '../src/app.js';
+// The daily color challenge keeps its cases apart (see tests/daily-cases.js).
+import { DAILY_CASES } from './daily-cases.js';
 
 function eq(actual, expected, what) {
   const a = JSON.stringify(actual);
@@ -5938,6 +5940,8 @@ export const cases = [
     }
     return undefined;
   }],
+
+  ...DAILY_CASES,
 ];
 
 /**

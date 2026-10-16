@@ -30,6 +30,16 @@ const SHELL = PREFIX + 'shell-' + VERSION;
 const ART = PREFIX + 'art-' + VERSION;
 
 /**
+ * The daily challenge's notice (periodic sync and the tap on it) lives in its
+ * own script, so the feature stays in src/daily/. Guarded: a worker whose
+ * importScripts throws never installs, and that would cost the app its
+ * offline mode over a notification.
+ */
+try {
+  importScripts('./src/daily/sw-daily.js');
+} catch (e) { /* no daily notice; everything else works */ }
+
+/**
  * Whose cache this is. The same rule as channelOfCache() in src/channel.js -
  * the worker does not import modules, so it lives in both places. If it
  * changes there, change it here.
@@ -71,6 +81,19 @@ const ASSETS = [
   './src/cloud/rules.js',
   './src/colors.js',
   './src/config.js',
+  './src/daily/calendar.js',
+  './src/daily/card.js',
+  './src/daily/day.js',
+  './src/daily/entry.js',
+  './src/daily/fetch.js',
+  './src/daily/game.js',
+  './src/daily/i18n.js',
+  './src/daily/notify.js',
+  './src/daily/schedule.js',
+  './src/daily/screen.js',
+  './src/daily/storage.js',
+  './src/daily/sw-daily.js',
+  './src/styles/daily.css',
   './src/engine.js',
   './src/styles/base.css',
   './src/styles/settings.css',

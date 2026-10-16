@@ -17,6 +17,7 @@
  */
 
 import { searchResponse } from '../fixtures/commanders.js';
+import { dailyResponse } from '../fixtures/daily-card.js';
 
 // A real 1x1 image. Browsers decode images by their bytes, not by the
 // declared type, so it stands in for Scryfall's JPEGs.
@@ -68,6 +69,9 @@ export function installNetwork(conn, { localOrigin, cloud }) {
       if (request.method === 'OPTIONS') { await fulfill(s, requestId, 204, ''); return; }
 
       if (url.hostname === 'api.scryfall.com') {
+        // The daily challenge asks by exact name (see fixtures/daily-card.js).
+        const daily = dailyResponse(url);
+        if (daily) { await json(s, requestId, daily.status, daily.body); return; }
         const q = (url.searchParams.get('q') || '').replace(/\s*is:commander\s*/i, '');
         const data = searchResponse(q);
         if (!data.data.length) await json(s, requestId, 404, { object: 'error', code: 'not_found' });

@@ -12,6 +12,7 @@ import legacyData from './legacy-data.js';
 import channels from './channels.js';
 import screens from './screens.js';
 import updateButton from './update-button.js';
+import dailyChallenge from './daily-challenge.js';
 
 export const JOURNEYS = [
   firstMatch,
@@ -22,5 +23,6 @@ export const JOURNEYS = [
   crashScreen,
   channels,
   screens,
+  dailyChallenge,
   cloudAccount,
 ];

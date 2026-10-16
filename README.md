@@ -125,7 +125,7 @@ Four layers, cheapest first, stopping at the first red one:
 | syntax | `node tools/check-syntax.js` | a module, the service worker or an inline `<script>` in the HTML that does not parse; versions, notes, cache list and icons that disagree |
 | unit | `node tests/run-node.js` | the engine, statistics, store and panels (simulated DOM) |
 | modules | `python tools/check_modules.py` | an import, re-export or `store.member` pointing to something that is not exported |
-| journeys | `node tests/e2e/run.js` | what a person does, in headless Chrome/Edge: a full match on a phone, offline play, updating from the live release, old data, the crash screen, channels, every screen in every language, the cloud account |
+| journeys | `node tests/e2e/run.js` | what a person does, in headless Chrome/Edge: a full match on a phone, offline play, updating from the live release, old data, the crash screen, channels, every screen in every language, the daily challenge, the cloud account |
 
 The journeys need Node 24 and any Chromium browser (`CHROME_PATH` to pick
 one); everything else they need is faked, so they run without internet. See
@@ -1060,6 +1060,19 @@ misspelled `t()` inside a screen.
 A missing key falls back to Portuguese instead of showing the raw key to the
 user.
 
+## The daily color challenge
+
+Once a day the home screen offers a card with its name and colored mana
+hidden; the player guesses its color in three tries. The card text comes from
+Scryfall in the language the player picks, and a daily notice can be turned on
+where the browser supports it. The calendar is a plain list in
+`src/daily/calendar.js`, checked against Scryfall by
+`node tools/daily-calendar.js`.
+
+It lives in `src/daily/`, loads on the tap and never touches the match data -
+details, the calendar rules, notification support per browser and how to
+remove it are in [`docs/daily-challenge.md`](docs/daily-challenge.md).
+
 ## Orientation and theme
 
 The home screen is made for the device **upright**: it is where the match is set
@@ -1260,6 +1273,17 @@ src/
   channel.js          production or beta
   release-notes.js    release notes (data)
   version.js          the version number
+
+  daily/              the daily color challenge — see docs/daily-challenge.md
+    entry.js          the only door: home button and startup hook
+    calendar.js       one card per day — edited by hand
+    screen.js         the challenge screen (loaded on the tap)
+    card.js           a Scryfall card turned into a puzzle — pure
+    game.js           guesses, hints and streaks — pure
+    fetch.js          the card in the chosen language, with cache
+    notify.js         the daily notice, page side
+    sw-daily.js       the daily notice, service worker side
+    schedule.js day.js storage.js i18n.js
 
   i18n.js             gateway — 9 names
   i18n/
@@ -1492,8 +1516,12 @@ waiting to go up.
   part included.
 
 With no cloud configured (`cloudEnabled()` false) nothing is ever uploaded, so
-everything stays on the device as it always did — the only external call is
-the card search on Scryfall.
+everything stays on the device as it always did — the only external calls are
+to Scryfall: the commander search, and the daily challenge's card.
+
+The daily challenge keeps its own keys (`mtglc.daily.v1`, `mtglc.dailyCard.v1`)
+and an IndexedDB (`hiteasy-daily`) for its notice; it never reads or writes
+the match database.
 
 ## License
 
