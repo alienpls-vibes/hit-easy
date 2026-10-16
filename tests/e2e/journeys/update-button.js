@@ -111,20 +111,32 @@ export default {
         // The browser's own update check: the new worker installs, skips
         // waiting and claims this page - which keeps running the old code.
         await page.eval('navigator.serviceWorker.getRegistration().then((r) => r.update()).then(() => true)');
-        // Polls the worker in charge; on timeout the last value says what the
-        // registration looked like (installing / waiting / active scripts).
-        await page.waitFor(`navigator.serviceWorker.getRegistration().then((r) => new Promise((ok) => {
+        // Waits on the registration alone, without messaging the worker.
+        //
+        // Chrome only activates a skip-waiting worker once the active one has
+        // no event in flight. This used to ask the active worker its version
+        // every ~60 ms, which on a slow CI machine kept it permanently busy:
+        // the new worker sat in "waiting" until the timeout, so the test
+        // blocked the very takeover it was waiting for. Proven by messaging it
+        // every 5 ms - 3 of 3 runs failed with the CI's exact message. The
+        // update() above already started the install, so "nothing installing
+        // or waiting, an activated worker and a controller" means the new one
+        // took over; its version is asked once, afterwards.
+        await page.waitFor(`navigator.serviceWorker.getRegistration().then((r) => {
           const state = (w) => (w ? w.state : '-');
-          const shape = 'installing ' + state(r.installing) + ', waiting ' + state(r.waiting)
-            + ', active ' + state(r.active);
-          const c = navigator.serviceWorker.controller;
-          if (!c) return ok('no controller; ' + shape);
-          const ch = new MessageChannel();
-          ch.port1.onmessage = (e) => ok(e.data === ${JSON.stringify(NEXT)} ? true : 'controller answers ' + e.data + '; ' + shape);
-          c.postMessage({ type: 'VERSION' }, [ch.port2]);
-          setTimeout(() => ok('controller silent; ' + shape), 2000);
-        })).then((v) => (v === true ? true : (window.__swShape = v, false)))`, 'the new worker to take over in the background', 30000)
+          window.__swShape = 'installing ' + state(r.installing) + ', waiting ' + state(r.waiting)
+            + ', active ' + state(r.active) + (navigator.serviceWorker.controller ? '' : ', no controller');
+          return !r.installing && !r.waiting && Boolean(r.active) && r.active.state === 'activated'
+            && Boolean(navigator.serviceWorker.controller);
+        })`, 'the new worker to take over in the background', 30000)
           .catch(async (err) => { throw new Error(err.message + ' - ' + await page.eval('window.__swShape')); });
+        const inCharge = await page.eval(`new Promise((ok) => {
+          const ch = new MessageChannel();
+          ch.port1.onmessage = (e) => ok(e.data);
+          navigator.serviceWorker.controller.postMessage({ type: 'VERSION' }, [ch.port2]);
+          setTimeout(() => ok('no answer'), 10000);
+        })`);
+        if (inCharge !== NEXT) throw new Error('the worker in charge answers ' + inCharge + ', not ' + NEXT);
         const before = await runningVersion(page);
         if (before === NEXT) throw new Error('the page already ran the new code; the scenario did not happen');
 
