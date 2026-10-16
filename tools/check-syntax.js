@@ -12,6 +12,7 @@
 import { execFileSync } from 'node:child_process';
 import { readdirSync, statSync, readFileSync, existsSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
+import { Script } from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -48,6 +49,43 @@ for (const file of files) {
     execFileSync(process.execPath, ['--check', file], { stdio: 'pipe' });
   } catch (err) {
     failures.push({ file, why: String(err.stderr || err.message).trim() });
+  }
+}
+
+/*
+ * The scripts written inside the HTML pages, which `node --check` never sees.
+ *
+ * index.html carries the crash screen - the classic script that shows "Algo
+ * quebrou ao abrir" instead of a black screen. From 1.9.0 to 1.10.1 two of
+ * its '\n' had become real line breaks inside a string: a SyntaxError on
+ * every load, so the safety net itself was dead and nobody noticed, because
+ * it only matters on the day something else breaks.
+ *
+ * Classic scripts are parsed as scripts; `type="module"` ones as modules.
+ * Scripts with a `src` are files, already checked above.
+ */
+const HTML_PAGES = ['index.html', 'privacidade.html', 'tests.html']
+  .map((name) => join(ROOT, name))
+  .filter((file) => existsSync(file));
+
+for (const file of HTML_PAGES) {
+  const html = readFileSync(file, 'utf8');
+  const blocks = html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi);
+  for (const [, attrs, body] of blocks) {
+    if (/\bsrc\s*=/.test(attrs) || !body.trim()) continue;
+    const line = html.slice(0, html.indexOf(body)).split('\n').length;
+    try {
+      if (/type\s*=\s*["']module["']/.test(attrs)) {
+        execFileSync(process.execPath, ['--input-type=module', '--check'], { input: body, stdio: 'pipe' });
+      } else {
+        new Script(body, { filename: file, lineOffset: line - 1 });
+      }
+    } catch (err) {
+      failures.push({
+        file,
+        why: 'inline <script> starting at line ' + line + ': ' + String(err.stderr || err.message).trim(),
+      });
+    }
   }
 }
 

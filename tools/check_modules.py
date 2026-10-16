@@ -131,6 +131,22 @@ def scan(text):
     return "".join(with_str), "".join(no_str)
 
 
+def namespace_uses(skeleton, alias):
+    """
+    What a file reads from `import * as alias`: ({members}, used_bare).
+
+    Runs on the skeleton (no comments, no strings), so `store.js` in a comment
+    or a string is not a member. `used_bare` is the namespace appearing without
+    a member - passed to a function, spread - which can reach anything; the
+    import line itself does not count.
+    """
+    body = re.sub(r"import\s+\*\s+as\s+" + re.escape(alias) + r"\s+from\b", " ", skeleton)
+    name = r"(?<![\w$.])" + re.escape(alias)
+    members = set(re.findall(name + r"\s*\.\s*([A-Za-z_$][\w$]*)", body))
+    bare = re.search(name + r"(?![\w$])(?!\s*\.)", body) is not None
+    return members, bare
+
+
 def balance(text, path, problems):
     pairs = {")": "(", "]": "[", "}": "{"}
     stack = []
@@ -450,7 +466,18 @@ def main():
                 continue
             graph[show(f)].add(show(target))
             if m.group("ns"):
-                used[target] |= exports[target]  # 'import * as x' uses everything
+                alias = m.group("ns").split()[-1]
+                members, bare = namespace_uses(skeleton[f], alias)
+                # `store.rememberCommander` after rememberCommander left
+                # store.js: the import line is fine, so the check above never
+                # saw it, and the app threw on the Start button (1.10.1).
+                for name in sorted(members - exports[target]):
+                    problems.append(
+                        f"{show(f)}: uses '{alias}.{name}', but {show(target)} "
+                        f"does not export '{name}'"
+                    )
+                # Passing the namespace around as a value may use anything.
+                used[target] |= exports[target] if bare else members
                 continue
             for name in m.group("named").split(","):
                 name = name.strip().split(" as ")[0].strip()

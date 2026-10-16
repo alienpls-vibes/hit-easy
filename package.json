@@ -7,6 +7,8 @@
   "scripts": {
     "test": "node tools/check-syntax.js && node tests/run-node.js",
     "check": "python tools/check_modules.py",
+    "e2e": "node tests/e2e/run.js",
+    "verify": "node tools/verify.js",
     "start": "python serve.py"
   }
 }

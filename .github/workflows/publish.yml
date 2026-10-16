@@ -35,20 +35,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The same four layers as `npm run verify`, as separate steps so the run page
+  # says which one broke. Any red step blocks the publish.
   test:
     name: Tests
     runs-on: ubuntu-latest
     steps:
+      # The whole history, for the tags: the upgrade journey starts from the
+      # release that is live today (the newest v* tag) and updates from it.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          # 24: the browser journeys use Node's built-in WebSocket.
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       # The raw output of the step can only be read with a token. Repeating its
       # end in an `::error::` makes the reason show up in the run annotation,
       # which is public - the difference between "exit code 1" and knowing what
       # broke.
-      - name: npm test
+      - name: Syntax and unit cases
         run: |
           set +e
           output=$(npm test 2>&1)
@@ -60,6 +70,42 @@ jobs:
           fi
           exit $code
 
+      # Imports, re-exports and every `namespace.member` against real exports.
+      # It existed before but only ran by hand - and 1.10.1's Start button was
+      # exactly a `store.member` that no longer existed.
+      - name: Modules
+        run: |
+          set +e
+          output=$(python tools/check_modules.py 2>&1)
+          code=$?
+          echo "$output"
+          if [ $code -ne 0 ]; then
+            summary=$(echo "$output" | grep -E 'ERROR' | head -15 | tr '\n' '%')
+            echo "::error::check_modules failed: $summary"
+          fi
+          exit $code
+
+      # What a person does, in headless Chrome (preinstalled on the runner).
+      - name: Browser journeys
+        run: |
+          set +e
+          output=$(node tests/e2e/run.js 2>&1)
+          code=$?
+          echo "$output"
+          if [ $code -ne 0 ]; then
+            summary=$(echo "$output" | sed 's/\x1b\[[0-9;]*m//g' | grep -E '✕|at step|timed out|cannot|logged|Error' | head -20 | tr '\n' '%')
+            echo "::error::browser journeys failed: $summary"
+          fi
+          exit $code
+
+      - name: Screenshots of failed journeys
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: tests/e2e/artifacts/
+          if-no-files-found: ignore
+
   publish:
     name: Publish
     needs: test
@@ -67,6 +113,8 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deploy.outputs.page_url }}
     steps:
       # Says which code production is about to get, and shouts when it is
       # pinned: a forgotten pin would silently hold back every later release.
@@ -133,3 +181,57 @@ jobs:
 
       - id: deploy
         uses: actions/deploy-pages@v4
+
+  # After the deploy, the LIVE site gets the journeys marked `live` (a full
+  # match on a phone), with the cloud and Scryfall faked so no real data is
+  # touched. Each channel is checked with its own branch's journeys: beta's
+  # tests may describe screens production does not have yet.
+  #
+  # It cannot undo a deploy (the token has no right to change the
+  # PRODUCTION_REF variable), but a red run here means "the published site is
+  # broken right now" - roll back as in the README, "Rolling back production".
+  smoke:
+    name: Smoke test of the live site
+    needs: publish
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - channel: production
+            ref: ${{ vars.PRODUCTION_REF || 'main' }}
+            path: ''
+          - channel: beta
+            ref: beta
+            path: 'beta/'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Journeys against the published ${{ matrix.channel }}
+        run: |
+          if [ ! -f tests/e2e/run.js ]; then
+            echo "This ref has no browser journeys yet; nothing to smoke-test."
+            exit 0
+          fi
+          # Pages can take a minute to serve the new files everywhere.
+          sleep 45
+          for attempt in 1 2; do
+            node tests/e2e/run.js && exit 0
+            echo "Attempt $attempt failed; retrying once in 60s in case the CDN was still warming up."
+            sleep 60
+          done
+          echo "::error::the published ${{ matrix.channel }} site failed its smoke test"
+          exit 1
+        env:
+          E2E_BASE_URL: ${{ needs.publish.outputs.page_url }}${{ matrix.path }}
+      - name: Screenshots of the failed smoke test
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-${{ matrix.channel }}
+          path: tests/e2e/artifacts/
+          if-no-files-found: ignore
