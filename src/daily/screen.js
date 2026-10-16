@@ -10,9 +10,12 @@
  * Loaded on demand by entry.js.
  */
 
-import { el, clear, icon, buzz } from '../ui.js';
+import {
+  el, clear, icon, buzz, openSheet, closeSheet,
+} from '../ui.js';
 import { colorHex } from '../colors.js';
-import { currentLang } from '../i18n.js';
+import { LANGS, currentLang, setLang } from '../i18n.js';
+import * as store from '../store.js';
 import { group, row, selectRow, toggleRow } from '../views/setup/rows.js';
 import { dt } from './i18n.js';
 import {
@@ -25,6 +28,7 @@ import {
 } from './game.js';
 import * as storage from './storage.js';
 import * as notify from './notify.js';
+import { onBack } from './back.js';
 
 /** The card language when the person never chose one: the app's, if Scryfall has it. */
 function defaultCardLang() {
@@ -118,9 +122,10 @@ let current = null; // the open screen, so a second open is ignored
 
 /**
  * Opens the screen. `onClose` runs after it leaves (entry.js repaints the
- * home button's dot).
+ * home button's dot); `onRefresh` redraws the home screen underneath, which
+ * the app language switch in the settings panel needs.
  */
-export function openDailyScreen({ onClose } = {}) {
+export function openDailyScreen({ onClose, onRefresh } = {}) {
   if (current) return current;
 
   const today = dayKey();
@@ -128,13 +133,11 @@ export function openDailyScreen({ onClose } = {}) {
   let selection = [];
   let load = null;          // { puzzle, fallback } once the card arrived
   let failed = false;
-  let optionsOpen = false;
+  let settingsOpen = false;  // our settings panel is on screen
   let controller = null;
   let ticker = null;
 
   const body = el('div', { class: 'daily-body' });
-  const options = el('section', { class: 'daily-options' });
-  options.hidden = true;
 
   const record = () => storage.day(today) || {};
 
@@ -143,8 +146,9 @@ export function openDailyScreen({ onClose } = {}) {
     current = null;
     if (controller) controller.abort();
     clearInterval(ticker);
-    window.removeEventListener('popstate', onPop);
+    stopBack();
     document.removeEventListener('keydown', onKey);
+    if (settingsOpen) closeSheet();
     layer.classList.remove('is-open');
     setTimeout(() => layer.remove(), 200);
     if (!fromHistory) {
@@ -155,40 +159,40 @@ export function openDailyScreen({ onClose } = {}) {
   };
 
   // The history entry: back closes the challenge. `consuming` marks our own
-  // history.back() so its popstate is not read as a second gesture.
+  // history.back() so its popstate is not read as a second gesture. With the
+  // settings panel open, back is the panel's - app.js closes it (see back.js).
   let consuming = false;
-  const onPop = () => {
+  const onPop = ({ panelWasOpen }) => {
     if (consuming) { consuming = false; return; }
+    if (panelWasOpen) return;
     close(true);
   };
   const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.sheet-scrim')) close(false); };
 
   const backBtn = el('button', { class: 'icon-btn', 'aria-label': dt('daily.close'), onClick: () => close(false) }, [icon('back')]);
-  const gearBtn = el('button', {
-    class: 'icon-btn',
-    'aria-label': dt('daily.settings'),
-    'aria-expanded': 'false',
-    onClick: () => {
-      optionsOpen = !optionsOpen;
-      gearBtn.setAttribute('aria-expanded', String(optionsOpen));
-      paintOptions();
-    },
-  }, [icon('gear')]);
+  const gearBtn = el('button', { class: 'icon-btn', 'aria-label': dt('daily.settings'), onClick: () => openSettings() }, [icon('gear')]);
+  const titleEl = el('h1', { class: 'daily-title' });
+  const subEl = el('p', { class: 'daily-sub' });
 
-  const layer = el('div', { class: 'daily-screen', role: 'dialog', 'aria-modal': 'true', 'aria-label': dt('daily.title') }, [
+  const layer = el('div', { class: 'daily-screen', role: 'dialog', 'aria-modal': 'true' }, [
     el('div', { class: 'daily' }, [
       el('header', { class: 'daily-head' }, [
         backBtn,
-        el('div', { class: 'daily-heading' }, [
-          el('h1', { class: 'daily-title', text: dt('daily.title') }),
-          el('p', { class: 'daily-sub', text: dt('daily.number', { n: challenge ? challenge.number : '–' }) }),
-        ]),
+        el('div', { class: 'daily-heading' }, [titleEl, subEl]),
         gearBtn,
       ]),
-      options,
       body,
     ]),
   ]);
+
+  /** The header's texts - redone when the app language changes. */
+  function paintHead() {
+    titleEl.textContent = dt('daily.title');
+    subEl.textContent = dt('daily.number', { n: challenge ? challenge.number : '–' });
+    layer.setAttribute('aria-label', dt('daily.title'));
+    backBtn.setAttribute('aria-label', dt('daily.close'));
+    gearBtn.setAttribute('aria-label', dt('daily.settings'));
+  }
 
   /* ---------------- options ---------------- */
 
@@ -201,20 +205,52 @@ export function openDailyScreen({ onClose } = {}) {
     return s.notifyMode === 'limited' ? dt('daily.notifyLimited') : dt('daily.notifyOn');
   }
 
-  function paintOptions() {
-    clear(options);
-    options.hidden = !optionsOpen;
-    if (!optionsOpen) return;
+  /**
+   * The settings, in the same bottom panel and with the same rows as the
+   * home screen's settings: the app language, the card language and the
+   * daily notice.
+   */
+  function openSettings() {
+    openSheet({
+      title: dt('daily.settings'),
+      onClose: () => { settingsOpen = false; },
+      build: (pane) => fillSettings(pane),
+    });
+    settingsOpen = true;
+  }
 
+  function fillSettings(pane) {
+    clear(pane);
     const s = storage.settings();
     const perm = notify.permission();
-    options.append(
-      group(dt('daily.settings'), [
-        selectRow(dt('daily.cardLang'), cardLang(), CARD_LANGS, (lang) => {
-          storage.setSetting('cardLang', lang);
-          fetchCard();
-        }),
+
+    // The same setting as Settings > Language on the home screen.
+    const appLang = selectRow(dt('daily.appLang'), currentLang(), LANGS, (code) => {
+      store.setSetting('lang', code);
+      setLang(code);
+      // Every text was read at draw time: the home screen underneath, this
+      // screen and the panel itself are redone - the panel by reopening, as
+      // the home settings do.
+      if (onRefresh) onRefresh();
+      paintHead();
+      paint();
+      openSettings();
+    });
+    appLang.classList.add('daily-app-lang');
+
+    const cardLangRow = selectRow(dt('daily.cardLang'), cardLang(), CARD_LANGS, (lang) => {
+      storage.setSetting('cardLang', lang);
+      fetchCard();
+    });
+    cardLangRow.classList.add('daily-card-lang');
+
+    pane.append(
+      group(dt('daily.groupLanguage'), [
+        appLang,
+        cardLangRow,
         el('p', { class: 'daily-option-note', text: dt('daily.cardLangSub') }),
+      ]),
+      group(dt('daily.groupNotify'), [
         perm === 'unsupported'
           ? row({ label: dt('daily.notify'), sub: notifyStatus() })
           : toggleRow(dt('daily.notify'), notifyStatus(), Boolean(s.notify), async (on) => {
@@ -228,7 +264,7 @@ export function openDailyScreen({ onClose } = {}) {
               storage.setSetting('notify', false);
               await notify.disable();
             }
-            paintOptions();
+            if (settingsOpen) fillSettings(pane);
           }),
         s.notify && perm === 'granted'
           ? row({ label: dt('daily.notifyTest'), onTap: () => notify.sendTest(notifyTexts()) })
@@ -318,14 +354,6 @@ export function openDailyScreen({ onClose } = {}) {
     ])));
   }
 
-  function hint(p) {
-    if (p.status !== 'playing' || p.colorCount === null) return null;
-    return el('p', {
-      class: 'daily-hint',
-      text: p.colorCount === 0 ? dt('daily.hintColorless') : dt('daily.hintCount', { n: p.colorCount }),
-    });
-  }
-
   function statsRow() {
     const all = totals(storage.allDays(), today, previousDay);
     const stat = (key, value) => el('div', { class: 'daily-stat' }, [
@@ -399,7 +427,6 @@ export function openDailyScreen({ onClose } = {}) {
       note ? el('p', { class: 'daily-note', text: note }) : null,
       cardFrame(load.puzzle),
       guessList(p),
-      hint(p),
       p.status === 'playing' ? board(p) : result(p),
     ].filter(Boolean));
   }
@@ -409,7 +436,7 @@ export function openDailyScreen({ onClose } = {}) {
   current = { close };
   document.body.append(layer);
   try { history.pushState({ daily: true }, ''); } catch { /* back just leaves */ }
-  window.addEventListener('popstate', onPop);
+  const stopBack = onBack(onPop);
   document.addEventListener('keydown', onKey);
   requestAnimationFrame(() => layer.classList.add('is-open'));
   backBtn.focus();
@@ -417,7 +444,7 @@ export function openDailyScreen({ onClose } = {}) {
   // The worker speaks the language the app speaks today.
   if (storage.settings().notify) notify.updateConfig(notifyTexts());
 
-  paintOptions();
+  paintHead();
   fetchCard();
   return current;
 }

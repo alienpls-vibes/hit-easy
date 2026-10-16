@@ -2,7 +2,8 @@
  * The daily color challenge, from the home screen and back.
  *
  * On a phone: the home button carries a dot, the card shows with its name
- * and colored mana hidden, a miss earns the hint, the right colors win and
+ * and colored mana hidden, a miss says how many picked colors hit (no hint),
+ * the right colors win and
  * reveal the card, the result is stored apart from the matches, the back
  * gesture closes the challenge without leaving the app, the card language
  * switch fetches the translated print (and falls back to English when there
@@ -11,8 +12,9 @@
  */
 
 import {
-  openHome, waitHome, readDb, pickAllCommanders, startMatch, lifeOf,
+  openHome, waitHome, readDb, pickAllCommanders, startMatch, lifeOf, t,
 } from './app.js';
+import { sleep } from '../lib/page.js';
 import { SEARCHES } from '../fixtures/commanders.js';
 import { DAILY_COLORS, PRINTED_NAME } from '../fixtures/daily-card.js';
 
@@ -22,7 +24,7 @@ const dailyKey = (base) => (/\/beta\/$/.test(base) ? 'mtglc.daily.v1.beta' : 'mt
 /** Picks the card language in the challenge options, like the native picker does. */
 function chooseCardLang(page, lang) {
   return page.eval(`(() => {
-    const field = document.querySelector('.daily-options select');
+    const field = document.querySelector('.sheet-scrim.is-open .daily-card-lang select');
     field.value = ${JSON.stringify(lang)};
     field.dispatchEvent(new Event('change'));
     return true;
@@ -57,13 +59,14 @@ export default {
       if (await page.count('.seat-card') < 2) throw new Error('the home screen was taken down');
     });
 
-    await ctx.step('a half-right guess says how many, never which, and earns the hint', async () => {
+    await ctx.step('a half-right guess says how many, never which, and gives no hint', async () => {
       // Red is wrong and green is right: the row must read "1 of 2" and
       // nothing on screen may tell the two apart.
       await page.tap('.daily-pick', { index: BOARD.indexOf('R') });
       await page.tap('.daily-pick', { index: BOARD.indexOf(DAILY_COLORS[0]) });
       await page.tap('.daily-board .btn.primary');
-      await page.waitFor(`document.querySelector('.daily-hint') && document.querySelector('.daily-guess-hits')`, 'the miss and the hint');
+      await page.waitFor(`document.querySelector('.daily-guess-hits')`, 'the miss');
+      if (await page.count('.daily-hint')) throw new Error('a hint is on screen');
       const hits = await page.text('.daily-guess-hits');
       if (!/^\D*1\D+2\D*$/.test(hits)) throw new Error('the miss should read 1 of 2, got: ' + hits);
       if (!(await page.count('.daily-guess.is-wrong .daily-guess-icon svg'))
@@ -101,14 +104,44 @@ export default {
       if (await page.count('.daily-entry.has-news')) throw new Error('the dot is still there after playing');
     });
 
-    await ctx.step('the card language switch brings the translated print, or English', async () => {
+    await ctx.step('the gear opens the settings panel, and back closes only the panel', async () => {
       await page.tap('.daily-entry');
       await page.waitFor(`document.querySelector('.daily-screen.is-open .daily-result')`, 'the finished day on reopening');
       await page.tap('.daily-head .icon-btn', { index: 1 });
+      await page.waitFor(`document.querySelector('.sheet-scrim.is-open .daily-app-lang select') && document.querySelector('.sheet-scrim.is-open .daily-card-lang select')`, 'the panel with both languages');
+      await page.eval('history.back()');
+      await page.waitFor(`!document.querySelector('.sheet-scrim')`, 'the panel to close');
+      await sleep(300);
+      if (!(await page.count('.daily-screen.is-open'))) throw new Error('back closed the challenge along with the panel');
+    });
+
+    await ctx.step('the app language in the panel switches the challenge and the home screen', async () => {
+      await page.tap('.daily-head .icon-btn', { index: 1 });
+      await page.waitFor(`document.querySelector('.sheet-scrim.is-open .daily-app-lang select')`, 'the panel');
+      const before = await page.text('.daily-title');
+      const other = (await page.eval('document.documentElement.lang')) === 'de' ? 'es' : 'de';
+      await page.eval(`(() => {
+        const field = document.querySelector('.sheet-scrim.is-open .daily-app-lang select');
+        field.value = ${JSON.stringify(other)};
+        field.dispatchEvent(new Event('change'));
+        return true;
+      })()`);
+      await page.waitFor(`document.documentElement.lang === ${JSON.stringify(other)}`, 'the app language to switch');
+      const title = await page.text('.daily-title');
+      const expected = await page.eval(`import('./src/daily/i18n.js').then((m) => m.dt('daily.title'))`);
+      if (title === before || title !== expected) throw new Error('the challenge title did not follow: ' + title);
+      const gear = await page.eval(`document.querySelector('.head-actions > .icon-btn').getAttribute('aria-label')`);
+      if (gear !== await t(page, 'common.settings')) throw new Error('the home screen underneath kept the old language');
+      await page.waitFor(`document.querySelector('.sheet-scrim.is-open .daily-card-lang select')`, 'the panel back in the new language');
+    });
+
+    await ctx.step('the card language switch brings the translated print, or English', async () => {
       await chooseCardLang(page, 'pt');
       await page.waitFor(`(document.querySelector('.daily-reveal strong') || {}).textContent === ${JSON.stringify(PRINTED_NAME)}`, 'the Portuguese print');
       await chooseCardLang(page, 'de');
       await page.waitFor(`document.querySelector('.daily-note') && document.querySelector('.daily-reveal-img')`, 'the English fallback, announced');
+      await page.tap('.sheet-scrim .sheet-head > .icon-btn:last-child'); // close the panel
+      await page.waitFor(`!document.querySelector('.sheet-scrim')`, 'the panel to close');
     });
 
     await ctx.step('the arrow closes it too', async () => {

@@ -1283,6 +1283,7 @@ src/
     fetch.js          the card in the chosen language, with cache
     notify.js         the daily notice, page side
     sw-daily.js       the daily notice, service worker side
+    back.js           the back gesture with the settings panel open
     schedule.js day.js storage.js i18n.js
 
   i18n.js             gateway — 9 names

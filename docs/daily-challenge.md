@@ -2,9 +2,8 @@
 
 Once a day, the home screen offers one card with its **name and colored mana
 hidden**, and the player guesses its **color**. Three tries; after a miss the
-game tells **how many** of the picked colors are on the card (never which
-ones) and how many colors the card has. A
-win or a loss reveals the full card, the artist and a link to Scryfall, plus
+game tells only **how many** of the picked colors are on the card - never
+which ones, and no hint with the card's number of colors. A win or a loss reveals the full card, the artist and a link to Scryfall, plus
 played / wins / streak / best.
 
 The header button (a card with a question mark, left of Settings) carries a
@@ -66,17 +65,33 @@ colorless 7.
 Shown: type line, mana value, rules and flavor text, power/toughness, loyalty,
 defense. The colors to guess are the card's `colors`, not its color identity.
 
+## Settings panel
+
+The gear on the challenge's header opens a bottom panel built like the home
+screen's Settings, with the same rows:
+
+- **App language** - the same setting as Settings > Language on the home
+  screen. Switching it redraws the challenge, the home screen underneath and
+  the panel itself (by reopening it, as the home settings do).
+- **Card language** - see below.
+- **Notifications** - see below.
+
+With the panel open, the phone's back gesture closes only the panel.
+`src/daily/back.js` makes that work: app.js closes any open panel on
+popstate before other listeners run, so the challenge registers its own
+listener at startup, ahead of app.js, to learn whether a panel was open.
+
 ## Card language
 
-The challenge options (gear on its header) pick the card language among the
-eleven Scryfall has: the app language by default. The card is searched as
+The panel picks the card language among the eleven Scryfall has: the app
+language by default. The card is searched as
 `!"<name>" lang:<code>`, newest translated print first; a card never printed
 in that language falls back to English and says so. Each answer is cached on
 the device for the day (`mtglc.dailyCard.v1`), so reopening works offline.
 
 ## Notifications
 
-The switch is in the challenge options, plus a "send a test notification" row
+The switch is in the settings panel, plus a "send a test notification" row
 once it is on.
 
 Hit Easy is a static site with no server, so there is nothing to push from.
@@ -112,8 +127,9 @@ would plug in. Not built yet.
   `src/styles/daily.css` (every class starts with `daily-`). The app imports
   one file, `src/daily/entry.js`, in two places: the header button in
   `views/setup/home.js` and `initDaily()` in `app.js`.
-- **Code loads on the tap.** `entry.js` imports only `day.js`, `storage.js` and
-  `i18n.js`; the screen, the calendar and the network code come through a
+- **Code loads on the tap.** `entry.js` imports only `day.js`, `storage.js`,
+  `i18n.js` and `back.js` (the back-gesture listener, which must exist from
+  startup); the screen, the calendar and the network code come through a
   dynamic `import()`. A typo in `calendar.js` or Scryfall being down costs the
   challenge, never the home screen. A unit case checks these imports.
 - **Not a route.** The screen is a full-screen layer over the home screen, so
@@ -122,8 +138,10 @@ would plug in. Not built yet.
   it instead of leaving the app.
 - **Own storage.** `mtglc.daily.v1` (settings and results) and
   `mtglc.dailyCard.v1` (card cache), both through `storageKey()`, plus the
-  IndexedDB `hiteasy-daily` for the worker. The match database is never read
-  or written; the browser journey asserts it is byte-identical after playing.
+  IndexedDB `hiteasy-daily` for the worker. Playing never reads or writes the
+  match database; the browser journey asserts it is byte-identical after
+  playing. The one shared write is the app language from the settings panel,
+  the same `settings.lang` the home settings save.
 - **Header order kept.** The button sits in a `display: contents` slot, so the
   header's own buttons keep their positions.
 - **Service worker.** `sw.js` gains the files in `ASSETS` and one guarded
@@ -139,7 +157,7 @@ that mention them in `home.js`, `app.js`, `styles.css`, `sw.js`,
 ## Tests
 
 - `tests/daily-cases.js` (in `npm test`): calendar structure, schedule and
-  looping, name and mana masking in English and Portuguese, judging, hints,
+  looping, name and mana masking in English and Portuguese, judging (no hint),
   streaks, the fetch with language fallback and cache, storage apart from the
   matches, the four dictionaries, the home button dot, the isolation of
   `entry.js`, and a full day played on the simulated DOM.

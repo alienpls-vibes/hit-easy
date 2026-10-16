@@ -10,7 +10,7 @@
  *
  * The screen itself is loaded with a dynamic import() on the tap. That is
  * the whole isolation: this file only pulls tiny modules with no network and
- * no calendar, so an error anywhere in the challenge - a typo in
+ * no calendar (plus back.js, which must listen from startup), so an error anywhere in the challenge - a typo in
  * calendar.js, Scryfall down - can cost the challenge, never the home screen
  * or a match in progress. Removing the feature is deleting src/daily/ and
  * the lines that call these two functions.
@@ -20,6 +20,9 @@ import { el, toast } from '../ui.js';
 import { dayKey } from './day.js';
 import { isDone } from './storage.js';
 import { dt } from './i18n.js';
+// Imported for its side effect: the back-gesture listener has to be
+// registered before app.js registers its own (see back.js).
+import './back.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -45,13 +48,14 @@ function canOpen() {
 }
 
 let opening = false;
+let refreshHome = null; // the home screen's redraw, from the last dailyButton()
 
 /** Opens the challenge screen, loading its code on demand. */
 export function openDaily() {
   if (opening || document.querySelector('.daily-screen')) return;
   opening = true;
   import('./screen.js')
-    .then((m) => m.openDailyScreen({ onClose: refreshButtons }))
+    .then((m) => m.openDailyScreen({ onClose: refreshButtons, onRefresh: refreshHome }))
     .catch(() => toast(dt('daily.loadFailed')))
     .finally(() => { opening = false; });
 }
@@ -75,7 +79,8 @@ function refreshButtons() {
  * `.head-actions`, so the header's own buttons keep their positions for
  * anything that finds them by order (the browser journeys do).
  */
-export function dailyButton() {
+export function dailyButton(onRefresh) {
+  refreshHome = onRefresh || null;
   const b = el('button', {
     class: 'icon-btn daily-entry' + (isDone(dayKey()) ? '' : ' has-news'),
     'aria-label': dt('daily.open'),

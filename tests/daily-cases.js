@@ -6,7 +6,9 @@
  * the rest: no network, no real clock, every case starts from scratch.
  */
 
-import { simulated, findAll, fire, textOf } from './dom-stub.js';
+import {
+  simulated, findAll, fire, textOf, fireWindow,
+} from './dom-stub.js';
 import { CALENDAR } from '../src/daily/calendar.js';
 import {
   challengeFor, dayKey, isDayKey, daysBetween, previousDay, msUntilNextDay, lastListedDay,
@@ -23,6 +25,8 @@ import * as storage from '../src/daily/storage.js';
 import { dailyButton } from '../src/daily/entry.js';
 import { openDailyScreen } from '../src/daily/screen.js';
 import { setLang } from '../src/i18n.js';
+import { isSheetOpen, closeSheet } from '../src/ui.js';
+import * as store from '../src/store.js';
 
 function eq(actual, expected, what) {
   const a = JSON.stringify(actual);
@@ -208,17 +212,17 @@ export const DAILY_CASES = [
     ok(!('marks' in judge(['W', 'U'], ['W'])), 'no per-color verdict leaves judge()');
   }],
 
-  ['daily: three tries, and a miss earns the number of colors', () => {
+  ['daily: three tries, and a miss never tells how many colors the card has', () => {
     const colors = ['U', 'B'];
     let p = progress([], colors);
-    eq([p.status, p.triesLeft, p.colorCount], ['playing', MAX_TRIES, null]);
+    eq([p.status, p.triesLeft], ['playing', MAX_TRIES]);
     p = progress([['U']], colors);
-    eq([p.status, p.triesLeft, p.colorCount], ['playing', 2, 2]);
+    eq([p.status, p.triesLeft], ['playing', 2]);
+    ok(!('colorCount' in p), 'no hint with the number of colors');
     p = progress([['U'], ['U', 'B']], colors);
     eq(p.status, 'won');
     p = progress([['W'], ['R'], ['G']], colors);
     eq(p.status, 'lost');
-    eq(progress([['W']], []).colorCount, 0, 'a colorless card counts zero colors');
   }],
 
   ['daily: colorless excludes the five colors on the board', () => {
@@ -388,7 +392,7 @@ export const DAILY_CASES = [
       fire(pick('G'), 'click');
       submit();
       eq(storage.day(dayKey()).guesses, [['G']], 'the guess is saved');
-      ok(findAll(layer, 'daily-hint').length === 1, 'a miss earns the hint');
+      eq(findAll(layer, 'daily-hint').length, 0, 'a miss earns no hint');
       eq(textOf(findAll(layer, 'daily-guess-hits')[0]), '0 de 1 na carta', 'the miss shows only a count');
       eq(textOf(findAll(layer, 'daily-guess-verdict')[0]), 'Palpite errado', 'the miss says it was wrong');
       ok(findAll(layer, 'is-wrong').length === 1 && findAll(findAll(layer, 'daily-guess-icon')[0], 'icon').length === 1,
@@ -402,6 +406,55 @@ export const DAILY_CASES = [
       ok(findAll(layer, 'daily-reveal-img').length === 1, 'the card is revealed');
     } finally {
       if (screen) screen.close(false);
+      net.restore();
+      storage.reset();
+    }
+    return undefined;
+  }],
+
+  ['daily: settings open as a panel; back closes only the panel; the app language applies', async () => {
+    if (!simulated) return 'skip';
+    storage.reset();
+    const name = challengeFor(dayKey()).name;
+    const net = fakeScryfall([[/lang:/, { data: [] }], [/named\?exact=/, { ...KRENKO, name }]]);
+    const langBefore = store.getDB().settings.lang;
+    let refreshed = 0;
+    let screen = null;
+    try {
+      screen = openDailyScreen({ onRefresh: () => { refreshed += 1; } });
+      await ticks();
+      const layer = findAll(document.body, 'daily-screen').pop();
+      const gear = () => findAll(layer, 'daily-head')[0].childNodes[2];
+      const panel = () => findAll(document.body, 'sheet-scrim').pop();
+
+      fire(gear(), 'click');
+      ok(isSheetOpen(), 'the gear opens a panel');
+      ok(findAll(panel(), 'daily-app-lang').length === 1, 'the app language is in the panel');
+      ok(findAll(panel(), 'daily-card-lang').length === 1, 'the card language is in the panel');
+
+      // The phone's back with the panel open: only the panel goes.
+      fireWindow('popstate');
+      ok(!isSheetOpen(), 'back closed the panel');
+      ok(openDailyScreen() === screen, 'and the challenge is still open');
+
+      fire(gear(), 'click');
+      const field = findAll(findAll(panel(), 'daily-app-lang')[0], 'set-select')[0];
+      field.value = 'en';
+      fire(field, 'change');
+      eq(textOf(findAll(layer, 'daily-title')[0]), 'Color of the day', 'the challenge speaks the new language');
+      eq(refreshed, 1, 'the home screen underneath was redrawn');
+      eq(store.getDB().settings.lang, 'en', 'saved as the home settings save it');
+      ok(isSheetOpen(), 'the panel came back in the new language');
+
+      fireWindow('popstate');
+      fireWindow('popstate');
+      ok(openDailyScreen() !== screen, 'with no panel, back closes the challenge');
+    } finally {
+      store.setSetting('lang', langBefore);
+      setLang('pt');
+      closeSheet();
+      const again = openDailyScreen();
+      again.close(false);
       net.restore();
       storage.reset();
     }

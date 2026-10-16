@@ -68,7 +68,7 @@ export function renderSetup(root, {
         el('div', { class: 'head-actions' }, [
           installButton(onRefresh),
           // The daily color challenge (src/daily/). Its code only loads on the tap.
-          dailyButton(),
+          dailyButton(onRefresh),
           el('button', { class: 'icon-btn', 'aria-label': t('common.settings'), onClick: () => openSettings(onRefresh) }, [icon('gear')]),
           el('button', { class: 'icon-btn', 'aria-label': t('common.stats'), onClick: onStats }, [icon('chart')]),
         ]),

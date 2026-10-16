@@ -2,10 +2,9 @@
  * The rules of the color guess.
  *
  * A guess is a set of colors: any mix of W, U, B, R, G, or just C for
- * colorless. Three tries. After each miss the player learns HOW MANY of the
- * colors they picked are on the card - never which ones, which made three
- * tries too easy - and after the first miss also how many colors the card
- * has, without which a three-color card is nearly impossible to land.
+ * colorless. Three tries. After each miss the player learns only HOW MANY of
+ * the colors they picked are on the card - never which ones, and never how
+ * many colors the card has: both made three tries too easy.
  *
  * Pure: the screen keeps the state, this only judges it.
  */
@@ -47,20 +46,17 @@ export function judge(guess, colors) {
 /**
  * Where a day stands, from its guesses.
  *
- * `status`: 'playing' | 'won' | 'lost'. `colorCount` only appears once a miss
- * earned the hint.
+ * `status`: 'playing' | 'won' | 'lost'.
  */
 export function progress(guesses, colors) {
   const list = (guesses || []).map(normalizeGuess).filter((g) => g.length);
   const results = list.map((g) => ({ guess: g, ...judge(g, colors) }));
   const won = results.some((r) => r.exact);
   const status = won ? 'won' : (results.length >= MAX_TRIES ? 'lost' : 'playing');
-  const misses = results.filter((r) => !r.exact).length;
   return {
     status,
     results,
     triesLeft: Math.max(0, MAX_TRIES - results.length),
-    colorCount: misses > 0 ? answerOf(colors).filter((c) => c !== COLORLESS).length : null,
   };
 }
 

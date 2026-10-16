@@ -81,6 +81,7 @@ const ASSETS = [
   './src/cloud/rules.js',
   './src/colors.js',
   './src/config.js',
+  './src/daily/back.js',
   './src/daily/calendar.js',
   './src/daily/card.js',
   './src/daily/day.js',
