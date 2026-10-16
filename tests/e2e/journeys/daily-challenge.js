@@ -66,6 +66,10 @@ export default {
       await page.waitFor(`document.querySelector('.daily-hint') && document.querySelector('.daily-guess-hits')`, 'the miss and the hint');
       const hits = await page.text('.daily-guess-hits');
       if (!/^\D*1\D+2\D*$/.test(hits)) throw new Error('the miss should read 1 of 2, got: ' + hits);
+      if (!(await page.count('.daily-guess.is-wrong .daily-guess-icon svg'))
+        || !(await page.text('.daily-guess.is-wrong .daily-guess-verdict') || '').trim()) {
+        throw new Error('the wrong guess has no icon or no "wrong" text');
+      }
       const looks = await page.eval(`[...document.querySelectorAll('.daily-guess .daily-pip')]
         .map((p) => p.className + ' ' + getComputedStyle(p).opacity)`);
       if (looks.length !== 2 || new Set(looks).size !== 1) {

@@ -67,6 +67,9 @@
   color: var(--text-dim);
 }
 
+/* Card, guesses, hint and board: the same breathing room between all of them. */
+.daily-body { display: flex; flex-direction: column; gap: 14px; }
+
 .daily-state {
   padding: 40px 12px;
   text-align: center;
@@ -205,19 +208,33 @@
 .daily-tries { margin: 0; text-align: center; font-size: 0.78rem; color: var(--text-dim); }
 
 .daily-guesses { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+/* One row per guess: verdict icon, verdict and count, then the colors. The
+   colors are all drawn alike - the row never says WHICH ones hit. */
 .daily-guess {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: 12px;
+  padding: 9px 12px;
   border-radius: var(--r-sm);
   background: var(--surface);
+  border: 1px solid var(--line-soft);
 }
-.daily-guess-pips { display: flex; gap: 6px; }
-.daily-guess-hits { font-size: 0.85rem; color: var(--text-mid); font-variant-numeric: tabular-nums; }
-.daily-guess.is-exact .daily-guess-hits { color: var(--text); font-weight: 500; }
+.daily-guess.is-wrong { border-color: rgba(226, 97, 74, 0.3); }
+.daily-guess-icon {
+  width: 28px; height: 28px;
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  color: var(--danger);
+  background: rgba(226, 97, 74, 0.12);
+}
+.daily-guess-icon .icon { width: 16px; height: 16px; }
+.daily-guess.is-exact .daily-guess-icon { color: var(--on-contrast); background: var(--contrast); }
+.daily-guess-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.daily-guess-verdict { font-size: 0.9rem; font-weight: 500; color: var(--danger); }
+.daily-guess.is-exact .daily-guess-verdict { color: var(--text); }
+.daily-guess-hits { font-size: 0.8rem; color: var(--text-mid); font-variant-numeric: tabular-nums; }
+.daily-guess-pips { display: flex; gap: 6px; flex: none; }
 .daily-hint { margin: 0; font-size: 0.88rem; color: var(--text); }
 
 /* ---------- the result ---------- */

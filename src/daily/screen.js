@@ -54,6 +54,23 @@ function pip(c, extra = '') {
   }, [c]);
 }
 
+/** A check mark in the stroke style of ui.js icons, which has none. */
+function checkIcon() {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 20 20');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.classList.add('icon');
+  const path = document.createElementNS(NS, 'path');
+  path.setAttribute('d', 'M4.5 10.5 8 14l7.5-8');
+  svg.append(path);
+  return svg;
+}
+
 /** One line of card text, from the segments card.js produced. */
 function line(segs, tag = 'p') {
   return el(tag, {}, segs.map((s) => {
@@ -289,14 +306,15 @@ export function openDailyScreen({ onClose } = {}) {
     // The picked colors, all drawn alike, and only the count of how many
     // are on the card - never which ones (see judge() in game.js).
     return el('ol', { class: 'daily-guesses' }, p.results.map((r) => el('li', {
-      class: 'daily-guess' + (r.exact ? ' is-exact' : ''),
+      class: 'daily-guess' + (r.exact ? ' is-exact' : ' is-wrong'),
       'aria-label': r.guess.map(colorName).join(', '),
     }, [
+      el('span', { class: 'daily-guess-icon', 'aria-hidden': 'true' }, [r.exact ? checkIcon() : icon('close')]),
+      el('span', { class: 'daily-guess-text' }, [
+        el('span', { class: 'daily-guess-verdict', text: r.exact ? dt('daily.guessExact') : dt('daily.guessWrong') }),
+        r.exact ? null : el('span', { class: 'daily-guess-hits', text: dt('daily.hits', { n: r.hits, total: r.picked }) }),
+      ]),
       el('span', { class: 'daily-guess-pips' }, r.guess.map((c) => pip(c))),
-      el('span', {
-        class: 'daily-guess-hits',
-        text: r.exact ? dt('daily.guessExact') : dt('daily.hits', { n: r.hits, total: r.picked }),
-      }),
     ])));
   }
 

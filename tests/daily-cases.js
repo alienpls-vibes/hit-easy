@@ -390,6 +390,9 @@ export const DAILY_CASES = [
       eq(storage.day(dayKey()).guesses, [['G']], 'the guess is saved');
       ok(findAll(layer, 'daily-hint').length === 1, 'a miss earns the hint');
       eq(textOf(findAll(layer, 'daily-guess-hits')[0]), '0 de 1 na carta', 'the miss shows only a count');
+      eq(textOf(findAll(layer, 'daily-guess-verdict')[0]), 'Palpite errado', 'the miss says it was wrong');
+      ok(findAll(layer, 'is-wrong').length === 1 && findAll(findAll(layer, 'daily-guess-icon')[0], 'icon').length === 1,
+        'the wrong row carries its icon');
 
       fire(pick('R'), 'click');
       submit();
