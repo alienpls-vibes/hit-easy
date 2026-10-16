@@ -61,6 +61,16 @@ export function installNetwork(conn, { localOrigin, cloud }) {
         await conn.send('Fetch.continueRequest', { requestId }, s);
         return;
       }
+      // Another localhost port is an EARLIER journey's server, not a host the
+      // app chose: the app only uses relative URLs. The browser fetches a
+      // page's icon on its own and late, so a journey that ended on a page -
+      // offline, where the request hangs - had that request land here, in the
+      // next journey, which failed for a call it never made (CI, 2026-10-16,
+      // twice). It is refused, but not blamed on this journey.
+      if ((url.hostname === 'localhost' || url.hostname === '127.0.0.1') && url.origin !== localOrigin) {
+        await conn.send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' }, s);
+        return;
+      }
       log.push(request.method + ' ' + request.url);
       if (!online) {
         await conn.send('Fetch.failRequest', { requestId, errorReason: 'InternetDisconnected' }, s);
