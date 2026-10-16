@@ -250,13 +250,15 @@ export async function updateApp(maxWait = 10000) {
     }
 
     if (!reg.installing && !reg.waiting) {
-      // 2. Taken over in the background: the code here is behind its worker.
-      const worker = await workerVersion();
-      if (worker && worker !== APP_VERSION) { location.reload(); return 'updating'; }
-
-      // 3. Same worker, changed files.
-      const refreshed = await askWorker({ type: 'REFRESH' }, 20000);
+      // 2 and 3 in one answer, with a deadline long enough for a worker that
+      // is still waking up. A separate version question with a short deadline
+      // came back empty on a slow device, skipped check 2, and the button said
+      // "already the newest" in exactly the case it exists for.
+      const refreshed = await askWorker({ type: 'REFRESH' }, 45000);
       if (!refreshed) return 'failed';
+      // 2. Taken over in the background: the code here is behind its worker.
+      if (refreshed.version && refreshed.version !== APP_VERSION) { location.reload(); return 'updating'; }
+      // 3. Same worker, changed files.
       if (refreshed.changed > 0) { location.reload(); return 'updating'; }
       if (refreshed.failed >= refreshed.total) return 'failed';
       return 'current';

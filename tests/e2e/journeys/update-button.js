@@ -36,7 +36,18 @@ function nextRelease(repo) {
   return { dir, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
+/**
+ * Opens the settings and taps Update - with the service worker STOPPED first.
+ *
+ * Phones stop an idle worker within seconds, so the person who taps Update
+ * after the app sat open meets a worker that has to start before it can
+ * answer. A first version of the fix asked the worker its version with a
+ * 1.5 s deadline, which a waking worker on a slow CI machine missed: check 2
+ * was skipped and the button said "already the newest" - intermittently.
+ */
 async function tapUpdate(page) {
+  await page.send('ServiceWorker.enable');
+  await page.send('ServiceWorker.stopAllWorkers');
   await page.tap('.head-actions > .icon-btn', { index: 0 }); // settings
   await page.tap('.sheet-scrim .set-row.is-update');
 }
@@ -100,14 +111,20 @@ export default {
         // The browser's own update check: the new worker installs, skips
         // waiting and claims this page - which keeps running the old code.
         await page.eval('navigator.serviceWorker.getRegistration().then((r) => r.update()).then(() => true)');
-        await page.waitFor(`new Promise((ok) => {
+        // Polls the worker in charge; on timeout the last value says what the
+        // registration looked like (installing / waiting / active scripts).
+        await page.waitFor(`navigator.serviceWorker.getRegistration().then((r) => new Promise((ok) => {
+          const state = (w) => (w ? w.state : '-');
+          const shape = 'installing ' + state(r.installing) + ', waiting ' + state(r.waiting)
+            + ', active ' + state(r.active);
           const c = navigator.serviceWorker.controller;
-          if (!c) return ok(false);
+          if (!c) return ok('no controller; ' + shape);
           const ch = new MessageChannel();
-          ch.port1.onmessage = (e) => ok(e.data === ${JSON.stringify(NEXT)});
+          ch.port1.onmessage = (e) => ok(e.data === ${JSON.stringify(NEXT)} ? true : 'controller answers ' + e.data + '; ' + shape);
           c.postMessage({ type: 'VERSION' }, [ch.port2]);
-          setTimeout(() => ok(false), 1000);
-        })`, 'the new worker to take over in the background', 20000);
+          setTimeout(() => ok('controller silent; ' + shape), 2000);
+        })).then((v) => (v === true ? true : (window.__swShape = v, false)))`, 'the new worker to take over in the background', 30000)
+          .catch(async (err) => { throw new Error(err.message + ' - ' + await page.eval('window.__swShape')); });
         const before = await runningVersion(page);
         if (before === NEXT) throw new Error('the page already ran the new code; the scenario did not happen');
 

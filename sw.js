@@ -249,7 +249,9 @@ async function refreshShell() {
       changed += 1;
     }
   }));
-  return { changed, failed, total: ASSETS.length };
+  // The version travels in the same answer: asking it separately, with its
+  // own short deadline, raced a worker still waking up on a slow phone.
+  return { changed, failed, total: ASSETS.length, version: VERSION };
 }
 
 self.addEventListener('activate', (event) => {
