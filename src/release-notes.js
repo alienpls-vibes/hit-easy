@@ -11,10 +11,12 @@
  * apologizes, and the third warns that something that used to work now works
  * differently.
  *
- * The note text stays in Portuguese, because it is what users read. Translating
- * release notes on every release is recurring work nobody keeps up, and stale
- * notes in three languages mislead more than they inform. To translate an
- * entry, replace the string with an object: { pt: '...', en: '...' }.
+ * SHORT and in every language. Each version says only its core - a title and
+ * one to three items of one sentence each; the detail belongs in the commits.
+ * The title and every item are `{ pt, en, es, de }`, shown in the app's
+ * language: the notes used to be Portuguese only and long, and an English
+ * speaker opening "what's new" got a wall of text in a language they did not
+ * pick. `npm test` fails if a language is missing.
  *
  * The newest version comes first. check-syntax.js requires the current app
  * version to have an entry here - publishing without writing the notes breaks
@@ -25,660 +27,515 @@ export const RELEASE_NOTES = [
   {
     version: '1.11.0',
     date: '2026-10-16',
-    title: 'Desafio diário: qual a cor desta carta?',
+    title: {
+      pt: 'Cor do dia',
+      en: 'Color of the day',
+      es: 'Color del día',
+      de: 'Farbe des Tages',
+    },
     items: [
       {
         type: 'new',
-        text: 'Cor do dia: todo dia uma carta aparece sem o nome e sem as manas '
-          + 'coloridas, e você tem três tentativas para acertar a cor. Abra pelo '
-          + 'botão com a carta e o "?" no topo da tela inicial.',
+        text: {
+          pt: 'Desafio diário: adivinhe a cor de uma carta sem nome nem mana colorida, em três tentativas.',
+          en: 'Daily challenge: guess the color of a card with no name or colored mana, in three tries.',
+          es: 'Desafío diario: adivina el color de una carta sin nombre ni maná de color, en tres intentos.',
+          de: 'Tägliche Herausforderung: Errate in drei Versuchen die Farbe einer Karte ohne Namen und farbiges Mana.',
+        },
       },
       {
         type: 'new',
-        text: 'A cada erro, o jogo diz quantas das cores escolhidas estão na carta, '
-          + 'mas não quais. No fim aparecem a carta inteira, o ilustrador e a sua '
-          + 'sequência de acertos.',
+        text: {
+          pt: 'O texto da carta vem no idioma que você escolher, e dá para ativar um aviso de carta nova.',
+          en: 'The card text comes in the language you pick, and you can turn on a notice for each new card.',
+          es: 'El texto de la carta llega en el idioma que elijas, y puedes activar un aviso de carta nueva.',
+          de: 'Der Kartentext kommt in der Sprache deiner Wahl, und du kannst eine Benachrichtigung für jede neue Karte einschalten.',
+        },
       },
       {
-        type: 'new',
-        text: 'Nas opções do desafio você escolhe o idioma do app e o idioma da carta '
-          + '(o texto vem do Scryfall), e pode ligar um aviso para quando sair carta nova.',
+        type: 'changed',
+        text: {
+          pt: 'As novidades ficaram mais curtas e seguem o idioma do app, assim como a política de privacidade.',
+          en: "What's new is shorter and follows the app language, and so does the privacy policy.",
+          es: 'Las novedades son más cortas y siguen el idioma de la app, igual que la política de privacidad.',
+          de: 'Die Neuigkeiten sind kürzer und folgen der App-Sprache, ebenso die Datenschutzerklärung.',
+        },
       },
     ],
   },
   {
     version: '1.10.3',
     date: '2026-10-16',
-    title: 'O botão de atualizar encontra a versão nova',
+    title: {
+      pt: 'Atualizar encontra a versão nova',
+      en: 'Update finds the new version',
+      es: 'Actualizar encuentra la versión nueva',
+      de: 'Aktualisieren findet die neue Version',
+    },
     items: [
       {
         type: 'fixed',
-        text: 'No app instalado, "Atualizar" dizia que já estava na versão mais nova '
-          + 'mesmo com uma nova publicada. Agora ele confere o que está no ar e, se '
-          + 'houver novidade, atualiza e reinicia o app sozinho.',
-      },
-      {
-        type: 'fixed',
-        text: 'Sem internet, o botão avisa que não conseguiu procurar a atualização, '
-          + 'em vez de dizer que já está tudo em dia.',
+        text: {
+          pt: 'No app instalado, o botão Atualizar volta a encontrar e instalar a versão publicada.',
+          en: 'In the installed app, the Update button finds and installs the published version again.',
+          es: 'En la app instalada, el botón Actualizar vuelve a encontrar e instalar la versión publicada.',
+          de: 'In der installierten App findet und installiert „Aktualisieren“ wieder die veröffentlichte Version.',
+        },
       },
     ],
   },
   {
     version: '1.10.2',
     date: '2026-10-15',
-    title: 'Iniciar partida voltou a funcionar',
+    title: {
+      pt: 'Iniciar partida voltou a funcionar',
+      en: 'Starting a match works again',
+      es: 'Iniciar partida vuelve a funcionar',
+      de: 'Partie starten funktioniert wieder',
+    },
     items: [
       {
         type: 'fixed',
-        text: 'O botão de iniciar partida não fazia nada na 1.10.1. Desculpe: '
-          + 'a partida volta a começar normalmente.',
+        text: {
+          pt: 'O botão de iniciar partida, quebrado na 1.10.1, voltou a funcionar.',
+          en: 'The start match button, broken in 1.10.1, works again.',
+          es: 'El botón de iniciar partida, roto en la 1.10.1, vuelve a funcionar.',
+          de: 'Der Startknopf, der in 1.10.1 nicht ging, funktioniert wieder.',
+        },
       },
       {
         type: 'fixed',
-        text: 'Mudar a vida e logo em seguida bloquear o celular, trocar de app '
-          + 'ou recarregar podia perder o último ajuste. Agora ele é guardado na hora.',
-      },
-      {
-        type: 'fixed',
-        text: 'Quando algo quebra ao abrir, o app volta a mostrar a tela que diz '
-          + 'o que aconteceu, em vez de ficar preto.',
+        text: {
+          pt: 'O último ajuste de vida não se perde mais ao bloquear o celular logo em seguida.',
+          en: 'The last life change is no longer lost if you lock the phone right after.',
+          es: 'El último ajuste de vida ya no se pierde al bloquear el móvil justo después.',
+          de: 'Die letzte Lebensänderung geht nicht mehr verloren, wenn du das Handy direkt danach sperrst.',
+        },
       },
     ],
   },
   {
     version: '1.10.1',
     date: '2026-10-15',
-    title: 'Decks do histórico e instalar sempre à mão',
+    title: {
+      pt: 'Decks do histórico',
+      en: 'Decks from your history',
+      es: 'Mazos del historial',
+      de: 'Decks aus dem Verlauf',
+    },
     items: [
       {
         type: 'changed',
-        text: 'Ao escolher o comandante, aparecem só os decks que aquele jogador '
-          + 'já usou no histórico. Saiu a lista de decks salvos no aparelho, que '
-          + 'misturava os comandantes de todo mundo que já jogou ali.',
-      },
-      {
-        type: 'new',
-        text: 'Jogador sem conta também encontra os próprios decks: basta o nome '
-          + 'bater com alguém com quem você já jogou.',
-      },
-      {
-        type: 'fixed',
-        text: 'Decks trazidos da sua conta apareciam sem a imagem do comandante, '
-          + 'e as imagens agora ficam guardadas no aparelho para aparecer mesmo '
-          + 'sem internet.',
+        text: {
+          pt: 'Ao escolher o comandante, aparecem os decks que aquele jogador já usou.',
+          en: 'When picking a commander, you see the decks that player has already used.',
+          es: 'Al elegir comandante, aparecen los mazos que ese jugador ya usó.',
+          de: 'Bei der Kommandeurwahl erscheinen die Decks, die dieser Spieler schon benutzt hat.',
+        },
       },
       {
         type: 'fixed',
-        text: 'O botão de instalar da tela inicial aparecia e sumia. Agora fica '
-          + 'sempre lá no navegador, e quando o navegador não abre a instalação '
-          + 'sozinho, mostra o passo a passo pelo menu dele.',
+        text: {
+          pt: 'O botão de instalar fica sempre visível no navegador.',
+          en: 'The install button now stays visible in the browser.',
+          es: 'El botón de instalar ahora siempre está visible en el navegador.',
+          de: 'Der Installieren-Knopf bleibt im Browser jetzt immer sichtbar.',
+        },
       },
     ],
   },
   {
     version: '1.10.0',
     date: '2026-10-14',
-    title: 'Seu histórico mora na nuvem',
+    title: {
+      pt: 'Seu histórico mora na nuvem',
+      en: 'Your history lives in the cloud',
+      es: 'Tu historial vive en la nube',
+      de: 'Dein Verlauf liegt in der Cloud',
+    },
     items: [
       {
         type: 'changed',
-        text: 'Com conta, a partida sai do aparelho assim que chega à nuvem, e '
-          + 'as estatísticas passam a vir de lá. Quem empresta o celular para '
-          + 'alguém da mesa não deixa o histórico para trás ao sair da conta.',
-      },
-      {
-        type: 'changed',
-        text: 'Sem conta, as partidas continuam guardadas no aparelho até alguém '
-          + 'entrar numa conta, e aí sobem sozinhas. A tela de estatísticas '
-          + 'mostra quantas estão esperando, e só elas.',
-      },
-      {
-        type: 'new',
-        text: 'Sem internet, as estatísticas avisam que estão mostrando só as '
-          + 'partidas que ainda estão no aparelho, em vez de parecer que o '
-          + 'histórico sumiu.',
-      },
-      {
-        type: 'changed',
-        text: 'Esta tela foi reorganizada: cada versão com título e data, e as '
-          + 'notas agrupadas em novo, mudou e corrigido.',
-      },
-      {
-        type: 'fixed',
-        text: 'Na tela de estatísticas sem acesso, a seta de voltar apontava '
-          + 'para a direita.',
-      },
-      {
-        type: 'fixed',
-        text: 'Alguns textos de apoio saíam com a cor errada: a data e a '
-          + 'etiqueta "mudou" nesta tela, o link da conta, o @ da cadeira e a '
-          + 'versão no fim das configurações.',
+        text: {
+          pt: 'Com conta, as partidas vão para a nuvem e saem do aparelho; sem conta, esperam nele até você entrar.',
+          en: 'With an account, matches go to the cloud and leave the device; without one, they wait there until you sign in.',
+          es: 'Con cuenta, las partidas van a la nube y salen del dispositivo; sin cuenta, esperan en él hasta que inicies sesión.',
+          de: 'Mit Konto gehen Partien in die Cloud und verlassen das Gerät; ohne Konto warten sie dort, bis du dich anmeldest.',
+        },
       },
     ],
   },
   {
     version: '1.9.0',
     date: '2026-10-10',
-    title: 'Mesa por código, seu nome nas partidas e lifelink',
+    title: {
+      pt: 'Mesa por código e lifelink',
+      en: 'Table by code and lifelink',
+      es: 'Mesa por código y vínculo vital',
+      de: 'Tisch per Code und Lebensverknüpfung',
+    },
     items: [
       {
         type: 'new',
-        text: 'Passar a mesa agora gera um código de seis letras: quem vai '
-          + 'continuar toca em "Receber uma mesa" e digita, ou toca no link '
-          + 'que vai junto na mensagem. Acabou o arquivo que não abria no '
-          + 'WhatsApp. Vale por 24 horas, uma vez só, e quem passou vê quando '
-          + 'chegou. Sem internet, o arquivo continua funcionando.',
+        text: {
+          pt: 'Passe a mesa para outro celular com um código de seis letras.',
+          en: 'Pass the table to another phone with a six-letter code.',
+          es: 'Pasa la mesa a otro móvil con un código de seis letras.',
+          de: 'Gib den Tisch mit einem sechsstelligen Code an ein anderes Handy weiter.',
+        },
       },
       {
         type: 'new',
-        text: 'O teclado de dano ganhou a marca Lifelink: ligada, quem causou '
-          + 'o dano ganha a mesma vida. Desfazer volta as duas coisas juntas.',
+        text: {
+          pt: 'Lifelink no teclado de dano, e dano em todos, só nos oponentes ou dreno no duplo toque.',
+          en: 'Lifelink on the damage pad, and damage to everyone, to opponents only, or drain on double tap.',
+          es: 'Vínculo vital en el teclado de daño, y daño a todos, solo a oponentes o drenaje con doble toque.',
+          de: 'Lebensverknüpfung im Schadensfeld, und Schaden an alle, nur an Gegner oder Entzug per Doppeltipp.',
+        },
       },
       {
         type: 'new',
-        text: 'O duplo toque agora oferece três ações: dano em todos os '
-          + 'jogadores (inclusive você), dano só nos oponentes, e dreno.',
-      },
-      {
-        type: 'new',
-        text: 'No iPhone e no iPad, o botão de instalar aparece na tela '
-          + 'inicial e mostra onde tocar no Safari. Antes a explicação ficava '
-          + 'escondida nas configurações.',
-      },
-      {
-        type: 'new',
-        text: 'Escolha como você aparece nas partidas: em Configurações → '
-          + 'Conta, o nome nas partidas aceita maiúsculas, acentos e o que '
-          + 'mais quiser. Ele aparece na mesa, no card de vitória, nas '
-          + 'votações e nas estatísticas - o @ continua sendo como os amigos '
-          + 'acham você.',
-      },
-      {
-        type: 'changed',
-        text: 'Na escolha de jogador, todo mundo aparece pelo nome; o @ fica só '
-          + 'na busca por @, que agora lista quem já foi marcado neste '
-          + 'aparelho - um toque, sem digitar o @ inteiro.',
-      },
-      {
-        type: 'changed',
-        text: 'Todo @ que você já usou continua seu: ao trocar, o antigo não '
-          + 'fica livre para outra pessoa, e quem marcar ele ainda acha você. '
-          + 'O @ pode mudar uma vez a cada 15 dias, e nas estatísticas as '
-          + 'partidas com o @ antigo continuam contando para a mesma pessoa.',
-      },
-      {
-        type: 'fixed',
-        text: 'Conferir o próprio @ dizia que ele estava livre. Agora diz que '
-          + 'já é seu.',
-      },
-      {
-        type: 'changed',
-        text: 'As configurações foram reorganizadas em grupos - Aparência, '
-          + 'Na mesa e Aplicativo -, com menos texto. A conta virou uma linha '
-          + 'que abre a própria tela.',
-      },
-      {
-        type: 'changed',
-        text: 'O jogador 1 senta no alto à esquerda, e a vez segue no '
-          + 'sentido horário. Com 2, 3 e 5 jogadores a mesa deitada passou a '
-          + 'ser o padrão. Partidas que já estavam abertas continuam como '
-          + 'começaram.',
-      },
-      {
-        type: 'changed',
-        text: 'Os teclados de dano começam no 0.',
-      },
-      {
-        type: 'fixed',
-        text: 'Depois de entrar na conta, os botões podiam começar a piscar '
-          + 'sob o mouse e parar de responder, e os filtros das estatísticas '
-          + 'quebravam. A tela da conta se redesenhava sem parar, buscando '
-          + 'os convites na internet a cada volta.',
-      },
-      {
-        type: 'fixed',
-        text: 'Sair do app e voltar no meio da partida deixava a tela em pé. '
-          + 'Agora o primeiro toque devolve a mesa deitada.',
-      },
-      {
-        type: 'fixed',
-        text: 'Encostar no + ou no − e sair arrastando agora arma o ataque, '
-          + 'sem tirar nem pôr vida no caminho.',
-      },
-      {
-        type: 'fixed',
-        text: 'No iPhone, segurar um botão para subir rápido selecionava o '
-          + 'botão em vez de repetir.',
-      },
-      {
-        type: 'fixed',
-        text: 'No iPhone, a tela começava a apagar sozinha no meio da '
-          + 'partida depois de bloquear o celular ou trocar de app. Agora o '
-          + 'primeiro toque na mesa volta a mantê-la acesa.',
-      },
-      {
-        type: 'new',
-        text: 'Aberto no Safari do iPhone, a mesa avisa que tela cheia só '
-          + 'existe com o app instalado, e leva ao passo a passo.',
+        text: {
+          pt: 'Escolha o nome com que você aparece nas partidas.',
+          en: 'Choose the name you appear under in matches.',
+          es: 'Elige el nombre con el que apareces en las partidas.',
+          de: 'Wähle den Namen, unter dem du in Partien erscheinst.',
+        },
       },
     ],
   },
   {
     version: '1.8.0',
     date: '2026-10-02',
-    title: 'Passar a mesa, e convite uma vez só',
+    title: {
+      pt: 'Passar a mesa',
+      en: 'Pass the table',
+      es: 'Pasar la mesa',
+      de: 'Tisch weitergeben',
+    },
     items: [
       {
         type: 'new',
-        text: 'Acabando a bateria no meio do jogo? Dá para passar a mesa '
-          + 'para o celular de alguém da partida: ela vira um arquivo, você '
-          + 'envia, e o jogo continua de onde parou. Ninguém precisa de conta '
-          + 'e não precisa de internet.',
+        text: {
+          pt: 'Bateria acabando? Passe a partida para o celular de outra pessoa e continue de onde parou.',
+          en: "Battery running low? Pass the match to someone else's phone and pick up where you left off.",
+          es: '¿Batería agotándose? Pasa la partida al móvil de otra persona y sigue donde lo dejaste.',
+          de: 'Akku fast leer? Gib die Partie an ein anderes Handy weiter und spiel dort weiter.',
+        },
       },
       {
         type: 'changed',
-        text: 'Quem já jogou uma partida com você passa a entrar sozinho nas '
-          + 'próximas: o convite não precisa mais ser aceito toda vez. Dá '
-          + 'para desfazer em qualquer convite, com "nunca aceitar desta '
-          + 'pessoa".',
+        text: {
+          pt: 'Quem já jogou com você entra sozinho nas próximas partidas, sem novo convite.',
+          en: 'People who already played with you join your next matches without a new invite.',
+          es: 'Quien ya jugó contigo entra solo en las próximas partidas, sin nueva invitación.',
+          de: 'Wer schon mit dir gespielt hat, kommt ohne neue Einladung in die nächsten Partien.',
+        },
       },
     ],
   },
   {
     version: '1.7.0',
     date: '2026-10-02',
-    title: 'Ordenar as listas, e o teste fora do histórico real',
+    title: {
+      pt: 'Ordenar as listas',
+      en: 'Sort the lists',
+      es: 'Ordenar las listas',
+      de: 'Listen sortieren',
+    },
     items: [
       {
         type: 'new',
-        text: 'As abas de Decks e de Jogadores ganharam um seletor de ordem: '
-          + 'partidas, vitórias, taxa de vitória, dano causado, '
-          + 'eliminações e melhor colocação.',
+        text: {
+          pt: 'Decks e Jogadores podem ser ordenados por partidas, vitórias, dano e mais.',
+          en: 'Decks and Players can be sorted by matches, wins, damage and more.',
+          es: 'Mazos y Jugadores se pueden ordenar por partidas, victorias, daño y más.',
+          de: 'Decks und Spieler lassen sich nach Partien, Siegen, Schaden und mehr sortieren.',
+        },
       },
       {
         type: 'fixed',
-        text: 'As partidas jogadas na versão de teste subiam para a mesma '
-          + 'base da versão de verdade e voltavam no histórico dela, contando '
-          + 'nas estatísticas. Agora cada canal só vê o que foi jogado nele.',
-      },
-      {
-        type: 'fixed',
-        text: 'Uma cadeira marcada com o @ de alguém numa mesa de teste '
-          + 'virava convite de verdade para aquela pessoa. Não vira mais.',
-      },
-      {
-        type: 'changed',
-        text: 'Esta tela passa a mostrar só o que entrou desde a versão '
-          + 'em que o app estava. O histórico inteiro continua a um toque, '
-          + 'no fim da lista.',
-      },
-      {
-        type: 'changed',
-        text: 'O botão de atualizar o app mostra um girador enquanto busca '
-          + 'a versão nova. Antes ele só escurecia, e a espera de até dez '
-          + 'segundos parecia um botão que não funcionou.',
+        text: {
+          pt: 'Partidas da versão de teste não se misturam mais ao histórico real.',
+          en: 'Matches from the test version no longer mix into your real history.',
+          es: 'Las partidas de la versión de prueba ya no se mezclan con tu historial real.',
+          de: 'Partien aus der Testversion landen nicht mehr in deinem echten Verlauf.',
+        },
       },
     ],
   },
   {
     version: '1.6.0',
     date: '2026-10-02',
-    title: 'Seus decks seguem a sua conta',
+    title: {
+      pt: 'Seus decks seguem a sua conta',
+      en: 'Your decks follow your account',
+      es: 'Tus mazos siguen a tu cuenta',
+      de: 'Deine Decks folgen deinem Konto',
+    },
     items: [
       {
         type: 'new',
-        text: 'Os decks de quem está logado passam a acompanhar a conta. '
-          + 'Num aparelho novo eles já aparecem na escolha do deck, em vez de '
-          + 'obrigar a buscar na Scryfall o comandante que o app já conhece.',
-      },
-      {
-        type: 'changed',
-        text: 'São só os seus, e são privados: o app deixa cada pessoa '
-          + 'escrever apenas no próprio perfil, e a busca por @ não revela o '
-          + 'que alguém joga.',
+        text: {
+          pt: 'Com conta, seus decks aparecem em qualquer aparelho, sem buscar de novo.',
+          en: 'Signed in, your decks show up on any device without searching again.',
+          es: 'Con cuenta, tus mazos aparecen en cualquier dispositivo sin volver a buscarlos.',
+          de: 'Angemeldet erscheinen deine Decks auf jedem Gerät, ohne neue Suche.',
+        },
       },
     ],
   },
   {
     version: '1.5.0',
     date: '2026-10-02',
-    title: 'Filtrar os decks por jogador',
+    title: {
+      pt: 'Filtrar decks por jogador',
+      en: 'Filter decks by player',
+      es: 'Filtrar mazos por jugador',
+      de: 'Decks nach Spieler filtern',
+    },
     items: [
       {
         type: 'new',
-        text: 'A aba de Decks ganhou um filtro por jogador. "Todos" é o '
-          + 'padrão e mostra o que sempre mostrou: todos os decks jogados '
-          + 'neste aparelho. Escolhendo alguém, a lista fica só com os decks '
-          + 'que aquela pessoa levou.',
-      },
-      {
-        type: 'changed',
-        text: 'O filtro só aparece quando há mais de uma pessoa no '
-          + 'histórico: filtrar entre um não filtra nada.',
+        text: {
+          pt: 'A aba de Decks ganhou um filtro por jogador.',
+          en: 'The Decks tab now has a filter by player.',
+          es: 'La pestaña Mazos ahora tiene un filtro por jugador.',
+          de: 'Der Tab „Decks“ hat jetzt einen Filter nach Spieler.',
+        },
       },
     ],
   },
   {
     version: '1.4.1',
     date: '2026-10-02',
-    title: 'O voltar do aparelho não fecha mais o app',
+    title: {
+      pt: 'O voltar não fecha mais o app',
+      en: 'Back no longer closes the app',
+      es: 'Atrás ya no cierra la app',
+      de: 'Zurück schließt die App nicht mehr',
+    },
     items: [
       {
         type: 'fixed',
-        text: 'Nas estatísticas, o botão de voltar do aparelho fechava o '
-          + 'app em vez de voltar uma tela. Agora leva para onde a flecha da '
-          + 'tela leva — a tela inicial, no caminho normal.',
-      },
-      {
-        type: 'changed',
-        text: 'Com um painel aberto, o voltar fecha o painel em vez de '
-          + 'navegar. Antes de existir esse voltar, o gesto saía do app com a '
-          + 'folha de pé.',
+        text: {
+          pt: 'Nas estatísticas, o voltar do aparelho volta uma tela em vez de fechar o app.',
+          en: "In the statistics, the device's back button goes back one screen instead of closing the app.",
+          es: 'En las estadísticas, el botón atrás del dispositivo vuelve una pantalla en lugar de cerrar la app.',
+          de: 'In der Statistik geht die Zurück-Taste eine Ansicht zurück, statt die App zu schließen.',
+        },
       },
     ],
   },
   {
     version: '1.4.0',
     date: '2026-10-02',
-    title: 'O relógio para quando você sai da mesa',
+    title: {
+      pt: 'O relógio para quando você sai',
+      en: 'The clock stops when you leave',
+      es: 'El reloj se detiene al salir',
+      de: 'Die Uhr hält an, wenn du gehst',
+    },
     items: [
       {
         type: 'fixed',
-        text: 'A duração da partida contava tempo de parede: sair para as '
-          + 'estatísticas, bloquear o celular ou fechar o app somava tudo '
-          + 'aquilo à partida — e, ao passar a vez, ao turno de quem estava '
-          + 'jogando. Fechar o app à noite e voltar no dia seguinte produzia '
-          + 'uma partida de catorze horas.',
-      },
-      {
-        type: 'new',
-        text: 'Agora o relógio para sozinho quando ninguém está na mesa, e '
-          + 'volta a andar quando você volta. Sem pedir nada e sem a cobertura '
-          + 'da pausa manual: pausa que você não pediu não deve exigir que '
-          + 'você a desfaça.',
-      },
-      {
-        type: 'changed',
-        text: 'Fechar o app é melhor esforço. Um encerramento forçado pelo '
-          + 'sistema pode não avisar o app, e aí aquele tempo conta — não há '
-          + 'aviso que o navegador garanta. Pausar antes continua sendo o '
-          + 'jeito certo para uma parada longa.',
+        text: {
+          pt: 'A duração da partida não conta mais o tempo fora da mesa ou com o app fechado.',
+          en: 'Match duration no longer counts time away from the table or with the app closed.',
+          es: 'La duración de la partida ya no cuenta el tiempo fuera de la mesa o con la app cerrada.',
+          de: 'Die Partiedauer zählt keine Zeit mehr, in der du nicht am Tisch bist oder die App zu ist.',
+        },
       },
     ],
   },
   {
     version: '1.3.0',
     date: '2026-10-02',
-    title: 'A vida conta na sua frente',
+    title: {
+      pt: 'A vida conta na sua frente',
+      en: 'Life counts in front of you',
+      es: 'La vida cuenta frente a ti',
+      de: 'Leben zählt vor deinen Augen',
+    },
     items: [
       {
         type: 'new',
-        text: 'Quando o dano vem de um painel, a vida do alvo conta até o '
-          + 'novo valor em vez de pular. Vale para dano por arraste, dano em '
-          + 'todos, dreno (os oponentes descem e quem drenou sobe) e cura. '
-          + 'Antes o número trocava de uma vez e nada dizia que algo tinha '
-          + 'acontecido — e é justamente quando o dano foi grande que isso '
-          + 'importa.',
-      },
-      {
-        type: 'changed',
-        text: 'A cor marca a direção enquanto o número anda: de longe, no '
-          + 'meio da mesa, ele sozinho não diz se subiu ou caiu antes de '
-          + 'parar.',
-      },
-      {
-        type: 'changed',
-        text: 'A borda do painel e os botões −/+ continuam respondendo na '
-          + 'hora, sem contar: ali o número já anda a cada toque. E quem pede '
-          + 'menos movimento no sistema recebe o número de uma vez.',
+        text: {
+          pt: 'Depois de dano, dreno ou cura, a vida anda até o novo valor em vez de pular.',
+          en: 'After damage, drain or healing, life counts to the new value instead of jumping.',
+          es: 'Tras daño, drenaje o curación, la vida avanza hasta el nuevo valor en lugar de saltar.',
+          de: 'Nach Schaden, Entzug oder Heilung zählt das Leben zum neuen Wert, statt zu springen.',
+        },
       },
     ],
   },
   {
     version: '1.2.3',
     date: '2026-10-02',
-    title: 'A partida volta a encerrar',
+    title: {
+      pt: 'A partida volta a encerrar',
+      en: 'Matches end again',
+      es: 'Las partidas vuelven a terminar',
+      de: 'Partien enden wieder',
+    },
     items: [
       {
         type: 'fixed',
-        text: 'A partida não encerrava sozinha quando sobrava um jogador '
-          + 'vivo: o cartaz de vitória simplesmente não aparecia. E declarar '
-          + 'o vencedor pelo menu não fazia nada — o item existia, estava '
-          + 'habilitado, e tocar nele não produzia efeito.',
-      },
-      {
-        type: 'fixed',
-        text: 'Eram o mesmo defeito, vindo da reorganização interna da '
-          + 'versão 1.2.0: um trecho de código ficou no lugar errado e deixou '
-          + 'inalcançável a parte que liga o cartaz de vitória e a escolha de '
-          + 'vencedor à mesa.',
+        text: {
+          pt: 'O cartaz de vitória voltou a aparecer, e declarar o vencedor pelo menu funciona.',
+          en: 'The victory screen shows again, and declaring the winner from the menu works.',
+          es: 'La pantalla de victoria vuelve a aparecer, y declarar el ganador desde el menú funciona.',
+          de: 'Der Siegesbildschirm erscheint wieder, und den Sieger übers Menü festzulegen funktioniert.',
+        },
       },
     ],
   },
   {
     version: '1.2.2',
     date: '2026-10-01',
-    title: 'A rolagem das estatísticas de volta',
+    title: {
+      pt: 'Rolagem das estatísticas corrigida',
+      en: 'Statistics scrolling fixed',
+      es: 'Desplazamiento de estadísticas corregido',
+      de: 'Scrollen in der Statistik repariert',
+    },
     items: [
       {
         type: 'fixed',
-        text: 'A lista de estatísticas e de partidas rolava e voltava '
-          + 'instantaneamente para o topo. A causa era um ajuste de viewport '
-          + 'que entrou na versão anterior para resolver o teclado: ele mudava '
-          + 'o layout da página durante a rolagem. O conserto do teclado '
-          + 'continua, por outro caminho que não encosta no layout.',
-      },
-      {
-        type: 'fixed',
-        text: 'Os painéis subiam um pedaço sem motivo quando a barra de '
-          + 'endereço do navegador estava visível — ela era confundida com o '
-          + 'teclado.',
+        text: {
+          pt: 'As listas de estatísticas não pulam mais de volta para o topo ao rolar.',
+          en: 'Statistics lists no longer jump back to the top while scrolling.',
+          es: 'Las listas de estadísticas ya no vuelven arriba al desplazarte.',
+          de: 'Statistiklisten springen beim Scrollen nicht mehr nach oben.',
+        },
       },
     ],
   },
   {
     version: '1.2.1',
     date: '2026-10-01',
-    title: 'Segurar também nos botões do painel',
+    title: {
+      pt: 'Segurar também no painel',
+      en: 'Hold in the panel too',
+      es: 'Mantener pulsado también en el panel',
+      de: 'Gedrückt halten auch im Panel',
+    },
     items: [
       {
         type: 'new',
-        text: 'Segurar −1 ou +1 no painel do jogador agora repete, '
-          + 'acelerando — é onde se corrige dano e cura próprios. A versão '
-          + 'anterior trouxe isso só para as bordas do painel na mesa; '
-          + 'dentro do painel continuava pedindo um toque por ponto.',
-      },
-      {
-        type: 'changed',
-        text: 'O ajuste de vida pelo painel passou a entrar como um evento '
-          + 'só, igual ao da borda. Antes era um evento por toque, então '
-          + 'desfazer voltava ponto por ponto.',
-      },
-      {
-        type: 'changed',
-        text: 'Os passos de 5 continuam só no toque. Segurar na cadência '
-          + 'acelerada seriam noventa pontos por segundo, e o alvo passaria '
-          + 'sempre.',
+        text: {
+          pt: 'Segurar −1 ou +1 no painel do jogador repete, acelerando.',
+          en: 'Holding −1 or +1 in the player panel repeats, speeding up.',
+          es: 'Mantener −1 o +1 en el panel del jugador repite, cada vez más rápido.',
+          de: '−1 oder +1 im Spielerpanel gedrückt halten wiederholt immer schneller.',
+        },
       },
     ],
   },
   {
     version: '1.2.0',
     date: '2026-10-01',
-    title: 'A mesma pessoa, um histórico só',
+    title: {
+      pt: 'A mesma pessoa, um histórico só',
+      en: 'One person, one history',
+      es: 'Una persona, un historial',
+      de: 'Eine Person, ein Verlauf',
+    },
     items: [
       {
         type: 'changed',
-        text: 'Quem tem conta passou a aparecer pelo @ em toda tela — nas '
-          + 'estatísticas, nas rivalidades e na escolha do jogador. O nome '
-          + 'digitado continua guardado e aparece no detalhe da partida, como '
-          + '"registrado como". O @ é o único nome que significa a mesma '
-          + 'coisa em todo aparelho.',
-      },
-      {
-        type: 'changed',
-        text: 'A lista de jogadores passou a ser de pessoas, e não dos nomes '
-          + 'digitados. Quem foi cadastrado como "Alex" numa quinta e '
-          + '"Alexandre" na outra aparecia duas vezes, cada linha com metade '
-          + 'dos decks.',
+        text: {
+          pt: 'Jogadores com conta aparecem pelo @, e nomes diferentes da mesma pessoa viram um histórico só.',
+          en: 'Players with an account show by their @, and different names for the same person merge into one history.',
+          es: 'Los jugadores con cuenta aparecen por su @, y los nombres distintos de una persona se unen en un historial.',
+          de: 'Spieler mit Konto erscheinen mit ihrem @, und verschiedene Namen derselben Person werden ein Verlauf.',
+        },
       },
       {
         type: 'new',
-        text: 'Ligar alguém a uma conta agora junta o histórico INTEIRO dela, '
-          + 'e não só a partida que você estava olhando. Dá para fazer isso '
-          + 'direto na aba de Jogadores, que é onde o problema aparece: duas '
-          + 'linhas que são a mesma pessoa.',
-      },
-      {
-        type: 'new',
-        text: 'Quando um aparelho marca a conta de alguém, o outro aprende '
-          + 'sozinho ao sincronizar — e as partidas dele com aquela pessoa '
-          + 'convergem sem ninguém marcar de novo. Só de partida sua ou de '
-          + 'anfitrião que você confiou.',
-      },
-      {
-        type: 'new',
-        text: 'Segurar na borda do painel agora tira ou põe vida '
-          + 'repetidamente, acelerando: 40 a 0 em cerca de três segundos, em '
-          + 'vez de quarenta toques. Toda a seguradinha entra como um evento '
-          + 'só, então desfazer volta tudo num toque. Segurar parado na borda '
-          + 'deixou de armar ataque — arrastar dela e segurar no centro '
-          + 'continuam armando.',
-      },
-      {
-        type: 'fixed',
-        text: 'O painel ficava atrás do teclado do celular ao procurar um @: '
-          + 'dava para digitar sem ver o que se digitava.',
-      },
-      {
-        type: 'fixed',
-        text: 'Ocultar um jogador se desfazia sozinho quando a pessoa ganhava '
-          + 'conta — a linha oculta reaparecia na abertura seguinte.',
-      },
-      {
-        type: 'changed',
-        text: 'Nada visível por fora, mas por dentro o app foi reorganizado: '
-          + 'de 23 arquivos para 104, uma pasta por assunto. Serve para o que '
-          + 'vem depois sair mais rápido e quebrar menos.',
+        text: {
+          pt: 'Segurar a borda do painel tira ou põe vida sem parar, acelerando.',
+          en: 'Holding the panel edge keeps adding or removing life, speeding up.',
+          es: 'Mantener el borde del panel sigue quitando o sumando vida, cada vez más rápido.',
+          de: 'Den Panelrand gedrückt halten ändert das Leben fortlaufend und immer schneller.',
+        },
       },
     ],
   },
   {
     version: '1.1.1',
     date: '2026-08-28',
-    title: 'Colocação no idioma certo',
+    title: {
+      pt: 'Colocação no idioma certo',
+      en: 'Placement in the right language',
+      es: 'Posición en el idioma correcto',
+      de: 'Platzierung in der richtigen Sprache',
+    },
     items: [
       {
         type: 'fixed',
-        text: 'A colocação aparecia com a marca do português em qualquer '
-          + 'idioma — "1º" também para quem usa o app em inglês ou alemão. '
-          + 'Agora sai 1st, 2nd, 3rd em inglês e 1., 2., 3. em alemão.',
-      },
-      {
-        type: 'fixed',
-        text: 'Em inglês o texto era pior que a marca: a tradução produzia '
-          + '"1th place" e "2th place".',
-      },
-      {
-        type: 'changed',
-        text: 'A colocação média deixou de levar marca de ordinal. Uma média '
-          + 'de 2,3 não é uma colocação, e o rótulo ao lado já diz o que é.',
+        text: {
+          pt: 'A colocação aparece do jeito de cada idioma: 1º, 1st, 1.',
+          en: 'Placement is written the way each language writes it: 1º, 1st, 1.',
+          es: 'La posición aparece como la escribe cada idioma: 1º, 1st, 1.',
+          de: 'Die Platzierung steht so da, wie jede Sprache sie schreibt: 1º, 1st, 1.',
+        },
       },
     ],
   },
   {
     version: '1.1.0',
     date: '2026-08-28',
-    title: 'Conta, nuvem e estatísticas por pessoa',
+    title: {
+      pt: 'Conta, nuvem e estatísticas',
+      en: 'Account, cloud and statistics',
+      es: 'Cuenta, nube y estadísticas',
+      de: 'Konto, Cloud und Statistik',
+    },
     items: [
       {
-        type: 'changed',
-        text: 'As estatísticas passaram a exigir assinatura. Jogar, registrar '
-          + 'partidas e usar a mesa continuam livres — só a leitura do '
-          + 'histórico é paga. Suas partidas antigas continuam guardadas.',
+        type: 'new',
+        text: {
+          pt: 'Conta opcional: seu histórico acompanha você entre aparelhos.',
+          en: 'Optional account: your history follows you across devices.',
+          es: 'Cuenta opcional: tu historial te acompaña entre dispositivos.',
+          de: 'Optionales Konto: Dein Verlauf begleitet dich auf alle Geräte.',
+        },
       },
       {
         type: 'new',
-        text: 'Conta com e-mail e senha. O histórico acompanha você entre '
-          + 'aparelhos, e a sessão se renova sozinha em vez de expirar em uma '
-          + 'hora. Criar conta é opcional: sem ela, nada sai do seu aparelho.',
-      },
-      {
-        type: 'new',
-        text: 'Cada pessoa pode escolher um @. Quem organiza a mesa marca as '
-          + 'cadeiras, e a partida chega para cada um como convite — que só '
-          + 'entra no histórico de quem aceitar. Ninguém escreve no histórico '
-          + 'alheio.',
-      },
-      {
-        type: 'fixed',
-        text: 'A estatística confundia a mesma pessoa cadastrada com nomes '
-          + 'diferentes. "Alex" numa noite e "Alexandre" na outra viravam duas '
-          + 'pessoas, com duas histórias e duas rivalidades pela metade. Agora '
-          + 'quem tem conta é reconhecido pela conta.',
+        text: {
+          pt: 'Marque amigos pelo @, e a partida chega como convite para cada um.',
+          en: 'Tag friends by their @, and the match reaches each of them as an invite.',
+          es: 'Etiqueta a tus amigos por su @, y la partida les llega como invitación.',
+          de: 'Markiere Freunde mit ihrem @, und die Partie kommt bei jedem als Einladung an.',
+        },
       },
       {
         type: 'changed',
-        text: 'Mesas de 2, 3 e 5 jogadores agora perguntam como o aparelho '
-          + 'fica na mesa — em pé ou deitado — em vez de descrever o arranjo. '
-          + 'Era essa a decisão de verdade o tempo todo.',
-      },
-      {
-        type: 'fixed',
-        text: 'No computador, os painéis dos jogadores de cima apareciam de '
-          + 'cabeça para baixo. Deitado na mesa o giro é o certo; num monitor '
-          + 'de pé não há ninguém do outro lado.',
-      },
-      {
-        type: 'fixed',
-        text: 'Quem morre no mesmo turno agora divide a colocação. Se alguém '
-          + 'estoura a mesa inteira de uma vez, os três ficam em último — '
-          + 'porque nenhum deles sobreviveu ao outro.',
-      },
-      {
-        type: 'fixed',
-        text: 'O título de uma votação grudava ao trocar de modelo. Quem '
-          + 'tocasse em "Prisoner\’s Dilemma" e depois escolhesse outro tipo '
-          + 'registrava um dilema que nunca aconteceu.',
-      },
-      {
-        type: 'changed',
-        text: 'As estatísticas de votação agrupam pelo TIPO da votação, e não '
-          + 'pela pergunta escrita. A pergunta muda toda noite; o que interessa '
-          + 'é se aquela pessoa costuma delatar.',
-      },
-      {
-        type: 'new',
-        text: 'A aba de rivalidades passou a comparar um par por vez, '
-          + 'escolhido em dois campos. Cinco jogadores davam dez cartões, e a '
-          + 'comparação que interessava ficava perdida no meio.',
-      },
-      {
-        type: 'fixed',
-        text: 'Não é mais possível colocar a mesma pessoa em duas cadeiras. '
-          + 'Havia meia trava: a lista de salvos barrava, digitar o nome na mão '
-          + 'não.',
-      },
-      {
-        type: 'fixed',
-        text: 'O botão de instalar aparecia só às vezes, sem padrão. Era uma '
-          + 'corrida com o navegador, e agora o convite é capturado antes de o '
-          + 'aplicativo carregar.',
-      },
-      {
-        type: 'new',
-        text: 'Quem tem o app instalado ganhou um botão de atualizar, e a '
-          + 'versão aparece no rodapé das configurações.',
-      },
-      {
-        type: 'new',
-        text: 'Política de privacidade, com o que é guardado, onde, e como '
-          + 'apagar. Apagar nunca depende de assinatura.',
+        text: {
+          pt: 'As estatísticas passaram a exigir assinatura; jogar e registrar partidas continuam livres.',
+          en: 'Statistics now need a subscription; playing and recording matches stay free.',
+          es: 'Las estadísticas ahora requieren suscripción; jugar y registrar partidas sigue siendo gratis.',
+          de: 'Die Statistik braucht jetzt ein Abo; spielen und Partien speichern bleibt kostenlos.',
+        },
       },
     ],
   },
 ];
+
+/** The languages every title and item must be written in. */
+export const NOTE_LANGS = ['pt', 'en', 'es', 'de'];
+
+/**
+ * A title or item in a language. Portuguese is the fallback, and a plain
+ * string (an old-style note) passes through as it is.
+ */
+export function noteIn(text, lang) {
+  if (typeof text === 'string') return text;
+  if (!text) return '';
+  return text[lang] || text.pt || Object.values(text)[0] || '';
+}
 
 /** Only what the user has not seen yet. An unknown version returns everything. */
 export function releaseNotesSince(seenBefore) {

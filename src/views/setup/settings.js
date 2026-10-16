@@ -102,8 +102,9 @@ export function openSettings(onRefresh) {
         // A relative path, not absolute: the app runs at /hit-easy/ and at
         // /hit-easy/beta/, and a link with a leading slash would take beta to
         // the production policy. (`privacidade.html` is a public URL, so the
-        // file keeps its name.)
-        row({ label: t('settings.privacy'), href: './privacidade.html', arrow: true }),
+        // file keeps its name.) The page holds the policy in the four app
+        // languages and shows the one named here.
+        row({ label: t('settings.privacy'), href: './privacidade.html?lang=' + currentLang(), arrow: true }),
       ]));
 
       pane.append(el('p', { class: 'settings-note', text: t('settings.dataNote') }));
