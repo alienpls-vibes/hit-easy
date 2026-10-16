@@ -14,7 +14,9 @@
 import { el, openSheet } from '../../ui.js';
 import { t, currentLang, locale } from '../../i18n.js';
 import { APP_VERSION } from '../../version.js';
-import { RELEASE_NOTES, releaseNotesSince, releaseNotesFor } from '../../release-notes.js';
+import {
+  RELEASE_NOTES, releaseNotesSince, releaseNotesFor, noteIn,
+} from '../../release-notes.js';
 import * as store from '../../store.js';
 
 /**
@@ -96,7 +98,7 @@ function versionBlock(v) {
 
   return el('section', { class: 'news-version-block' }, [
     el('div', { class: 'news-head' }, [
-      v.title ? el('h3', { class: 'news-title', text: v.title }) : null,
+      v.title ? el('h3', { class: 'news-title', text: noteText(v.title) }) : null,
       el('div', { class: 'news-meta' }, [
         el('span', { class: 'news-version', text: v.version }),
         v.date ? el('span', { class: 'news-date', text: formatNoteDate(v.date) }) : null,
@@ -120,16 +122,7 @@ function formatNoteDate(iso) {
   return d.toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-/**
- * A note's text in the current language.
- *
- * Accepts a plain string - the normal case, written once - or an object with
- * translations. Without making the object mandatory, writing a note does not
- * turn into work in four languages on every release, which is the kind of
- * weight that makes notes stop being written.
- */
+/** A note's title or item in the app's language (see src/release-notes.js). */
 function noteText(text) {
-  if (typeof text === 'string') return text;
-  if (!text) return '';
-  return text[currentLang()] || text.pt || Object.values(text)[0] || '';
+  return noteIn(text, currentLang());
 }

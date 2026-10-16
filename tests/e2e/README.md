@@ -26,7 +26,7 @@ were green, because none of them pressed Start in a browser. These do.
   native dialog - on the page or in its service worker - fails the journey,
   even if every step "worked".
 - **No internet.** Scryfall and Supabase are faked (`fixtures/commanders.js`,
-  `lib/fake-cloud.js`). A request to any other host fails the journey; so does
+  `lib/fake-cloud.js`, `fixtures/daily-card.js`). A request to any other host fails the journey; so does
   a cloud endpoint the fake does not implement - add it there.
 - **Real paths.** A local server shaped like GitHub Pages: production at
   `/hit-easy/`, beta at `/hit-easy/beta/`, `Cache-Control: max-age=600`.
@@ -45,6 +45,7 @@ were green, because none of them pressed Start in a browser. These do.
 | `crash-screen` | a module that throws shows the crash screen with the error and a way out, not a black screen |
 | `channels` | beta and production on one origin never share storage or caches |
 | `screens` | the home screen in pt/en/es/de without raw keys, every settings row, what's new, the install guide, a match with the mouse in landscape |
+| `daily-challenge` | the daily color challenge on a phone: home dot, card without name or colored mana, a miss with its hint, a win with the reveal, results stored apart from the matches, back gesture, card language with Portuguese print and English fallback, and a match still starting at 40 afterwards |
 | `cloud-account` | signed in: the match reaches the cloud and leaves the device, a second device finds it, a cloud outage keeps the match on the device until it is back |
 
 ## On failure

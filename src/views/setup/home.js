@@ -17,6 +17,7 @@ import { bindReorder, seatCard } from './seat-card.js';
 import { openSettings } from './settings.js';
 import { startInstall } from './install.js';
 import { invitesBanner } from './invites.js';
+import { dailyButton } from '../../daily/entry.js';
 import {
   resumeTableBanner, handedOffBanner, receiveTableButton,
 } from './pass-table.js';
@@ -66,6 +67,8 @@ export function renderSetup(root, {
         ]),
         el('div', { class: 'head-actions' }, [
           installButton(onRefresh),
+          // The daily color challenge (src/daily/). Its code only loads on the tap.
+          dailyButton(onRefresh),
           el('button', { class: 'icon-btn', 'aria-label': t('common.settings'), onClick: () => openSettings(onRefresh) }, [icon('gear')]),
           el('button', { class: 'icon-btn', 'aria-label': t('common.stats'), onClick: onStats }, [icon('chart')]),
         ]),

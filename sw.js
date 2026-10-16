@@ -13,7 +13,7 @@
 
 // The same string as APP_VERSION in src/version.js - a worker does not import
 // modules. If it changes there, change it here; check-syntax.js compares both.
-const VERSION = '1.10.3';
+const VERSION = '1.11.0';
 
 /**
  * Production and beta share the same origin, and Cache Storage is per origin.
@@ -28,6 +28,16 @@ const CHANNEL = /(^|\/)beta(\/|$)/.test(self.location.pathname) ? 'beta' : 'prod
 const PREFIX = CHANNEL === 'beta' ? 'hiteasy-beta-' : 'hiteasy-';
 const SHELL = PREFIX + 'shell-' + VERSION;
 const ART = PREFIX + 'art-' + VERSION;
+
+/**
+ * The daily challenge's notice (periodic sync and the tap on it) lives in its
+ * own script, so the feature stays in src/daily/. Guarded: a worker whose
+ * importScripts throws never installs, and that would cost the app its
+ * offline mode over a notification.
+ */
+try {
+  importScripts('./src/daily/sw-daily.js');
+} catch (e) { /* no daily notice; everything else works */ }
 
 /**
  * Whose cache this is. The same rule as channelOfCache() in src/channel.js -
@@ -71,6 +81,20 @@ const ASSETS = [
   './src/cloud/rules.js',
   './src/colors.js',
   './src/config.js',
+  './src/daily/back.js',
+  './src/daily/calendar.js',
+  './src/daily/card.js',
+  './src/daily/day.js',
+  './src/daily/entry.js',
+  './src/daily/fetch.js',
+  './src/daily/game.js',
+  './src/daily/i18n.js',
+  './src/daily/notify.js',
+  './src/daily/schedule.js',
+  './src/daily/screen.js',
+  './src/daily/storage.js',
+  './src/daily/sw-daily.js',
+  './src/styles/daily.css',
   './src/engine.js',
   './src/styles/base.css',
   './src/styles/settings.css',
@@ -320,6 +344,27 @@ self.addEventListener('fetch', (event) => {
   // from the cache would answer with the previous build - the only answer
   // that is useless. `ignoreSearch` below would also block busting it with ?v=.
   if (url.pathname.endsWith('/build.json')) return;
+
+  // The privacy policy: network first, the cache only without signal.
+  //
+  // It is a document people read to learn what happens to their data, and
+  // the shell strategy below served the PREVIOUS copy on the first open after
+  // a change: a beta push that translated the policy kept showing the old,
+  // Portuguese-only page, which ignores ?lang=. A stale legal text is worse
+  // than a slower one. Stored under its path without the query, the same key
+  // the precache uses, so ?lang=en and ?lang=de share one copy.
+  if (url.pathname.endsWith('/privacidade.html')) {
+    const key = url.origin + url.pathname;
+    event.respondWith(
+      caches.open(SHELL).then((cache) => fetch(new Request(request, { cache: 'reload' }))
+        .then((res) => {
+          if (res.ok) cache.put(key, res.clone());
+          return res;
+        })
+        .catch(() => cache.match(key).then((hit) => hit || cache.match('./index.html')))),
+    );
+    return;
+  }
 
   // The app: answers from the cache and revalidates behind it.
   event.respondWith(

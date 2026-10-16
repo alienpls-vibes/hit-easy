@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Política de Privacidade — Hit Easy</title>
 <meta name="description" content="Como o Hit Easy trata dados pessoais.">
+<!-- The app's icon, as in index.html. Without it the browser asks for
+     /favicon.ico on its own, a file that does not exist; offline that request
+     hangs, and in the browser journeys it finished during the next journey. -->
+<link rel="icon" href="./icons/icon-192.png" sizes="192x192">
 <style>
   :root {
     --bg: #f7f6f4; --fg: #1a1917; --muted: #6b6862;
@@ -50,13 +54,32 @@
   .box strong { color: var(--accent); }
   a { color: var(--accent); }
   footer { margin-top: 40px; color: var(--muted); font-size: 0.86rem; }
+  .langs { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 22px; font-size: 0.88rem; }
+  .langs a { color: var(--muted); text-decoration: none; }
+  .langs a[aria-current="true"] { color: var(--fg); font-weight: 600; }
+  .note { color: var(--muted); font-size: 0.86rem; font-style: italic; }
 </style>
 </head>
 <body>
 <main>
 
+<!-- The same policy in the app's four languages. The script at the end shows
+     the one the app asked for (?lang=), else the app's saved language, else
+     the browser's. Without JavaScript the Portuguese one shows, as before.
+     Portuguese is the original; the others say so. The visible text stays in
+     each language - it is what users read. -->
+<nav class="langs" aria-label="Idioma / Language">
+  <a href="?lang=pt" data-lang="pt" hreflang="pt-BR">Português</a>
+  <a href="?lang=en" data-lang="en" hreflang="en">English</a>
+  <a href="?lang=es" data-lang="es" hreflang="es">Español</a>
+  <a href="?lang=de" data-lang="de" hreflang="de">Deutsch</a>
+</nav>
+
+<!-- ================================================================== -->
+<article data-lang="pt" lang="pt-BR" data-title="Política de Privacidade — Hit Easy">
+
 <h1>Política de Privacidade — Hit Easy</h1>
-<p class="sub">Última atualização: 28 de agosto de 2026</p>
+<p class="sub">Última atualização: 16 de outubro de 2026</p>
 
 <p>
   O Hit Easy é um contador de vida para mesas de Magic: The Gathering no formato
@@ -98,9 +121,15 @@
   <tr><td>Nomes de jogadores e comandantes já usados</td><td><code>mtglc.db.v1</code></td></tr>
   <tr><td>Preferências (idioma, tema, vida inicial, vibração)</td><td><code>mtglc.db.v1</code></td></tr>
   <tr><td>Resultados de busca de cartas, para funcionar sem internet</td><td><code>mtglc.scryfallCache.v1</code></td></tr>
+  <tr><td>Desafio diário: seus palpites, sequência, opções e a carta do dia</td><td><code>mtglc.daily.v1</code>, <code>mtglc.dailyCard.v1</code></td></tr>
+  <tr><td>Aviso de carta nova: se está ligado e se você já jogou hoje</td><td>IndexedDB <code>hiteasy-daily</code></td></tr>
   <tr><td>Sua sessão, se você entrou numa conta</td><td><code>mtglc.session.v1</code></td></tr>
   <tr><td>Arquivos do aplicativo e artes das cartas, para abrir offline</td><td>Cache do navegador</td></tr>
 </table>
+<p>
+  O desafio diário nunca vai para a nuvem, nem com conta. O aviso de carta nova
+  é gerado pelo próprio aparelho: não existe servidor de notificações.
+</p>
 <p>
   Apagar os dados do site pelo navegador, ou desinstalar o aplicativo, remove
   tudo isso. Se você não tiver conta, não haverá cópia em lugar nenhum — e não
@@ -202,9 +231,10 @@
     <a href="https://docs.github.com/pt/site-policy/privacy-policies/github-general-privacy-statement" rel="noopener">Política do GitHub</a>.
   </li>
   <li>
-    <strong>Scryfall</strong> — busca e imagens das cartas. Seu navegador fala
-    diretamente com eles, então a Scryfall vê o seu endereço IP e o nome das
-    cartas que você procura. Nós não intermediamos e não recebemos essas buscas.
+    <strong>Scryfall</strong> — busca e imagens das cartas, inclusive a carta do
+    desafio diário. Seu navegador fala diretamente com eles, então a Scryfall vê
+    o seu endereço IP e o nome das cartas que você procura. Nós não intermediamos
+    e não recebemos essas buscas.
     <a href="https://scryfall.com/docs/privacy-policy" rel="noopener">Política da Scryfall</a>.
   </li>
   <li>
@@ -323,7 +353,927 @@
 <footer>
   <p><a href="./">← Voltar ao Hit Easy</a></p>
 </footer>
+</article>
+
+<!-- ================================================================== -->
+<article data-lang="en" lang="en" data-title="Privacy Policy — Hit Easy" hidden>
+
+<h1>Privacy Policy — Hit Easy</h1>
+<p class="sub">Last updated: October 16, 2026</p>
+<p class="note">
+  This is a translation of the original Portuguese policy, provided for
+  convenience. If the two differ, the Portuguese version prevails.
+</p>
+
+<p>
+  Hit Easy is a life counter for Magic: The Gathering tables in the Commander
+  format. This policy explains, plainly, what the app stores, where, why, and
+  what you can demand about it.
+</p>
+
+<div class="box">
+  <p style="margin:0">
+    <strong>The honest summary:</strong> if you do not create an account,
+    nothing leaves your device. Creating an account is optional and lets your
+    history follow you across devices. You can delete everything at any time,
+    and deleting <em>never</em> depends on a subscription.
+  </p>
+</div>
+
+<h2>1. Who is responsible</h2>
+<p>
+  The data controller, under Brazil's General Data Protection Law (LGPD,
+  Law 13.709/2018), is <strong>Alexandre Parma</strong>, a private individual.
+</p>
+<p>
+  To exercise any right described here, or to ask about this policy, write to
+  <a href="mailto:alexlopesp97@gmail.com">alexlopesp97@gmail.com</a>.
+  We answer within 15 days.
+</p>
+
+<h2>2. What stays only on your device</h2>
+<p>
+  Most of the app works with no server at all. This data stays in your
+  browser's local storage and <strong>is not sent anywhere</strong> unless you
+  create an account:
+</p>
+<table>
+  <tr><th>What</th><th>Where</th></tr>
+  <tr><td>The match in progress and your match history</td><td><code>mtglc.db.v1</code></td></tr>
+  <tr><td>Player names and commanders already used</td><td><code>mtglc.db.v1</code></td></tr>
+  <tr><td>Preferences (language, theme, starting life, vibration)</td><td><code>mtglc.db.v1</code></td></tr>
+  <tr><td>Card search results, so the app works offline</td><td><code>mtglc.scryfallCache.v1</code></td></tr>
+  <tr><td>Daily challenge: your guesses, streak, options and the card of the day</td><td><code>mtglc.daily.v1</code>, <code>mtglc.dailyCard.v1</code></td></tr>
+  <tr><td>New card notice: whether it is on and whether you played today</td><td>IndexedDB <code>hiteasy-daily</code></td></tr>
+  <tr><td>Your session, if you signed in to an account</td><td><code>mtglc.session.v1</code></td></tr>
+  <tr><td>App files and card art, so it opens offline</td><td>Browser cache</td></tr>
+</table>
+<p>
+  The daily challenge never goes to the cloud, even with an account. The new
+  card notice is produced by your own device: there is no notification server.
+</p>
+<p>
+  Clearing the site's data in your browser, or uninstalling the app, removes
+  all of this. Without an account there is no copy anywhere — and we will have
+  no way to recover it.
+</p>
+
+<h2>3. What goes to the cloud, and only if you create an account</h2>
+<p>Creating an account is optional. If you do, we start storing:</p>
+<table>
+  <tr><th>Data</th><th>Why</th></tr>
+  <tr>
+    <td>Your email and, if you set one, your password</td>
+    <td>To identify you and let you sign in on another device. The password is
+        stored only as a cryptographic digest (<em>hash</em>) by the
+        authentication provider — neither we nor anyone else can read it.</td>
+  </tr>
+  <tr>
+    <td>Your public <code>@</code> and display name, if you choose one</td>
+    <td>To let friends tag you at a table. The search only accepts the exact
+        <code>@</code>: there is no listing and no search by part of a name, so
+        nobody can find out who has an account in the app.</td>
+  </tr>
+  <tr>
+    <td>The matches you record</td>
+    <td>To keep your history and compute statistics. This includes the names
+        used at the table, the commanders, the match events (damage, healing,
+        eliminations, turns) and the choices in secret votes.</td>
+  </tr>
+  <tr>
+    <td>Invitations to other people's tables</td>
+    <td>To bring you a match someone recorded saying you played — which only
+        enters your history if you accept it.</td>
+  </tr>
+  <tr>
+    <td>Your list of trusted hosts</td>
+    <td>To automatically accept matches recorded by people you already
+        trusted.</td>
+  </tr>
+  <tr>
+    <td>Your subscription status</td>
+    <td>To unlock access to the full history.</td>
+  </tr>
+</table>
+
+<h3>Legal basis</h3>
+<ul>
+  <li><strong>Performance of a contract</strong> (LGPD art. 7, V): account,
+      session, history and subscription — the service you asked for.</li>
+  <li><strong>Legitimate interest</strong> (art. 7, IX): recording the names of
+      the other players at the table, covered in section 4.</li>
+  <li><strong>Consent</strong> (art. 7, I): choosing a public <code>@</code>,
+      which is optional and reversible.</li>
+</ul>
+
+<h2>4. Other people's names at your table</h2>
+<p>
+  This is the point that deserves the most attention, which is why it has its
+  own section.
+</p>
+<p>
+  A Commander match has four people, and the app records all their names. If
+  you create an account and your history goes to the cloud, the names
+  <em>you</em> typed go with it — including those of people who do not use the
+  app and never agreed to anything.
+</p>
+<div class="box">
+  <p style="margin:0 0 8px"><strong>What we ask of you:</strong></p>
+  <ul style="margin:0">
+    <li>use nicknames or first names, not full names;</li>
+    <li>do not write anything sensitive in a player's name — nor in the title of
+        a vote, which is also stored;</li>
+    <li>if someone at your table asks to be removed, delete those matches or
+        remove the name from the local history.</li>
+  </ul>
+</div>
+<p>
+  On our side: these names are used only to build your statistics, are never
+  used to create an account for anyone, are not matched against outside data,
+  and are not sold or shared with third parties for commercial purposes. No one
+  but you — and the people who <em>accepted</em> an invitation to that match —
+  can read that table.
+</p>
+<p>
+  If you are a person named in someone else's match and want to be removed,
+  write to the contact in section 1 with the name used and an approximate date.
+</p>
+
+<h2>5. Who the data is shared with</h2>
+<p>We do not sell data. There are no ads and no trackers. We use:</p>
+<ul>
+  <li>
+    <strong>Supabase</strong> — database and authentication, on servers in the
+    United States (see section 6). It stores everything in section 3, as a
+    processor following our instructions.
+    <a href="https://supabase.com/privacy" rel="noopener">Supabase policy</a>.
+  </li>
+  <li>
+    <strong>GitHub Pages</strong> — hosts the app's files. Like every web server,
+    it logs the IP address and browser of visitors.
+    <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" rel="noopener">GitHub policy</a>.
+  </li>
+  <li>
+    <strong>Scryfall</strong> — card search and images, including the daily
+    challenge card. Your browser talks to them directly, so Scryfall sees your IP
+    address and the names of the cards you look up. We do not relay or receive
+    these searches.
+    <a href="https://scryfall.com/docs/privacy-policy" rel="noopener">Scryfall policy</a>.
+  </li>
+  <li>
+    <strong>Stripe</strong> — subscription payments, <em>once there is a
+    charge</em>. Card data is handled entirely by Stripe and never passes through
+    the app or our database.
+    <a href="https://stripe.com/privacy" rel="noopener">Stripe policy</a>.
+  </li>
+</ul>
+<p>
+  We may also disclose data under a court order or legal obligation.
+</p>
+
+<h2>6. Your data is stored in the United States</h2>
+<p>
+  The Hit Easy database is in the <code>us-east-1</code> region, in northern
+  Virginia, United States. The app's files are distributed by GitHub's global
+  network, which also serves from outside Brazil.
+</p>
+<p>
+  This is an <strong>international data transfer</strong>, and the LGPD requires
+  that you be clearly informed of it (art. 33).
+</p>
+<div class="box">
+  <p style="margin:0 0 8px">
+    <strong>What this means in practice:</strong> everything in section 3 —
+    your email, your <code>@</code>, your matches and the names you typed — is
+    stored on servers subject to United States law, and may be reached by
+    authorities there in the cases that law provides for.
+  </p>
+  <p style="margin:0">
+    The United States does <em>not</em> have an adequacy decision from ANPD,
+    Brazil's data protection authority. The transfer relies on LGPD art. 33, IX:
+    it is necessary to perform the service you asked for when you created the
+    account — without a server outside Brazil there is no history across
+    devices. Supabase's contractual guarantees and security measures as a
+    processor add to this.
+  </p>
+</div>
+<p>
+  If this is unacceptable to you, the app remains fully usable
+  <strong>without an account</strong>: in that mode nothing leaves your device
+  and none of your data crosses any border. That is why the account is optional.
+</p>
+
+<h2>7. How long we keep it</h2>
+<ul>
+  <li><strong>Matches:</strong> while you keep your account, or until you delete
+      them.</li>
+  <li><strong>Account and profile:</strong> until you ask for deletion.</li>
+  <li><strong>Subscription data:</strong> for the period tax law requires, even
+      after the account is closed.</li>
+  <li><strong>Data on your device:</strong> until you clear the site's data or
+      uninstall.</li>
+</ul>
+
+<h2>8. Your rights</h2>
+<p>The LGPD (art. 18) guarantees you the right to:</p>
+<ul>
+  <li>know whether we process your data, and access it;</li>
+  <li>correct incomplete or outdated data;</li>
+  <li>ask for anonymization, blocking or deletion of unnecessary data;</li>
+  <li>ask for portability;</li>
+  <li>withdraw consent and ask for the account to be deleted;</li>
+  <li>be told who we share data with;</li>
+  <li>object to processing based on legitimate interest.</li>
+</ul>
+<div class="box">
+  <p style="margin:0">
+    <strong>Deleting does not depend on payment.</strong> This is not just a
+    promise on paper: the database lets you delete your matches even without an
+    active subscription, and that permission was written that way on purpose.
+    Having stopped paying will never keep you from taking your data out.
+  </p>
+</div>
+<p>
+  One honest caveat: if you delete a match that <em>someone else</em> also
+  accepted, it stops showing for you, but the record still exists for that
+  person. It was built this way so that nobody can delete pieces of someone
+  else's history.
+</p>
+<p>
+  To export or delete everything at once, use the options in the app's
+  Settings, or write to the contact in section 1.
+</p>
+
+<h2>9. Security</h2>
+<ul>
+  <li>All traffic is encrypted (HTTPS).</li>
+  <li>Passwords are stored only as a cryptographic digest.</li>
+  <li>Access to data is enforced by rules in the database itself
+      (<em>Row Level Security</em>), not only by the app: even if someone
+      changes the app in their own browser, the server still does not hand
+      over another person's data.</li>
+  <li>No one can write to another person's history: a match only enters
+      someone's history when that person accepts the invitation.</li>
+</ul>
+<p>
+  No system is immune. If a security incident carries relevant risk, we will
+  notify those affected and the ANPD, as LGPD art. 48 requires.
+</p>
+
+<h2>10. Children and teenagers</h2>
+<p>
+  The app is not directed at children under 13. If you are responsible for a
+  minor who created an account and want it removed, write to the contact in
+  section 1 and we will delete it.
+</p>
+
+<h2>11. Changes to this policy</h2>
+<p>
+  If something changes in a relevant way, we will update the date at the top
+  and let you know inside the app. Continuing to use it afterwards means you
+  have been informed.
+</p>
+
+<footer>
+  <p><a href="./">← Back to Hit Easy</a></p>
+</footer>
+</article>
+
+<!-- ================================================================== -->
+<article data-lang="es" lang="es" data-title="Política de Privacidad — Hit Easy" hidden>
+
+<h1>Política de Privacidad — Hit Easy</h1>
+<p class="sub">Última actualización: 16 de octubre de 2026</p>
+<p class="note">
+  Esta es una traducción de la política original en portugués, ofrecida por
+  comodidad. Si ambas difieren, prevalece la versión en portugués.
+</p>
+
+<p>
+  Hit Easy es un contador de vidas para mesas de Magic: The Gathering en el
+  formato Commander. Esta política explica, sin rodeos, qué guarda la app,
+  dónde, por qué y qué puedes exigir al respecto.
+</p>
+
+<div class="box">
+  <p style="margin:0">
+    <strong>El resumen honesto:</strong> si no creas una cuenta, nada sale de tu
+    dispositivo. Crear una cuenta es opcional y sirve para que tu historial te
+    acompañe entre dispositivos. Puedes borrarlo todo en cualquier momento, y
+    borrar <em>nunca</em> depende de una suscripción.
+  </p>
+</div>
+
+<h2>1. Quién es el responsable</h2>
+<p>
+  El responsable del tratamiento, según la Ley General de Protección de Datos
+  de Brasil (LGPD, Ley 13.709/2018), es <strong>Alexandre Parma</strong>,
+  persona física.
+</p>
+<p>
+  Para ejercer cualquier derecho descrito aquí, o resolver dudas sobre esta
+  política, escribe a
+  <a href="mailto:alexlopesp97@gmail.com">alexlopesp97@gmail.com</a>.
+  Respondemos en un plazo de 15 días.
+</p>
+
+<h2>2. Lo que queda solo en tu dispositivo</h2>
+<p>
+  La mayor parte de la app funciona sin ningún servidor. Estos datos quedan en
+  el almacenamiento local de tu navegador y <strong>no se envían a ninguna
+  parte</strong> mientras no crees una cuenta:
+</p>
+<table>
+  <tr><th>Qué</th><th>Dónde</th></tr>
+  <tr><td>La partida en curso y el historial de partidas</td><td><code>mtglc.db.v1</code></td></tr>
+  <tr><td>Nombres de jugadores y comandantes ya usados</td><td><code>mtglc.db.v1</code></td></tr>
+  <tr><td>Preferencias (idioma, tema, vida inicial, vibración)</td><td><code>mtglc.db.v1</code></td></tr>
+  <tr><td>Resultados de búsqueda de cartas, para funcionar sin internet</td><td><code>mtglc.scryfallCache.v1</code></td></tr>
+  <tr><td>Desafío diario: tus intentos, racha, opciones y la carta del día</td><td><code>mtglc.daily.v1</code>, <code>mtglc.dailyCard.v1</code></td></tr>
+  <tr><td>Aviso de carta nueva: si está activado y si ya jugaste hoy</td><td>IndexedDB <code>hiteasy-daily</code></td></tr>
+  <tr><td>Tu sesión, si iniciaste sesión en una cuenta</td><td><code>mtglc.session.v1</code></td></tr>
+  <tr><td>Archivos de la app y arte de las cartas, para abrir sin conexión</td><td>Caché del navegador</td></tr>
+</table>
+<p>
+  El desafío diario nunca va a la nube, ni siquiera con cuenta. El aviso de
+  carta nueva lo genera tu propio dispositivo: no hay servidor de
+  notificaciones.
+</p>
+<p>
+  Borrar los datos del sitio en el navegador, o desinstalar la app, elimina
+  todo esto. Sin cuenta no habrá copia en ningún lugar — y no tendremos forma
+  de recuperarlo.
+</p>
+
+<h2>3. Lo que va a la nube, y solo si creas una cuenta</h2>
+<p>Crear una cuenta es opcional. Si lo haces, pasamos a guardar:</p>
+<table>
+  <tr><th>Dato</th><th>Para qué</th></tr>
+  <tr>
+    <td>Tu correo y, si defines una, tu contraseña</td>
+    <td>Identificarte y permitirte entrar desde otro dispositivo. La contraseña
+        se guarda solo como resumen criptográfico (<em>hash</em>) en el
+        proveedor de autenticación — ni nosotros ni nadie puede leerla.</td>
+  </tr>
+  <tr>
+    <td>Tu <code>@</code> público y nombre visible, si eliges uno</td>
+    <td>Permitir que tus amigos te etiqueten en una mesa. La búsqueda solo
+        acepta el <code>@</code> exacto: no hay listado ni búsqueda por parte
+        del nombre, así que nadie puede averiguar quién tiene cuenta en la
+        app.</td>
+  </tr>
+  <tr>
+    <td>Las partidas que registres</td>
+    <td>Guardar tu historial y calcular estadísticas. Incluye los nombres usados
+        en la mesa, los comandantes, los eventos de la partida (daño, curación,
+        eliminaciones, turnos) y las elecciones en votaciones secretas.</td>
+  </tr>
+  <tr>
+    <td>Invitaciones a mesas de otras personas</td>
+    <td>Hacerte llegar una partida que alguien registró diciendo que jugaste — y
+        que solo entra en tu historial si la aceptas.</td>
+  </tr>
+  <tr>
+    <td>Tu lista de anfitriones de confianza</td>
+    <td>Aceptar automáticamente las partidas registradas por quienes ya
+        aprobaste.</td>
+  </tr>
+  <tr>
+    <td>Estado de tu suscripción</td>
+    <td>Dar acceso al historial completo.</td>
+  </tr>
+</table>
+
+<h3>Base legal</h3>
+<ul>
+  <li><strong>Ejecución de contrato</strong> (LGPD art. 7, V): cuenta, sesión,
+      historial y suscripción — es el servicio que pediste.</li>
+  <li><strong>Interés legítimo</strong> (art. 7, IX): registro de los nombres
+      de los demás jugadores de la mesa, tratado en el punto 4.</li>
+  <li><strong>Consentimiento</strong> (art. 7, I): elegir un <code>@</code>
+      público, que es opcional y reversible.</li>
+</ul>
+
+<h2>4. Nombres de otras personas en tu mesa</h2>
+<p>
+  Este es el punto que merece más atención, y por eso tiene sección propia.
+</p>
+<p>
+  Una partida de Commander tiene cuatro personas, y la app registra el nombre de
+  todas. Si creas una cuenta y el historial va a la nube, los nombres que
+  <em>tú</em> escribiste van con él — incluidos los de quienes no usan la app y
+  nunca aceptaron nada.
+</p>
+<div class="box">
+  <p style="margin:0 0 8px"><strong>Lo que te pedimos:</strong></p>
+  <ul style="margin:0">
+    <li>usa apodos o nombres de pila, no nombres completos;</li>
+    <li>no escribas nada sensible en el nombre de un jugador — ni en el título de
+        una votación, que también se guarda;</li>
+    <li>si alguien de tu mesa pide que lo quiten, borra esas partidas o quita el
+        nombre del historial local.</li>
+  </ul>
+</div>
+<p>
+  Por nuestra parte: esos nombres sirven exclusivamente para armar tus
+  estadísticas, nunca se usan para crear una cuenta para nadie, no se cruzan con
+  datos externos y no se venden ni se comparten con terceros con fines
+  comerciales. Nadie más que tú — y las personas que <em>aceptaron</em> una
+  invitación a esa partida — puede leer esa mesa.
+</p>
+<p>
+  Si eres la persona mencionada en una partida ajena y quieres que te quiten,
+  escribe al contacto del punto 1 con el nombre usado y una fecha aproximada.
+</p>
+
+<h2>5. Con quién se comparten los datos</h2>
+<p>No vendemos datos. No hay publicidad ni rastreadores. Usamos:</p>
+<ul>
+  <li>
+    <strong>Supabase</strong> — base de datos y autenticación, en servidores de
+    Estados Unidos (ver punto 6). Guarda todo lo del punto 3, como encargado del
+    tratamiento, siguiendo nuestras instrucciones.
+    <a href="https://supabase.com/privacy" rel="noopener">Política de Supabase</a>.
+  </li>
+  <li>
+    <strong>GitHub Pages</strong> — aloja los archivos de la app. Como todo
+    servidor web, registra la dirección IP y el navegador de quien accede.
+    <a href="https://docs.github.com/es/site-policy/privacy-policies/github-general-privacy-statement" rel="noopener">Política de GitHub</a>.
+  </li>
+  <li>
+    <strong>Scryfall</strong> — búsqueda e imágenes de las cartas, incluida la
+    carta del desafío diario. Tu navegador habla directamente con ellos, así que
+    Scryfall ve tu dirección IP y el nombre de las cartas que buscas. Nosotros no
+    intermediamos ni recibimos esas búsquedas.
+    <a href="https://scryfall.com/docs/privacy-policy" rel="noopener">Política de Scryfall</a>.
+  </li>
+  <li>
+    <strong>Stripe</strong> — pago de la suscripción, <em>cuando haya
+    cobro</em>. Los datos de tarjeta los trata íntegramente Stripe y nunca pasan
+    por la app ni por nuestra base de datos.
+    <a href="https://stripe.com/es/privacy" rel="noopener">Política de Stripe</a>.
+  </li>
+</ul>
+<p>
+  También podemos divulgar datos ante una orden judicial u obligación legal.
+</p>
+
+<h2>6. Tus datos están en Estados Unidos</h2>
+<p>
+  La base de datos de Hit Easy está en la región <code>us-east-1</code>, en el
+  norte de Virginia, Estados Unidos. Los archivos de la app se distribuyen por la
+  red global de GitHub, que también sirve desde fuera de Brasil.
+</p>
+<p>
+  Esto es una <strong>transferencia internacional de datos</strong>, y la LGPD
+  exige que se te informe de ella con claridad (art. 33).
+</p>
+<div class="box">
+  <p style="margin:0 0 8px">
+    <strong>Lo que significa en la práctica:</strong> todo lo del punto 3 — tu
+    correo, tu <code>@</code>, tus partidas y los nombres que escribiste — se
+    guarda en servidores sujetos a la ley estadounidense, y las autoridades de
+    allí pueden acceder a ello en los casos que esa legislación prevé.
+  </p>
+  <p style="margin:0">
+    Estados Unidos <em>no</em> cuenta con una decisión de adecuación de la ANPD,
+    la autoridad brasileña de protección de datos. La transferencia se basa en
+    el art. 33, IX, de la LGPD: es necesaria para prestar el servicio que pediste
+    al crear la cuenta — sin un servidor fuera de Brasil no hay historial entre
+    dispositivos. A esto se suman las garantías contractuales y las medidas de
+    seguridad que ofrece Supabase como encargado.
+  </p>
+</div>
+<p>
+  Si esto te resulta inaceptable, la app sigue siendo totalmente usable
+  <strong>sin cuenta</strong>: en ese modo nada sale de tu dispositivo y ningún
+  dato tuyo cruza ninguna frontera. Por eso la cuenta es opcional.
+</p>
+
+<h2>7. Cuánto tiempo los guardamos</h2>
+<ul>
+  <li><strong>Partidas:</strong> mientras mantengas la cuenta, o hasta que las
+      borres.</li>
+  <li><strong>Cuenta y perfil:</strong> hasta que pidas su eliminación.</li>
+  <li><strong>Datos de suscripción:</strong> durante el plazo que exige la
+      legislación fiscal, incluso después de cerrar la cuenta.</li>
+  <li><strong>Datos en tu dispositivo:</strong> hasta que borres los datos del
+      sitio o desinstales.</li>
+</ul>
+
+<h2>8. Tus derechos</h2>
+<p>La LGPD (art. 18) te garantiza:</p>
+<ul>
+  <li>saber si tratamos tus datos y acceder a ellos;</li>
+  <li>corregir datos incompletos o desactualizados;</li>
+  <li>pedir la anonimización, el bloqueo o la eliminación de datos
+      innecesarios;</li>
+  <li>pedir la portabilidad;</li>
+  <li>revocar el consentimiento y pedir la eliminación de la cuenta;</li>
+  <li>saber con quién compartimos los datos;</li>
+  <li>oponerte a un tratamiento basado en interés legítimo.</li>
+</ul>
+<div class="box">
+  <p style="margin:0">
+    <strong>Borrar no depende de pagar.</strong> No es solo una promesa escrita:
+    la base de datos permite eliminar tus partidas incluso sin suscripción
+    activa, y ese permiso se escribió así a propósito. Haber dejado de pagar
+    nunca te impedirá llevarte tus datos.
+  </p>
+</div>
+<p>
+  Una advertencia honesta: si borras una partida que <em>otra persona</em>
+  también aceptó, deja de aparecer para ti, pero el registro sigue existiendo
+  para esa persona. Se hizo así para que nadie pueda borrar partes del historial
+  ajeno.
+</p>
+<p>
+  Para exportar o borrar todo de una vez, usa las opciones de Configuración de
+  la app, o escribe al contacto del punto 1.
+</p>
+
+<h2>9. Seguridad</h2>
+<ul>
+  <li>Todo el tráfico va cifrado (HTTPS).</li>
+  <li>Las contraseñas se guardan solo como resumen criptográfico.</li>
+  <li>El acceso a los datos se controla con reglas en la propia base de datos
+      (<em>Row Level Security</em>), y no solo en la app: aunque alguien
+      modifique la app en su navegador, el servidor sigue sin entregar datos de
+      otra persona.</li>
+  <li>Nadie puede escribir en el historial de otra persona: una partida solo
+      entra en el historial de alguien cuando esa persona acepta la
+      invitación.</li>
+</ul>
+<p>
+  Ningún sistema es inmune. Si hay un incidente de seguridad con riesgo
+  relevante, lo comunicaremos a los afectados y a la ANPD, como exige el art. 48
+  de la LGPD.
+</p>
+
+<h2>10. Niños y adolescentes</h2>
+<p>
+  La app no está dirigida a menores de 13 años. Si eres responsable de un menor
+  que creó una cuenta y quieres eliminarla, escribe al contacto del punto 1 y la
+  eliminaremos.
+</p>
+
+<h2>11. Cambios en esta política</h2>
+<p>
+  Si algo cambia de forma relevante, actualizaremos la fecha de arriba y
+  avisaremos dentro de la app. Seguir usándola después significa que quedaste
+  informado.
+</p>
+
+<footer>
+  <p><a href="./">← Volver a Hit Easy</a></p>
+</footer>
+</article>
+
+<!-- ================================================================== -->
+<article data-lang="de" lang="de" data-title="Datenschutzerklärung — Hit Easy" hidden>
+
+<h1>Datenschutzerklärung — Hit Easy</h1>
+<p class="sub">Zuletzt aktualisiert: 16. Oktober 2026</p>
+<p class="note">
+  Dies ist eine Übersetzung der portugiesischen Originalfassung, die der
+  Bequemlichkeit dient. Bei Abweichungen gilt die portugiesische Fassung.
+</p>
+
+<p>
+  Hit Easy ist ein Lebenspunktezähler für Magic: The Gathering im Format
+  Commander. Diese Erklärung sagt ohne Umschweife, was die App speichert, wo,
+  warum und was du dazu verlangen kannst.
+</p>
+
+<div class="box">
+  <p style="margin:0">
+    <strong>Die ehrliche Kurzfassung:</strong> Wenn du kein Konto anlegst,
+    verlässt nichts dein Gerät. Ein Konto ist optional und sorgt dafür, dass
+    dein Verlauf dich auf andere Geräte begleitet. Du kannst jederzeit alles
+    löschen, und Löschen hängt <em>nie</em> von einem Abo ab.
+  </p>
+</div>
+
+<h2>1. Wer verantwortlich ist</h2>
+<p>
+  Verantwortlicher im Sinne des brasilianischen Datenschutzgesetzes (LGPD,
+  Gesetz 13.709/2018) ist <strong>Alexandre Parma</strong>, Privatperson.
+</p>
+<p>
+  Um ein hier beschriebenes Recht auszuüben oder Fragen zu dieser Erklärung zu
+  stellen, schreib an
+  <a href="mailto:alexlopesp97@gmail.com">alexlopesp97@gmail.com</a>.
+  Wir antworten innerhalb von 15 Tagen.
+</p>
+
+<h2>2. Was nur auf deinem Gerät bleibt</h2>
+<p>
+  Der größte Teil der App funktioniert ganz ohne Server. Diese Daten bleiben im
+  lokalen Speicher deines Browsers und <strong>werden nirgendwohin
+  gesendet</strong>, solange du kein Konto anlegst:
+</p>
+<table>
+  <tr><th>Was</th><th>Wo</th></tr>
+  <tr><td>Die laufende Partie und dein Partieverlauf</td><td><code>mtglc.db.v1</code></td></tr>
+  <tr><td>Bereits verwendete Spielernamen und Kommandeure</td><td><code>mtglc.db.v1</code></td></tr>
+  <tr><td>Einstellungen (Sprache, Design, Startleben, Vibration)</td><td><code>mtglc.db.v1</code></td></tr>
+  <tr><td>Kartensuchergebnisse, damit die App offline funktioniert</td><td><code>mtglc.scryfallCache.v1</code></td></tr>
+  <tr><td>Tägliche Herausforderung: deine Tipps, Serie, Optionen und die Karte des Tages</td><td><code>mtglc.daily.v1</code>, <code>mtglc.dailyCard.v1</code></td></tr>
+  <tr><td>Benachrichtigung bei neuer Karte: ob sie an ist und ob du heute schon gespielt hast</td><td>IndexedDB <code>hiteasy-daily</code></td></tr>
+  <tr><td>Deine Sitzung, wenn du in einem Konto angemeldet bist</td><td><code>mtglc.session.v1</code></td></tr>
+  <tr><td>App-Dateien und Kartenbilder, damit sie offline öffnet</td><td>Browser-Cache</td></tr>
+</table>
+<p>
+  Die tägliche Herausforderung geht nie in die Cloud, auch nicht mit Konto. Die
+  Benachrichtigung bei neuer Karte erzeugt dein eigenes Gerät: Es gibt keinen
+  Benachrichtigungsserver.
+</p>
+<p>
+  Wenn du die Websitedaten im Browser löschst oder die App deinstallierst, ist
+  all das weg. Ohne Konto gibt es nirgends eine Kopie — und wir können nichts
+  wiederherstellen.
+</p>
+
+<h2>3. Was in die Cloud geht, und nur wenn du ein Konto anlegst</h2>
+<p>Ein Konto ist optional. Wenn du eins anlegst, speichern wir:</p>
+<table>
+  <tr><th>Daten</th><th>Wozu</th></tr>
+  <tr>
+    <td>Deine E-Mail-Adresse und, falls du eins festlegst, dein Passwort</td>
+    <td>Um dich zu erkennen und die Anmeldung auf einem anderen Gerät zu
+        ermöglichen. Das Passwort wird beim Authentifizierungsanbieter nur als
+        kryptografischer Hashwert gespeichert — weder wir noch sonst jemand kann
+        es lesen.</td>
+  </tr>
+  <tr>
+    <td>Dein öffentliches <code>@</code> und dein Anzeigename, falls du eins
+        wählst</td>
+    <td>Damit Freunde dich an einem Tisch markieren können. Die Suche akzeptiert
+        nur das exakte <code>@</code>: Es gibt keine Liste und keine Suche nach
+        Namensteilen, also kann niemand herausfinden, wer ein Konto in der App
+        hat.</td>
+  </tr>
+  <tr>
+    <td>Die Partien, die du erfasst</td>
+    <td>Um deinen Verlauf zu speichern und Statistiken zu berechnen. Dazu
+        gehören die Namen am Tisch, die Kommandeure, die Ereignisse der Partie
+        (Schaden, Heilung, Ausscheiden, Züge) und die Entscheidungen in geheimen
+        Abstimmungen.</td>
+  </tr>
+  <tr>
+    <td>Einladungen zu Tischen anderer Leute</td>
+    <td>Um dir eine Partie zu bringen, in der jemand eingetragen hat, dass du
+        mitgespielt hast — sie kommt nur in deinen Verlauf, wenn du sie
+        annimmst.</td>
+  </tr>
+  <tr>
+    <td>Deine Liste vertrauenswürdiger Gastgeber</td>
+    <td>Um Partien von Leuten, denen du schon vertraut hast, automatisch
+        anzunehmen.</td>
+  </tr>
+  <tr>
+    <td>Status deines Abos</td>
+    <td>Um den Zugang zum vollständigen Verlauf freizuschalten.</td>
+  </tr>
+</table>
+
+<h3>Rechtsgrundlage</h3>
+<ul>
+  <li><strong>Vertragserfüllung</strong> (LGPD Art. 7, V): Konto, Sitzung,
+      Verlauf und Abo — der Dienst, den du angefordert hast.</li>
+  <li><strong>Berechtigtes Interesse</strong> (Art. 7, IX): Speicherung der
+      Namen der anderen Spieler am Tisch, behandelt in Abschnitt 4.</li>
+  <li><strong>Einwilligung</strong> (Art. 7, I): die Wahl eines öffentlichen
+      <code>@</code>, die optional und widerruflich ist.</li>
+</ul>
+
+<h2>4. Namen anderer Personen an deinem Tisch</h2>
+<p>
+  Dieser Punkt verdient die meiste Aufmerksamkeit, deshalb hat er einen eigenen
+  Abschnitt.
+</p>
+<p>
+  Eine Commander-Partie hat vier Personen, und die App speichert alle Namen.
+  Wenn du ein Konto anlegst und dein Verlauf in die Cloud geht, gehen die Namen,
+  die <em>du</em> eingetippt hast, mit — auch die von Leuten, die die App nicht
+  nutzen und nie irgendetwas zugestimmt haben.
+</p>
+<div class="box">
+  <p style="margin:0 0 8px"><strong>Was wir von dir erbitten:</strong></p>
+  <ul style="margin:0">
+    <li>verwende Spitznamen oder Vornamen, keine vollständigen Namen;</li>
+    <li>schreib nichts Sensibles in den Namen eines Spielers — auch nicht in den
+        Titel einer Abstimmung, der ebenfalls gespeichert wird;</li>
+    <li>wenn jemand an deinem Tisch entfernt werden möchte, lösche diese Partien
+        oder entferne den Namen aus dem lokalen Verlauf.</li>
+  </ul>
+</div>
+<p>
+  Unsererseits: Diese Namen dienen ausschließlich deiner Statistik, werden nie
+  verwendet, um für jemanden ein Konto anzulegen, werden nicht mit externen
+  Daten abgeglichen und weder verkauft noch zu kommerziellen Zwecken an Dritte
+  weitergegeben. Niemand außer dir — und den Personen, die eine Einladung zu
+  dieser Partie <em>angenommen</em> haben — kann diesen Tisch lesen.
+</p>
+<p>
+  Wenn du in der Partie von jemand anderem genannt wirst und entfernt werden
+  möchtest, schreib an den Kontakt aus Abschnitt 1 mit dem verwendeten Namen und
+  einem ungefähren Datum.
+</p>
+
+<h2>5. Mit wem Daten geteilt werden</h2>
+<p>Wir verkaufen keine Daten. Es gibt keine Werbung und keine Tracker. Wir
+  nutzen:</p>
+<ul>
+  <li>
+    <strong>Supabase</strong> — Datenbank und Authentifizierung, auf Servern in
+    den USA (siehe Abschnitt 6). Speichert alles aus Abschnitt 3 als
+    Auftragsverarbeiter nach unseren Anweisungen.
+    <a href="https://supabase.com/privacy" rel="noopener">Datenschutz bei Supabase</a>.
+  </li>
+  <li>
+    <strong>GitHub Pages</strong> — hostet die Dateien der App. Wie jeder
+    Webserver protokolliert es IP-Adresse und Browser der Besucher.
+    <a href="https://docs.github.com/de/site-policy/privacy-policies/github-general-privacy-statement" rel="noopener">Datenschutz bei GitHub</a>.
+  </li>
+  <li>
+    <strong>Scryfall</strong> — Kartensuche und -bilder, auch die Karte der
+    täglichen Herausforderung. Dein Browser spricht direkt mit Scryfall, daher
+    sieht Scryfall deine IP-Adresse und die Namen der gesuchten Karten. Wir
+    vermitteln diese Suchen nicht und erhalten sie nicht.
+    <a href="https://scryfall.com/docs/privacy-policy" rel="noopener">Datenschutz bei Scryfall</a>.
+  </li>
+  <li>
+    <strong>Stripe</strong> — Zahlung des Abos, <em>sobald es kostenpflichtig
+    ist</em>. Kartendaten verarbeitet ausschließlich Stripe; sie laufen nie über
+    die App oder unsere Datenbank.
+    <a href="https://stripe.com/de/privacy" rel="noopener">Datenschutz bei Stripe</a>.
+  </li>
+</ul>
+<p>
+  Wir können Daten außerdem aufgrund eines Gerichtsbeschlusses oder einer
+  gesetzlichen Pflicht offenlegen.
+</p>
+
+<h2>6. Deine Daten liegen in den USA</h2>
+<p>
+  Die Datenbank von Hit Easy liegt in der Region <code>us-east-1</code> im
+  Norden Virginias, USA. Die Dateien der App werden über das globale Netz von
+  GitHub verteilt, das auch von außerhalb Brasiliens ausliefert.
+</p>
+<p>
+  Das ist eine <strong>internationale Datenübermittlung</strong>, und die LGPD
+  verlangt, dass du klar darüber informiert wirst (Art. 33).
+</p>
+<div class="box">
+  <p style="margin:0 0 8px">
+    <strong>Was das praktisch bedeutet:</strong> Alles aus Abschnitt 3 — deine
+    E-Mail-Adresse, dein <code>@</code>, deine Partien und die Namen, die du
+    eingetippt hast — liegt auf Servern, die US-Recht unterliegen, und kann von
+    dortigen Behörden in den dort vorgesehenen Fällen eingesehen werden.
+  </p>
+  <p style="margin:0">
+    Für die USA gibt es <em>keinen</em> Angemessenheitsbeschluss der ANPD, der
+    brasilianischen Datenschutzbehörde. Die Übermittlung stützt sich auf
+    Art. 33, IX, LGPD: Sie ist nötig, um den Dienst zu erbringen, den du mit dem
+    Konto angefordert hast — ohne Server außerhalb Brasiliens gibt es keinen
+    geräteübergreifenden Verlauf. Hinzu kommen die vertraglichen Garantien und
+    Sicherheitsmaßnahmen von Supabase als Auftragsverarbeiter.
+  </p>
+</div>
+<p>
+  Wenn das für dich nicht akzeptabel ist, bleibt die App <strong>ohne
+  Konto</strong> voll nutzbar: In diesem Modus verlässt nichts dein Gerät, und
+  keine deiner Daten überquert eine Grenze. Deshalb ist das Konto optional.
+</p>
+
+<h2>7. Wie lange wir speichern</h2>
+<ul>
+  <li><strong>Partien:</strong> solange du das Konto behältst oder bis du sie
+      löschst.</li>
+  <li><strong>Konto und Profil:</strong> bis du die Löschung verlangst.</li>
+  <li><strong>Abodaten:</strong> so lange, wie das Steuerrecht es verlangt, auch
+      nach Schließung des Kontos.</li>
+  <li><strong>Daten auf deinem Gerät:</strong> bis du die Websitedaten löschst
+      oder deinstallierst.</li>
+</ul>
+
+<h2>8. Deine Rechte</h2>
+<p>Die LGPD (Art. 18) garantiert dir das Recht,</p>
+<ul>
+  <li>zu erfahren, ob wir deine Daten verarbeiten, und auf sie zuzugreifen;</li>
+  <li>unvollständige oder veraltete Daten zu berichtigen;</li>
+  <li>Anonymisierung, Sperrung oder Löschung unnötiger Daten zu verlangen;</li>
+  <li>Datenübertragbarkeit zu verlangen;</li>
+  <li>die Einwilligung zu widerrufen und die Löschung des Kontos zu
+      verlangen;</li>
+  <li>zu erfahren, mit wem wir Daten teilen;</li>
+  <li>einer Verarbeitung aufgrund berechtigten Interesses zu widersprechen.</li>
+</ul>
+<div class="box">
+  <p style="margin:0">
+    <strong>Löschen hängt nicht von einer Zahlung ab.</strong> Das ist nicht nur
+    ein Versprechen auf dem Papier: Die Datenbank erlaubt das Löschen deiner
+    Partien auch ohne aktives Abo, und diese Berechtigung wurde absichtlich so
+    geschrieben. Dass du nicht mehr zahlst, wird dich nie daran hindern, deine
+    Daten mitzunehmen.
+  </p>
+</div>
+<p>
+  Ein ehrlicher Hinweis: Wenn du eine Partie löschst, die <em>eine andere
+  Person</em> ebenfalls angenommen hat, verschwindet sie bei dir, bleibt aber
+  für diese Person bestehen. Das ist so gebaut, damit niemand Teile eines fremden
+  Verlaufs löschen kann.
+</p>
+<p>
+  Um alles auf einmal zu exportieren oder zu löschen, nutze die Optionen in den
+  Einstellungen der App oder schreib an den Kontakt aus Abschnitt 1.
+</p>
+
+<h2>9. Sicherheit</h2>
+<ul>
+  <li>Der gesamte Datenverkehr ist verschlüsselt (HTTPS).</li>
+  <li>Passwörter werden nur als kryptografischer Hashwert gespeichert.</li>
+  <li>Der Zugriff auf Daten wird durch Regeln in der Datenbank selbst
+      (<em>Row Level Security</em>) kontrolliert, nicht nur durch die App:
+      Selbst wenn jemand die App im eigenen Browser verändert, gibt der Server
+      keine Daten anderer Personen heraus.</li>
+  <li>Niemand kann in den Verlauf einer anderen Person schreiben: Eine Partie
+      kommt erst in den Verlauf von jemandem, wenn diese Person die Einladung
+      annimmt.</li>
+</ul>
+<p>
+  Kein System ist unverwundbar. Bei einem Sicherheitsvorfall mit relevantem
+  Risiko benachrichtigen wir die Betroffenen und die ANPD, wie es Art. 48 LGPD
+  vorschreibt.
+</p>
+
+<h2>10. Kinder und Jugendliche</h2>
+<p>
+  Die App richtet sich nicht an Kinder unter 13 Jahren. Wenn du für eine
+  minderjährige Person verantwortlich bist, die ein Konto angelegt hat, und es
+  entfernen lassen möchtest, schreib an den Kontakt aus Abschnitt 1, und wir
+  löschen es.
+</p>
+
+<h2>11. Änderungen dieser Erklärung</h2>
+<p>
+  Wenn sich etwas Wesentliches ändert, aktualisieren wir das Datum oben und
+  informieren dich in der App. Wer die App danach weiter nutzt, gilt als
+  informiert.
+</p>
+
+<footer>
+  <p><a href="./">← Zurück zu Hit Easy</a></p>
+</footer>
+</article>
 
 </main>
+<script>
+/* Shows the policy in the app's language.
+   Order: ?lang= in the address (the app's settings link sends it), else the
+   language saved in the app on this channel (the same localStorage key the
+   app uses; beta adds '.beta'), else the browser's, else Portuguese.
+   A classic script on purpose: this page loads no modules. */
+(function () {
+  var LANGS = ['pt', 'en', 'es', 'de'];
+  function known(code) { return LANGS.indexOf(code) >= 0; }
+
+  function pick() {
+    try {
+      var asked = new URLSearchParams(location.search).get('lang');
+      if (known(asked)) return asked;
+    } catch (e) { /* old browser: no URLSearchParams */ }
+    try {
+      var beta = /(^|\/)beta(\/|$)/.test(location.pathname);
+      var db = JSON.parse(localStorage.getItem(beta ? 'mtglc.db.v1.beta' : 'mtglc.db.v1')) || {};
+      var saved = (db.settings || {}).lang;
+      if (known(saved)) return saved;
+    } catch (e) { /* blocked storage */ }
+    var tags = navigator.languages || [navigator.language || ''];
+    for (var i = 0; i < tags.length; i += 1) {
+      var base = String(tags[i]).slice(0, 2).toLowerCase();
+      if (known(base)) return base;
+    }
+    return 'pt';
+  }
+
+  var lang = pick();
+  var articles = document.querySelectorAll('article[data-lang]');
+  for (var j = 0; j < articles.length; j += 1) {
+    var a = articles[j];
+    var on = a.getAttribute('data-lang') === lang;
+    a.hidden = !on;
+    if (on) {
+      document.documentElement.lang = a.getAttribute('lang');
+      document.title = a.getAttribute('data-title');
+    }
+  }
+  var links = document.querySelectorAll('.langs a');
+  for (var k = 0; k < links.length; k += 1) {
+    links[k].setAttribute('aria-current', String(links[k].getAttribute('data-lang') === lang));
+  }
+})();
+</script>
 </body>
 </html>

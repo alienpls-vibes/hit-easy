@@ -33,6 +33,7 @@ import * as sync from './sync.js';
 import { cloudEnabled } from './config.js';
 import { isBeta } from './channel.js';
 import { state as installState } from './install.js';
+import { initDaily } from './daily/entry.js';
 
 const root = document.getElementById('app');
 let route = store.getCurrent() ? 'table' : 'setup';
@@ -447,6 +448,9 @@ if (isBeta()) {
 }
 
 render();
+
+// The daily challenge opens itself when the app was launched from its notice.
+initDaily();
 
 /**
  * The link of a handed-off table: `?mesa=K7M2QX`.

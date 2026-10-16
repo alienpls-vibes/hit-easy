@@ -59,7 +59,9 @@ import { findHandleStep } from '../src/views/setup/pick-player.js';
 import { ensureDraft } from '../src/views/setup/draft.js';
 import { cloudEnabled } from '../src/config.js';
 import { channelOf, channelOfCache } from '../src/channel.js';
-import { RELEASE_NOTES, releaseNotesSince, releaseNotesFor } from '../src/release-notes.js';
+import {
+  RELEASE_NOTES, releaseNotesSince, releaseNotesFor, NOTE_LANGS,
+} from '../src/release-notes.js';
 import { openReleaseNotes } from '../src/views/setup.js';
 // Straight from the piece: the install block is a detail of the settings, and
 // exporting it through the door would announce it as public API of the screen.
@@ -92,6 +94,8 @@ import { brandMark } from '../src/ui.js';
 import * as store from '../src/store.js';
 // Importing app.js ALREADY is the test: it starts up by itself when evaluated.
 import { announceVersion, codeFromLink } from '../src/app.js';
+// The daily color challenge keeps its cases apart (see tests/daily-cases.js).
+import { DAILY_CASES } from './daily-cases.js';
 
 function eq(actual, expected, what) {
   const a = JSON.stringify(actual);
@@ -4006,11 +4010,21 @@ export const cases = [
       ok(/^\d+\.\d+\.\d+$/.test(v.version), v.version + ': malformed version number');
       ok(/^\d{4}-\d{2}-\d{2}$/.test(v.date), v.version + ': malformed date');
       ok(v.items && v.items.length, v.version + ': a version with no change annotated');
+      // Short on purpose: the core of the version, not its story.
+      ok(v.items.length <= 3, v.version + ': more than three items - keep only the core');
+      for (const code of NOTE_LANGS) {
+        ok(v.title && typeof v.title[code] === 'string' && v.title[code].trim(),
+          v.version + ': the title has no ' + code);
+      }
       for (const item of v.items) {
         ok(['new', 'fixed', 'changed'].includes(item.type),
           v.version + ': unknown type "' + item.type + '"');
-        ok(item.text && String(item.text).length > 20,
-          v.version + ': a note too short to say anything');
+        for (const code of NOTE_LANGS) {
+          const text = item.text && item.text[code];
+          ok(typeof text === 'string' && text.length > 20,
+            v.version + ': an item with no ' + code + ', or too short to say anything');
+          ok(text.length <= 140, v.version + ' / ' + code + ': an item longer than one short sentence');
+        }
       }
       // Each type has a translation in the four languages, otherwise the tag
       // comes out raw.
@@ -4020,6 +4034,26 @@ export const cases = [
         }
       }
     }
+  }],
+
+  ['the release notes speak the app language', () => {
+    eq(NOTE_LANGS, LANGS.map(([code]) => code), 'the notes cover exactly the app languages');
+    if (!simulated) return 'skip';
+    const latest = RELEASE_NOTES[0];
+    try {
+      setLang('en');
+      openReleaseNotes([latest]);
+      const shown = (cls) => findAll(document.body, cls).map(textOf);
+      ok(shown('news-title').includes(latest.title.en), 'the title is not in English: ' + shown('news-title'));
+      for (const item of latest.items) {
+        ok(shown('news-item').includes(item.text.en), 'an item is not in English: ' + item.text.en);
+      }
+      ok(!shown('news-title').includes(latest.title.pt), 'the Portuguese title leaked into English');
+    } finally {
+      closeSheet();
+      setLang('pt');
+    }
+    return undefined;
   }],
 
   ['whoever updates sees only what they have not seen yet', () => {
@@ -5938,6 +5972,8 @@ export const cases = [
     }
     return undefined;
   }],
+
+  ...DAILY_CASES,
 ];
 
 /**
