@@ -345,6 +345,27 @@ self.addEventListener('fetch', (event) => {
   // that is useless. `ignoreSearch` below would also block busting it with ?v=.
   if (url.pathname.endsWith('/build.json')) return;
 
+  // The privacy policy: network first, the cache only without signal.
+  //
+  // It is a document people read to learn what happens to their data, and
+  // the shell strategy below served the PREVIOUS copy on the first open after
+  // a change: a beta push that translated the policy kept showing the old,
+  // Portuguese-only page, which ignores ?lang=. A stale legal text is worse
+  // than a slower one. Stored under its path without the query, the same key
+  // the precache uses, so ?lang=en and ?lang=de share one copy.
+  if (url.pathname.endsWith('/privacidade.html')) {
+    const key = url.origin + url.pathname;
+    event.respondWith(
+      caches.open(SHELL).then((cache) => fetch(new Request(request, { cache: 'reload' }))
+        .then((res) => {
+          if (res.ok) cache.put(key, res.clone());
+          return res;
+        })
+        .catch(() => cache.match(key).then((hit) => hit || cache.match('./index.html')))),
+    );
+    return;
+  }
+
   // The app: answers from the cache and revalidates behind it.
   event.respondWith(
     caches.open(SHELL).then(async (cache) => {

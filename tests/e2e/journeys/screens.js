@@ -11,6 +11,7 @@
 
 import {
   openHome, waitHome, waitNoSheet, pickAllCommanders, startMatch, tapLife, declareWinnerAndSave, openStats, dbKey,
+  waitControlled,
 } from './app.js';
 
 const LANGS = ['pt', 'en', 'es', 'de'];
@@ -90,11 +91,12 @@ export default {
       await openStats(page);
     });
 
+    const shown = () => page.eval(`({
+      visible: [...document.querySelectorAll('article[data-lang]')].filter((a) => !a.hidden).map((a) => a.dataset.lang),
+      lang: document.documentElement.lang,
+    })`);
+
     await ctx.step('the privacy policy opens in each language, and in the app language by default', async () => {
-      const shown = () => page.eval(`({
-        visible: [...document.querySelectorAll('article[data-lang]')].filter((a) => !a.hidden).map((a) => a.dataset.lang),
-        lang: document.documentElement.lang,
-      })`);
       for (const lang of LANGS) {
         await page.goto(ctx.base + 'privacidade.html?lang=' + lang);
         const s = await shown();
@@ -106,6 +108,28 @@ export default {
       await page.goto(ctx.base + 'privacidade.html');
       const saved = await shown();
       if (saved.visible.join() !== 'de') throw new Error('without ?lang= the policy ignored the app language: ' + JSON.stringify(saved));
+    });
+
+    await ctx.step('a stale copy in the app cache is not what a returning user reads', async () => {
+      // What a device that had the previous release kept: an old policy in the
+      // shell cache. It used to be served first, and ?lang= did nothing.
+      await page.goto(ctx.base);
+      await waitControlled(page);
+      await page.eval(`caches.keys().then(async (keys) => {
+        const shell = keys.find((k) => k.includes('-shell-'));
+        const cache = await caches.open(shell);
+        // Only the old copy: earlier steps left fresh ones under ?lang= keys,
+        // and any of them would answer for it.
+        for (const req of await cache.keys()) {
+          if (req.url.includes('privacidade.html')) await cache.delete(req);
+        }
+        await cache.put(new URL('privacidade.html', location.href).href,
+          new Response('<!doctype html><title>old</title><p>OLD COPY</p>', { headers: { 'Content-Type': 'text/html' } }));
+        return shell;
+      })`);
+      await page.goto(ctx.base + 'privacidade.html?lang=en');
+      const s = await shown();
+      if (s.visible.join() !== 'en') throw new Error('the cached old policy was served: ' + JSON.stringify(s));
     });
   },
 };

@@ -44,5 +44,12 @@ export default {
     });
 
     await ctx.step('the match starts with no connection', () => startMatch(page));
+
+    await ctx.step('the privacy policy opens offline, in the language asked', async () => {
+      await page.goto(ctx.base + 'privacidade.html?lang=en');
+      const visible = await page.eval(`[...document.querySelectorAll('article[data-lang]')]
+        .filter((a) => !a.hidden).map((a) => a.dataset.lang).join()`);
+      if (visible !== 'en') throw new Error('offline, the policy showed: ' + JSON.stringify(visible));
+    });
   },
 };
