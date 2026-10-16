@@ -2,7 +2,8 @@
 
 Once a day, the home screen offers one card with its **name and colored mana
 hidden**, and the player guesses its **color**. Three tries; after a miss the
-game tells which picked colors are on the card and how many colors it has. A
+game tells **how many** of the picked colors are on the card (never which
+ones) and how many colors the card has. A
 win or a loss reveals the full card, the artist and a link to Scryfall, plus
 played / wins / streak / best.
 

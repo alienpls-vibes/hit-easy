@@ -57,10 +57,20 @@ export default {
       if (await page.count('.seat-card') < 2) throw new Error('the home screen was taken down');
     });
 
-    await ctx.step('a wrong guess is marked and earns the hint', async () => {
+    await ctx.step('a half-right guess says how many, never which, and earns the hint', async () => {
+      // Red is wrong and green is right: the row must read "1 of 2" and
+      // nothing on screen may tell the two apart.
       await page.tap('.daily-pick', { index: BOARD.indexOf('R') });
+      await page.tap('.daily-pick', { index: BOARD.indexOf(DAILY_COLORS[0]) });
       await page.tap('.daily-board .btn.primary');
-      await page.waitFor(`document.querySelector('.daily-hint') && document.querySelector('.daily-guess-item.is-miss')`, 'the miss and the hint');
+      await page.waitFor(`document.querySelector('.daily-hint') && document.querySelector('.daily-guess-hits')`, 'the miss and the hint');
+      const hits = await page.text('.daily-guess-hits');
+      if (!/^\D*1\D+2\D*$/.test(hits)) throw new Error('the miss should read 1 of 2, got: ' + hits);
+      const looks = await page.eval(`[...document.querySelectorAll('.daily-guess .daily-pip')]
+        .map((p) => p.className + ' ' + getComputedStyle(p).opacity)`);
+      if (looks.length !== 2 || new Set(looks).size !== 1) {
+        throw new Error('the picked colors are drawn differently: ' + JSON.stringify(looks));
+      }
     });
 
     await ctx.step('the right colors win and reveal the card', async () => {

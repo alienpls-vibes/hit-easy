@@ -2,10 +2,10 @@
  * The rules of the color guess.
  *
  * A guess is a set of colors: any mix of W, U, B, R, G, or just C for
- * colorless. Three tries. After each miss the player learns which of the
- * colors they picked are on the card, and after the first miss also HOW MANY
- * colors the card has - without that, a three-color card is nearly impossible
- * to land in three tries.
+ * colorless. Three tries. After each miss the player learns HOW MANY of the
+ * colors they picked are on the card - never which ones, which made three
+ * tries too easy - and after the first miss also how many colors the card
+ * has, without which a three-color card is nearly impossible to land.
  *
  * Pure: the screen keeps the state, this only judges it.
  */
@@ -32,17 +32,16 @@ export function answerOf(colors) {
 /**
  * Judges one guess.
  *
- * `marks` says, for each color the player picked, whether the card has it.
- * Colors the player did NOT pick are never revealed here - that would hand
- * the answer over after one try.
+ * `hits` is how many of the picked colors the card has, out of `picked`.
+ * Which ones is deliberately left out: telling it color by color let a
+ * player rule colors in and out one at a time, and three tries became easy.
  */
 export function judge(guess, colors) {
   const g = normalizeGuess(guess);
   const answer = answerOf(colors);
-  const marks = {};
-  for (const c of g) marks[c] = answer.includes(c);
-  const exact = g.length === answer.length && g.every((c) => answer.includes(c));
-  return { exact, marks };
+  const hits = g.filter((c) => answer.includes(c)).length;
+  const exact = g.length === answer.length && hits === answer.length;
+  return { exact, hits, picked: g.length };
 }
 
 /**

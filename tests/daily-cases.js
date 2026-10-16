@@ -197,12 +197,15 @@ export const DAILY_CASES = [
     eq(answerOf([]), ['C']);
   }],
 
-  ['daily: a guess is judged color by color, and only the colors picked are revealed', () => {
-    eq(judge(['R'], ['R']), { exact: true, marks: { R: true } });
-    eq(judge(['R', 'G'], ['R']), { exact: false, marks: { R: true, G: false } });
-    eq(judge(['C'], []), { exact: true, marks: { C: true } }, 'colorless is a valid answer');
+  ['daily: a guess only says how many picked colors are on the card, never which', () => {
+    eq(judge(['R'], ['R']), { exact: true, hits: 1, picked: 1 });
+    eq(judge(['R', 'G'], ['R']), { exact: false, hits: 1, picked: 2 });
+    eq(judge(['W', 'U'], ['U', 'B']), { exact: false, hits: 1, picked: 2 },
+      'one of two is right - and nothing says it is the blue');
+    eq(judge(['C'], []), { exact: true, hits: 1, picked: 1 }, 'colorless is a valid answer');
+    eq(judge(['C'], ['G']), { exact: false, hits: 0, picked: 1 });
     eq(judge(['W'], ['W', 'U']).exact, false, 'a part of the answer is not the answer');
-    eq(Object.keys(judge(['W'], ['W', 'U']).marks), ['W'], 'U was not picked and is not revealed');
+    ok(!('marks' in judge(['W', 'U'], ['W'])), 'no per-color verdict leaves judge()');
   }],
 
   ['daily: three tries, and a miss earns the number of colors', () => {
@@ -386,6 +389,7 @@ export const DAILY_CASES = [
       submit();
       eq(storage.day(dayKey()).guesses, [['G']], 'the guess is saved');
       ok(findAll(layer, 'daily-hint').length === 1, 'a miss earns the hint');
+      eq(textOf(findAll(layer, 'daily-guess-hits')[0]), '0 de 1 na carta', 'the miss shows only a count');
 
       fire(pick('R'), 'click');
       submit();

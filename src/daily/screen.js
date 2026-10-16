@@ -286,11 +286,18 @@ export function openDailyScreen({ onClose } = {}) {
 
   function guessList(p) {
     if (!p.results.length) return null;
-    return el('ol', { class: 'daily-guesses' }, p.results.map((r) => el('li', { class: 'daily-guess' + (r.exact ? ' is-exact' : '') },
-      r.guess.map((c) => el('span', { class: 'daily-guess-item' + (r.marks[c] ? ' is-hit' : ' is-miss') }, [
-        pip(c),
-        el('span', { class: 'daily-guess-mark', 'aria-label': colorName(c) }, [r.marks[c] ? '✓' : '✕']),
-      ])))));
+    // The picked colors, all drawn alike, and only the count of how many
+    // are on the card - never which ones (see judge() in game.js).
+    return el('ol', { class: 'daily-guesses' }, p.results.map((r) => el('li', {
+      class: 'daily-guess' + (r.exact ? ' is-exact' : ''),
+      'aria-label': r.guess.map(colorName).join(', '),
+    }, [
+      el('span', { class: 'daily-guess-pips' }, r.guess.map((c) => pip(c))),
+      el('span', {
+        class: 'daily-guess-hits',
+        text: r.exact ? dt('daily.guessExact') : dt('daily.hits', { n: r.hits, total: r.picked }),
+      }),
+    ])));
   }
 
   function hint(p) {
