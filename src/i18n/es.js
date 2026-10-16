@@ -496,6 +496,7 @@ export const ES = {
   'settings.updating': 'Actualizando…',
   'settings.updatingSub': 'Buscando la versión nueva y reabriendo',
   'settings.updateNone': 'Ya está en la versión más nueva',
+  'settings.updateFailed': 'Sin conexión para buscar actualizaciones. Inténtalo de nuevo con internet.',
 
   'settings.staleCache': 'caché {n}',
 

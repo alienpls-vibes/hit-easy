@@ -500,6 +500,7 @@ export const PT = {
   'settings.updating': 'Atualizando…',
   'settings.updatingSub': 'Buscando a versão nova e reabrindo',
   'settings.updateNone': 'Já está na versão mais nova',
+  'settings.updateFailed': 'Sem conexão para procurar atualização. Tente de novo com internet.',
 
   'settings.staleCache': 'cache {n}',
 

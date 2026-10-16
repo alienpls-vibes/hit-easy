@@ -15,6 +15,8 @@
  * the option and leaving the person with no way out.
  */
 
+import { APP_VERSION } from './version.js';
+
 /**
  * The event may have arrived before this module existed.
  *
@@ -215,7 +217,21 @@ export async function betaBuild() {
  * is why we wait for `controllerchange`, which only fires when the new worker
  * really takes over.
  *
- * Returns 'updating' when there is a new version, 'current' when there is not.
+ * "Nothing installing" is NOT "nothing new", and the button used to say it
+ * was. The worker installs itself and takes over in the background whenever
+ * the app opens (install calls skipWaiting), so by the time the person taps,
+ * the new worker is often already in charge while the page still runs the
+ * code it loaded before. And a beta push keeps sw.js identical, so no worker
+ * ever installs at all. The button now asks three questions, and only says
+ * "already the latest" when all three answer no:
+ *
+ *   1. is a new worker installing or waiting?      -> wait for it, reload
+ *   2. is the worker in charge newer than the page? -> reload
+ *   3. did any app file change on the server?       -> the worker refreshed
+ *                                                      its cache, reload
+ *
+ * Returns 'updating' (the page is reloading into new code), 'current' (all
+ * three said no) or 'failed' (no network to ask - never reported as current).
  */
 export async function updateApp(maxWait = 10000) {
   if (typeof navigator === 'undefined' || !navigator.serviceWorker) {
@@ -227,10 +243,24 @@ export async function updateApp(maxWait = 10000) {
     const reg = await navigator.serviceWorker.getRegistration();
     if (!reg) { location.reload(); return 'updating'; }
 
-    await reg.update();
+    try {
+      await reg.update();
+    } catch {
+      return 'failed'; // offline, or the server did not answer
+    }
 
-    // Neither installing nor waiting: no new code came.
-    if (!reg.installing && !reg.waiting) return 'current';
+    if (!reg.installing && !reg.waiting) {
+      // 2. Taken over in the background: the code here is behind its worker.
+      const worker = await workerVersion();
+      if (worker && worker !== APP_VERSION) { location.reload(); return 'updating'; }
+
+      // 3. Same worker, changed files.
+      const refreshed = await askWorker({ type: 'REFRESH' }, 20000);
+      if (!refreshed) return 'failed';
+      if (refreshed.changed > 0) { location.reload(); return 'updating'; }
+      if (refreshed.failed >= refreshed.total) return 'failed';
+      return 'current';
+    }
 
     await new Promise((resolve) => {
       let done = false;
@@ -254,7 +284,9 @@ export async function updateApp(maxWait = 10000) {
     location.reload();
     return 'updating';
   } catch {
-    return 'current';
+    // Something failed while asking: that is not an answer, and saying
+    // "already the latest" here is how the button used to lie.
+    return 'failed';
   }
 }
 
@@ -269,6 +301,11 @@ export async function updateApp(maxWait = 10000) {
  * Returns null when there is no worker or it does not answer in time.
  */
 export function workerVersion(maxWait = 1500) {
+  return askWorker({ type: 'VERSION' }, maxWait);
+}
+
+/** Sends a message to the worker in charge and waits for its answer (null: none). */
+function askWorker(message, maxWait) {
   if (typeof navigator === 'undefined'
     || !navigator.serviceWorker
     || !navigator.serviceWorker.controller) {
@@ -280,7 +317,7 @@ export function workerVersion(maxWait = 1500) {
     try {
       const channel = new MessageChannel();
       channel.port1.onmessage = (e) => answer(e.data || null);
-      navigator.serviceWorker.controller.postMessage({ type: 'VERSION' }, [channel.port2]);
+      navigator.serviceWorker.controller.postMessage(message, [channel.port2]);
       setTimeout(() => answer(null), maxWait);
     } catch {
       answer(null);
