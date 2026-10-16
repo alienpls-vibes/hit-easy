@@ -23,6 +23,30 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '1.11.0',
+    date: '2026-10-16',
+    title: 'Desafio diário: qual a cor desta carta?',
+    items: [
+      {
+        type: 'new',
+        text: 'Cor do dia: todo dia uma carta aparece sem o nome e sem as manas '
+          + 'coloridas, e você tem três tentativas para acertar a cor. Abra pelo '
+          + 'botão com a carta e o "?" no topo da tela inicial.',
+      },
+      {
+        type: 'new',
+        text: 'A cada erro, o jogo diz quantas das cores escolhidas estão na carta, '
+          + 'mas não quais. No fim aparecem a carta inteira, o ilustrador e a sua '
+          + 'sequência de acertos.',
+      },
+      {
+        type: 'new',
+        text: 'Nas opções do desafio você escolhe o idioma do app e o idioma da carta '
+          + '(o texto vem do Scryfall), e pode ligar um aviso para quando sair carta nova.',
+      },
+    ],
+  },
+  {
     version: '1.10.3',
     date: '2026-10-16',
     title: 'O botão de atualizar encontra a versão nova',

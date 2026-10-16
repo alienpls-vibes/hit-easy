@@ -35,7 +35,8 @@
 
 export const CALENDAR = [
   // October 2026
-  ['2026-10-16', "Boros Fury-Shield"],               // W     EDHREC 16871  Instant
+  ['2026-10-15', "Boros Fury-Shield"],               // W     EDHREC 16871  Instant
+  ['2026-10-16', "The Ever-Changing 'Dane"],               // 
   ['2026-10-17', "Venser, the Sojourner"],           // UW    EDHREC 6384   Legendary Planeswalker
   ['2026-10-18', "Boon of Boseiju"],                 // G     EDHREC 12342  Instant
   ['2026-10-19', "Kraum, Violent Cacophony"],        // RU    EDHREC 9281   Legendary Creature
