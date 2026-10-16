@@ -189,15 +189,17 @@ export function installBlock(onRefresh) {
           // It is not just hygiene: without this a failure leaves the button
           // spinning forever, and the person keeps watching a wait that is
           // already over.
-          r = 'current';
+          r = 'failed';
         }
 
-        if (r === 'current') {
+        // "Already the newest" only when the app really asked and nothing
+        // came; a failed check says so instead of passing for "current".
+        if (r === 'current' || r === 'failed') {
           update.disabled = false;
           update.classList.remove('is-updating');
           paintLabel(t('settings.update'));
           sub.textContent = t('settings.updateSub');
-          toast(t('settings.updateNone'));
+          toast(r === 'current' ? t('settings.updateNone') : t('settings.updateFailed'));
         }
         // 'updating' reloads the page by itself: spinning until then is right,
         // because the wait really goes on.

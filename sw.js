@@ -13,7 +13,7 @@
 
 // The same string as APP_VERSION in src/version.js - a worker does not import
 // modules. If it changes there, change it here; check-syntax.js compares both.
-const VERSION = '1.10.2';
+const VERSION = '1.10.3';
 
 /**
  * Production and beta share the same origin, and Cache Storage is per origin.
@@ -210,7 +210,49 @@ self.addEventListener('message', (event) => {
   if (event.data.type === 'VERSION' && event.ports && event.ports[0]) {
     event.ports[0].postMessage(VERSION);
   }
+  if (event.data.type === 'REFRESH' && event.ports && event.ports[0]) {
+    const port = event.ports[0];
+    event.waitUntil(refreshShell().then((r) => port.postMessage(r), () => port.postMessage(null)));
+  }
 });
+
+/**
+ * The update button's last question: did any file of the app change, with
+ * this same worker?
+ *
+ * A beta push keeps the version, so sw.js does not change and no new worker
+ * ever installs - the new files only arrive through the revalidation in the
+ * fetch handler, one opening late. Here every shell file is fetched from the
+ * network now, compared byte for byte with the cached copy, and replaced when
+ * it differs. Answers `{ changed, failed }`: `changed > 0` means a reload
+ * brings new code; `failed === total` means there was no network to ask.
+ */
+async function refreshShell() {
+  const cache = await caches.open(SHELL);
+  let changed = 0;
+  let failed = 0;
+  await Promise.all(ASSETS.map(async (url) => {
+    let res;
+    try {
+      res = await fetch(fromNetwork(url));
+    } catch {
+      failed += 1;
+      return;
+    }
+    if (!res.ok) { failed += 1; return; }
+    const fresh = new Uint8Array(await res.clone().arrayBuffer());
+    const hit = await cache.match(url, { ignoreSearch: true });
+    const old = hit ? new Uint8Array(await hit.arrayBuffer()) : null;
+    const same = old && old.length === fresh.length && old.every((b, i) => b === fresh[i]);
+    if (!same) {
+      await cache.put(url, res);
+      changed += 1;
+    }
+  }));
+  // The version travels in the same answer: asking it separately, with its
+  // own short deadline, raced a worker still waking up on a slow phone.
+  return { changed, failed, total: ASSETS.length, version: VERSION };
+}
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(

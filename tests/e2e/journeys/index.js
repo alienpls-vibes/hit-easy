@@ -11,11 +11,13 @@ import crashScreen from './crash-screen.js';
 import legacyData from './legacy-data.js';
 import channels from './channels.js';
 import screens from './screens.js';
+import updateButton from './update-button.js';
 
 export const JOURNEYS = [
   firstMatch,
   offline,
   upgrade,
+  updateButton,
   legacyData,
   crashScreen,
   channels,

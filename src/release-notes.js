@@ -23,6 +23,24 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '1.10.3',
+    date: '2026-10-16',
+    title: 'O botão de atualizar encontra a versão nova',
+    items: [
+      {
+        type: 'fixed',
+        text: 'No app instalado, "Atualizar" dizia que já estava na versão mais nova '
+          + 'mesmo com uma nova publicada. Agora ele confere o que está no ar e, se '
+          + 'houver novidade, atualiza e reinicia o app sozinho.',
+      },
+      {
+        type: 'fixed',
+        text: 'Sem internet, o botão avisa que não conseguiu procurar a atualização, '
+          + 'em vez de dizer que já está tudo em dia.',
+      },
+    ],
+  },
+  {
     version: '1.10.2',
     date: '2026-10-15',
     title: 'Iniciar partida voltou a funcionar',

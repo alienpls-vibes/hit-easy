@@ -85,7 +85,9 @@ for (const journey of selected) {
   const started = Date.now();
   const record = { name: journey.name, ok: true, steps: [], why: '' };
   results.push(record);
-  process.stdout.write(' ' + dim('…') + ' ' + journey.name + '\r');
+  // The live progress line only on a terminal: in a CI log the carriage
+  // return glues it to the result line, and the summary loses the result.
+  if (process.stdout.isTTY) process.stdout.write(' ' + dim('…') + ' ' + journey.name + '\r');
 
   const server = live ? null : await startServer();
   if (server) {
@@ -174,6 +176,13 @@ for (const journey of selected) {
   if (!record.ok) {
     console.log('   ' + red('at step: ' + record.steps[record.steps.length - 1]));
     console.log('   ' + red(record.why));
+    // In CI the step log needs a token to read, but annotations are public:
+    // each failed journey says where and why right on the run page.
+    if (process.env.GITHUB_ACTIONS) {
+      const detail = ('at step: ' + record.steps[record.steps.length - 1] + ' - ' + record.why)
+        .replace(/%/g, '%25').replace(/\r/g, '').replace(/\n/g, '%0A');
+      console.log('::error title=Journey failed: ' + journey.name.replace(/[:,]/g, ' ') + '::' + detail);
+    }
   }
 }
 

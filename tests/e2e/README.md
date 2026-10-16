@@ -40,6 +40,7 @@ were green, because none of them pressed Start in a browser. These do.
 | `first-match` | setup → commanders by search → Start → life taps → reload mid-game → winner → saved → statistics. Marked `live`: also runs against the published site after each deploy. |
 | `offline` | after one visit, no signal: the app opens from the service worker and a table plays from the history |
 | `upgrade` | the release that is live today (newest `v*` tag) writes a match in progress and a history; this tree is deployed over it; the update arrives by itself, keeps every point, announces what's new and cleans old caches |
+| `update-button` | the installed app's Update button: nothing new → "already the newest" without reloading; a beta push (same version, changed files) → reloads into them; a release that took over in the background while the page ran old code → reloads into it; no connection → "could not check", never "already the newest" |
 | `legacy-data` | a database in the shape early releases left (`fixtures/legacy-db.js`) opens, plays, heals junk and keeps the history |
 | `crash-screen` | a module that throws shows the crash screen with the error and a way out, not a black screen |
 | `channels` | beta and production on one origin never share storage or caches |
