@@ -64,9 +64,7 @@
       '<button id="crash-reload" class="btn primary">Recarregar</button>' +
       '<button id="crash-reset" class="btn ghost">Limpar cache e recarregar</button>' +
       '</div>';
-    box.querySelector('.crash-detail').textContent = title + '
-
-' + (detail || '');
+    box.querySelector('.crash-detail').textContent = title + '\n\n' + (detail || '');
     app.appendChild(box);
 
     document.getElementById('crash-reload').onclick = function () { location.reload(); };
@@ -89,9 +87,7 @@
 
   window.addEventListener('error', function (e) {
     show(e.message || 'Erro', (e.filename || '') + (e.lineno ? ':' + e.lineno : '') +
-      (e.error && e.error.stack ? '
-
-' + e.error.stack : ''));
+      (e.error && e.error.stack ? '\n\n' + e.error.stack : ''));
   });
   window.addEventListener('unhandledrejection', function (e) {
     var r = e.reason || {};

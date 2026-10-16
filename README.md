@@ -116,6 +116,33 @@ device and refilled it from the cloud for subscribers; non-subscribers going
 back to an older version see an empty history until they subscribe, but
 nothing is lost — it is all in the cloud.
 
+## Before publishing: `npm run verify`
+
+Four layers, cheapest first, stopping at the first red one:
+
+| Layer | Command | Catches |
+| --- | --- | --- |
+| syntax | `node tools/check-syntax.js` | a module, the service worker or an inline `<script>` in the HTML that does not parse; versions, notes, cache list and icons that disagree |
+| unit | `node tests/run-node.js` | the engine, statistics, store and panels (simulated DOM) |
+| modules | `python tools/check_modules.py` | an import, re-export or `store.member` pointing to something that is not exported |
+| journeys | `node tests/e2e/run.js` | what a person does, in headless Chrome/Edge: a full match on a phone, offline play, updating from the live release, old data, the crash screen, channels, every screen in every language, the cloud account |
+
+The journeys need Node 24 and any Chromium browser (`CHROME_PATH` to pick
+one); everything else they need is faked, so they run without internet. See
+`tests/e2e/README.md`.
+
+The same layers run in CI, and a red one blocks the deploy. After every
+deploy, a smoke job runs the full-match journey against the **published**
+production and beta sites. Locally, `git config core.hooksPath tools/hooks`
+makes `git push` to `beta` or `main` run `npm run verify` first.
+
+Why so many: 1.10.1 went to production with a Start button that threw — the
+pre-game panel called a store function that had been removed. Syntax, imports
+and 225 unit cases were green; nothing pressed Start in a real browser. The
+same suite also found that the crash screen itself had been a SyntaxError
+since 1.9.0, and that a life change made less than a second before the page
+was hidden was lost.
+
 ## Publishing
 
 The app is static — no build, no server, no database. Publishing is copying the

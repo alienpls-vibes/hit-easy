@@ -1,0 +1,24 @@
+#!/bin/sh
+# Runs the full gate (npm run verify) before a push to beta or main - the two
+# branches that publish. Other branches push freely.
+#
+# Enabled per clone with:  git config core.hooksPath tools/hooks
+#
+# 1.10.1 reached production with a Start button that threw: every check that
+# existed passed, and none was a real browser pressing it. The journeys now
+# are, and this makes sure they ran before the push, not after the deploy.
+
+publishes=no
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/beta|refs/heads/main) publishes=yes ;;
+  esac
+done
+
+[ "$publishes" = yes ] || exit 0
+
+echo "pre-push: this push publishes - running npm run verify"
+node tools/verify.js || {
+  echo "pre-push: verify failed, push refused. Fix it, or see tests/e2e/artifacts/."
+  exit 1
+}

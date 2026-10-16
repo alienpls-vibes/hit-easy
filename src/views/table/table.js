@@ -74,9 +74,23 @@ export function renderTable(root, ctx) {
   table.sync();
   table.hintOnce();
 
+  // Taps wait COMMIT_MS to become one event, and until then they live only in
+  // memory. Locking the phone, switching apps or reloading inside that window
+  // used to lose the last life change: a hidden tab can be discarded by the
+  // system without ever running the timer. Hiding is the last moment the page
+  // is guaranteed to run, so the pending taps are written then.
+  const flush = () => {
+    if (document.visibilityState === 'hidden' && !table.destroyed) table.commitAll();
+  };
+  const flushOnLeave = () => { if (!table.destroyed) table.commitAll(); };
+  document.addEventListener('visibilitychange', flush);
+  window.addEventListener('pagehide', flushOnLeave);
+
   return {
     destroy: () => {
       table.destroyed = true;
+      document.removeEventListener('visibilitychange', flush);
+      window.removeEventListener('pagehide', flushOnLeave);
       table.stopPauseClock();
       table.commitAll(); // never lose the last tap when switching screens
       closeSheet();

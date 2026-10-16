@@ -54,11 +54,27 @@ constant or comment (for example `SEATS_FROM_TOP = 'topo'`,
 ## Checks
 
 ```bash
-npm test                      # syntax check + all test cases
-python tools/check_modules.py # imports/exports, delimiters, CSS cascade
+npm run verify   # the full gate: syntax, unit, modules, browser journeys
+npm test         # syntax check + all unit cases (fast)
+npm run check    # imports/exports, namespace members, delimiters, CSS cascade
+npm run e2e      # browser journeys in headless Chrome/Edge (tests/e2e/)
 ```
 
-Both must pass before committing. No build, no dependencies.
+`npm run verify` must pass before every push to `beta` or `main` - the
+pre-push hook enforces it once enabled with `git config core.hooksPath
+tools/hooks`, and the CI runs the same layers before publishing. No build, no
+dependencies.
+
+Rules that came from shipping a broken release (1.10.1, Start threw):
+
+- Removing or renaming an export: grep for `.name` too, not only for the
+  import - `import * as store` uses it as `store.name`. `npm run check` now
+  catches it, but search without filtering the results.
+- A change to a flow a person uses (setup, table, finishing, sync, update)
+  needs a journey that walks it, or an existing one extended. Break the thing
+  once and watch the journey go red before trusting it.
+- Never publish with a red layer, and never "fix" a journey by loosening it
+  until the app's behavior is understood.
 
 ## Releases
 

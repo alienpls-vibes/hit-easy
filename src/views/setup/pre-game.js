@@ -94,10 +94,7 @@ export function openPreGame(d, onStart) {
 
             d.layoutId = layoutId;
             d.firstSeatId = first.id;
-            d.seats.forEach((s) => {
-              store.rememberPlayer(s.name);
-              s.commanders.forEach(store.rememberCommander);
-            });
+            d.seats.forEach((s) => store.rememberPlayer(s.name));
             store.setSetting('startingLife', d.startingLife);
 
             close();

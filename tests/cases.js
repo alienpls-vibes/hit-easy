@@ -2161,6 +2161,37 @@ export const cases = [
     view.destroy();
   }],
 
+  ['the Start button starts the match', () => {
+    if (!simulated) return 'skip';
+    // 1.10.1 shipped with this button throwing: the pre-game sheet called a
+    // store function that had been removed, so tapping Start did nothing and
+    // no match could begin. Every case passed, because none pressed it.
+    store.wipe();
+    try {
+      const d = ensureDraft();
+      d.seats.forEach((s, i) => { s.commanders = [commander(i + 1)]; });
+
+      let started = null;
+      const root = document.createElement('div');
+      renderSetup(root, { onStart: (draft) => { started = draft; }, onStats() {}, onRefresh() {} });
+
+      const start = findAll(root, 'btn').find((b) => b.className.includes('block') && !b.disabled);
+      ok(start, 'with every commander chosen, Start stayed disabled');
+      fire(start, 'click');
+
+      const sheetStart = findAll(document.body, 'sheet-actions').slice(-1)[0];
+      ok(sheetStart, 'Start did not open the pre-game sheet');
+      fire(sheetStart.childNodes[1], 'click'); // the sheet's own Start
+
+      ok(started, 'the pre-game Start did not start the match');
+      ok(d.seats.some((s) => s.id === started.firstSeatId), 'nobody was chosen to open the match');
+    } finally {
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+
   ['the setup screen mounts without blowing up', () => {
     if (!simulated) return 'skip';
     const root = document.createElement('div');

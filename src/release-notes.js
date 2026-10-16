@@ -23,6 +23,28 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '1.10.2',
+    date: '2026-10-15',
+    title: 'Iniciar partida voltou a funcionar',
+    items: [
+      {
+        type: 'fixed',
+        text: 'O botão de iniciar partida não fazia nada na 1.10.1. Desculpe: '
+          + 'a partida volta a começar normalmente.',
+      },
+      {
+        type: 'fixed',
+        text: 'Mudar a vida e logo em seguida bloquear o celular, trocar de app '
+          + 'ou recarregar podia perder o último ajuste. Agora ele é guardado na hora.',
+      },
+      {
+        type: 'fixed',
+        text: 'Quando algo quebra ao abrir, o app volta a mostrar a tela que diz '
+          + 'o que aconteceu, em vez de ficar preto.',
+      },
+    ],
+  },
+  {
     version: '1.10.1',
     date: '2026-10-15',
     title: 'Decks do histórico e instalar sempre à mão',
