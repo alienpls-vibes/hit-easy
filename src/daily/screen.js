@@ -45,6 +45,25 @@ function notifyTexts() {
   return { title: dt('daily.notifyTitle'), body: dt('daily.notifyBody') };
 }
 
+/** What notify.enable() and refresh() resolve when the notice is on. */
+const NOTICE_MODES = ['push', 'on', 'limited'];
+
+function playedToday() {
+  const today = dayKey();
+  return storage.isDone(today) ? today : null;
+}
+
+/**
+ * Tells the worker and the server the notice's current texts, and
+ * re-subscribes if the subscription was lost. Nothing when it is off.
+ */
+function refreshNotice() {
+  if (!storage.settings().notify) return;
+  notify.refresh(notifyTexts(), playedToday()).then((mode) => {
+    if (NOTICE_MODES.includes(mode)) storage.setSetting('notifyMode', mode);
+  }).catch(() => { /* a nicety: the switch stays as it was */ });
+}
+
 function colorName(c) {
   return c === COLORLESS ? dt('daily.colorless') : dt('daily.color.' + c);
 }
@@ -202,6 +221,7 @@ export function openDailyScreen({ onClose, onRefresh } = {}) {
     if (perm === 'denied') return dt('daily.notifyDenied');
     const s = storage.settings();
     if (!s.notify) return dt('daily.notifyOff');
+    if (s.notifyMode === 'push') return dt('daily.notifyPush');
     return s.notifyMode === 'limited' ? dt('daily.notifyLimited') : dt('daily.notifyOn');
   }
 
@@ -232,6 +252,7 @@ export function openDailyScreen({ onClose, onRefresh } = {}) {
       // screen and the panel itself are redone - the panel by reopening, as
       // the home settings do.
       if (onRefresh) onRefresh();
+      refreshNotice();
       paintHead();
       paint();
       openSettings();
@@ -255,11 +276,10 @@ export function openDailyScreen({ onClose, onRefresh } = {}) {
           ? row({ label: dt('daily.notify'), sub: notifyStatus() })
           : toggleRow(dt('daily.notify'), notifyStatus(), Boolean(s.notify), async (on) => {
             if (on) {
-              const result = await notify.enable(notifyTexts());
-              const enabled = result === 'on' || result === 'limited';
+              const result = await notify.enable(notifyTexts(), playedToday());
+              const enabled = NOTICE_MODES.includes(result);
               storage.setSetting('notify', enabled);
               storage.setSetting('notifyMode', enabled ? result : null);
-              if (enabled && storage.isDone(today)) notify.updateConfig({ playedOn: today });
             } else {
               storage.setSetting('notify', false);
               await notify.disable();
@@ -310,7 +330,7 @@ export function openDailyScreen({ onClose, onRefresh } = {}) {
       won: p.status === 'won',
       answer: done ? answerOf(load.puzzle.colors) : undefined,
     });
-    if (done) notify.updateConfig({ playedOn: today });
+    if (done) notify.markPlayed(today);
     selection = [];
     buzz(p.status === 'won' ? 24 : 10);
     paint();
@@ -441,8 +461,8 @@ export function openDailyScreen({ onClose, onRefresh } = {}) {
   requestAnimationFrame(() => layer.classList.add('is-open'));
   backBtn.focus();
 
-  // The worker speaks the language the app speaks today.
-  if (storage.settings().notify) notify.updateConfig(notifyTexts());
+  // The notice speaks the language the app speaks today.
+  refreshNotice();
 
   paintHead();
   fetchCard();

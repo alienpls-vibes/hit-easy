@@ -41,9 +41,12 @@ in Supabase. Renaming any of these breaks existing users' data or old clients:
 - **Daily challenge** (`src/daily/`): localStorage keys `mtglc.daily.v1`
   (fields `settings.cardLang`, `settings.notify`, `settings.notifyMode`,
   `days[YYYY-MM-DD].guesses|done|won|answer|number|card`) and
-  `mtglc.dailyCard.v1`; IndexedDB `hiteasy-daily` (`-beta` on beta), store
-  `kv`, key `notify`; periodic sync and notification tag `hiteasy-daily`;
-  link parameter `?daily=1`.
+  `mtglc.dailyCard.v1`; `settings.notifyMode` values `'push' | 'on' |
+  'limited'`; IndexedDB `hiteasy-daily` (`-beta` on beta), store `kv`, key
+  `notify`; periodic sync and notification tag `hiteasy-daily`; link
+  parameter `?daily=1`; Supabase `avisos_diarios` and its RPCs
+  (`inscrever_aviso`, `aviso_jogado`, `cancelar_aviso`, `avisos_a_enviar`,
+  `aviso_expirado`); push payload `{ title, body, day }`.
 - **Channel values** `'producao' | 'beta'`; service-worker cache prefix
   `hiteasy-`; `build.json` fields `build`, `quando`; `window.__hitEasyInstall`;
   `user_metadata.has_password`.

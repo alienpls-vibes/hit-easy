@@ -25,6 +25,36 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '1.11.1',
+    date: '2026-10-19',
+    title: {
+      pt: 'Aviso da carta do dia',
+      en: 'Card of the day notice',
+      es: 'Aviso de la carta del día',
+      de: 'Nachricht zur Karte des Tages',
+    },
+    items: [
+      {
+        type: 'fixed',
+        text: {
+          pt: 'O aviso de carta nova agora chega todo dia às 9h, se você ainda não tiver jogado. Antes ele quase nunca chegava.',
+          en: 'The new card notice now comes every day at 9 am if you have not played yet. Before, it almost never came.',
+          es: 'El aviso de carta nueva ahora llega cada día a las 9 h si todavía no has jugado. Antes casi nunca llegaba.',
+          de: 'Die Nachricht zur neuen Karte kommt jetzt jeden Tag um 9 Uhr, wenn du noch nicht gespielt hast. Vorher kam sie fast nie.',
+        },
+      },
+      {
+        type: 'changed',
+        text: {
+          pt: 'A política de privacidade explica o que o aviso guarda no servidor, e desligar o aviso apaga esses dados.',
+          en: 'The privacy policy explains what the notice keeps on the server, and turning the notice off deletes it.',
+          es: 'La política de privacidad explica qué guarda el aviso en el servidor, y desactivar el aviso lo borra.',
+          de: 'Die Datenschutzerklärung erklärt, was die Nachricht auf dem Server speichert, und Ausschalten löscht es.',
+        },
+      },
+    ],
+  },
+  {
     version: '1.11.0',
     date: '2026-10-16',
     title: {

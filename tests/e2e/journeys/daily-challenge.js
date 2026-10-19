@@ -144,6 +144,61 @@ export default {
       await page.waitFor(`!document.querySelector('.sheet-scrim')`, 'the panel to close');
     });
 
+    await ctx.step('the notice switch subscribes this device on the server, in its language', async () => {
+      await ctx.grant(['notifications']);
+      // The journeys' browser contexts are off the record, and there Chrome
+      // refuses every push subscription ("permission denied"). The push
+      // manager is replaced by one that hands out a subscription like
+      // Google's; what is checked is the app's side - the switch, the server
+      // call, the texts. The real push path was proven by hand against
+      // Google's and Microsoft's push services (docs/daily-challenge.md).
+      await page.eval(`(() => {
+        let sub = null;
+        PushManager.prototype.getSubscription = async () => sub;
+        PushManager.prototype.subscribe = async (opts) => {
+          sub = {
+            endpoint: 'https://fcm.googleapis.com/fcm/send/journey-device',
+            options: { applicationServerKey: opts.applicationServerKey.buffer },
+            toJSON: () => ({ endpoint: sub.endpoint, keys: { p256dh: 'B'.repeat(87), auth: 'a'.repeat(22) } }),
+            unsubscribe: async () => { sub = null; return true; },
+          };
+          return sub;
+        };
+        return true;
+      })()`);
+      await page.tap('.daily-head .icon-btn', { index: 1 });
+      await page.waitFor(`document.querySelector('.sheet-scrim.is-open .is-toggle')`, 'the notice switch');
+      await page.tap('.sheet-scrim.is-open .is-toggle');
+      await page.waitFor(`document.querySelector('.sheet-scrim.is-open .is-toggle .switch.is-on')`, 'the switch on');
+      const deadline = Date.now() + 10000;
+      while (!ctx.cloud.db.notices.size && Date.now() < deadline) await sleep(100);
+      const rows = [...ctx.cloud.db.notices.values()];
+      if (rows.length !== 1) {
+        throw new Error('expected one subscription on the server, got ' + rows.length
+          + ' (the switch says: ' + await page.text('.sheet-scrim.is-open .is-toggle') + ')');
+      }
+      const [row] = rows;
+      const channel = /\/beta\/$/.test(ctx.base) ? 'beta' : 'producao';
+      const title = await page.eval(`import('./src/daily/i18n.js').then((m) => m.dt('daily.notifyTitle'))`);
+      const today = await page.eval(`import('./src/daily/day.js').then((m) => m.dayKey())`);
+      if (row.c !== channel) throw new Error('wrong channel: ' + row.c);
+      if (row.titulo !== title) throw new Error('the notice is not in the app language: ' + row.titulo);
+      if (row.jogado !== today) throw new Error('the server was not told today is played: ' + row.jogado);
+      if (!row.fuso) throw new Error('no time zone');
+      const status = await page.text('.sheet-scrim.is-open .is-toggle');
+      const expected = await page.eval(`import('./src/daily/i18n.js').then((m) => m.dt('daily.notifyPush'))`);
+      if (!status.includes(expected)) throw new Error('the switch does not say the notice comes at 9: ' + status);
+    });
+
+    await ctx.step('turning it off removes the device from the server', async () => {
+      await page.tap('.sheet-scrim.is-open .is-toggle');
+      const deadline = Date.now() + 10000;
+      while (ctx.cloud.db.notices.size && Date.now() < deadline) await sleep(100);
+      if (ctx.cloud.db.notices.size) throw new Error('the subscription is still on the server');
+      await page.tap('.sheet-scrim .sheet-head > .icon-btn:last-child');
+      await page.waitFor(`!document.querySelector('.sheet-scrim')`, 'the panel to close');
+    });
+
     await ctx.step('the arrow closes it too', async () => {
       await page.tap('.daily-head .icon-btn', { index: 0 });
       await page.waitFor(`!document.querySelector('.daily-screen')`, 'the challenge to close');
