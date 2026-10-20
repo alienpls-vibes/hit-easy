@@ -6,3 +6,6 @@ Thumbs.db
 
 # Screenshots and logs of failed browser journeys (npm run e2e).
 tests/e2e/artifacts/
+
+# Supabase CLI cache (project ref, versions)
+supabase/.temp/

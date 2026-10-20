@@ -29,6 +29,9 @@ import {
 import * as storage from './storage.js';
 import * as notify from './notify.js';
 import { onBack } from './back.js';
+import {
+  resultText, challengeLink, shareToWhatsapp, shareElsewhere,
+} from './share.js';
 
 /** The card language when the person never chose one: the app's, if Scryfall has it. */
 function defaultCardLang() {
@@ -289,6 +292,10 @@ export function openDailyScreen({ onClose, onRefresh } = {}) {
         s.notify && perm === 'granted'
           ? row({ label: dt('daily.notifyTest'), onTap: () => notify.sendTest(notifyTexts()) })
           : null,
+        perm === 'unsupported' ? null : el('p', { class: 'daily-option-note daily-notify-privacy' }, [
+          dt('daily.notifyPrivacy') + ' ',
+          el('a', { href: './privacidade.html?lang=' + currentLang(), target: '_blank', rel: 'noopener', text: dt('daily.privacyLink') }),
+        ]),
       ]),
     );
   }
@@ -418,7 +425,28 @@ export function openDailyScreen({ onClose, onRefresh } = {}) {
         ]),
       ]),
       statsRow(),
+      shareRow(p),
       next,
+    ]);
+  }
+
+  /** Share the day without the answer (see share.js). */
+  function shareRow(p) {
+    const text = () => resultText({
+      number: challenge.number,
+      results: p.results,
+      status: p.status,
+      max: MAX_TRIES,
+      streak: totals(storage.allDays(), today, previousDay).current,
+      link: challengeLink(),
+    });
+    return el('div', { class: 'daily-share' }, [
+      el('button', { class: 'btn primary daily-share-whatsapp', onClick: () => shareToWhatsapp(text()) }, [
+        icon('share'), dt('daily.shareWhatsapp'),
+      ]),
+      el('button', { class: 'btn ghost daily-share-other', onClick: () => shareElsewhere(text()) }, [
+        typeof navigator !== 'undefined' && navigator.share ? dt('daily.shareOther') : dt('daily.shareCopy'),
+      ]),
     ]);
   }
 

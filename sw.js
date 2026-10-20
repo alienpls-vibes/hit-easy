@@ -92,6 +92,7 @@ const ASSETS = [
   './src/daily/notify.js',
   './src/daily/schedule.js',
   './src/daily/screen.js',
+  './src/daily/share.js',
   './src/daily/storage.js',
   './src/daily/sw-daily.js',
   './src/styles/daily.css',

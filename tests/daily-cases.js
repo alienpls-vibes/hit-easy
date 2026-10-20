@@ -23,6 +23,9 @@ import { bestPrint, slim, loadCard } from '../src/daily/fetch.js';
 import { DAILY_DICTS, dt } from '../src/daily/i18n.js';
 import * as storage from '../src/daily/storage.js';
 import { dailyButton } from '../src/daily/entry.js';
+import {
+  resultText, squares, challengeLink, whatsappUrl,
+} from '../src/daily/share.js';
 import { openDailyScreen } from '../src/daily/screen.js';
 import { setLang } from '../src/i18n.js';
 import { isSheetOpen, closeSheet } from '../src/ui.js';
@@ -459,5 +462,45 @@ export const DAILY_CASES = [
       storage.reset();
     }
     return undefined;
+  }],
+  ['daily: the shared result shows how the day went, never the answer', () => {
+    const colors = ['W', 'U'];
+    // A miss with one color right, a miss with none, then the answer.
+    const p = progress([['W', 'R'], ['B', 'G'], ['U', 'W']], colors);
+    eq(p.status, 'won', 'the day was won');
+    eq(squares(p.results), '🟨⬛🟩', 'one square per try');
+    const text = resultText({
+      number: 12, results: p.results, status: p.status, max: MAX_TRIES, streak: 5,
+      link: 'https://alienpls-vibes.github.io/hit-easy/?daily=1',
+    });
+    eq(text.split('\n'), [
+      'Hit Easy · ' + dt('daily.title') + ' #12',
+      '🟨⬛🟩 3/' + MAX_TRIES,
+      dt('daily.shareStreak', { n: 5 }),
+      dt('daily.shareInvite', { link: 'https://alienpls-vibes.github.io/hit-easy/?daily=1' }),
+    ], 'the message');
+
+    // The winning row is ONE square whatever the card's colors: a mono and
+    // a five-color card share the same way, so the count never leaks.
+    const mono = progress([['G']], ['G']);
+    const five = progress([['W', 'U', 'B', 'R', 'G']], ['W', 'U', 'B', 'R', 'G']);
+    eq(squares(mono.results), squares(five.results), 'the color count does not show');
+    // A miss shows "some" or "none", not how many: 1 of 1 and 2 of 3 look alike.
+    eq(squares(progress([['W']], ['W', 'U']).results), squares(progress([['W', 'U', 'R']], ['W', 'U', 'B']).results), 'hit counts do not show');
+
+    const colorWords = ['W', 'U', 'B', 'R', 'G'].map((c) => dt('daily.color.' + c).toLowerCase());
+    for (const word of colorWords) ok(!text.toLowerCase().includes(word), 'a color name is in the message: ' + word);
+  }],
+
+  ['daily: a lost day shares X, a short streak is left out, the link opens the challenge', () => {
+    const p = progress([['W'], ['U'], ['B']], ['G']);
+    const text = resultText({ number: 3, results: p.results, status: p.status, max: MAX_TRIES, streak: 1, link: 'L' });
+    ok(text.includes('⬛⬛⬛ X/' + MAX_TRIES), 'the lost line: ' + text);
+    ok(!text.includes(dt('daily.shareStreak', { n: 1 })), 'a streak of 1 is not worth a line');
+    eq(challengeLink({ origin: 'https://alienpls-vibes.github.io', pathname: '/hit-easy/beta/index.html' }),
+      'https://alienpls-vibes.github.io/hit-easy/beta/?daily=1', 'the link keeps the channel');
+    eq(challengeLink({ origin: 'https://alienpls-vibes.github.io', pathname: '/hit-easy/' }),
+      'https://alienpls-vibes.github.io/hit-easy/?daily=1', 'production');
+    eq(decodeURIComponent(whatsappUrl('a b\n🟩').split('text=')[1]), 'a b\n🟩', 'the WhatsApp link carries the text intact');
   }],
 ];

@@ -270,7 +270,11 @@
   letter-spacing: 0.1em;
   color: var(--text-dim);
 }
+/* One button per row: "Compartilhar no WhatsApp" does not fit half a phone. */
+.daily-share { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.daily-share .btn { width: 100%; white-space: nowrap; }
 .daily-next { margin: 0; font-size: 0.82rem; color: var(--text-dim); }
+.daily-notify-privacy a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 
 @media (prefers-reduced-motion: reduce) {
   .daily-screen { transition: none; transform: none; }

@@ -28,12 +28,21 @@ export const RELEASE_NOTES = [
     version: '1.11.1',
     date: '2026-10-19',
     title: {
-      pt: 'Aviso da carta do dia',
-      en: 'Card of the day notice',
-      es: 'Aviso de la carta del día',
-      de: 'Nachricht zur Karte des Tages',
+      pt: 'Aviso diário e resultado para compartilhar',
+      en: 'Daily notice and a result to share',
+      es: 'Aviso diario y resultado para compartir',
+      de: 'Tägliche Nachricht und ein Ergebnis zum Teilen',
     },
     items: [
+      {
+        type: 'new',
+        text: {
+          pt: 'Compartilhe seu resultado da Cor do dia no WhatsApp, sem revelar a carta nem as cores.',
+          en: 'Share your Color of the day result on WhatsApp without giving away the card or its colors.',
+          es: 'Comparte tu resultado del Color del día en WhatsApp sin revelar la carta ni sus colores.',
+          de: 'Teile dein Ergebnis der Farbe des Tages auf WhatsApp, ohne Karte oder Farben zu verraten.',
+        },
+      },
       {
         type: 'fixed',
         text: {

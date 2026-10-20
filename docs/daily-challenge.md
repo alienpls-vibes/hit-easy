@@ -89,6 +89,34 @@ language by default. The card is searched as
 in that language falls back to English and says so. Each answer is cached on
 the device for the day (`mtglc.dailyCard.v1`), so reopening works offline.
 
+## Sharing the result
+
+Once the day is over, the result screen has **Share on WhatsApp** (a `wa.me`
+link: the app on a phone, WhatsApp Web on a computer) and **Other apps** (the
+share sheet, or **Copy result** where there is none). `src/daily/share.js`
+builds the text on the device:
+
+```
+Hit Easy · Cor do dia #12
+🟨⬛🟩 3/3
+Sequência: 5
+Jogue também: https://alienpls-vibes.github.io/hit-easy/?daily=1
+```
+
+The text gives away nothing that would help a friend who has not played yet:
+
+- no card name and no colors;
+- one square per try. 🟩 is the answer. 🟨 is a miss with at least one color
+  on the card. ⬛ is a miss with none of them;
+- the count the screen showed ("1 of 2") is left out. It hints how many
+  colors were picked, and the winning row would give the card's color count.
+  A one-color and a five-color win look the same.
+
+Streaks of 2 or more get a line. The link points to the channel the person is
+on (beta shares beta). Unit cases in `tests/daily-cases.js` check that the
+color count never shows, and the daily journey taps the button and reads the
+`wa.me` text.
+
 ## Notifications
 
 The switch is in the settings panel, plus a "send a test notification" row
