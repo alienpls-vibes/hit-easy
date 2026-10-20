@@ -13,7 +13,7 @@
 
 // The same string as APP_VERSION in src/version.js - a worker does not import
 // modules. If it changes there, change it here; check-syntax.js compares both.
-const VERSION = '1.11.1';
+const VERSION = '1.12.0';
 
 /**
  * Production and beta share the same origin, and Cache Storage is per origin.

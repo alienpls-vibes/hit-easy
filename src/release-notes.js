@@ -25,8 +25,8 @@
 
 export const RELEASE_NOTES = [
   {
-    version: '1.11.1',
-    date: '2026-10-19',
+    version: '1.12.0',
+    date: '2026-10-20',
     title: {
       pt: 'Aviso diário e resultado para compartilhar',
       en: 'Daily notice and a result to share',
