@@ -437,7 +437,6 @@ export function openDailyScreen({ onClose, onRefresh } = {}) {
       results: p.results,
       status: p.status,
       max: MAX_TRIES,
-      streak: totals(storage.allDays(), today, previousDay).current,
       link: challengeLink(),
     });
     return el('div', { class: 'daily-share' }, [

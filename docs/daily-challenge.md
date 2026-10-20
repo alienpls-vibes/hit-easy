@@ -97,10 +97,10 @@ share sheet, or **Copy result** where there is none). `src/daily/share.js`
 builds the text on the device:
 
 ```
-Hit Easy · Adivinhe as Cores #12
-🟨⬛🟩 3/3
-Sequência: 5
-Jogue também: https://alienpls-vibes.github.io/hit-easy/?daily=1
+Hit Easy · Guess the Colors #5
+🟩 1/3
+Can you guess it too?
+Play here: https://alienpls-vibes.github.io/hit-easy/?daily=1
 ```
 
 The text gives away nothing that would help a friend who has not played yet:
@@ -112,8 +112,9 @@ The text gives away nothing that would help a friend who has not played yet:
   colors were picked, and the winning row would give the card's color count.
   A one-color and a five-color win look the same.
 
-Streaks of 2 or more get a line. The link points to the channel the person is
-on (beta shares beta). Unit cases in `tests/daily-cases.js` check that the
+The third line dares the friend: `Can you guess it too?` after a win,
+`Will you guess it?` after a loss. The streak is not shared. The link
+points to the channel the person is on (beta shares beta). Unit cases in `tests/daily-cases.js` check that the
 color count never shows, and the daily journey taps the button and reads the
 `wa.me` text.
 

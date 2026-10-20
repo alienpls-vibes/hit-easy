@@ -37,21 +37,25 @@ export function squares(results) {
 /**
  * The message, in the app's language:
  *
- *   Hit Easy · Adivinhe as Cores #12
- *   🟨⬛🟩 3/3
- *   Sequência: 5
- *   Jogue também: https://.../?daily=1
+ *   Hit Easy · Guess the Colors #5
+ *   🟩 1/3
+ *   Can you guess it too?
+ *   Play here: https://.../?daily=1
+ *
+ * The third line dares the friend: "too" after a win, a plain question after
+ * a loss.
  */
 export function resultText({
-  number, results, status, max, streak, link,
+  number, results, status, max, link,
 }, t = dt) {
-  const tries = status === 'won' ? String(results.findIndex((r) => r.exact) + 1) : 'X';
+  const won = status === 'won';
+  const tries = won ? String(results.findIndex((r) => r.exact) + 1) : 'X';
   return [
     'Hit Easy · ' + t('daily.title') + ' #' + number,
     squares(results) + ' ' + tries + '/' + max,
-    streak > 1 ? t('daily.shareStreak', { n: streak }) : null,
+    t(won ? 'daily.shareDareWon' : 'daily.shareDareLost'),
     t('daily.shareInvite', { link }),
-  ].filter(Boolean).join('\n');
+  ].join('\n');
 }
 
 /** The link friends get: this channel's app, straight into the challenge. */

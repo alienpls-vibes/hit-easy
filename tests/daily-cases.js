@@ -470,15 +470,18 @@ export const DAILY_CASES = [
     eq(p.status, 'won', 'the day was won');
     eq(squares(p.results), '🟨⬛🟩', 'one square per try');
     const text = resultText({
-      number: 12, results: p.results, status: p.status, max: MAX_TRIES, streak: 5,
+      number: 12, results: p.results, status: p.status, max: MAX_TRIES,
       link: 'https://alienpls-vibes.github.io/hit-easy/?daily=1',
     });
     eq(text.split('\n'), [
       'Hit Easy · ' + dt('daily.title') + ' #12',
       '🟨⬛🟩 3/' + MAX_TRIES,
-      dt('daily.shareStreak', { n: 5 }),
+      dt('daily.shareDareWon'),
       dt('daily.shareInvite', { link: 'https://alienpls-vibes.github.io/hit-easy/?daily=1' }),
     ], 'the message');
+    // The exact English message, as people will read it in the group.
+    eq(resultText({ number: 5, results: progress([['G']], ['G']).results, status: 'won', max: 3, link: 'L' }, (key, vars) => DAILY_DICTS.en[key].replace('{link}', vars ? vars.link : '')),
+      'Hit Easy · Guess the Colors #5\n🟩 1/3\nCan you guess it too?\nPlay here: L', 'the English message');
 
     // The winning row is ONE square whatever the card's colors: a mono and
     // a five-color card share the same way, so the count never leaks.
@@ -492,11 +495,12 @@ export const DAILY_CASES = [
     for (const word of colorWords) ok(!text.toLowerCase().includes(word), 'a color name is in the message: ' + word);
   }],
 
-  ['daily: a lost day shares X, a short streak is left out, the link opens the challenge', () => {
+  ['daily: a lost day shares X and asks instead of daring, the link opens the challenge', () => {
     const p = progress([['W'], ['U'], ['B']], ['G']);
-    const text = resultText({ number: 3, results: p.results, status: p.status, max: MAX_TRIES, streak: 1, link: 'L' });
+    const text = resultText({ number: 3, results: p.results, status: p.status, max: MAX_TRIES, link: 'L' });
     ok(text.includes('⬛⬛⬛ X/' + MAX_TRIES), 'the lost line: ' + text);
-    ok(!text.includes(dt('daily.shareStreak', { n: 1 })), 'a streak of 1 is not worth a line');
+    eq(text.split('\n')[2], dt('daily.shareDareLost'), 'a lost day asks the friend');
+    ok(!text.includes(dt('daily.shareDareWon')), 'a lost day does not say "too"');
     eq(challengeLink({ origin: 'https://alienpls-vibes.github.io', pathname: '/hit-easy/beta/index.html' }),
       'https://alienpls-vibes.github.io/hit-easy/beta/?daily=1', 'the link keeps the channel');
     eq(challengeLink({ origin: 'https://alienpls-vibes.github.io', pathname: '/hit-easy/' }),
