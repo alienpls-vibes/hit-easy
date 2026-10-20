@@ -13,6 +13,7 @@ import channels from './channels.js';
 import screens from './screens.js';
 import updateButton from './update-button.js';
 import dailyChallenge from './daily-challenge.js';
+import dailyLost from './daily-lost.js';
 
 export const JOURNEYS = [
   firstMatch,
@@ -24,5 +25,6 @@ export const JOURNEYS = [
   channels,
   screens,
   dailyChallenge,
+  dailyLost,
   cloudAccount,
 ];
