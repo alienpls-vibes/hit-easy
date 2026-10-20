@@ -28,6 +28,7 @@ export function fakeCloud({ users = [] } = {}) {
     subscriptions: new Map(),  // user id -> subscription row
     matches: new Map(),        // id -> { id, owner, started_at, canal, payload }
     matchPlayers: [],
+    notices: new Map(),        // push endpoint -> daily notice row (sql/012)
   };
   const unknown = [];
   let isDown = false;
@@ -95,6 +96,26 @@ export function fakeCloud({ users = [] } = {}) {
     if (p === '/auth/v1/logout') {
       const auth = (headers.Authorization || headers.authorization || '').replace(/^Bearer\s+/i, '');
       db.sessions.delete(auth);
+      return ok(null, 204);
+    }
+
+    // ---- The daily notice: anonymous on purpose (sql/012-daily-notice.sql)
+    const PUSH_HOST = /^https:\/\/(fcm\.googleapis\.com|updates\.push\.services\.mozilla\.com|web\.push\.apple\.com|[a-z0-9-]+\.notify\.windows\.com)\//;
+    if (p === '/rest/v1/rpc/inscrever_aviso') {
+      if (!PUSH_HOST.test(body.endpoint) || !['producao', 'beta'].includes(body.c)) return ok({ message: 'endpoint invalido' }, 400);
+      const before = db.notices.get(body.endpoint) || {};
+      db.notices.set(body.endpoint, {
+        ...before, ...body, jogado: [before.jogado, body.jogado].filter(Boolean).sort().pop() || null,
+      });
+      return ok(null, 204);
+    }
+    if (p === '/rest/v1/rpc/aviso_jogado') {
+      const row = db.notices.get(body.endpoint);
+      if (row) row.jogado = [row.jogado, body.dia].filter(Boolean).sort().pop();
+      return ok(null, 204);
+    }
+    if (p === '/rest/v1/rpc/cancelar_aviso') {
+      db.notices.delete(body.endpoint);
       return ok(null, 204);
     }
 

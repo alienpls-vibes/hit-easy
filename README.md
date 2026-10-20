@@ -1281,7 +1281,8 @@ src/
     card.js           a Scryfall card turned into a puzzle — pure
     game.js           guesses, hints and streaks — pure
     fetch.js          the card in the chosen language, with cache
-    notify.js         the daily notice, page side
+    share.js          the result as text for WhatsApp, without the answer
+    notify.js         the daily notice, page side (Web Push subscription)
     sw-daily.js       the daily notice, service worker side
     back.js           the back gesture with the settings panel open
     schedule.js day.js storage.js i18n.js
@@ -1369,6 +1370,8 @@ tools/
   check-syntax.js     node --check, version, @, RLS, install and SW cache
   check_modules.py    imports, exports, re-exports, delimiters and CSS cascade
 sql/                  Supabase migrations, run in numeric order (see docs/cloud.md)
+supabase/functions/   Edge Functions; daily-push sends the daily notice
+                      (see docs/daily-challenge.md, "Turning the server on")
 docs/                 cloud setup and the publishing channels
 ```
 

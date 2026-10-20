@@ -5,14 +5,21 @@
  * import modules (see the note at the top of sw.js). Everything the daily
  * challenge needs from the worker lives here, so sw.js only gains one line.
  *
- * When the browser wakes the worker (Periodic Background Sync, tag
- * 'hiteasy-daily'), it shows ONE notice per day, and only:
- *   - if the person turned the notice on (config written by notify.js),
- *   - between 08:00 and 22:00 on the device's clock - the card turns at
- *     midnight, and nobody wants a phone buzzing about it at 00:01,
- *   - if today's card was not played yet.
+ * Two ways in (see notify.js):
+ *   - 'push': the server (supabase/functions/daily-push) already chose the
+ *     moment - 09:00 on this device's clock, today's card unplayed - and
+ *     sent the texts. The worker shows them. It MUST show something on
+ *     every push: Chrome punishes a push that shows nothing.
+ *   - 'periodicsync' (tag 'hiteasy-daily'), the fallback: the browser woke
+ *     the worker at a moment of its choosing, so the worker decides. ONE
+ *     notice per day, only if the person turned it on, only between 08:00
+ *     and 22:00 on the device's clock (the card turns at midnight, and
+ *     nobody wants a phone buzzing about it at 00:01), and only if today's
+ *     card was not played yet.
  *
- * Tapping the notice opens the app straight into the challenge.
+ * Either way the day is written down as notified, so the other path never
+ * adds a second notice. Tapping the notice opens the app straight into the
+ * challenge.
  */
 
 (function () {
@@ -65,16 +72,69 @@
         var key = today();
         if (!config.enabled || config.lastNotified === key || config.playedOn === key) return null;
         config.lastNotified = key;
-        return self.registration.showNotification(config.title || 'Hit Easy', {
-          body: config.body || '',
-          icon: './icons/icon-192.png',
-          badge: './icons/icon-192.png',
-          tag: TAG,
-          data: { url: './?daily=1' },
-        }).then(function () { return writeConfig(db, config); });
+        return show(config.title, config.body).then(function () { return writeConfig(db, config); });
       });
     }).catch(function () { /* no IndexedDB: no notice, nothing else breaks */ });
   }
+
+  function show(title, body) {
+    return self.registration.showNotification(title || 'Hit Easy', {
+      body: body || '',
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-192.png',
+      tag: TAG,
+      data: { url: './?daily=1' },
+    });
+  }
+
+  self.addEventListener('push', function (event) {
+    var data = {};
+    try { data = event.data ? event.data.json() : {}; } catch (e) { data = {}; }
+    event.waitUntil(openDb().then(function (db) {
+      return readConfig(db).then(function (config) {
+        config.lastNotified = today();
+        return show(data.title || config.title, data.body || config.body)
+          .then(function () { return writeConfig(db, config); });
+      });
+    }).catch(function () {
+      // No IndexedDB: still show the notice the server sent.
+      return show(data.title, data.body);
+    }));
+  });
+
+  /*
+   * The push service replaced the subscription (rare, but it happens): make
+   * a new one and tell the server, with what notify.js left in the config.
+   * If anything is missing, the next app opening redoes it all anyway.
+   */
+  self.addEventListener('pushsubscriptionchange', function (event) {
+    event.waitUntil(openDb().then(readConfig).then(function (config) {
+      var server = config.server;
+      if (!config.enabled || config.mode !== 'push' || !server || !server.url) return null;
+      var raw = atob(server.vapid.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (server.vapid.length % 4)) % 4));
+      var key = Uint8Array.from(raw, function (c) { return c.charCodeAt(0); });
+      return self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
+        .then(function (sub) {
+          var json = sub.toJSON();
+          var zone = 'UTC';
+          try { zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { /* UTC */ }
+          return fetch(server.url.replace(/\/+$/, '') + '/rest/v1/rpc/inscrever_aviso', {
+            method: 'POST',
+            headers: { apikey: server.key, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              endpoint: json.endpoint,
+              p256dh: json.keys.p256dh,
+              auth: json.keys.auth,
+              c: server.channel,
+              fuso: zone,
+              titulo: config.title || 'Hit Easy',
+              corpo: config.body || '',
+              jogado: config.playedOn === today() ? config.playedOn : null,
+            }),
+          });
+        });
+    }).catch(function () { /* the next opening redoes it */ }));
+  });
 
   self.addEventListener('periodicsync', function (event) {
     if (event.tag !== TAG) return;

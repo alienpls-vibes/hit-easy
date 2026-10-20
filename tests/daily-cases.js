@@ -23,6 +23,9 @@ import { bestPrint, slim, loadCard } from '../src/daily/fetch.js';
 import { DAILY_DICTS, dt } from '../src/daily/i18n.js';
 import * as storage from '../src/daily/storage.js';
 import { dailyButton } from '../src/daily/entry.js';
+import {
+  resultText, squares, challengeLink, whatsappUrl,
+} from '../src/daily/share.js';
 import { openDailyScreen } from '../src/daily/screen.js';
 import { setLang } from '../src/i18n.js';
 import { isSheetOpen, closeSheet } from '../src/ui.js';
@@ -441,7 +444,7 @@ export const DAILY_CASES = [
       const field = findAll(findAll(panel(), 'daily-app-lang')[0], 'set-select')[0];
       field.value = 'en';
       fire(field, 'change');
-      eq(textOf(findAll(layer, 'daily-title')[0]), 'Color of the day', 'the challenge speaks the new language');
+      eq(textOf(findAll(layer, 'daily-title')[0]), 'Guess the Colors', 'the challenge speaks the new language');
       eq(refreshed, 1, 'the home screen underneath was redrawn');
       eq(store.getDB().settings.lang, 'en', 'saved as the home settings save it');
       ok(isSheetOpen(), 'the panel came back in the new language');
@@ -459,5 +462,49 @@ export const DAILY_CASES = [
       storage.reset();
     }
     return undefined;
+  }],
+  ['daily: the shared result shows how the day went, never the answer', () => {
+    const colors = ['W', 'U'];
+    // A miss with one color right, a miss with none, then the answer.
+    const p = progress([['W', 'R'], ['B', 'G'], ['U', 'W']], colors);
+    eq(p.status, 'won', 'the day was won');
+    eq(squares(p.results), '🟨⬛🟩', 'one square per try');
+    const text = resultText({
+      number: 12, results: p.results, status: p.status, max: MAX_TRIES,
+      link: 'https://alienpls-vibes.github.io/hit-easy/?daily=1',
+    });
+    eq(text.split('\n'), [
+      'Hit Easy · ' + dt('daily.title') + ' #12',
+      '🟨⬛🟩 3/' + MAX_TRIES,
+      dt('daily.shareDareWon'),
+      dt('daily.shareInvite', { link: 'https://alienpls-vibes.github.io/hit-easy/?daily=1' }),
+    ], 'the message');
+    // The exact English message, as people will read it in the group.
+    eq(resultText({ number: 5, results: progress([['G']], ['G']).results, status: 'won', max: 3, link: 'L' }, (key, vars) => DAILY_DICTS.en[key].replace('{link}', vars ? vars.link : '')),
+      'Hit Easy · Guess the Colors #5\n🟩 1/3\nCan you guess it too?\nPlay here: L', 'the English message');
+
+    // The winning row is ONE square whatever the card's colors: a mono and
+    // a five-color card share the same way, so the count never leaks.
+    const mono = progress([['G']], ['G']);
+    const five = progress([['W', 'U', 'B', 'R', 'G']], ['W', 'U', 'B', 'R', 'G']);
+    eq(squares(mono.results), squares(five.results), 'the color count does not show');
+    // A miss shows "some" or "none", not how many: 1 of 1 and 2 of 3 look alike.
+    eq(squares(progress([['W']], ['W', 'U']).results), squares(progress([['W', 'U', 'R']], ['W', 'U', 'B']).results), 'hit counts do not show');
+
+    const colorWords = ['W', 'U', 'B', 'R', 'G'].map((c) => dt('daily.color.' + c).toLowerCase());
+    for (const word of colorWords) ok(!text.toLowerCase().includes(word), 'a color name is in the message: ' + word);
+  }],
+
+  ['daily: a lost day shares X and asks instead of daring, the link opens the challenge', () => {
+    const p = progress([['W'], ['U'], ['B']], ['G']);
+    const text = resultText({ number: 3, results: p.results, status: p.status, max: MAX_TRIES, link: 'L' });
+    ok(text.includes('⬛⬛⬛ X/' + MAX_TRIES), 'the lost line: ' + text);
+    eq(text.split('\n')[2], dt('daily.shareDareLost'), 'a lost day asks the friend');
+    ok(!text.includes(dt('daily.shareDareWon')), 'a lost day does not say "too"');
+    eq(challengeLink({ origin: 'https://alienpls-vibes.github.io', pathname: '/hit-easy/beta/index.html' }),
+      'https://alienpls-vibes.github.io/hit-easy/beta/?daily=1', 'the link keeps the channel');
+    eq(challengeLink({ origin: 'https://alienpls-vibes.github.io', pathname: '/hit-easy/' }),
+      'https://alienpls-vibes.github.io/hit-easy/?daily=1', 'production');
+    eq(decodeURIComponent(whatsappUrl('a b\n🟩').split('text=')[1]), 'a b\n🟩', 'the WhatsApp link carries the text intact');
   }],
 ];

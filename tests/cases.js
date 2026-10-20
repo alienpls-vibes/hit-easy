@@ -96,6 +96,8 @@ import * as store from '../src/store.js';
 import { announceVersion, codeFromLink } from '../src/app.js';
 // The daily color challenge keeps its cases apart (see tests/daily-cases.js).
 import { DAILY_CASES } from './daily-cases.js';
+// The daily notice sent by the server (see tests/push-cases.js).
+import { PUSH_CASES } from './push-cases.js';
 
 function eq(actual, expected, what) {
   const a = JSON.stringify(actual);
@@ -5974,6 +5976,7 @@ export const cases = [
   }],
 
   ...DAILY_CASES,
+  ...PUSH_CASES,
 ];
 
 /**

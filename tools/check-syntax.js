@@ -40,6 +40,7 @@ const files = [
   ...walk(join(ROOT, 'src')),
   ...walk(join(ROOT, 'tests')),
   ...walk(join(ROOT, 'tools')),
+  ...walk(join(ROOT, 'supabase')),
   join(ROOT, 'sw.js'),
 ].sort();
 

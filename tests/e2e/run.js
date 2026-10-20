@@ -127,6 +127,10 @@ for (const journey of selected) {
       pages.push(page);
       return page;
     },
+    /** Grants browser permissions (e.g. 'notifications') to the app's origin. */
+    grant(permissions) {
+      return conn.send('Browser.grantPermissions', { origin: new URL(base).origin, permissions, browserContextId });
+    },
     async step(name, fn) {
       record.steps.push(name);
       return fn();

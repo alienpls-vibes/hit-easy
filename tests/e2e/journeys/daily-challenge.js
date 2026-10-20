@@ -86,6 +86,27 @@ export default {
       await page.waitFor(`document.querySelector('.daily-result.is-won .daily-reveal-img')`, 'the win and the revealed card');
     });
 
+    await ctx.step('sharing on WhatsApp sends the squares and the link, never the card or its colors', async () => {
+      // window.open is caught: the journey checks the link it would open.
+      await page.eval(`(() => { window.__opened = []; window.open = (url) => { window.__opened.push(url); return null; }; return true; })()`);
+      await page.tap('.daily-share-whatsapp');
+      const opened = await page.eval('window.__opened');
+      if (opened.length !== 1 || !opened[0].startsWith('https://wa.me/?text=')) throw new Error('WhatsApp was not opened: ' + JSON.stringify(opened));
+      const text = decodeURIComponent(opened[0].slice('https://wa.me/?text='.length));
+      // The miss had one right color (yellow), then the win (green).
+      if (!text.includes('🟨🟩 2/3')) throw new Error('the squares are wrong: ' + text);
+      const name = await page.eval(`import('./src/daily/schedule.js').then((m) => m.challengeFor(m.dayKey()).name)`);
+      const printed = await page.text('.daily-reveal strong');
+      for (const word of [name, printed]) {
+        if (text.toLowerCase().includes(word.toLowerCase())) throw new Error('the card name is in the message: ' + text);
+      }
+      const colorWords = await page.eval(`import('./src/daily/i18n.js').then((m) => ['W', 'U', 'B', 'R', 'G'].map((c) => m.dt('daily.color.' + c)))`);
+      for (const word of colorWords) {
+        if (text.toLowerCase().includes(word.toLowerCase())) throw new Error('a color is in the message: ' + word);
+      }
+      if (!text.includes(new URL('?daily=1', ctx.base).href)) throw new Error('the link to the challenge is missing: ' + text);
+    });
+
     await ctx.step('the result is stored apart, and the matches are untouched', async () => {
       const today = await page.eval(`import('./src/daily/day.js').then((m) => m.dayKey())`);
       const daily = await page.eval(`JSON.parse(localStorage.getItem(${JSON.stringify(dailyKey(ctx.base))}))`);
@@ -141,6 +162,61 @@ export default {
       await chooseCardLang(page, 'de');
       await page.waitFor(`document.querySelector('.daily-note') && document.querySelector('.daily-reveal-img')`, 'the English fallback, announced');
       await page.tap('.sheet-scrim .sheet-head > .icon-btn:last-child'); // close the panel
+      await page.waitFor(`!document.querySelector('.sheet-scrim')`, 'the panel to close');
+    });
+
+    await ctx.step('the notice switch subscribes this device on the server, in its language', async () => {
+      await ctx.grant(['notifications']);
+      // The journeys' browser contexts are off the record, and there Chrome
+      // refuses every push subscription ("permission denied"). The push
+      // manager is replaced by one that hands out a subscription like
+      // Google's; what is checked is the app's side - the switch, the server
+      // call, the texts. The real push path was proven by hand against
+      // Google's and Microsoft's push services (docs/daily-challenge.md).
+      await page.eval(`(() => {
+        let sub = null;
+        PushManager.prototype.getSubscription = async () => sub;
+        PushManager.prototype.subscribe = async (opts) => {
+          sub = {
+            endpoint: 'https://fcm.googleapis.com/fcm/send/journey-device',
+            options: { applicationServerKey: opts.applicationServerKey.buffer },
+            toJSON: () => ({ endpoint: sub.endpoint, keys: { p256dh: 'B'.repeat(87), auth: 'a'.repeat(22) } }),
+            unsubscribe: async () => { sub = null; return true; },
+          };
+          return sub;
+        };
+        return true;
+      })()`);
+      await page.tap('.daily-head .icon-btn', { index: 1 });
+      await page.waitFor(`document.querySelector('.sheet-scrim.is-open .is-toggle')`, 'the notice switch');
+      await page.tap('.sheet-scrim.is-open .is-toggle');
+      await page.waitFor(`document.querySelector('.sheet-scrim.is-open .is-toggle .switch.is-on')`, 'the switch on');
+      const deadline = Date.now() + 10000;
+      while (!ctx.cloud.db.notices.size && Date.now() < deadline) await sleep(100);
+      const rows = [...ctx.cloud.db.notices.values()];
+      if (rows.length !== 1) {
+        throw new Error('expected one subscription on the server, got ' + rows.length
+          + ' (the switch says: ' + await page.text('.sheet-scrim.is-open .is-toggle') + ')');
+      }
+      const [row] = rows;
+      const channel = /\/beta\/$/.test(ctx.base) ? 'beta' : 'producao';
+      const title = await page.eval(`import('./src/daily/i18n.js').then((m) => m.dt('daily.notifyTitle'))`);
+      const today = await page.eval(`import('./src/daily/day.js').then((m) => m.dayKey())`);
+      if (row.c !== channel) throw new Error('wrong channel: ' + row.c);
+      if (row.titulo !== title) throw new Error('the notice is not in the app language: ' + row.titulo);
+      if (row.jogado !== today) throw new Error('the server was not told today is played: ' + row.jogado);
+      if (!row.fuso) throw new Error('no time zone');
+      const status = await page.text('.sheet-scrim.is-open .is-toggle');
+      const expected = await page.eval(`import('./src/daily/i18n.js').then((m) => m.dt('daily.notifyPush'))`);
+      if (!status.includes(expected)) throw new Error('the switch does not say the notice comes at 9: ' + status);
+    });
+
+    await ctx.step('turning it off removes the device from the server', async () => {
+      await page.tap('.sheet-scrim.is-open .is-toggle');
+      const deadline = Date.now() + 10000;
+      while (ctx.cloud.db.notices.size && Date.now() < deadline) await sleep(100);
+      if (ctx.cloud.db.notices.size) throw new Error('the subscription is still on the server');
+      await page.tap('.sheet-scrim .sheet-head > .icon-btn:last-child');
       await page.waitFor(`!document.querySelector('.sheet-scrim')`, 'the panel to close');
     });
 

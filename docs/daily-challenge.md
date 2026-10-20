@@ -74,7 +74,7 @@ screen's Settings, with the same rows:
   screen. Switching it redraws the challenge, the home screen underneath and
   the panel itself (by reopening it, as the home settings do).
 - **Card language** - see below.
-- **Notifications** - see below.
+- **Notifications**: see below.
 
 With the panel open, the phone's back gesture closes only the panel.
 `src/daily/back.js` makes that work: app.js closes any open panel on
@@ -89,37 +89,119 @@ language by default. The card is searched as
 in that language falls back to English and says so. Each answer is cached on
 the device for the day (`mtglc.dailyCard.v1`), so reopening works offline.
 
+## Sharing the result
+
+Once the day is over, the result screen has **Share on WhatsApp** (a `wa.me`
+link: the app on a phone, WhatsApp Web on a computer) and **Other apps** (the
+share sheet, or **Copy result** where there is none). `src/daily/share.js`
+builds the text on the device:
+
+```
+Hit Easy · Guess the Colors #5
+🟩 1/3
+Can you guess it too?
+Play here: https://alienpls-vibes.github.io/hit-easy/?daily=1
+```
+
+The text gives away nothing that would help a friend who has not played yet:
+
+- no card name and no colors;
+- one square per try. 🟩 is the answer. 🟨 is a miss with at least one color
+  on the card. ⬛ is a miss with none of them;
+- the count the screen showed ("1 of 2") is left out. It hints how many
+  colors were picked, and the winning row would give the card's color count.
+  A one-color and a five-color win look the same.
+
+The third line dares the friend: `Can you guess it too?` after a win,
+`Will you guess it?` after a loss. The streak is not shared. The link
+points to the channel the person is on (beta shares beta). Unit cases in `tests/daily-cases.js` check that the
+color count never shows, and the daily journey taps the button and reads the
+`wa.me` text.
+
 ## Notifications
 
 The switch is in the settings panel, plus a "send a test notification" row
 once it is on.
 
-Hit Easy is a static site with no server, so there is nothing to push from.
-What works without one is **Periodic Background Sync**: the browser wakes the
-service worker about once or twice a day (its choice), and
-`src/daily/sw-daily.js` shows **one** notice per day, between 08:00 and 22:00
-on the device clock, only if today's card was not played. Tapping it opens the
-app straight into the challenge (`?daily=1`).
+### Server notice (Web Push)
+
+The notice comes from the server: at **09:00 on the device's own clock**, once
+a day, and only if today's card was not played.
+
+```
+app (notify.js)  --subscription, language, time zone-->  Supabase: avisos_diarios
+pg_cron, every hour  -->  Edge Function daily-push  -->  push service  -->  sw-daily.js
+```
+
+- `src/daily/notify.js` subscribes with `VAPID_PUBLIC_KEY` (`src/config.js`)
+  and calls `inscrever_aviso`. **Every app opening** calls `refresh()`, which
+  re-subscribes if the subscription was lost and sends the texts again in
+  today's language. Finishing the card calls `aviso_jogado`. Turning the
+  switch off calls `cancelar_aviso` and unsubscribes.
+- `sql/012-daily-notice.sql` has the table and the functions. Anonymous, like
+  the challenge. Only real push-service hosts are accepted as endpoints, so
+  nobody can point the server at a URL of their choice. `avisos_a_enviar()`
+  claims what is due and marks it sent in the same step, so a second run
+  sends nothing twice.
+- `supabase/functions/daily-push/` encrypts and sends. `webpush.js` is RFC
+  8291 + VAPID on WebCrypto, with no library, and is checked in
+  `tests/push-cases.js` against the RFC's own example. A 404/410 from the push
+  service deletes the row.
+- `sql/013-daily-notice-schedule.sql` is the hourly pg_cron job.
+- `sw-daily.js` shows whatever the push carries. It must show something on
+  every push, because Chrome penalizes silent pushes. It also handles
+  `pushsubscriptionchange`.
 
 | Where | Daily notice |
 | --- | --- |
-| Chrome / Edge on Android, app installed | yes |
-| Chrome / Edge on desktop, app installed | yes |
-| Safari (iPhone, Mac), Firefox | no — the switch says so; the test notice works where notifications do |
+| Chrome / Edge / Samsung on Android (installed or not) | yes |
+| Chrome / Edge / Firefox on desktop | yes, while the browser is running |
+| iPhone / iPad, app added to the Home Screen (iOS 16.4+) | yes |
+| Safari tab on iPhone (not added to the Home Screen) | no; the switch says how to get it |
 
-A notice at a fixed time on every system, iPhone included, needs **Web Push**
-from a server: VAPID keys, the push subscription stored in Supabase, and a
-scheduled function sending at, say, 09:00. `src/daily/notify.js` is where it
-would plug in. Not built yet.
+Verified on 2026-10-19: a real Chrome subscribed at `fcm.googleapis.com` and
+a real Edge at `*.notify.windows.com`. Both got a notice sealed by
+`webpush.js` (push service answered 201), and the app's worker decrypted and
+showed it.
+
+### Fallback: Periodic Background Sync
+
+Without a VAPID key or push support, the switch falls back to Periodic
+Background Sync (mode `'on'`). In that mode the browser wakes the worker
+whenever it chooses (at most every 12 hours in Chrome, and only for sites it
+finds engaging), and the worker shows the notice between 08:00 and 22:00. This
+was the only path up to 1.11.0, and it is why the notice almost never came.
+
+### Turning the server on (once)
+
+Everything below happens in the Supabase project and needs your login.
+
+1. **SQL Editor**: run `sql/012-daily-notice.sql`.
+2. **Edge Function**: from the repo root,
+   `npx supabase login`, then
+   `npx supabase functions deploy daily-push --project-ref <ref> --no-verify-jwt`.
+3. **Function secrets**: `VAPID_PUBLIC_KEY` (the same as in `src/config.js`),
+   `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (`https://alienpls-vibes.github.io/hit-easy/`)
+   and `CRON_SECRET` (any long random string):
+   `npx supabase secrets set --project-ref <ref> --env-file <file>`.
+   The private key never goes into the repo.
+4. **SQL Editor**: create the two Vault secrets listed at the top of
+   `sql/013-daily-notice-schedule.sql`, then run that file.
+5. Check: **Edge Functions → daily-push → Logs** shows one line an hour,
+   such as `{"due":0,"sent":0,"gone":0,"failed":0}`.
+
+Rotating the VAPID pair: change both places. Each device replaces its old
+subscription on its next opening (`pushSubscription()` compares the key).
 
 ### Testing it locally
 
 1. `npm start`, open the app, open the challenge, gear, turn the switch on and
-   allow notifications. "Send a test notification" proves the path.
-2. To fire the real daily path without waiting for the browser: Chrome DevTools
-   → Application → Service workers → **Periodic sync**, tag `hiteasy-daily`,
-   *Periodic sync*. (Registering needs the app installed; outside 08:00–22:00,
-   or with today played, the worker correctly shows nothing.)
+   allow notifications. "Send a test notification" proves the worker can show
+   notices.
+2. Journeys run in off-the-record contexts, where Chrome refuses push. The
+   daily journey therefore replaces `PushManager` and checks the app's side:
+   the switch, the `inscrever_aviso` call with texts, channel and day, and
+   `cancelar_aviso` when the switch goes off.
 
 ## Isolation from the life counter
 

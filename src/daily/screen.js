@@ -29,6 +29,9 @@ import {
 import * as storage from './storage.js';
 import * as notify from './notify.js';
 import { onBack } from './back.js';
+import {
+  resultText, challengeLink, shareToWhatsapp, shareElsewhere,
+} from './share.js';
 
 /** The card language when the person never chose one: the app's, if Scryfall has it. */
 function defaultCardLang() {
@@ -43,6 +46,25 @@ function cardLang() {
 
 function notifyTexts() {
   return { title: dt('daily.notifyTitle'), body: dt('daily.notifyBody') };
+}
+
+/** What notify.enable() and refresh() resolve when the notice is on. */
+const NOTICE_MODES = ['push', 'on', 'limited'];
+
+function playedToday() {
+  const today = dayKey();
+  return storage.isDone(today) ? today : null;
+}
+
+/**
+ * Tells the worker and the server the notice's current texts, and
+ * re-subscribes if the subscription was lost. Nothing when it is off.
+ */
+function refreshNotice() {
+  if (!storage.settings().notify) return;
+  notify.refresh(notifyTexts(), playedToday()).then((mode) => {
+    if (NOTICE_MODES.includes(mode)) storage.setSetting('notifyMode', mode);
+  }).catch(() => { /* a nicety: the switch stays as it was */ });
 }
 
 function colorName(c) {
@@ -202,6 +224,7 @@ export function openDailyScreen({ onClose, onRefresh } = {}) {
     if (perm === 'denied') return dt('daily.notifyDenied');
     const s = storage.settings();
     if (!s.notify) return dt('daily.notifyOff');
+    if (s.notifyMode === 'push') return dt('daily.notifyPush');
     return s.notifyMode === 'limited' ? dt('daily.notifyLimited') : dt('daily.notifyOn');
   }
 
@@ -232,6 +255,7 @@ export function openDailyScreen({ onClose, onRefresh } = {}) {
       // screen and the panel itself are redone - the panel by reopening, as
       // the home settings do.
       if (onRefresh) onRefresh();
+      refreshNotice();
       paintHead();
       paint();
       openSettings();
@@ -255,11 +279,10 @@ export function openDailyScreen({ onClose, onRefresh } = {}) {
           ? row({ label: dt('daily.notify'), sub: notifyStatus() })
           : toggleRow(dt('daily.notify'), notifyStatus(), Boolean(s.notify), async (on) => {
             if (on) {
-              const result = await notify.enable(notifyTexts());
-              const enabled = result === 'on' || result === 'limited';
+              const result = await notify.enable(notifyTexts(), playedToday());
+              const enabled = NOTICE_MODES.includes(result);
               storage.setSetting('notify', enabled);
               storage.setSetting('notifyMode', enabled ? result : null);
-              if (enabled && storage.isDone(today)) notify.updateConfig({ playedOn: today });
             } else {
               storage.setSetting('notify', false);
               await notify.disable();
@@ -269,6 +292,10 @@ export function openDailyScreen({ onClose, onRefresh } = {}) {
         s.notify && perm === 'granted'
           ? row({ label: dt('daily.notifyTest'), onTap: () => notify.sendTest(notifyTexts()) })
           : null,
+        perm === 'unsupported' ? null : el('p', { class: 'daily-option-note daily-notify-privacy' }, [
+          dt('daily.notifyPrivacy') + ' ',
+          el('a', { href: './privacidade.html?lang=' + currentLang(), target: '_blank', rel: 'noopener', text: dt('daily.privacyLink') }),
+        ]),
       ]),
     );
   }
@@ -310,7 +337,7 @@ export function openDailyScreen({ onClose, onRefresh } = {}) {
       won: p.status === 'won',
       answer: done ? answerOf(load.puzzle.colors) : undefined,
     });
-    if (done) notify.updateConfig({ playedOn: today });
+    if (done) notify.markPlayed(today);
     selection = [];
     buzz(p.status === 'won' ? 24 : 10);
     paint();
@@ -398,7 +425,27 @@ export function openDailyScreen({ onClose, onRefresh } = {}) {
         ]),
       ]),
       statsRow(),
+      shareRow(p),
       next,
+    ]);
+  }
+
+  /** Share the day without the answer (see share.js). */
+  function shareRow(p) {
+    const text = () => resultText({
+      number: challenge.number,
+      results: p.results,
+      status: p.status,
+      max: MAX_TRIES,
+      link: challengeLink(),
+    });
+    return el('div', { class: 'daily-share' }, [
+      el('button', { class: 'btn primary daily-share-whatsapp', onClick: () => shareToWhatsapp(text()) }, [
+        icon('share'), dt('daily.shareWhatsapp'),
+      ]),
+      el('button', { class: 'btn ghost daily-share-other', onClick: () => shareElsewhere(text()) }, [
+        typeof navigator !== 'undefined' && navigator.share ? dt('daily.shareOther') : dt('daily.shareCopy'),
+      ]),
     ]);
   }
 
@@ -441,8 +488,8 @@ export function openDailyScreen({ onClose, onRefresh } = {}) {
   requestAnimationFrame(() => layer.classList.add('is-open'));
   backBtn.focus();
 
-  // The worker speaks the language the app speaks today.
-  if (storage.settings().notify) notify.updateConfig(notifyTexts());
+  // The notice speaks the language the app speaks today.
+  refreshNotice();
 
   paintHead();
   fetchCard();

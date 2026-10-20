@@ -6,7 +6,8 @@
  *   dailyButton()   the home screen's header button, with a dot while today's
  *                   card is unplayed
  *   initDaily()     startup: opens the challenge from a notice (`?daily=1`,
- *                   or a message from the service worker)
+ *                   or a message from the service worker), and re-checks
+ *                   the notice if it is on
  *
  * The screen itself is loaded with a dynamic import() on the tap. That is
  * the whole isolation: this file only pulls tiny modules with no network and
@@ -18,7 +19,7 @@
 
 import { el, toast } from '../ui.js';
 import { dayKey } from './day.js';
-import { isDone } from './storage.js';
+import { isDone, settings, setSetting } from './storage.js';
 import { dt } from './i18n.js';
 // Imported for its side effect: the back-gesture listener has to be
 // registered before app.js registers its own (see back.js).
@@ -110,6 +111,21 @@ export function initDaily() {
     navigator.serviceWorker.addEventListener('message', (e) => {
       if (e.data && e.data.type === 'DAILY_OPEN' && canOpen()) openDaily();
     });
+  }
+
+  // A notice that is on gets re-checked on every opening: a subscription
+  // lost to a reinstall or cleared data is made again, and the server learns
+  // today's language, time zone and whether today was played. Loaded on
+  // demand, like the screen - and a failure here costs only the notice.
+  if (settings().notify) {
+    const today = dayKey();
+    import('./notify.js')
+      .then((m) => m.refresh(
+        { title: dt('daily.notifyTitle'), body: dt('daily.notifyBody') },
+        isDone(today) ? today : null,
+      ))
+      .then((mode) => { if (['push', 'on', 'limited'].includes(mode)) setSetting('notifyMode', mode); })
+      .catch(() => { /* the switch stays as it was */ });
   }
 
   // The day can turn while the app sits open on the home screen.
