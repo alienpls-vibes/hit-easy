@@ -124,7 +124,7 @@ function fakeBrowser({ perm = 'granted', pushManager = true, ready = true, exist
   };
 }
 
-const TEXTS = { title: 'Hit Easy · Cor do dia', body: 'Carta nova disponível.' };
+const TEXTS = { title: 'Hit Easy · Adivinhe as Cores', body: 'Carta nova disponível.' };
 
 export const PUSH_CASES = [
   ['push: the encryption matches the example in RFC 8291, byte for byte', async () => {
@@ -145,7 +145,7 @@ export const PUSH_CASES = [
 
   ['push: a browser opens what the server seals, with fresh keys every time', async () => {
     const b = await browserKeys();
-    const payload = JSON.stringify({ title: 'Hit Easy · Farbe des Tages', body: 'Eine neue Karte ist da. Welche Farbe hat sie?' });
+    const payload = JSON.stringify({ title: 'Hit Easy · Errate die Farben', body: 'Eine neue Karte ist da. Welche Farbe hat sie?' });
     const one = await encrypt(payload, b.p256dh, b.authText);
     const two = await encrypt(payload, b.p256dh, b.authText);
     eq(await decryptAsBrowser(one, b.pair, b.raw, b.auth), payload, 'decrypted');

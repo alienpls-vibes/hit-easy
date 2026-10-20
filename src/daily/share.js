@@ -37,7 +37,7 @@ export function squares(results) {
 /**
  * The message, in the app's language:
  *
- *   Hit Easy · Cor do dia #12
+ *   Hit Easy · Adivinhe as Cores #12
  *   🟨⬛🟩 3/3
  *   Sequência: 5
  *   Jogue também: https://.../?daily=1

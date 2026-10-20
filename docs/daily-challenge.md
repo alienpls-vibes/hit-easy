@@ -97,7 +97,7 @@ share sheet, or **Copy result** where there is none). `src/daily/share.js`
 builds the text on the device:
 
 ```
-Hit Easy · Cor do dia #12
+Hit Easy · Adivinhe as Cores #12
 🟨⬛🟩 3/3
 Sequência: 5
 Jogue também: https://alienpls-vibes.github.io/hit-easy/?daily=1

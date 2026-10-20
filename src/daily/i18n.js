@@ -14,7 +14,7 @@
 import { currentLang } from '../i18n.js';
 
 const PT = {
-  'daily.title': 'Cor do dia',
+  'daily.title': 'Adivinhe as Cores',
   'daily.open': 'Desafio diário: qual a cor desta carta?',
   'daily.number': 'Desafio #{n}',
   'daily.question': 'De que cor é esta carta?',
@@ -71,13 +71,13 @@ const PT = {
   'daily.notifyUnsupported': 'Este navegador não mostra notificações para sites.',
   'daily.notifyLimited': 'Ligado, mas este navegador não recebe o aviso diário. No Android, instale o app pelo Chrome. No iPhone, adicione o app à Tela de Início.',
   'daily.notifyTest': 'Enviar notificação de teste',
-  'daily.notifyTitle': 'Hit Easy · Cor do dia',
+  'daily.notifyTitle': 'Hit Easy · Adivinhe as Cores',
   'daily.notifyBody': 'Carta nova disponível. Qual é a cor dela?',
   'daily.close': 'Voltar',
 };
 
 const EN = {
-  'daily.title': 'Color of the day',
+  'daily.title': 'Guess the Colors',
   'daily.open': 'Daily challenge: what color is this card?',
   'daily.number': 'Challenge #{n}',
   'daily.question': 'What color is this card?',
@@ -134,13 +134,13 @@ const EN = {
   'daily.notifyUnsupported': 'This browser does not show notifications for websites.',
   'daily.notifyLimited': 'On, but this browser does not get the daily notice. On Android, install the app from Chrome. On iPhone, add the app to the Home Screen.',
   'daily.notifyTest': 'Send a test notification',
-  'daily.notifyTitle': 'Hit Easy · Color of the day',
+  'daily.notifyTitle': 'Hit Easy · Guess the Colors',
   'daily.notifyBody': 'A new card is out. What color is it?',
   'daily.close': 'Back',
 };
 
 const ES = {
-  'daily.title': 'Color del día',
+  'daily.title': 'Adivina los Colores',
   'daily.open': 'Desafío diario: ¿de qué color es esta carta?',
   'daily.number': 'Desafío n.º {n}',
   'daily.question': '¿De qué color es esta carta?',
@@ -197,13 +197,13 @@ const ES = {
   'daily.notifyUnsupported': 'Este navegador no muestra notificaciones de sitios web.',
   'daily.notifyLimited': 'Activado, pero este navegador no recibe el aviso diario. En Android, instala la app desde Chrome. En iPhone, añade la app a la pantalla de inicio.',
   'daily.notifyTest': 'Enviar notificación de prueba',
-  'daily.notifyTitle': 'Hit Easy · Color del día',
+  'daily.notifyTitle': 'Hit Easy · Adivina los Colores',
   'daily.notifyBody': 'Hay una carta nueva. ¿De qué color es?',
   'daily.close': 'Volver',
 };
 
 const DE = {
-  'daily.title': 'Farbe des Tages',
+  'daily.title': 'Errate die Farben',
   'daily.open': 'Tägliche Herausforderung: Welche Farbe hat diese Karte?',
   'daily.number': 'Herausforderung #{n}',
   'daily.question': 'Welche Farbe hat diese Karte?',
@@ -260,7 +260,7 @@ const DE = {
   'daily.notifyUnsupported': 'Dieser Browser zeigt keine Benachrichtigungen für Websites.',
   'daily.notifyLimited': 'An, aber dieser Browser erhält die tägliche Nachricht nicht. Installiere die App unter Android über Chrome. Füge sie auf dem iPhone zum Home-Bildschirm hinzu.',
   'daily.notifyTest': 'Testbenachrichtigung senden',
-  'daily.notifyTitle': 'Hit Easy · Farbe des Tages',
+  'daily.notifyTitle': 'Hit Easy · Errate die Farben',
   'daily.notifyBody': 'Eine neue Karte ist da. Welche Farbe hat sie?',
   'daily.close': 'Zurück',
 };

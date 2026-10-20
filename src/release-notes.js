@@ -37,10 +37,10 @@ export const RELEASE_NOTES = [
       {
         type: 'new',
         text: {
-          pt: 'Compartilhe seu resultado da Cor do dia no WhatsApp, sem revelar a carta nem as cores.',
-          en: 'Share your Color of the day result on WhatsApp without giving away the card or its colors.',
-          es: 'Comparte tu resultado del Color del día en WhatsApp sin revelar la carta ni sus colores.',
-          de: 'Teile dein Ergebnis der Farbe des Tages auf WhatsApp, ohne Karte oder Farben zu verraten.',
+          pt: 'A Cor do dia agora se chama Adivinhe as Cores, e dá para compartilhar o resultado no WhatsApp sem revelar a carta nem as cores.',
+          en: 'Color of the day is now Guess the Colors, and you can share your result on WhatsApp without giving away the card or its colors.',
+          es: 'El Color del día ahora se llama Adivina los Colores, y puedes compartir tu resultado en WhatsApp sin revelar la carta ni sus colores.',
+          de: 'Farbe des Tages heißt jetzt Errate die Farben, und du kannst dein Ergebnis auf WhatsApp teilen, ohne Karte oder Farben zu verraten.',
         },
       },
       {

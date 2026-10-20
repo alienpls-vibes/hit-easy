@@ -444,7 +444,7 @@ export const DAILY_CASES = [
       const field = findAll(findAll(panel(), 'daily-app-lang')[0], 'set-select')[0];
       field.value = 'en';
       fire(field, 'change');
-      eq(textOf(findAll(layer, 'daily-title')[0]), 'Color of the day', 'the challenge speaks the new language');
+      eq(textOf(findAll(layer, 'daily-title')[0]), 'Guess the Colors', 'the challenge speaks the new language');
       eq(refreshed, 1, 'the home screen underneath was redrawn');
       eq(store.getDB().settings.lang, 'en', 'saved as the home settings save it');
       ok(isSheetOpen(), 'the panel came back in the new language');
