@@ -5,6 +5,8 @@
  * Two things go out:
  *   dailyButton()   the home screen's header button, with a dot while today's
  *                   card is unplayed
+ *   dailyBackup()   the progress for the backup file, and
+ *   restoreDailyBackup()  joining it back in (views/stats/backup.js)
  *   initDaily()     startup: opens the challenge from a notice (`?daily=1`,
  *                   or a message from the service worker), and re-checks
  *                   the notice if it is on
@@ -19,7 +21,9 @@
 
 import { el, toast } from '../ui.js';
 import { dayKey } from './day.js';
-import { isDone, settings, setSetting } from './storage.js';
+import {
+  isDone, settings, setSetting, allDays, mergeDays,
+} from './storage.js';
 import { dt } from './i18n.js';
 // Imported for its side effect: the back-gesture listener has to be
 // registered before app.js registers its own (see back.js).
@@ -93,6 +97,25 @@ export function dailyButton(onRefresh) {
 }
 
 /**
+ * The challenge's part of the backup file: every day played. Under its own
+ * key (`daily`) in the file, never inside the app's database.
+ */
+export function dailyBackup() {
+  return { days: allDays() };
+}
+
+/**
+ * Joins the days of a backup file into this device. The better record of
+ * each day wins (storage.js betterDay), so importing an old file never
+ * erases a day played since. Returns how many days changed.
+ */
+export function restoreDailyBackup(data) {
+  const changed = data && typeof data === 'object' ? mergeDays(data.days) : 0;
+  if (changed) refreshButtons();
+  return changed;
+}
+
+/**
  * Startup hook. Opens the challenge when the app was launched from the
  * notice, and listens for the worker asking an already-open app to do so.
  */
@@ -127,6 +150,13 @@ export function initDaily() {
       .then((mode) => { if (['push', 'on', 'limited'].includes(mode)) setSetting('notifyMode', mode); })
       .catch(() => { /* the switch stays as it was */ });
   }
+
+  // With an account, the progress has a copy on the server: sent and
+  // fetched on every opening and on signing in (see sync.js). A device that
+  // lost its data gets the streak back here.
+  import('./sync.js')
+    .then((m) => m.startDailySync(refreshButtons))
+    .catch(() => { /* the copy waits for the next opening */ });
 
   // The day can turn while the app sits open on the home screen.
   document.addEventListener('visibilitychange', () => {

@@ -297,7 +297,7 @@ export const EN = {
   'data.title': 'Data',
   'data.sub': 'Full backup of your history',
   'data.export': 'Export JSON',
-  'data.exportSub': 'Saves matches, decks and players',
+  'data.exportSub': 'Saves matches, decks, players and the daily challenge',
   'data.import': 'Import JSON',
   'data.importSub': 'Merges with the current history, without duplicates',
   'data.imported': 'Backup imported',

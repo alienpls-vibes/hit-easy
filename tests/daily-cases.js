@@ -23,6 +23,9 @@ import { bestPrint, slim, loadCard } from '../src/daily/fetch.js';
 import { DAILY_DICTS, dt } from '../src/daily/i18n.js';
 import * as storage from '../src/daily/storage.js';
 import { dailyButton } from '../src/daily/entry.js';
+import { syncDaily } from '../src/daily/sync.js';
+import { backupText, importBackup } from '../src/views/stats/backup.js';
+import { account } from '../src/cloud/account.js';
 import {
   resultText, squares, challengeLink, whatsappUrl,
 } from '../src/daily/share.js';
@@ -506,5 +509,106 @@ export const DAILY_CASES = [
     eq(challengeLink({ origin: 'https://alienpls-vibes.github.io', pathname: '/hit-easy/' }),
       'https://alienpls-vibes.github.io/hit-easy/?daily=1', 'production');
     eq(decodeURIComponent(whatsappUrl('a b\n🟩').split('text=')[1]), 'a b\n🟩', 'the WhatsApp link carries the text intact');
+  }],
+  ['daily: merging days never loses one - a finished day beats an unfinished one', () => {
+    storage.reset();
+    try {
+      const won = (n) => ({ number: n, card: 'C', guesses: [['G']], done: true, won: true, answer: ['G'] });
+      storage.saveDay('2026-10-16', won(1));
+      storage.saveDay('2026-10-18', { number: 3, guesses: [['W']] });
+      const changed = storage.mergeDays({
+        '2026-10-16': { number: 1, guesses: [] },            // unfinished: loses to the finished one
+        '2026-10-17': won(2),                                  // new day: comes in
+        '2026-10-18': { number: 3, guesses: [['W'], ['U']] }, // more tries: wins
+        'not-a-day': won(9),
+        '2026-10-19': 'junk',
+      });
+      eq(changed, 2, 'days changed');
+      const days = storage.allDays();
+      eq(Object.keys(days).sort(), ['2026-10-16', '2026-10-17', '2026-10-18'], 'the days kept');
+      ok(days['2026-10-16'].done && days['2026-10-16'].won, 'the finished day stayed finished');
+      eq(days['2026-10-18'].guesses.length, 2, 'the record with more tries won');
+      eq(storage.mergeDays({ '2026-10-17': { ...won(2), won: false } }), 0, 'a finished day is not replaced by another');
+      eq(storage.betterDay(null, won(1)), won(1), 'nothing beats nothing');
+    } finally {
+      storage.reset();
+    }
+  }],
+
+  ['daily: a stored state that cannot be read is put aside, not written over', () => {
+    storage.reset();
+    try {
+      localStorage.setItem('mtglc.daily.v1', '{"days": {"2026-10-1');  // cut short
+      eq(storage.allDays(), {}, 'nothing readable');
+      storage.setSetting('cardLang', 'pt');                           // a save happens
+      eq(localStorage.getItem('mtglc.daily.v1.unreadable'), '{"days": {"2026-10-1', 'the raw text was kept');
+      localStorage.setItem('mtglc.daily.v1', 'also broken');
+      storage.allDays();
+      eq(localStorage.getItem('mtglc.daily.v1.unreadable'), '{"days": {"2026-10-1', 'a second bad read keeps the first copy');
+    } finally {
+      storage.reset();
+      ok(localStorage.getItem('mtglc.daily.v1.unreadable') === null, 'reset clears the copy too');
+    }
+  }],
+
+  ['daily: the backup file carries the progress, and importing it brings the streak back', () => {
+    storage.reset();
+    try {
+      const won = (n) => ({ number: n, card: 'C', guesses: [['G']], done: true, won: true, answer: ['G'] });
+      const today = dayKey();
+      let k = previousDay(today);
+      for (let i = 0; i < 3; i += 1) { storage.saveDay(k, won(i)); k = previousDay(k); }
+      const file = backupText();
+      const parsed = JSON.parse(file);
+      ok(parsed.daily && Object.keys(parsed.daily.days).length === 3, 'the file has the three days');
+      ok(Array.isArray(parsed.history), 'and still the matches');
+
+      storage.reset(); // the device loses the challenge
+      eq(totals(storage.allDays(), today, previousDay).current, 0, 'streak gone');
+      importBackup(file);
+      eq(totals(storage.allDays(), today, previousDay).current, 3, 'the streak is back');
+      ok(!('daily' in store.getDB()), 'the challenge did not leak into the app database');
+      importBackup(JSON.stringify({ history: [] })); // an old file, from before 1.12.1
+      eq(totals(storage.allDays(), today, previousDay).current, 3, 'an old file erases nothing');
+    } finally {
+      storage.reset();
+    }
+  }],
+
+  ['daily: with an account, the days go to the server and come back merged', async () => {
+    storage.reset();
+    const before = account.session;
+    const realFetch = globalThis.fetch;
+    const sent = [];
+    try {
+      storage.saveDay('2026-10-19', { number: 4, guesses: [['G']], done: true, won: true });
+      ok(await syncDaily() === false, 'without an account nothing is sent');
+
+      account.session = { access_token: 'tok', refresh_token: 'r', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u1' } };
+      globalThis.fetch = async (url, init) => {
+        sent.push({ url: String(url), body: JSON.parse(init.body), auth: init.headers.Authorization });
+        // The server had a day this device never saw (played elsewhere).
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ ...JSON.parse(init.body).dias, '2026-10-18': { number: 3, guesses: [['W']], done: true, won: true } }),
+        };
+      };
+      ok(await syncDaily(), 'synced');
+      eq(sent.length, 1, 'one call');
+      ok(sent[0].url.endsWith('/rest/v1/rpc/juntar_progresso_diario'), 'the merge RPC: ' + sent[0].url);
+      eq(sent[0].body.c, 'producao', 'the channel');
+      eq(Object.keys(sent[0].body.dias), ['2026-10-19'], 'the device days');
+      eq(sent[0].auth, 'Bearer tok', 'as the signed-in user');
+      ok(storage.allDays()['2026-10-18'] && storage.allDays()['2026-10-18'].won, 'the day from the server came in');
+
+      globalThis.fetch = async () => { throw new Error('offline'); };
+      ok(await syncDaily() === false, 'offline: false, and nothing breaks');
+      ok(storage.allDays()['2026-10-19'], 'the local days are untouched');
+    } finally {
+      globalThis.fetch = realFetch;
+      account.session = before;
+      storage.reset();
+    }
   }],
 ];

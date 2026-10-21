@@ -301,7 +301,7 @@ export const PT = {
   'data.title': 'Dados',
   'data.sub': 'Backup completo do histórico',
   'data.export': 'Exportar JSON',
-  'data.exportSub': 'Salva partidas, decks e jogadores',
+  'data.exportSub': 'Salva partidas, decks, jogadores e o desafio diário',
   'data.import': 'Importar JSON',
   'data.importSub': 'Junta com o histórico atual, sem duplicar',
   'data.imported': 'Backup importado',

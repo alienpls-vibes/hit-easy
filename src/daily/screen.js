@@ -29,6 +29,7 @@ import {
 import * as storage from './storage.js';
 import * as notify from './notify.js';
 import { onBack } from './back.js';
+import { syncDaily } from './sync.js';
 import {
   resultText, challengeLink, shareToWhatsapp, shareElsewhere,
 } from './share.js';
@@ -337,7 +338,10 @@ export function openDailyScreen({ onClose, onRefresh } = {}) {
       won: p.status === 'won',
       answer: done ? answerOf(load.puzzle.colors) : undefined,
     });
-    if (done) notify.markPlayed(today);
+    if (done) {
+      notify.markPlayed(today);
+      syncDaily(); // the finished day goes to the account's copy right away
+    }
     selection = [];
     buzz(p.status === 'won' ? 24 : 10);
     paint();

@@ -297,7 +297,7 @@ export const ES = {
   'data.title': 'Datos',
   'data.sub': 'Copia completa del historial',
   'data.export': 'Exportar JSON',
-  'data.exportSub': 'Guarda partidas, mazos y jugadores',
+  'data.exportSub': 'Guarda partidas, mazos, jugadores y el desafío diario',
   'data.import': 'Importar JSON',
   'data.importSub': 'Se une al historial actual, sin duplicar',
   'data.imported': 'Copia importada',

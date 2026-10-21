@@ -46,7 +46,11 @@ in Supabase. Renaming any of these breaks existing users' data or old clients:
   `notify`; periodic sync and notification tag `hiteasy-daily`; link
   parameter `?daily=1`; Supabase `avisos_diarios` and its RPCs
   (`inscrever_aviso`, `aviso_jogado`, `cancelar_aviso`, `avisos_a_enviar`,
-  `aviso_expirado`); push payload `{ title, body, day }`.
+  `aviso_expirado`); push payload `{ title, body, day }`; the put-aside copy
+  `mtglc.daily.v1.unreadable`; the backup file's `daily: { days }`; Supabase
+  `progresso_diario` (`user_id`, `canal`, `dias`) and RPC
+  `juntar_progresso_diario(c, dias)`. A day record's shape is read by every
+  older release and by the server merge: only ever ADD fields to it.
 - **Channel values** `'producao' | 'beta'`; service-worker cache prefix
   `hiteasy-`; `build.json` fields `build`, `quando`; `window.__hitEasyInstall`;
   `user_metadata.has_password`.

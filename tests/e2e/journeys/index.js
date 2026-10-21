@@ -14,6 +14,7 @@ import screens from './screens.js';
 import updateButton from './update-button.js';
 import dailyChallenge from './daily-challenge.js';
 import dailyLost from './daily-lost.js';
+import dailyAccount from './daily-account.js';
 
 export const JOURNEYS = [
   firstMatch,
@@ -27,4 +28,5 @@ export const JOURNEYS = [
   dailyChallenge,
   dailyLost,
   cloudAccount,
+  dailyAccount,
 ];

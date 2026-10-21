@@ -297,7 +297,7 @@ export const DE = {
   'data.title': 'Daten',
   'data.sub': 'Vollständige Sicherung des Verlaufs',
   'data.export': 'JSON exportieren',
-  'data.exportSub': 'Sichert Partien, Decks und Spieler',
+  'data.exportSub': 'Sichert Partien, Decks, Spieler und die tägliche Herausforderung',
   'data.import': 'JSON importieren',
   'data.importSub': 'Führt mit dem aktuellen Verlauf zusammen, ohne Dubletten',
   'data.imported': 'Sicherung importiert',

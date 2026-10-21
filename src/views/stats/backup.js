@@ -10,6 +10,23 @@ import { el, openSheet, toast, confirmAction } from '../../ui.js';
 import * as store from '../../store.js';
 import { t } from '../../i18n.js';
 import { deckNameByKey } from './deck.js';
+import { dailyBackup, restoreDailyBackup } from '../../daily/entry.js';
+
+/**
+ * The file: the app's database plus, under `daily`, the daily challenge's
+ * progress. The challenge keeps its own storage (src/daily/), so its part
+ * is added here and taken out again before the database import - otherwise
+ * importJSON() would copy a `daily` key into the database.
+ */
+export function backupText() {
+  return JSON.stringify({ ...JSON.parse(store.exportJSON()), daily: dailyBackup() }, null, 2);
+}
+
+export function importBackup(text) {
+  const { daily, ...rest } = JSON.parse(text);
+  store.importJSON(JSON.stringify(rest));
+  if (daily) restoreDailyBackup(daily);
+}
 
 /** Backup: export/import everything as JSON. */
 export function openData(root, onBack) {
@@ -22,7 +39,7 @@ export function openData(root, onBack) {
         const file = fileInput.files && fileInput.files[0];
         if (!file) return;
         try {
-          store.importJSON(await file.text());
+          importBackup(await file.text());
           close();
           toast(t('data.imported'));
           redraw();
@@ -63,7 +80,7 @@ export function openData(root, onBack) {
         el('button', {
           class: 'menu-item',
           onClick: () => {
-            const blob = new Blob([store.exportJSON()], { type: 'application/json' });
+            const blob = new Blob([backupText()], { type: 'application/json' });
             const a = el('a', {
               href: URL.createObjectURL(blob),
               download: 'commander-stats-' + new Date().toISOString().slice(0, 10) + '.json',

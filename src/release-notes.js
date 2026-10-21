@@ -25,6 +25,36 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '1.12.1',
+    date: '2026-10-21',
+    title: {
+      pt: 'Sua sequência protegida',
+      en: 'Your streak, protected',
+      es: 'Tu racha, protegida',
+      de: 'Deine Serie, geschützt',
+    },
+    items: [
+      {
+        type: 'new',
+        text: {
+          pt: 'Com conta, o progresso do desafio diário fica guardado nela, de graça, e volta se o aparelho perder os dados.',
+          en: 'With an account, your daily challenge progress is kept in it for free, and comes back if the device loses its data.',
+          es: 'Con cuenta, el progreso del desafío diario se guarda en ella gratis, y vuelve si el dispositivo pierde sus datos.',
+          de: 'Mit Konto wird dein Fortschritt kostenlos gespeichert und kommt zurück, wenn das Gerät seine Daten verliert.',
+        },
+      },
+      {
+        type: 'fixed',
+        text: {
+          pt: 'O backup agora inclui o desafio diário, e o app pede ao navegador para não apagar seus dados quando faltar espaço.',
+          en: 'The backup now includes the daily challenge, and the app asks the browser not to clear its data when space runs low.',
+          es: 'La copia de seguridad ahora incluye el desafío diario, y la app pide al navegador que no borre sus datos cuando falte espacio.',
+          de: 'Die Sicherung enthält jetzt die Herausforderung, und die App bittet den Browser, ihre Daten nicht zu löschen.',
+        },
+      },
+    ],
+  },
+  {
     version: '1.12.0',
     date: '2026-10-20',
     title: {

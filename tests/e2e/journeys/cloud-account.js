@@ -14,7 +14,7 @@ import { sleep } from '../lib/page.js';
 
 const ANA = { email: 'ana@example.com', password: 'segredo-forte-123', handle: 'ana', name: 'Ana', subscribed: true };
 
-async function signIn(page, { email, password }) {
+export async function signIn(page, { email, password }) {
   await page.tap('.head-actions > .icon-btn', { index: 0 }); // settings
   await page.tap('.sheet-scrim .set-account');
   await page.type('.sheet-scrim .account-login input[type="email"]', email);

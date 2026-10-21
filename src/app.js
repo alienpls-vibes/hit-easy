@@ -560,5 +560,23 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {
       /* offline keeps working through the browser cache */
     });
+    keepStorage();
   });
+}
+
+/**
+ * Asks the browser not to clear this app's data when the device runs short
+ * of space. Without it, the storage is "best effort": Chrome may drop it
+ * whole, and the daily progress and any match not yet in the cloud go with
+ * it. Chrome and Edge answer without asking anything (granted to installed
+ * apps). Only for the installed app: Firefox would show a prompt in a tab.
+ */
+function keepStorage() {
+  try {
+    const installed = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+    if (!installed || !navigator.storage || !navigator.storage.persist) return;
+    navigator.storage.persisted()
+      .then((already) => (already ? true : navigator.storage.persist()))
+      .catch(() => { /* a nicety: the app works the same either way */ });
+  } catch { /* no matchMedia or no storage API */ }
 }
