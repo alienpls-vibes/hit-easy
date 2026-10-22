@@ -26,7 +26,7 @@
 export const RELEASE_NOTES = [
   {
     version: '1.12.1',
-    date: '2026-10-21',
+    date: '2026-10-22',
     title: {
       pt: 'Sua sequência protegida',
       en: 'Your streak, protected',
