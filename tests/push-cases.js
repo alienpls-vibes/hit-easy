@@ -17,6 +17,32 @@ import {
 } from '../supabase/functions/daily-push/webpush.js';
 import * as notify from '../src/daily/notify.js';
 import { VAPID_PUBLIC_KEY, SUPABASE_URL } from '../src/config.js';
+import { readFileSync } from 'node:fs';
+import { inflateSync } from 'node:zlib';
+
+const REPO = new URL('..', import.meta.url);
+
+/** RGBA pixels of a PNG written by tools/make_icons.py (8-bit RGBA, filter 0). */
+function readRgbaPng(file) {
+  const d = readFileSync(new URL(file, REPO));
+  const width = d.readUInt32BE(16);
+  const height = d.readUInt32BE(20);
+  if (d[24] !== 8 || d[25] !== 6) throw new Error(file + ' is not 8-bit RGBA - no alpha channel to draw a badge from');
+  const idat = [];
+  for (let at = 8; at < d.length;) {
+    const len = d.readUInt32BE(at);
+    if (d.toString('latin1', at + 4, at + 8) === 'IDAT') idat.push(d.subarray(at + 8, at + 8 + len));
+    at += 12 + len;
+  }
+  const raw = inflateSync(Buffer.concat(idat));
+  const px = [];
+  for (let y = 0; y < height; y += 1) {
+    const row = y * (width * 4 + 1);
+    if (raw[row] !== 0) throw new Error(file + ': row filter ' + raw[row] + ' - regenerate it with tools/make_icons.py');
+    for (let x = 0; x < width; x += 1) px.push([...raw.subarray(row + 1 + x * 4, row + 5 + x * 4)]);
+  }
+  return { width, height, px };
+}
 
 function eq(actual, expected, what) {
   const a = JSON.stringify(actual);
@@ -250,5 +276,21 @@ export const PUSH_CASES = [
       eq(f.rpcs()[1], ['cancelar_aviso', { endpoint: 'https://fcm.googleapis.com/fcm/send/mine' }], 'cancelled');
       ok(f.calls.some((c) => c[0] === 'unsubscribe'), 'unsubscribed');
     } finally { f.restore(); }
+  }],
+  ['push: the notice badge is a white silhouette on transparent, as Android draws it', () => {
+    // Android paints the badge (status bar, corner of the notice) from its
+    // alpha channel alone. The app icon is an opaque square, and as a badge
+    // it came out as a blank white tile with no logo.
+    const sources = ['src/daily/sw-daily.js', 'src/daily/notify.js'].map((f) => readFileSync(new URL(f, REPO), 'utf8'));
+    const badges = sources.map((src) => (src.match(/badge:\s*'\.\/(icons\/[^']+)'/) || [])[1]);
+    eq(badges, ['icons/badge-96.png', 'icons/badge-96.png'], 'both notices use the badge');
+    const { width, height, px } = readRgbaPng(badges[0]);
+    ok(width >= 72 && width === height, 'square, at least 72 px: ' + width + 'x' + height);
+    for (const [x, y] of [[0, 0], [width - 1, 0], [0, height - 1], [width - 1, height - 1], [width >> 1, height >> 1]]) {
+      eq(px[y * width + x][3], 0, 'transparent at ' + x + ',' + y + ' (corners and the middle of the ring)');
+    }
+    const opaque = px.filter((p) => p[3] > 0);
+    ok(opaque.length > px.length * 0.15 && opaque.length < px.length * 0.6, 'the silhouette covers a sane part: ' + opaque.length);
+    ok(opaque.every((p) => p[0] === 255 && p[1] === 255 && p[2] === 255), 'only white pixels');
   }],
 ];

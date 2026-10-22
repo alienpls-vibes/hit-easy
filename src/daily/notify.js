@@ -257,7 +257,7 @@ export async function sendTest(texts) {
   await reg.showNotification(texts.title, {
     body: texts.body,
     icon: './icons/icon-192.png',
-    badge: './icons/icon-192.png',
+    badge: './icons/badge-96.png', // white on transparent: Android keeps only the alpha
     tag: SYNC_TAG,
     data: { url: './?daily=1' },
   });

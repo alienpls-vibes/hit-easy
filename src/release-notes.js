@@ -52,6 +52,15 @@ export const RELEASE_NOTES = [
           de: 'Die Sicherung enthält jetzt die Herausforderung, und die App bittet den Browser, ihre Daten nicht zu löschen.',
         },
       },
+      {
+        type: 'fixed',
+        text: {
+          pt: 'O logo do Hit Easy agora aparece no aviso e na barra de notificações do Android, em vez de um quadrado branco.',
+          en: 'The Hit Easy logo now shows in the notice and in the Android status bar, instead of a white square.',
+          es: 'El logo de Hit Easy ahora aparece en el aviso y en la barra de notificaciones de Android, en lugar de un cuadrado blanco.',
+          de: 'Das Hit-Easy-Logo erscheint jetzt in der Nachricht und in der Android-Statusleiste statt eines weißen Quadrats.',
+        },
+      },
     ],
   },
   {
