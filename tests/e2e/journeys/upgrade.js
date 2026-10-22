@@ -10,6 +10,11 @@
  *
  * Also checked: the old release's caches are gone afterwards. A cache that
  * survives an update is how a phone keeps serving yesterday's app.
+ *
+ * And the daily challenge's progress: five won days in a row, written by the
+ * old release's own storage module, must come through with the same played,
+ * wins and streak. A phone lost its streak on the way to 1.12.0; whatever
+ * the cause was, an update that drops or misreads those days fails here.
  */
 
 import fs from 'node:fs';
@@ -42,13 +47,37 @@ const SEED = `(async () => {
   engine.push(live, { type: 'life', targetId: 's0', delta: -5, sourceId: null });
   engine.push(live, { type: 'life', targetId: 's2', delta: -3, sourceId: 's1' });
   store.setCurrent(live);
+
+  // The daily challenge, if this release has it: five won days ending
+  // yesterday, so the streak is live on the new version's "today" too.
+  try {
+    const daily = await import('./src/daily/storage.js');
+    const day = await import('./src/daily/day.js');
+    let k = day.previousDay(day.dayKey());
+    for (let i = 0; i < 5; i += 1) {
+      daily.saveDay(k, { number: 100 - i, card: 'Krenko, Mob Boss', guesses: [['W'], ['R']], done: true, won: true, answer: ['R'] });
+      k = day.previousDay(k);
+    }
+  } catch { /* a release from before the challenge: nothing to carry */ }
   return true;
+})()`;
+
+/** Played, wins and streak as the code running in the page counts them. */
+const DAILY_TOTALS = `(async () => {
+  try {
+    const [g, s, d] = await Promise.all([
+      import('./src/daily/game.js'), import('./src/daily/storage.js'), import('./src/daily/day.js'),
+    ]);
+    const t = g.totals(s.allDays(), d.dayKey(), d.previousDay);
+    return { ...t, days: JSON.stringify(s.allDays()) };
+  } catch { return null; }
 })()`;
 
 export default {
   name: 'updating from the live release keeps the table and the history',
   async run(ctx) {
     const baseline = extractBaseline(ctx.repo);
+    let dailyBefore = null;
     const current = fs.readFileSync(path.join(ctx.repo, 'src/version.js'), 'utf8').match(/APP_VERSION\s*=\s*'([^']+)'/)[1];
     try {
       ctx.server.mount('/hit-easy/', baseline.dir);
@@ -66,6 +95,10 @@ export default {
         await page.eval(SEED);
         await page.reload();
         await page.waitFor(`document.querySelectorAll('.tile').length === 3`, 'the old release showing the table', 15000);
+        dailyBefore = await page.eval(DAILY_TOTALS);
+        if (dailyBefore && dailyBefore.current !== 5) {
+          throw new Error('the old release did not count the seeded streak: ' + JSON.stringify(dailyBefore));
+        }
       });
 
       // What the old release logged is the old release's business - it is
@@ -106,6 +139,18 @@ export default {
         if (!db.current || db.current.id !== 'upgrade-live') throw new Error('the match in progress is gone after the update');
         if (!lives.includes(35) || !lives.includes(37)) throw new Error('life totals changed in the update: ' + lives.join(', '));
         if (!(db.history || []).some((m) => m.id === 'upgrade-finished')) throw new Error('the history lost a match in the update');
+      });
+
+      await ctx.step('the daily challenge kept every day and the streak', async () => {
+        if (!dailyBefore) return; // the old release had no challenge
+        const after = await page.eval(DAILY_TOTALS);
+        if (!after) throw new Error('the new version cannot read the daily progress');
+        for (const field of ['played', 'wins', 'current', 'best']) {
+          if (after[field] !== dailyBefore[field]) {
+            throw new Error('daily ' + field + ' went from ' + dailyBefore[field] + ' to ' + after[field] + ' in the update');
+          }
+        }
+        if (after.days !== dailyBefore.days) throw new Error('the stored days changed in the update');
       });
 
       await ctx.step("the old release's caches are gone", async () => {

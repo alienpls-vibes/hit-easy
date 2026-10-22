@@ -17,7 +17,7 @@ import {
 const LANGS = ['pt', 'en', 'es', 'de'];
 
 // What an untranslated key looks like on screen: "setup.startMatch".
-const RAW_KEY = /\b(setup|commander|player|pregame|table|stats|settings|install|account|win|victory|vote|mana|pass|handle|invites|data|paywall|common|brand|news|tl)\.[a-z][A-Za-z0-9]+\b/;
+const RAW_KEY = /\b(setup|commander|player|pregame|table|stats|settings|install|account|win|victory|vote|mana|pass|handle|invites|data|paywall|common|brand|news|tl|tour)\.[a-z][A-Za-z0-9]+\b/;
 
 export default {
   name: 'every screen opens in every language, and a match plays with a mouse',

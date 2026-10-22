@@ -1,0 +1,339 @@
+/* ==========================================================================
+   The guided tour (src/views/tour.js): a full-screen layer of slides.
+
+   Every class starts with `tour-` (the layer) or `ta-` (shapes inside the
+   illustrations), so nothing here can reach the table or the home screen.
+
+   Above the panels (50) and the victory poster (60): it opens from the table
+   menu and on top of the home screen, and nothing else should cover it.
+   ========================================================================== */
+
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  padding:
+    max(10px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity var(--fast), transform var(--slow);
+}
+.tour.is-open { opacity: 1; transform: none; }
+
+.tour-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+  width: min(560px, 100%);
+  margin: 0 auto;
+}
+.tour-count {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.tour-skip {
+  height: 40px;
+  padding: 0 4px 0 14px;
+  font-size: 0.85rem;
+  color: var(--text-mid);
+}
+.tour-skip:hover { color: var(--text); }
+
+/* ---------- the slides ---------- */
+
+.tour-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tour-track {
+  --at: 0;
+  --drag: 0px;
+  display: flex;
+  height: 100%;
+  transform: translateX(calc(var(--at) * -100% + var(--drag)));
+  transition: transform var(--slow);
+}
+.tour-track.is-swiping { transition: none; }
+
+.tour-slide {
+  flex: 0 0 100%;
+  min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Here and not on the viewport: the slide scrolls, and a scroll container
+     ends the chain the browser reads touch-action from. On the viewport it
+     was ignored, the browser took the sideways pan and cancelled the swipe. */
+  touch-action: pan-y;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 8px 4px;
+  opacity: 0.25;
+  transition: opacity var(--slow);
+}
+.tour-slide.is-active { opacity: 1; }
+
+.tour-art {
+  width: min(420px, 100%);
+  flex-shrink: 0;
+}
+.tour-figure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.tour-figure.is-welcome {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 320 / 200;
+}
+/* Two classes: the header's .brand-mark sets its own size. */
+.tour-figure .tour-mark {
+  width: 88px;
+  height: 88px;
+}
+
+.tour-words {
+  width: min(460px, 100%);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tour-eyebrow {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-dim);
+}
+.tour-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+.tour-text {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text-mid);
+  text-wrap: pretty;
+}
+.tour-note {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+/* ---------- the footer ---------- */
+
+.tour-foot {
+  width: min(560px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 10px;
+}
+.tour-dots {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+}
+/* The dot is small, the button around it is not: a 6px target is a miss. */
+.tour-dot {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+}
+.tour-dot::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--contrast-soft);
+  transition: width var(--fast), background var(--fast);
+}
+.tour-dot.is-on::after { width: 18px; background: var(--contrast); }
+
+.tour-actions { display: flex; gap: 10px; }
+.tour-back { flex: 0 0 auto; }
+.tour-next { flex: 1; }
+
+/* Lying down (the table is usually played this way, and the tour opens from
+   its menu): illustration and words side by side, the footer in one row. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .tour-slide {
+    flex-direction: row;
+    gap: 28px;
+    padding: 4px 8px;
+  }
+  .tour-art { width: min(46%, 380px); }
+  .tour-words { text-align: left; width: min(46%, 400px); }
+  .tour-title { font-size: 1.2rem; }
+  .tour-text { font-size: 0.88rem; }
+  .tour-head, .tour-foot { width: 100%; max-width: 860px; }
+  .tour-foot { flex-direction: row; align-items: center; justify-content: space-between; padding-top: 6px; }
+  .tour-actions { flex: 0 0 auto; }
+  .tour-next { flex: 0 0 auto; min-width: 180px; }
+  .tour .btn { height: 44px; }
+}
+
+/* ---------- shapes inside the illustrations ---------- */
+
+.ta-phone { fill: var(--bg-lift); stroke: var(--line); stroke-width: 1.5; }
+.ta-tile.is-dim { opacity: 0.4; }
+.ta-life {
+  fill: var(--text);
+  font-family: var(--font);
+  font-size: 28px;
+  font-weight: 300;
+  text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+}
+.ta-strip { fill: var(--surface-strong); }
+.ta-glyph { fill: var(--text-mid); font-family: var(--font); font-size: 18px; font-weight: 300; }
+.ta-ring { fill: none; stroke: var(--contrast); stroke-width: 2; }
+.ta-float, .ta-hit {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  text-anchor: middle;
+}
+.ta-float { fill: var(--text); }
+.ta-hit { fill: var(--danger); }
+
+.ta-hub-ring { fill: var(--glass-strong); stroke: var(--line); stroke-width: 1.5; }
+.ta-hub.is-big .ta-hub-ring { stroke: var(--contrast); }
+.ta-hub-btn { fill: var(--glass-strong); stroke: var(--line); stroke-width: 1.2; }
+.ta-hub-glow { fill: var(--surface-strong); }
+.ta-hub-label {
+  fill: var(--text-dim);
+  font-family: var(--font);
+  font-size: 5px;
+  letter-spacing: 0.12em;
+  text-anchor: middle;
+}
+.ta-hub.is-big .ta-hub-label { font-size: 6.5px; }
+.ta-hub-turn {
+  fill: var(--text);
+  font-family: var(--font);
+  font-size: 10px;
+  text-anchor: middle;
+}
+.ta-hub.is-big .ta-hub-turn { font-size: 15px; }
+.ta-icon {
+  fill: none;
+  stroke: var(--text-mid);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.ta-icon-dot { fill: var(--text-mid); }
+
+.ta-arrow {
+  fill: none;
+  stroke: var(--contrast);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+.ta-arrow-dot { fill: var(--contrast); }
+
+.ta-tip { fill: var(--contrast); fill-opacity: 0.85; stroke: var(--bg); stroke-width: 2; }
+.ta-ripple {
+  fill: none;
+  stroke: var(--contrast);
+  stroke-width: 1.5;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.ta-chip { fill: none; stroke: var(--line); stroke-width: 1; }
+.ta-chip.is-on { fill: var(--contrast); stroke: var(--contrast); }
+.ta-chip-text {
+  fill: var(--text-mid);
+  font-family: var(--font);
+  font-size: 7.5px;
+  text-anchor: middle;
+}
+.ta-chip-text.is-on { fill: var(--on-contrast); }
+.ta-card { fill: var(--surface); stroke: var(--line-soft); }
+.ta-line { fill: var(--text-dim); }
+.ta-line.is-soft { fill: var(--line); }
+.ta-grip { stroke: var(--text-dim); stroke-width: 1.2; stroke-linecap: round; }
+.ta-start { fill: var(--contrast); }
+.ta-sheet-bg { fill: var(--sheet-bg); stroke: var(--line); stroke-width: 1; }
+.ta-crown {
+  fill: none;
+  stroke: var(--contrast);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- motion: only on the slide in view ---------- */
+
+.tour-slide.is-active .is-tap .ta-ripple { animation: tour-ripple 1.8s var(--ease) infinite; }
+.tour-slide.is-active .is-tap .ta-tip { animation: tour-press 1.8s var(--ease) infinite; }
+.tour-slide.is-active .is-double .ta-ripple { animation: tour-ripple 1.8s var(--ease) infinite; }
+.tour-slide.is-active .ta-float { animation: tour-float 1.8s var(--ease) infinite; }
+.tour-slide.is-active .ta-hit { animation: tour-float 1.8s var(--ease) infinite 0.5s; }
+.tour-slide.is-active .ta-arrow { animation: tour-draw 2.6s linear infinite; }
+.tour-slide.is-active .ta-sheet { animation: tour-rise 2.4s var(--ease) infinite; }
+
+@keyframes tour-ripple {
+  0% { opacity: 0.7; transform: scale(0.9); }
+  60%, 100% { opacity: 0; transform: scale(2.4); }
+}
+@keyframes tour-press {
+  0%, 100% { transform: scale(1); }
+  12% { transform: scale(0.82); }
+  30% { transform: scale(1); }
+}
+@keyframes tour-float {
+  0%, 15% { opacity: 0; transform: translateY(4px); }
+  35%, 70% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-6px); }
+}
+/* The arrow grows with the finger: same 2.6 s and the same 15%-70% window as
+   the finger's animateMotion in tour.js. */
+@keyframes tour-draw {
+  0%, 15% { stroke-dashoffset: 1; }
+  70%, 100% { stroke-dashoffset: 0; }
+}
+@keyframes tour-rise {
+  0%, 20% { transform: translateY(100px); }
+  45%, 100% { transform: none; }
+}
+
+.tour-slide.is-active .ta-tip { transform-box: fill-box; transform-origin: center; }
+.ta-float, .ta-hit, .ta-sheet { transform-box: fill-box; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour, .tour-track, .tour-slide { transition: none; }
+  .tour-slide.is-active * { animation: none !important; }
+}
+.tour.is-still .tour-slide.is-active * { animation: none !important; }

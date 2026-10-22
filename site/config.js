@@ -1,8 +1,9 @@
 /**
  * Site settings: links and switches, no copy.
  *
- * The texts live in content.js; the order of the sections in pages.js. This
- * file is only for where things point to and what is turned on.
+ * The texts live in content/<lang>.js; the order of the sections in
+ * pages.js. This file is only for where things point to and what is turned
+ * on.
  */
 
 export const SITE = {

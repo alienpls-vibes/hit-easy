@@ -1,6 +1,6 @@
 /* Closing call to action. */
 
-.cta { padding-top: 0; }
+.cta { --section-top: 0px; }
 
 .cta-box {
   position: relative;

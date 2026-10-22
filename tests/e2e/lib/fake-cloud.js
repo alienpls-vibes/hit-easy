@@ -29,6 +29,7 @@ export function fakeCloud({ users = [] } = {}) {
     matches: new Map(),        // id -> { id, owner, started_at, canal, payload }
     matchPlayers: [],
     notices: new Map(),        // push endpoint -> daily notice row (sql/012)
+    daily: new Map(),          // user id + '|' + canal -> days (sql/014)
   };
   const unknown = [];
   let isDown = false;
@@ -171,6 +172,20 @@ export function fakeCloud({ users = [] } = {}) {
       const fn = p.slice('/rest/v1/rpc/'.length);
       if (fn === 'perfis_por_handle' || fn === 'handles_atuais' || fn === 'buscar_handle') return ok([]);
       if (fn === 'anfitriao_do_convite') return ok(null);
+      if (fn === 'juntar_progresso_diario') {
+        // The same rule as the SQL: per day, the better record wins.
+        if (!['producao', 'beta'].includes(body.c) || !body.dias || typeof body.dias !== 'object') return ok({ message: 'invalido' }, 400);
+        const key = uid + '|' + body.c;
+        const kept = { ...(db.daily.get(key) || {}) };
+        const tries = (r) => (Array.isArray(r && r.guesses) ? r.guesses.length : 0);
+        for (const [k, v] of Object.entries(body.dias)) {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !v || typeof v !== 'object') continue;
+          const old = kept[k];
+          if (!old || (!old.done && (v.done || tries(v) > tries(old)))) kept[k] = v;
+        }
+        db.daily.set(key, kept);
+        return ok(kept);
+      }
     }
 
     unknown.push(method + ' ' + p + url.search);
@@ -183,5 +198,10 @@ export function fakeCloud({ users = [] } = {}) {
     db,
     down(on) { isDown = Boolean(on); },
     matchIds: () => [...db.matches.keys()],
+    /** The server copy of an account's daily days, by e-mail and channel. */
+    dailyOf(email, canal) {
+      const u = db.users.get(String(email).toLowerCase());
+      return u ? db.daily.get(u.id + '|' + canal) || null : null;
+    },
   };
 }

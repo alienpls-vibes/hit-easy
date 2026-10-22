@@ -9,4 +9,4 @@
  * sw.js repeats this number by hand, because a worker does not import modules.
  * An automatic check in tools/check-syntax.js compares the two.
  */
-export const APP_VERSION = '1.12.0';
+export const APP_VERSION = '1.12.1';

@@ -1,6 +1,6 @@
 /* Install guide, with tabs per device. */
 
-.install.is-page { padding-top: clamp(40px, 7vw, 80px); }
+.install.is-page { --section-top: clamp(40px, 7vw, 80px); }
 
 .install-card {
   max-width: 760px;

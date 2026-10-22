@@ -28,10 +28,14 @@ in Supabase. Renaming any of these breaks existing users' data or old clients:
   `mtglc.scryfallCache.v1` (beta adds `.beta` via `storageKey()` in
   `src/channel.js`).
 - **Local db fields**: `enviadas`, `decksDeConta`, `handlesAtuais`; settings
-  `versaoVista`, `versaoAnterior`; theme values `'sistema' | 'claro' | 'escuro'`.
+  `versaoVista`, `versaoAnterior`, `dragHintSeen`, `tourDue` (the guided tour
+  in `src/views/tour.js` still has to open by itself); theme values
+  `'sistema' | 'claro' | 'escuro'`.
 - **Match fields**: `assentos: 'topo'`, `ausenteDesde`, `ausencias`,
   `passadaEm`, `passadaCodigo`, `desvioDeRelogio`, `mana`; layout ids
-  `paisagem | retrato | padrao` and legacy `2-1, 1-2, volta, 3-2`.
+  `paisagem | retrato | padrao | cabeceira` and legacy `2-1, 1-2, volta, 3-2`
+  (five-player `retrato` is retired but still read - see `RETIRED` in
+  `src/seating.js`).
 - **Votes**: `kind` `'opcoes' | 'numero'`; presets `duas | dilema | numero |
   jogador`.
 - **Win reasons**: `combate, comandante, combo, veneno, mill, alternativa,
@@ -46,7 +50,11 @@ in Supabase. Renaming any of these breaks existing users' data or old clients:
   `notify`; periodic sync and notification tag `hiteasy-daily`; link
   parameter `?daily=1`; Supabase `avisos_diarios` and its RPCs
   (`inscrever_aviso`, `aviso_jogado`, `cancelar_aviso`, `avisos_a_enviar`,
-  `aviso_expirado`); push payload `{ title, body, day }`.
+  `aviso_expirado`); push payload `{ title, body, day }`; the put-aside copy
+  `mtglc.daily.v1.unreadable`; the backup file's `daily: { days }`; Supabase
+  `progresso_diario` (`user_id`, `canal`, `dias`) and RPC
+  `juntar_progresso_diario(c, dias)`. A day record's shape is read by every
+  older release and by the server merge: only ever ADD fields to it.
 - **Channel values** `'producao' | 'beta'`; service-worker cache prefix
   `hiteasy-`; `build.json` fields `build`, `quando`; `window.__hitEasyInstall`;
   `user_metadata.has_password`.

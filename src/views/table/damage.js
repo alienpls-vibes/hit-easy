@@ -12,6 +12,7 @@ import { accentOf } from '../../colors.js';
 import { cmdKeyOf } from '../../engine.js';
 import { t } from '../../i18n.js';
 import { bindHold } from './widgets.js';
+import { isSidewaysTurn } from '../../orientation.js';
 
 export function createDamage(table) {
   function drawArrow(x, y) {
@@ -162,9 +163,10 @@ export function createDamage(table) {
     bindHold(minus, () => setAmount(amount - 1));
     bindHold(plus, () => setAmount(amount + 1));
 
+    const rotation = table.padRotation(sourceId);
     const pad = el('div', {
-      class: 'pad',
-      style: { '--accent': accent, '--rot': table.padRotation(sourceId) },
+      class: 'pad' + (isSidewaysTurn(rotation) ? ' is-sideways' : ''),
+      style: { '--accent': accent, '--rot': rotation },
     }, [
       el('div', { class: 'pad-head' }, [
         el('span', { class: 'pad-from', text: source.name }),

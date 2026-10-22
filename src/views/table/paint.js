@@ -12,7 +12,7 @@ import {
   canUndo, standings, deckNameOf, CMD_LETHAL, POISON_LETHAL,
 } from '../../engine.js';
 import * as store from '../../store.js';
-import { tableRotation, hasFinePointer } from '../../orientation.js';
+import { tableRotation, hasFinePointer, isSidewaysTurn } from '../../orientation.js';
 import { t, ordinal } from '../../i18n.js';
 import { COUNT_MS, COUNT_MIN_STEP } from './constants.js';
 
@@ -203,23 +203,16 @@ export function createPainter(table) {
 
     const band = el('div', { class: 'tile-drag' });
 
-    // Its own name: `root` in the outer scope is the root of the SCREEN. The
-    // returned key is still `root`, so whoever uses tile.root does not change.
-    const panel = el('div', {
-      class: 'tile',
-      dataset: { seat: seat.id },
-      style: {
-        gridRow: spec.cs ? String(spec.r) : String(spec.r),
-        gridColumn: spec.cs ? spec.c + ' / span ' + spec.cs : String(spec.c),
-        // Same rule as the damage pad: at a computer nobody sits on the other
-        // side of the monitor, and the rotation left half the names, lives and
-        // commanders upside down.
-        transform: 'rotate(' + tableRotation(spec.rot, hasFinePointer()) + ')',
-        '--accent': accent,
-        '--tint': identityGradient(colors, 0.16),
-        '--glow': withAlpha(accent, 0.34),
-      },
-    }, [
+    // Same rule as the damage pad: at a computer nobody sits on the other
+    // side of the monitor, and the rotation left half the names, lives and
+    // commanders upside down.
+    const rotation = tableRotation(spec.rot, hasFinePointer());
+    // On the long side of an upright table the player reads at 90 or 270.
+    // Turning the panel itself a quarter would spill it over its neighbors -
+    // its box is tall and the turned one wide - so the panel stays put and a
+    // layer inside it, as tall as the panel is wide, turns instead.
+    const sideways = isSidewaysTurn(rotation);
+    const content = [
       commander && commander.art
         ? el('div', { class: 'tile-art', style: { backgroundImage: 'url(' + commander.art + ')' } })
         : null,
@@ -229,7 +222,24 @@ export function createPainter(table) {
       band,
       el('div', { class: 'tile-face' }, [header, life, badges, status]),
       delta,
-    ]);
+    ];
+
+    // Its own name: `root` in the outer scope is the root of the SCREEN. The
+    // returned key is still `root`, so whoever uses tile.root does not change.
+    const panel = el('div', {
+      class: 'tile' + (sideways ? ' is-sideways' : ''),
+      dataset: { seat: seat.id },
+      style: {
+        gridRow: spec.cs ? String(spec.r) : String(spec.r),
+        gridColumn: spec.cs ? spec.c + ' / span ' + spec.cs : String(spec.c),
+        transform: sideways ? 'none' : 'rotate(' + rotation + ')',
+        '--accent': accent,
+        '--tint': identityGradient(colors, 0.16),
+        '--glow': withAlpha(accent, 0.34),
+      },
+    }, sideways
+      ? [el('div', { class: 'tile-turn', style: { '--turn': rotation } }, content)]
+      : content);
 
     table.bindTile(panel, seat);
     return { root: panel, life, delta, badges, status };

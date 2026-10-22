@@ -13,7 +13,7 @@
 
 // The same string as APP_VERSION in src/version.js - a worker does not import
 // modules. If it changes there, change it here; check-syntax.js compares both.
-const VERSION = '1.12.0';
+const VERSION = '1.12.1';
 
 /**
  * Production and beta share the same origin, and Cache Storage is per origin.
@@ -94,6 +94,7 @@ const ASSETS = [
   './src/daily/screen.js',
   './src/daily/share.js',
   './src/daily/storage.js',
+  './src/daily/sync.js',
   './src/daily/sw-daily.js',
   './src/styles/daily.css',
   './src/engine.js',
@@ -117,6 +118,8 @@ const ASSETS = [
   './src/styles/victory-short-screens.css',
   './src/styles/victory.css',
   './src/styles/vote.css',
+  './src/styles/tour.css',
+  './src/styles/seat-map.css',
   './src/i18n.js',
   './src/i18n/de.js',
   './src/i18n/dictionaries.js',
@@ -146,6 +149,7 @@ const ASSETS = [
   './src/version.js',
   './src/views/setup.js',
   './src/views/setup/pre-game.js',
+  './src/views/setup/seat-map.js',
   './src/views/setup/seat-card.js',
   './src/views/setup/settings.js',
   './src/views/setup/account.js',
@@ -173,6 +177,7 @@ const ASSETS = [
   './src/views/stats/win-reasons.js',
   './src/views/stats/votes.js',
   './src/views/table.js',
+  './src/views/tour.js',
   './src/views/table/sweep.js',
   './src/views/table/constants.js',
   './src/views/table/context.js',
@@ -191,6 +196,7 @@ const ASSETS = [
   './src/vote.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
+  './icons/badge-96.png',
 ];
 
 /**

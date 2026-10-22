@@ -34,8 +34,8 @@ export default function render({ text }) {
     </section>`;
 }
 
-function dateText(ts) {
-  return new Date(ts).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+function dateText(ts, locale) {
+  return new Date(ts).toLocaleDateString(locale, { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
 /** The server's error code as a sentence the person can act on. */
@@ -51,7 +51,7 @@ function errorText(text, err) {
   return errors.generic;
 }
 
-export async function mount(node, { text, site }) {
+export async function mount(node, { text, site, locale }) {
   const card = node.querySelector('.account-card');
 
   // Read BEFORE the cloud boots: boot() cleans the address bar.
@@ -315,7 +315,7 @@ export async function mount(node, { text, site }) {
         <h3 class="block-title">${p.accessTitle}</h3>
         <p><span class="status ${subscriber ? 'is-on' : 'is-off'}">${icon(subscriber ? 'check' : 'lock')}
           <span>${subscriber ? p.accessOn : p.accessOff}</span></span>
-          ${until ? html`<span class="muted"> · ${format(p.accessUntil, { date: dateText(until) })}</span>` : null}</p>
+          ${until ? html`<span class="muted"> · ${format(p.accessUntil, { date: dateText(until, locale) })}</span>` : null}</p>
         ${subscriber ? null : html`
           <p class="muted">${p.accessOffText}</p>
           <button class="link-btn" type="button" data-recheck>${p.recheck}</button>`}
@@ -420,7 +420,7 @@ export async function mount(node, { text, site }) {
         const msg = String((err && err.message) || '');
         if (msg === 'handle taken') say(p.handleTaken, 'bad');
         else if (msg === 'handle too soon' && err.unlockedAt) {
-          say(format(p.handleTooSoon, { date: dateText(err.unlockedAt) }), 'bad');
+          say(format(p.handleTooSoon, { date: dateText(err.unlockedAt, locale) }), 'bad');
         } else say(errorText(text, err), 'bad');
       }
     });

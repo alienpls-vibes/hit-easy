@@ -34,6 +34,7 @@ import { cloudEnabled } from './config.js';
 import { isBeta } from './channel.js';
 import { state as installState } from './install.js';
 import { initDaily } from './daily/entry.js';
+import { openTour, tourOnStartup } from './views/tour.js';
 
 const root = document.getElementById('app');
 let route = store.getCurrent() ? 'table' : 'setup';
@@ -517,6 +518,14 @@ if (newInThisStartup.length) {
   setTimeout(() => openReleaseNotes(newInThisStartup), 700);
 }
 
+// The first open of a device shows how the app works, once. It stays due
+// until the tour closes, so an open that came for something else (a table
+// link, the daily challenge) leaves it for the next one.
+if (store.isFirstOpen()) store.setSetting('tourDue', true);
+if (tourOnStartup(settings(), typeof location === 'undefined' ? '' : location.search)) {
+  setTimeout(() => openTour(), 250);
+}
+
 // The account comes up after the first screen: nobody should wait for the
 // network to see the app. When the state arrives, whoever depends on it
 // redraws.
@@ -560,5 +569,23 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {
       /* offline keeps working through the browser cache */
     });
+    keepStorage();
   });
+}
+
+/**
+ * Asks the browser not to clear this app's data when the device runs short
+ * of space. Without it, the storage is "best effort": Chrome may drop it
+ * whole, and the daily progress and any match not yet in the cloud go with
+ * it. Chrome and Edge answer without asking anything (granted to installed
+ * apps). Only for the installed app: Firefox would show a prompt in a tab.
+ */
+function keepStorage() {
+  try {
+    const installed = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+    if (!installed || !navigator.storage || !navigator.storage.persist) return;
+    navigator.storage.persisted()
+      .then((already) => (already ? true : navigator.storage.persist()))
+      .catch(() => { /* a nicety: the app works the same either way */ });
+  } catch { /* no matchMedia or no storage API */ }
 }

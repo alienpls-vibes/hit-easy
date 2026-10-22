@@ -13,6 +13,7 @@
  */
 
 import { el, clear, closeSheet } from '../../ui.js';
+import { tableRotation, hasFinePointer } from '../../orientation.js';
 import { createContext, createDragLayer } from './context.js';
 import { createState } from './state.js';
 import { createPainter } from './paint.js';
@@ -66,6 +67,13 @@ export function renderTable(root, ctx) {
   createDragLayer(table);
 
   table.hub = table.buildHub();
+  // Some tables put the core off the middle, where the panels meet, and turn
+  // it to lie across the device (seating.js). At a computer it never turns -
+  // same rule as the panels.
+  if (table.layout.hubY) table.hub.root.style.top = (table.layout.hubY * 100) + '%';
+  if (table.layout.hubRot) {
+    table.hub.root.style.setProperty('--hub-turn', tableRotation(table.layout.hubRot, hasFinePointer()));
+  }
   table.pauseView = table.buildPause();
   table.wrap = el('div', { class: 'table-wrap' }, [
     table.grid, table.hub.root, table.fx, table.pauseView.root,

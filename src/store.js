@@ -70,6 +70,11 @@ const EMPTY = {
     keepAwake: true,
     autoRotate: true,     // tries fullscreen + locking landscape during the match
     dragHintSeen: false,
+    // The guided tour still has to open by itself (src/views/tour.js). Set
+    // on the first open of a device and cleared when the tour closes. False
+    // by default, so whoever already used the app never gets it pushed at
+    // them on an update.
+    tourDue: false,
     versaoVista: null,    // last version whose release notes were seen
     // Which version the person came from on the last update.
     //
@@ -80,8 +85,26 @@ const EMPTY = {
   },
 };
 
+// Did this device have no database when the app started? Read before
+// anything writes: the startup itself saves settings a moment later.
+const startedEmpty = (() => {
+  try {
+    return !localStorage.getItem(KEY);
+  } catch {
+    return false;
+  }
+})();
+
 let db = read();
 const listeners = new Set();
+
+/**
+ * The first open of the app on this device, ever (per channel: beta keeps
+ * its own storage, so its first open counts too).
+ */
+export function isFirstOpen() {
+  return startedEmpty;
+}
 
 function read() {
   try {

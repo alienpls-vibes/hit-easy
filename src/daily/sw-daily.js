@@ -81,7 +81,7 @@
     return self.registration.showNotification(title || 'Hit Easy', {
       body: body || '',
       icon: './icons/icon-192.png',
-      badge: './icons/icon-192.png',
+      badge: './icons/badge-96.png', // white on transparent: Android keeps only the alpha
       tag: TAG,
       data: { url: './?daily=1' },
     });

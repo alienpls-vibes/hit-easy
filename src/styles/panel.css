@@ -320,8 +320,6 @@
   font-variant-numeric: tabular-nums;
 }
 .layout-option.is-on .layout-cell { background: var(--press); }
-/* Whoever sits on the other side shows up flipped in the thumbnail too. */
-.layout-cell.is-flipped { transform: rotate(180deg); }
 
 .layout-label { font-size: 0.7rem; color: var(--text-dim); text-align: center; }
 .layout-option.is-on .layout-label { color: var(--text); }

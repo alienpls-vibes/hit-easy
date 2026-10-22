@@ -9,12 +9,18 @@
  * here would reveal nothing.
  *
  * States: loading -> signed out | locked | empty | error | dashboard.
+ *
+ * Colors follow the app's two families: a DECK is colored by its commander's
+ * identity (art, pips, solid accent); a PERSON by their own color
+ * (playerColor), the same one they get in the app's Players and Rivals tabs.
  */
 
 import { html, fill, format, toast } from '../lib/dom.js';
 import { icon } from '../lib/icons.js';
 import { resolve } from '../lib/links.js';
-import { identityGradient } from '../lib/mana.js';
+import {
+  accentOf, artUrl, deckIdentity, identityTint, pips,
+} from '../lib/mana.js';
 
 export default function render({ text }) {
   return html`
@@ -39,20 +45,28 @@ function plural(text, n) {
   return n === 1 ? text.gamesOne : format(text.gamesMany, { n });
 }
 
-/** Union of the commanders' color identities, in WUBRG order. */
-function deckColors(commanders) {
-  const all = new Set();
-  (commanders || []).forEach((c) => (c.colors || []).forEach((x) => all.add(x)));
-  return ['W', 'U', 'B', 'R', 'G'].filter((c) => all.has(c));
+/** A number the way the visitor's language writes it (2,5 / 2.5). */
+function decimal(value, digits, locale) {
+  if (!isFinite(value)) return '--';
+  return Number(value).toLocaleString(locale, { maximumFractionDigits: digits, minimumFractionDigits: 0 });
 }
 
+/**
+ * The commander's art, like the app's deck card. Without art (a deck picked
+ * offline, before Scryfall answered), the faint identity tint keeps the slot.
+ */
 function deckThumb(commanders) {
-  // Only a plain https address goes into the style: the art URL comes from
-  // match data, and a stray quote or parenthesis would break out of url().
-  const art = (commanders || []).map((c) => c.art)
-    .find((a) => typeof a === 'string' && /^https:\/\/[^\s"'()\\]+$/.test(a));
-  const bg = identityGradient(deckColors(commanders));
-  return html`<span class="deck-thumb" style="background-image: ${art ? 'url(' + art + '), ' : ''}${bg}"></span>`;
+  const art = artUrl(commanders);
+  const style = art
+    ? 'background-image: ' + art
+    : 'background-image: ' + identityTint(deckIdentity(commanders), 0.35);
+  return html`<span class="deck-thumb" style="${style}"></span>`;
+}
+
+/** A person's initial in their own color - the app's tinted avatar. */
+function personAvatar(label, color) {
+  return html`<span class="avatar avatar-sm is-tinted" style="--accent: ${color}"
+    aria-hidden="true">${(label || '?').replace(/^@/, '').slice(0, 1).toUpperCase()}</span>`;
 }
 
 function stateBlock(iconName, title, body, actions, note) {
@@ -68,7 +82,7 @@ function stateBlock(iconName, title, body, actions, note) {
 
 /* --------------------------------------------------------------- mount */
 
-export async function mount(node, { text }) {
+export async function mount(node, { text, lang, locale }) {
   const body = node.querySelector('.stats-body');
   const sub = node.querySelector('[data-sub]');
   const appHref = resolve('{app}');
@@ -119,6 +133,7 @@ export async function mount(node, { text }) {
     let matches;
     try {
       stats = await import('../lib/app-stats.js');
+      stats.setLang(lang);
       matches = await cloud.downloadMatches();
     } catch {
       fill(body, stateBlock('offline', text.error, null, html`
@@ -155,6 +170,12 @@ export async function mount(node, { text }) {
     const agg = stats.aggregate(matches, aliases);
     const me = myKey ? agg.players.find((p) => p.key === myKey) : null;
 
+    // Each person's color, by first appearance in the history - the app's
+    // rule, so the same friend has the same color here and on the phone.
+    stats.setPalette(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
+    const colorOrder = stats.playerColorOrder(matches, aliases);
+    const colorOf = (key) => stats.playerColor(colorOrder, key);
+
     // One summary per match (replay, standings, winner), reused below.
     const summaries = matches.map((m) => ({ m, s: stats.summarize(m) }));
     const placeOf = (s, seatId) => {
@@ -170,9 +191,9 @@ export async function mount(node, { text }) {
     const kpis = me ? [
       { label: k.games, value: me.games },
       { label: k.wins, value: me.wins },
-      { label: k.winrate, value: stats.pct(me.winrate), accent: true },
-      { label: k.avgPlace, value: stats.num(me.avgPlace) + 'º' },
-      { label: k.avgDamage, value: stats.num(me.avgDamageDealt, 0) },
+      { label: k.winrate, value: stats.pct(me.winrate) },
+      { label: k.avgPlace, value: format(text.placeValue, { n: decimal(me.avgPlace, 1, locale) }) },
+      { label: k.avgDamage, value: decimal(me.avgDamageDealt, 0, locale) },
       { label: k.kills, value: me.kills },
       { label: k.avgTurn, value: stats.formatDuration(me.avgTurnTime) },
       { label: k.avgMatch, value: stats.formatDuration(me.avgMatchTime) },
@@ -222,7 +243,11 @@ export async function mount(node, { text }) {
           if (other.id === seat.id) return;
           const key = stats.identityOf(other, aliases);
           if (key === myKey) return;
-          if (!rows.has(key)) rows.set(key, { label: stats.labelOf(other, aliases), together: 0, ahead: 0, behind: 0 });
+          if (!rows.has(key)) {
+            rows.set(key, {
+              key, label: stats.labelOf(other, aliases), together: 0, ahead: 0, behind: 0,
+            });
+          }
           const r = rows.get(key);
           const theirs = placeOf(s, other.id);
           r.together += 1;
@@ -264,7 +289,7 @@ export async function mount(node, { text }) {
       ${notice}
       <div class="kpi-grid">
         ${kpis.map((x) => html`
-          <div class="kpi card${x.accent ? ' is-accent' : ''}">
+          <div class="kpi card">
             <span class="kpi-value">${x.value}</span>
             <span class="kpi-label">${x.label}</span>
           </div>`)}
@@ -275,16 +300,23 @@ export async function mount(node, { text }) {
           <h2 class="block-title">${text.decksTitle}</h2>
           <p class="muted">${text.decksText}</p>
           <ul class="deck-list">
-            ${decks.slice(0, 12).map((d) => html`
-              <li class="deck-row">
-                ${deckThumb(d.commanders)}
-                <span class="deck-info">
-                  <span class="deck-name">${d.name}</span>
-                  <span class="deck-meta">${plural(text, d.games)} · ${format(text.avgPlace, { n: stats.num(d.avgPlace) })}</span>
-                  <span class="bar"><span style="width: ${Math.round(d.winrate * 100)}%; background: ${identityGradient(deckColors(d.commanders), '90deg')}"></span></span>
-                </span>
-                <span class="deck-rate">${stats.pct(d.winrate)}</span>
-              </li>`)}
+            ${decks.slice(0, 12).map((d) => {
+              const identity = deckIdentity(d.commanders);
+              return html`
+                <li class="deck-row" style="--accent: ${accentOf(identity)}">
+                  ${deckThumb(d.commanders)}
+                  <span class="deck-info">
+                    <span class="deck-name">${d.name}</span>
+                    <span class="deck-meta"><span class="pips">${pips(identity)}</span>
+                      · ${plural(text, d.games)} · ${format(text.avgPlace, { n: decimal(d.avgPlace, 1, locale) })}</span>
+                    <span class="bar"><span style="width: ${Math.round(d.winrate * 100)}%"></span></span>
+                  </span>
+                  <span class="deck-rate">
+                    <span class="deck-rate-value">${stats.pct(d.winrate)}</span>
+                    <span class="deck-rate-label">${format(text.winsShort, { n: d.wins })}</span>
+                  </span>
+                </li>`;
+            })}
           </ul>
         </section>
 
@@ -295,7 +327,7 @@ export async function mount(node, { text }) {
             <ul class="rival-list">
               ${rivals.map((r) => html`
                 <li class="rival-row">
-                  <span class="avatar avatar-sm" aria-hidden="true">${(r.label || '?').replace(/^@/, '').slice(0, 1).toUpperCase()}</span>
+                  ${personAvatar(r.label, colorOf(r.key))}
                   <span class="rival-info">
                     <span class="rival-name">${r.label}</span>
                     <span class="rival-meta">${plural(text, r.together)}</span>
@@ -312,7 +344,7 @@ export async function mount(node, { text }) {
             <ul class="rival-list">
               ${players.map((p) => html`
                 <li class="rival-row">
-                  <span class="avatar avatar-sm" aria-hidden="true">${(p.label || '?').replace(/^@/, '').slice(0, 1).toUpperCase()}</span>
+                  ${personAvatar(p.label, colorOf(p.key))}
                   <span class="rival-info">
                     <span class="rival-name">${p.label}</span>
                     <span class="rival-meta">${plural(text, p.games)}</span>

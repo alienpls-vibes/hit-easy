@@ -8,7 +8,13 @@
 
 export {
   aggregate, identityOf, labelOf, seatName, CURRENT_HANDLES, DISPLAY_NAMES,
-  formatDuration, formatDate, pct, num, summarize,
+  formatDuration, formatDate, pct, num, summarize, playerColor, playerColorOrder,
 } from '../../src/stats.js';
 
 export { deckKeyOf, deckNameOf } from '../../src/engine.js';
+
+/** 'light' | 'dark': each person's color is lightened or darkened to read on the theme. */
+export { setPalette } from '../../src/colors.js';
+
+/** The app's language: dates and the few words the engine writes ("Sem comandante"). */
+export { setLang } from '../../src/i18n.js';

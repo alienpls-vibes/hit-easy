@@ -1,10 +1,15 @@
 /**
- * Every text the visitor reads, grouped by section.
+ * Every text the visitor reads, in Portuguese, grouped by section - and the
+ * BASE of the other languages.
  *
- * To change a word on the site, change it here - the section files in
- * sections/ only decide the LAYOUT and read their texts from this object
- * (CONTENT.hero, CONTENT.features, ...). The key of each group is the name of
- * the section that uses it.
+ * To change a word on the site, change it here (and in en.js, es.js, de.js).
+ * The section files in sections/ only decide the LAYOUT and read their texts
+ * from this object (CONTENT.hero, CONTENT.features, ...). The key of each
+ * group is the name of the section that uses it.
+ *
+ * Links, icons, colors, art and numbers live only HERE: the other languages
+ * carry just their texts and are laid over this file (see ../content.js), so
+ * a link changed here changes in every language.
  *
  * Conventions:
  *   - links accept {app} (the app) and {privacy} (privacy policy) - see
@@ -16,6 +21,25 @@
 export const CONTENT = {
   meta: {
     year: new Date().getFullYear(),
+    // Tab title and search description of each page (data-page in the HTML).
+    pages: {
+      home: {
+        title: 'Hit Easy · contador de vida para Commander',
+        description: 'Contador de vida para mesas de Commander: vida, dano de comandante, veneno e turnos num toque, com estatísticas por deck. Grátis, funciona offline, sem loja de aplicativos.',
+      },
+      download: {
+        title: 'Baixar o Hit Easy · Android, iPhone e computador',
+        description: 'Instale o Hit Easy direto do navegador, sem loja de aplicativos: passo a passo para Android, iPhone, iPad e computador.',
+      },
+      account: {
+        title: 'Sua conta · Hit Easy',
+        description: 'Crie sua conta Hit Easy ou entre: suas partidas ficam guardadas e seus amigos marcam você pelo @.',
+      },
+      stats: {
+        title: 'Suas estatísticas · Hit Easy',
+        description: 'Taxa de vitória por deck, colocação média, rivais e últimas partidas, direto da sua conta Hit Easy.',
+      },
+    },
   },
 
   nav: {
@@ -30,6 +54,8 @@ export const CONTENT = {
     cta: { label: 'Baixar grátis', href: 'download.html' },
     openMenu: 'Abrir menu',
     closeMenu: 'Fechar menu',
+    menuLabel: 'Principal',
+    language: 'Idioma',
   },
 
   hero: {
@@ -39,15 +65,14 @@ export const CONTENT = {
     primary: { label: 'Baixar grátis', href: 'download.html' },
     secondary: { label: 'Abrir no navegador', href: '{app}' },
     badges: ['Funciona offline', 'Android, iPhone e computador', 'Sem loja de aplicativos'],
-    // The table drawn in the phone illustration. Colors are WUBRG letters.
-    mockup: {
-      turn: 'Turno 7',
-      players: [
-        { name: 'Ana', life: 34, colors: ['G', 'U'], active: true },
-        { name: 'Bruno', life: 21, colors: ['R'] },
-        { name: 'Davi', life: 12, colors: ['B', 'R'] },
-        { name: 'Carla', life: 40, colors: ['W', 'B'] },
-      ],
+    // The app's real table screen (see README.md, "The table screenshot"):
+    // a simulated 4-player match with Atraxa, Krenko, Edgar Markov and Meren.
+    screenshot: {
+      webp: './assets/table.webp',
+      jpg: './assets/table.jpg',
+      width: 1688,
+      height: 780,
+      alt: 'Tela da mesa do Hit Easy com quatro jogadores: Ana com 34 de vida e a vez de jogar, Bruno com 21, Carla com 40 e Davi com 12, já com 8 de dano de comandante. No centro, o turno 7.',
     },
   },
 
@@ -139,10 +164,20 @@ export const CONTENT = {
     sample: {
       tag: 'Exemplo',
       title: 'Seus decks',
+      gamesLabel: 'partidas',
       decks: [
-        { name: 'Atraxa, Praetors\' Voice', colors: ['W', 'U', 'B', 'G'], winrate: 0.62, games: 21 },
-        { name: 'Krenko, Mob Boss', colors: ['R'], winrate: 0.48, games: 25 },
-        { name: 'Yuriko, the Tiger\'s Shadow', colors: ['U', 'B'], winrate: 0.35, games: 17 },
+        {
+          name: 'Atraxa, Praetors\' Voice', colors: ['W', 'U', 'B', 'G'], winrate: 0.62, games: 21,
+          art: 'https://cards.scryfall.io/art_crop/front/d/0/d0d33d52-3d28-4635-b985-51e126289259.jpg?1783930136',
+        },
+        {
+          name: 'Krenko, Mob Boss', colors: ['R'], winrate: 0.48, games: 25,
+          art: 'https://cards.scryfall.io/art_crop/front/8/2/824b2d73-2151-4e5e-9f05-8f63e2bdcaa9.jpg?1783909065',
+        },
+        {
+          name: 'Yuriko, the Tiger\'s Shadow', colors: ['U', 'B'], winrate: 0.35, games: 17,
+          art: 'https://cards.scryfall.io/art_crop/front/f/e/fe9be3e0-076c-4703-9750-2a6b0a178bc9.jpg?1791803568',
+        },
       ],
       kpis: [
         { label: 'Partidas', value: '63' },
@@ -175,7 +210,7 @@ export const CONTENT = {
         action: 'open-app',
         steps: [
           { icon: 'external', text: 'Toque em "Abrir o app" aqui embaixo.' },
-          { icon: 'share', text: 'Na barra do Safari, toque no botão Compartilhar.' },
+          { icon: 'share', text: 'Toque em Compartilhar, o quadrado com a seta para cima. Nas versões mais novas do iOS, ele fica dentro do botão ••• da barra.' },
           { icon: 'plusSquare', text: 'Escolha "Adicionar à Tela de Início". Se não aparecer, role a lista para baixo.' },
           { icon: 'check', text: 'Toque em "Adicionar". O ícone do Hit Easy aparece na tela inicial.' },
         ],
@@ -477,6 +512,8 @@ export const CONTENT = {
     playersText: 'Todos que aparecem nas partidas da conta.',
     gamesOne: '1 partida',
     gamesMany: '{n} partidas',
+    winsShort: '{n}V',
+    placeValue: '{n}º',
     avgPlace: '{n}º em média',
     rivalsTitle: 'Com quem você mais joga',
     rivalsText: 'Partidas juntos e quem terminou na frente.',

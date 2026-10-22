@@ -4,13 +4,19 @@
  * On phones the links fold into a menu button. The account link says "Entrar"
  * or "Minha conta" depending on whether this browser already has a session -
  * read from the disk, without a network trip, so the bar never waits.
+ *
+ * The language picker is a native <select>, invisible over a compact face
+ * (globe + "PT"): the bar stays short, and a tap opens the system's own list
+ * with the full names, which every phone browser already knows how to show.
  */
 
-import { html } from '../lib/dom.js';
+import { html, raw } from '../lib/dom.js';
 import { icon } from '../lib/icons.js';
 import { linkTo } from '../lib/links.js';
+import { switchLang } from '../lib/lang.js';
+import { LANGS } from '../content.js';
 
-export default function render({ site, text }) {
+export default function render({ site, text, lang }) {
   return html`
     <header class="nav">
       <div class="container nav-inner">
@@ -18,11 +24,19 @@ export default function render({ site, text }) {
           <img class="brand-logo" src="${site.logo}" alt="" width="32" height="32">
           <span class="brand-name">${site.name}</span>
         </a>
-        <nav class="nav-links" id="nav-links" aria-label="Principal">
+        <nav class="nav-links" id="nav-links" aria-label="${text.menuLabel}">
           ${text.links.map((l) => linkTo(l, 'nav-link'))}
           <a class="nav-link nav-account" href="account.html" data-account-link>
             ${icon('user')}<span>${text.signIn}</span>
           </a>
+          <label class="nav-lang">
+            <span class="nav-lang-face" aria-hidden="true">${icon('globe')}<span>${lang.toUpperCase()}</span></span>
+            <span class="nav-lang-name">${text.language}</span>
+            <select class="nav-lang-select" data-lang aria-label="${text.language}">
+              ${LANGS.map(([code, name]) => html`
+                <option value="${code}"${code === lang ? raw(' selected') : null}>${name}</option>`)}
+            </select>
+          </label>
           ${linkTo(text.cta, 'btn btn-primary btn-sm nav-cta')}
         </nav>
         <button class="nav-toggle" type="button" aria-expanded="false"
@@ -55,6 +69,9 @@ export function mount(node, { text }) {
       a.setAttribute('aria-current', 'page');
     }
   });
+
+  const picker = node.querySelector('[data-lang]');
+  picker.addEventListener('change', () => switchLang(picker.value));
 
   // A shadow under the bar only once the page has scrolled.
   const onScroll = () => node.classList.toggle('is-scrolled', window.scrollY > 8);

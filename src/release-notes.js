@@ -25,6 +25,45 @@
 
 export const RELEASE_NOTES = [
   {
+    version: '1.12.1',
+    date: '2026-10-22',
+    title: {
+      pt: 'Sua sequência protegida',
+      en: 'Your streak, protected',
+      es: 'Tu racha, protegida',
+      de: 'Deine Serie, geschützt',
+    },
+    items: [
+      {
+        type: 'new',
+        text: {
+          pt: 'Novo guia de uso do app e, antes de cada partida, uma tela para arrastar os jogadores até o lugar certo na mesa.',
+          en: 'A new guide to using the app and, before each match, a screen to drag players to their right seats at the table.',
+          es: 'Nueva guía de uso de la app y, antes de cada partida, una pantalla para arrastrar a los jugadores a su lugar en la mesa.',
+          de: 'Neue Anleitung zur App und vor jeder Partie ein Bildschirm, um Spieler auf ihren richtigen Platz am Tisch zu ziehen.',
+        },
+      },
+      {
+        type: 'new',
+        text: {
+          pt: 'Com conta, o progresso do desafio diário fica guardado nela, de graça, entra no backup e fica protegido no aparelho.',
+          en: 'With an account, your daily challenge progress is kept there for free, goes into the backup and is protected on the device.',
+          es: 'Con cuenta, el progreso del desafío diario se guarda en ella gratis, entra en la copia de seguridad y queda protegido.',
+          de: 'Mit Konto bleibt dein Fortschritt kostenlos dort gespeichert, ist in der Sicherung enthalten und auf dem Gerät geschützt.',
+        },
+      },
+      {
+        type: 'fixed',
+        text: {
+          pt: 'O logo do Hit Easy agora aparece no aviso e na barra de notificações do Android, em vez de um quadrado branco.',
+          en: 'The Hit Easy logo now shows in the notice and in the Android status bar, instead of a white square.',
+          es: 'El logo de Hit Easy ahora aparece en el aviso y en la barra de notificaciones de Android, en lugar de un cuadrado blanco.',
+          de: 'Das Hit-Easy-Logo erscheint jetzt in der Nachricht und in der Android-Statusleiste statt eines weißen Quadrats.',
+        },
+      },
+    ],
+  },
+  {
     version: '1.12.0',
     date: '2026-10-20',
     title: {

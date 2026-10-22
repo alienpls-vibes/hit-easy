@@ -52,7 +52,7 @@ export function fill(target, markup) {
   target.appendChild(toNodes(markup));
 }
 
-/** `{ name }` interpolation for texts in content.js: 'Olá, {name}'. */
+/** `{ name }` interpolation for texts in content/<lang>.js: 'Olá, {name}'. */
 export function format(text, vars) {
   return String(text || '').replace(/\{(\w+)\}/g, (whole, key) => (
     vars && Object.prototype.hasOwnProperty.call(vars, key) ? String(vars[key]) : whole

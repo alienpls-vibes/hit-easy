@@ -1,37 +1,19 @@
 /**
- * The opening block: headline, the two main buttons and an illustration of
- * the table on a phone lying flat.
+ * The opening block: headline, the two main buttons and the app's real table
+ * screen on a phone lying flat.
  *
- * The illustration is drawn in HTML/CSS from content.hero.mockup, not an
- * image: it stays sharp on any screen and changes with the copy. The top row
- * is upside down on purpose - that is how the app draws it, facing the
- * players across the table.
+ * The picture is a screenshot of the actual app (assets/table.webp, with a
+ * JPEG for browsers without WebP), taken from a simulated match - see
+ * README.md, "The table screenshot". Which file and its description come from
+ * content.hero.screenshot.
  */
 
 import { html } from '../lib/dom.js';
 import { linkTo } from '../lib/links.js';
 import { icon } from '../lib/icons.js';
-import { identityGradient, manaColors } from '../lib/mana.js';
-
-function panel(p, flipped) {
-  const accent = manaColors(p.colors)[0];
-  return html`
-    <div class="mock-panel${flipped ? ' is-flipped' : ''}${p.active ? ' is-active' : ''}"
-      style="--panel-bg: ${identityGradient(p.colors, '160deg')}; --panel-accent: ${accent}">
-      <div class="mock-panel-inner">
-        <span class="mock-minus" aria-hidden="true">−</span>
-        <span class="mock-name">${p.name}</span>
-        <span class="mock-life">${p.life}</span>
-        <span class="mock-plus" aria-hidden="true">+</span>
-      </div>
-    </div>`;
-}
 
 export default function render({ text }) {
-  const m = text.mockup;
-  const players = m.players || [];
-  const top = players.slice(0, Math.ceil(players.length / 2));
-  const bottom = players.slice(top.length);
+  const shot = text.screenshot;
   return html`
     <section class="hero" id="inicio">
       <div class="hero-glow" aria-hidden="true"></div>
@@ -48,15 +30,22 @@ export default function render({ text }) {
             ${text.badges.map((b) => html`<li>${icon('check')}<span>${b}</span></li>`)}
           </ul>
         </div>
-        <div class="hero-art" aria-hidden="true">
-          <div class="mock-phone">
-            <div class="mock-screen">
-              <div class="mock-row">${top.map((p) => panel(p, true))}</div>
-              <div class="mock-row">${bottom.map((p) => panel(p, false))}</div>
-              <div class="mock-hub"><span>${m.turn}</span></div>
+        <figure class="hero-art">
+          <div class="phone">
+            <span class="phone-button phone-volume" aria-hidden="true"></span>
+            <span class="phone-button phone-power" aria-hidden="true"></span>
+            <div class="phone-body">
+              <span class="phone-camera" aria-hidden="true"></span>
+              <div class="phone-glass">
+                <picture>
+                  <source srcset="${shot.webp}" type="image/webp">
+                  <img class="phone-screen" src="${shot.jpg}" alt="${shot.alt}"
+                    width="${shot.width}" height="${shot.height}" decoding="async">
+                </picture>
+              </div>
             </div>
           </div>
-        </div>
+        </figure>
       </div>
     </section>`;
 }

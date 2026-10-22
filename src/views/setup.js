@@ -8,7 +8,8 @@
  *   seat-card.js        a seat's card, and the drag that reorders
  *   pick-player.js      who sits here
  *   pick-deck.js        which deck they bring
- *   pre-game.js         who opens the match, and the table layout
+ *   pre-game.js         the flow before the table: seats, then who opens
+ *   seat-map.js         the table drawn with the players, dragged to swap
  *   settings.js         the app preferences
  *   rows.js             the row and group pieces of the settings
  *   install.js          the install block

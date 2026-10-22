@@ -89,6 +89,45 @@ language by default. The card is searched as
 in that language falls back to English and says so. Each answer is cached on
 the device for the day (`mtglc.dailyCard.v1`), so reopening works offline.
 
+## Keeping the progress
+
+The progress lives in `mtglc.daily.v1`. In 1.12.0 one phone came back with
+it at zero (played, wins and streak) while the match history, which lives
+in the cloud, was intact. The code never removes that key, so the cause was
+on the device. Since 1.12.1 there are four layers, from cheapest to strongest:
+
+1. **Nothing is written over an unreadable state.** If `load()` cannot parse
+   what is stored, the raw text first goes to `mtglc.daily.v1.unreadable`
+   (once), and only then can a save write a fresh state (`storage.js`).
+2. **Persistent storage.** The installed app asks for
+   `navigator.storage.persist()` (`app.js`, `keepStorage()`), so Chrome does
+   not drop the site's data when the phone runs short of space.
+3. **The backup file** (Statistics → Data → Export) carries `daily: { days }`,
+   and importing it merges the days back in (`views/stats/backup.js`).
+4. **A copy with the account, free.** `sql/014-daily-progress.sql` +
+   `src/daily/sync.js`. On every opening, on signing in and when a day is
+   finished, the device sends all its days to `juntar_progresso_diario`,
+   which merges them into the account's row and returns the whole. That is
+   merged back here. Per day, the better record wins on both sides
+   (`betterDay()`): finished beats unfinished, more tries beat fewer, and
+   between two finished days the one already stored stays. Nothing is ever
+   replaced by less. One row per account and channel. There is no
+   subscription check, because the challenge is free.
+
+Guarded by tests: unit cases for the merge, the put-aside copy, the backup
+round trip and the sync; the journey **updating from the live release**,
+which writes five won days with the live release's own code and fails if
+played, wins or streak change after the update; and the journey **the daily
+progress follows the account**, where a device with nothing signs in and
+finds the day played.
+
+Rules for future changes:
+
+- never rename `mtglc.daily.v1` or the fields of a day record. Add fields
+  instead: older releases and the server merge read them;
+- a change to how days are counted (`totals()`) must keep counting the days
+  already stored the same way. The upgrade journey checks this.
+
 ## Sharing the result
 
 Once the day is over, the result screen has **Share on WhatsApp** (a `wa.me`

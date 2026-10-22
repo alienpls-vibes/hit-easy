@@ -51,7 +51,8 @@ def write_png(path, width, height, rgba):
     path.write_bytes(png)
 
 
-def render(size, corner_ratio, ring_ratio, pip_ratio):
+def render(size, corner_ratio, ring_ratio, pip_ratio, badge=False):
+    """badge=True: white pips on transparent, no background (see main())."""
     big = size * SS
     buf = bytearray(big * big * 4)
 
@@ -74,12 +75,14 @@ def render(size, corner_ratio, ring_ratio, pip_ratio):
             if dx * dx + dy * dy > radius * radius:
                 continue
 
-            color = BG
+            color = None if badge else BG
             px, py = x + 0.5, y + 0.5
             for (ox, oy), pip in zip(centers, PIPS):
                 if (px - ox) ** 2 + (py - oy) ** 2 <= pip_r * pip_r:
-                    color = pip
+                    color = (255, 255, 255) if badge else pip
                     break
+            if color is None:
+                continue  # transparent: only the pips are part of a badge
 
             o = (y * big + x) * 4
             buf[o] = color[0]
@@ -106,6 +109,12 @@ def render(size, corner_ratio, ring_ratio, pip_ratio):
             out[o + 1] = g // n
             out[o + 2] = b // n
             out[o + 3] = a // n
+    if badge:
+        # Edges average white with transparent black and turn gray. A badge
+        # is one color and only its alpha varies, so the color is white
+        # everywhere and the antialiasing lives in the alpha alone.
+        for o in range(0, len(out), 4):
+            out[o] = out[o + 1] = out[o + 2] = 255
     return out
 
 
@@ -122,6 +131,14 @@ def main():
     for name, size, corner, ring, pip in jobs:
         write_png(OUT / name, size, size, render(size, corner, ring, pip))
         print("generated:", name, f"({size}x{size})")
+
+    # The notification badge: the small icon in Android's status bar and in
+    # the corner of the notice. Android keeps ONLY the alpha channel and
+    # paints it in one color, so the app icon (an opaque square) came out as
+    # a blank white tile. This is the mark's silhouette, white on
+    # transparent, with fatter pips so they still read at 24dp.
+    write_png(OUT / "badge-96.png", 96, 96, render(96, 0.5, 0.31, 0.15, badge=True))
+    print("generated: badge-96.png (96x96)")
 
 
 if __name__ == "__main__":

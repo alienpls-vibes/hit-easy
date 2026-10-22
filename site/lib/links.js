@@ -1,5 +1,5 @@
 /**
- * Links in content.js can use two placeholders, so the copy never hardcodes
+ * Links in content/pt.js can use two placeholders, so the copy never hardcodes
  * where the app is:
  *
  *   {app}      the app itself (SITE.appUrl)
@@ -28,7 +28,7 @@ export function isExternal(href) {
 }
 
 /**
- * A link from content.js ({ label, href }) as an <a>, with a class.
+ * A link from the content ({ label, href }) as an <a>, with a class.
  * Links that leave the site open in a new tab.
  */
 export function linkTo(link, className = '') {
