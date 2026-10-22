@@ -78,6 +78,9 @@ export const LAYOUTS = {
     // Standing up, there is height to spare: one person at the head, one on
     // each long side - each reading their panel from where they sit.
     cols: 2, rows: 2,
+    // The central core lies across the device too, like the seats screen
+    // draws this table: turned a quarter to the left side.
+    hubRot: 90,
     seats: [
       { r: 1, c: 1, cs: 2, rot: 180 },
       { r: 2, c: 2, rot: 270 },
@@ -130,6 +133,9 @@ export const LAYOUTS = {
     // At the middle of the screen it would sit on the life of the two panels
     // of the middle row - the old shape left an empty cell there for it.
     hubY: 2 / 3,
+    // Lying across the device, like the seats screen draws this table; along
+    // the gap between the two side columns it also covers less of them.
+    hubRot: 90,
     seats: [
       { r: 1, c: 1, cs: 2, rot: 180 },
       { r: 2, c: 2, rot: 270 },
@@ -299,8 +305,9 @@ export function layoutFor(seatCount, id, wide = false, seatOrder = SEATS_FROM_TO
     rows: shape.rows,
     seats: legacy || shape.seats,
     // Where the central core sits, as a fraction of the height; null = the
-    // middle.
+    // middle. And how much it turns (degrees; 0 = as usual).
     hubY: shape.hubY || null,
+    hubRot: shape.hubRot || 0,
   };
 }
 

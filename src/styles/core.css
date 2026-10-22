@@ -10,7 +10,9 @@
 .hub {
   position: absolute;
   top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
+  /* --hub-turn: the upright three- and five-player tables lay it across the
+     device (seating.js `hubRot`). */
+  transform: translate(-50%, -50%) rotate(var(--hub-turn, 0deg));
   z-index: 10;
   display: flex;
   align-items: center;

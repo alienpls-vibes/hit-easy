@@ -979,9 +979,27 @@ export const cases = [
       eq(left.turn, '90deg', 'the left side reads from the left');
       eq(left.face, 1, 'the number and name live inside the turning layer');
 
+      // The central core lies across the device too, upright with 3 or 5.
+      const hubTurn = (n, id) => {
+        const root = document.createElement('div');
+        const m = makeMatch(n);
+        m.layoutId = id;
+        const view = renderTable(root, {
+          match: m, onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
+        });
+        const turn = findAll(root, 'hub')[0].style.getPropertyValue('--hub-turn');
+        view.destroy();
+        return turn;
+      };
+      eq(hubTurn(3, 'retrato'), '90deg', 'three upright: the core lies across');
+      eq(hubTurn(5, 'cabeceira'), '90deg', 'five upright: the core lies across');
+      eq(hubTurn(5, 'paisagem'), '', 'five lying down: the core as usual');
+      eq(hubTurn(4, 'padrao'), '', 'four: the core as usual');
+
       // At a computer nobody sits around the monitor: nothing turns.
       globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
       ok(draw().every((x) => !x.sideways && x.transform === 'rotate(0deg)'), 'on the computer every panel stands up');
+      eq(hubTurn(5, 'cabeceira'), '0deg', 'on the computer the core stands up');
     } finally {
       globalThis.matchMedia = before;
     }
