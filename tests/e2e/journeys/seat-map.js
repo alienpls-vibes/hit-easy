@@ -1,6 +1,6 @@
 /**
  * Filling a seat and fixing where everyone sits, on a touch phone - and the
- * drag with a mouse on a computer, where the table is drawn as a monitor.
+ * drag with a mouse, on a board drawn as the device the app detected.
  *
  * The empty + box asks who plays and then their deck - the same path as the
  * name. Start opens the table drawn with the players in their chairs; a
@@ -86,11 +86,16 @@ export default {
     });
 
     const desk = await ctx.newDevice(ctx.DESKTOP);
-    await ctx.step('on a computer the table is drawn as a monitor, and a mouse drag swaps', async () => {
+    await ctx.step('with a mouse, the board is drawn as the device the app sees, and a drag swaps', async () => {
       await openHome(desk, ctx.base);
       for (let i = 0; i < 4; i += 1) await pickCommander(desk, i, { term: ['atraxa', 'krenko', 'edgar', 'kenrith'][i] });
       await openSeatMap(desk);
-      if (!(await desk.count('.sheet-scrim .seat-map.is-computer'))) throw new Error('the board is not drawn as a computer');
+      // Which device it is depends on what the browser reports: headless
+      // Chrome on Windows says it has a mouse, on the Linux CI it says none
+      // (so the app draws a phone there, rightly). The kinds themselves are
+      // unit cases; here the board must follow whatever the app detected.
+      const kind = await desk.eval(`import('./src/views/setup/seat-map.js').then((m) => m.deviceShape().kind)`);
+      if (!(await desk.count('.sheet-scrim .seat-map.is-' + kind))) throw new Error('the board is not drawn as the detected ' + kind);
       const before = await namesOnMap(desk);
       await desk.swipe(await chairAt(desk, 1), await chairAt(desk, 3), { steps: 10, ms: 250 });
       const want = [before[0], before[3], before[2], before[1]];
