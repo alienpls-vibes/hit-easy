@@ -28,6 +28,21 @@
   touch-action: none;
 }
 
+/* A player on a long side of an upright table reads at 90 or 270 degrees.
+   The panel keeps its place in the grid and a layer inside it turns: as tall
+   as the panel is wide and as wide as it is tall (container units), centered.
+   Everything that was laid out over the panel - art, strips, number - is laid
+   out over this layer instead, so it reads the same, only turned. */
+.tile.is-sideways { container-type: size; }
+.tile-turn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100cqh;
+  height: 100cqw;
+  transform: translate(-50%, -50%) rotate(var(--turn));
+}
+
 .tile.is-active {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent), 0 0 44px -8px var(--glow);

@@ -89,6 +89,14 @@
   transition: transform var(--slow), opacity var(--slow);
 }
 .pad-scrim.is-open .pad { transform: rotate(var(--rot, 0deg)) scale(1); opacity: 1; }
+/* Turned a quarter, for a player on a long side: the pad's width runs along
+   the screen's height and its height across the width, so each is capped by
+   the other side of the screen. */
+.pad.is-sideways {
+  width: min(330px, calc(100vh - 40px));
+  max-height: calc(100vw - 40px);
+  overflow-y: auto;
+}
 
 .pad-head {
   display: flex;

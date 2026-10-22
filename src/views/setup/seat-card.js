@@ -21,11 +21,14 @@ export function seatCard(seat, index, refresh) {
   const accent = commander ? accentOf(commander.colors) : 'var(--line)';
   const thumb = thumbOf(commander);
 
+  // The empty box with the + is where a new seat gets filled in, so it walks
+  // the same path as tapping the name: who plays, then their deck. Once the
+  // seat has a commander, the art changes only the deck.
   const art = el('button', {
     class: 'seat-art' + (commander ? '' : ' is-empty'),
     style: thumb ? { backgroundImage: 'url(' + thumb + ')' } : {},
-    onClick: () => openFlow(commanderStep(seat, 0, refresh)),
-    'aria-label': t('setup.chooseCommander'),
+    onClick: () => openFlow(commander ? commanderStep(seat, 0, refresh) : playerStep(seat, refresh)),
+    'aria-label': commander ? t('setup.chooseCommander') : t('setup.choosePlayer'),
   }, commander ? [] : [icon('plus')]);
 
   // Tapping the name opens the full flow: the player and, next, their deck.

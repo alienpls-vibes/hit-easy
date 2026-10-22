@@ -20,10 +20,34 @@ export async function readDb(page, base) {
   return page.eval(`JSON.parse(localStorage.getItem(${JSON.stringify(dbKey(base))}) || 'null')`);
 }
 
-/** Opens the app and waits for the home screen. */
+/**
+ * Opens the app and waits for the home screen.
+ *
+ * On a device that never opened the app, the guided tour covers the home
+ * screen a moment later; this skips it, as a person in a hurry would. The
+ * `tour` journey is the one that walks it.
+ */
 export async function openHome(page, base) {
   await page.goto(base);
   await waitHome(page);
+  await skipTour(page, base);
+}
+
+/**
+ * Waits until the tour either opened or is not coming, and skips it if it
+ * opened. `tourDue` is written at startup, before the tour opens: while it is
+ * set and the tour is not on screen yet, the tour is still on its way.
+ * (A release without the tour never sets it, so this returns at once.)
+ */
+export async function skipTour(page, base) {
+  const state = await page.waitFor(`(() => {
+    if (document.querySelector('.tour.is-open')) return 'open';
+    const db = JSON.parse(localStorage.getItem(${JSON.stringify(dbKey(base))}) || 'null');
+    return db && db.settings && db.settings.tourDue ? false : 'none';
+  })()`, 'the tour to open or to be done with', 8000);
+  if (state !== 'open') return;
+  await page.tap('.tour .tour-skip');
+  await page.waitFor(`!document.querySelector('.tour')`, 'the tour to close');
 }
 
 export async function waitHome(page) {
@@ -51,9 +75,13 @@ export async function waitNoSheet(page) {
  * Picks a commander for one seat through the real picker: open, type, choose.
  * `term` searches Scryfall (mocked); `fromHistory` picks the first deck the
  * picker offers without typing - the offline path.
+ *
+ * It opens the picker from the deck line ("Choose commander"), which goes
+ * straight to the deck. The empty + box asks who plays first - the
+ * `seat-map` journey walks that path.
  */
 export async function pickCommander(page, seatIndex, { term = null, fromHistory = false } = {}) {
-  await page.tap('.seat-card .seat-art', { index: seatIndex });
+  await page.tap('.seat-card .seat-deck', { index: seatIndex });
   await page.waitFor(`document.querySelector('.sheet-scrim.is-open .search-input')`, 'the commander picker');
   if (fromHistory) {
     await page.waitFor(`document.querySelectorAll('.sheet-scrim .result-row').length > 0`, 'decks from the history in the picker');
@@ -76,13 +104,28 @@ export async function pickAllCommanders(page, terms) {
   return seats;
 }
 
-/** Start on the home screen, then Start on the pre-game panel; waits for the table. */
+/** Start on the home screen opens the pre-game panel at the seats on the table. */
+export async function openSeatMap(page) {
+  await page.tap('.setup .btn.primary.block');
+  await page.waitFor(`document.querySelector('.sheet-scrim.is-open .seat-map')`, 'the seats on the table');
+  // The panel slides up for a moment: chairs measured before it stops are
+  // in the wrong place, and a drag aimed at them misses.
+  await page.waitFor(`getComputedStyle(document.querySelector('.sheet-scrim.is-open .sheet')).transform === 'none'`, 'the panel to finish opening');
+}
+
+/** On the seats step: Continue, then Start on who starts; waits for the table. */
+export async function continueToTable(page, seats) {
+  await page.tap('.sheet-scrim .flow-pane:last-child .sheet-actions .btn.primary');
+  await page.waitFor(`document.querySelector('.sheet-scrim .flow-pane:last-child .pick-row')`, 'the choice of who starts');
+  await page.tap('.sheet-scrim .flow-pane:last-child .sheet-actions .btn.primary');
+  await page.waitFor(`document.querySelectorAll('.tile').length === ${seats}`, 'the table with ' + seats + ' players', 10000);
+}
+
+/** Start on the home screen, past the seats, then Start; waits for the table. */
 export async function startMatch(page) {
   const seats = await page.count('.seat-card');
-  await page.tap('.setup .btn.primary.block');
-  await page.waitFor(`document.querySelector('.sheet-scrim.is-open .sheet-actions .btn.primary')`, 'the pre-game panel');
-  await page.tap('.sheet-scrim .sheet-actions .btn.primary');
-  await page.waitFor(`document.querySelectorAll('.tile').length === ${seats}`, 'the table with ' + seats + ' players', 10000);
+  await openSeatMap(page);
+  await continueToTable(page, seats);
   return seats;
 }
 

@@ -19,7 +19,7 @@
  * say it goes fullscreen, because that is surprising.
  */
 
-import { el, openFlow, toast, setHaptics } from '../../ui.js';
+import { el, openFlow, setHaptics } from '../../ui.js';
 import * as store from '../../store.js';
 import { MODES, currentMode, applyTheme } from '../../theme.js';
 import { t, LANGS, currentLang, setLang } from '../../i18n.js';
@@ -30,6 +30,7 @@ import { cloudEnabled } from '../../config.js';
 import { accountSummary } from './account.js';
 import { installBlock } from './install.js';
 import { openReleaseNotes } from './release-notes.js';
+import { openTour } from '../tour.js';
 import {
   group, row, toggleRow, selectRow, segmentRow,
 } from './rows.js';
@@ -92,11 +93,14 @@ export function openSettings(onRefresh) {
           arrow: true,
           onTap: () => openReleaseNotes(),
         }),
+        // The panel closes first: the tour covers the screen, and back
+        // from it should land on the home screen, not on a panel behind.
         row({
-          label: t('settings.showHint'),
+          label: t('settings.tour'),
+          arrow: true,
           onTap: () => {
-            store.setSetting('dragHintSeen', false);
-            toast(t('settings.hintBack'));
+            api.close();
+            openTour();
           },
         }),
         // A relative path, not absolute: the app runs at /hit-easy/ and at

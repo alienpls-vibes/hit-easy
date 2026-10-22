@@ -37,19 +37,19 @@ export const RELEASE_NOTES = [
       {
         type: 'new',
         text: {
-          pt: 'Com conta, o progresso do desafio diário fica guardado nela, de graça, e volta se o aparelho perder os dados.',
-          en: 'With an account, your daily challenge progress is kept in it for free, and comes back if the device loses its data.',
-          es: 'Con cuenta, el progreso del desafío diario se guarda en ella gratis, y vuelve si el dispositivo pierde sus datos.',
-          de: 'Mit Konto wird dein Fortschritt kostenlos gespeichert und kommt zurück, wenn das Gerät seine Daten verliert.',
+          pt: 'Novo guia de uso do app e, antes de cada partida, uma tela para arrastar os jogadores até o lugar certo na mesa.',
+          en: 'A new guide to using the app and, before each match, a screen to drag players to their right seats at the table.',
+          es: 'Nueva guía de uso de la app y, antes de cada partida, una pantalla para arrastrar a los jugadores a su lugar en la mesa.',
+          de: 'Neue Anleitung zur App und vor jeder Partie ein Bildschirm, um Spieler auf ihren richtigen Platz am Tisch zu ziehen.',
         },
       },
       {
-        type: 'fixed',
+        type: 'new',
         text: {
-          pt: 'O backup agora inclui o desafio diário, e o app pede ao navegador para não apagar seus dados quando faltar espaço.',
-          en: 'The backup now includes the daily challenge, and the app asks the browser not to clear its data when space runs low.',
-          es: 'La copia de seguridad ahora incluye el desafío diario, y la app pide al navegador que no borre sus datos cuando falte espacio.',
-          de: 'Die Sicherung enthält jetzt die Herausforderung, und die App bittet den Browser, ihre Daten nicht zu löschen.',
+          pt: 'Com conta, o progresso do desafio diário fica guardado nela, de graça, entra no backup e fica protegido no aparelho.',
+          en: 'With an account, your daily challenge progress is kept there for free, goes into the backup and is protected on the device.',
+          es: 'Con cuenta, el progreso del desafío diario se guarda en ella gratis, entra en la copia de seguridad y queda protegido.',
+          de: 'Mit Konto bleibt dein Fortschritt kostenlos dort gespeichert, ist in der Sicherung enthalten und auf dem Gerät geschützt.',
         },
       },
       {

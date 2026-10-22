@@ -15,9 +15,13 @@ import updateButton from './update-button.js';
 import dailyChallenge from './daily-challenge.js';
 import dailyLost from './daily-lost.js';
 import dailyAccount from './daily-account.js';
+import tour from './tour.js';
+import seatMap from './seat-map.js';
 
 export const JOURNEYS = [
   firstMatch,
+  seatMap,
+  tour,
   offline,
   upgrade,
   updateButton,

@@ -28,10 +28,14 @@ in Supabase. Renaming any of these breaks existing users' data or old clients:
   `mtglc.scryfallCache.v1` (beta adds `.beta` via `storageKey()` in
   `src/channel.js`).
 - **Local db fields**: `enviadas`, `decksDeConta`, `handlesAtuais`; settings
-  `versaoVista`, `versaoAnterior`; theme values `'sistema' | 'claro' | 'escuro'`.
+  `versaoVista`, `versaoAnterior`, `dragHintSeen`, `tourDue` (the guided tour
+  in `src/views/tour.js` still has to open by itself); theme values
+  `'sistema' | 'claro' | 'escuro'`.
 - **Match fields**: `assentos: 'topo'`, `ausenteDesde`, `ausencias`,
   `passadaEm`, `passadaCodigo`, `desvioDeRelogio`, `mana`; layout ids
-  `paisagem | retrato | padrao` and legacy `2-1, 1-2, volta, 3-2`.
+  `paisagem | retrato | padrao | cabeceira` and legacy `2-1, 1-2, volta, 3-2`
+  (five-player `retrato` is retired but still read - see `RETIRED` in
+  `src/seating.js`).
 - **Votes**: `kind` `'opcoes' | 'numero'`; presets `duas | dilema | numero |
   jogador`.
 - **Win reasons**: `combate, comandante, combo, veneno, mill, alternativa,

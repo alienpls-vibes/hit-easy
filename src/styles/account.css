@@ -95,12 +95,6 @@
 }
 .account-link:hover { color: var(--fg); }
 
-/* The table thumbnail takes on the device proportion, not just the grid's:
-   with two players both options have the same grid, and without this they
-   would look identical on screen - like a defect instead of a choice. */
-.layout-mini.is-port { aspect-ratio: 3 / 4; }
-.layout-mini.is-land { aspect-ratio: 4 / 3; }
-
 /* The @ already created: text, not a field. Looking editable would invite
    changing it by accident, and changing breaks the tagging friends saved. */
 .account-handle-fixed .set-label {

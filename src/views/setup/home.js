@@ -32,7 +32,8 @@ export function renderSetup(root, {
   clear(root);
 
   const seatList = el('div', { class: 'seat-list' });
-  const startBtn = el('button', { class: 'btn primary block', onClick: () => openPreGame(d, onStart) }, []);
+  // The pre-game flow can swap seats, so the list repaints when it closes.
+  const startBtn = el('button', { class: 'btn primary block', onClick: () => openPreGame(d, onStart, () => refresh()) }, []);
 
   const refresh = () => {
     clear(seatList);

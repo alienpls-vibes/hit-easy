@@ -10,6 +10,7 @@ import { el, clear, icon, buzz, toast, dismissOnBackdrop } from '../../ui.js';
 import { accentOf } from '../../colors.js';
 import { t, tn } from '../../i18n.js';
 import { bindHold } from './widgets.js';
+import { isSidewaysTurn } from '../../orientation.js';
 
 export function createSweep(table) {
   /**
@@ -131,9 +132,10 @@ export function createSweep(table) {
     bindHold(minus, () => setAmount(amount - 1));
     bindHold(plus, () => setAmount(amount + 1));
 
+    const rotation = table.padRotation(sourceId);
     const pad = el('div', {
-      class: 'pad',
-      style: { '--accent': accent, '--rot': table.padRotation(sourceId) },
+      class: 'pad' + (isSidewaysTurn(rotation) ? ' is-sideways' : ''),
+      style: { '--accent': accent, '--rot': rotation },
     }, [
       el('div', { class: 'pad-head' }, [
         el('span', { class: 'pad-from', text: source.name }),

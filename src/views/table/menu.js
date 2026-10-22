@@ -1,11 +1,12 @@
 /**
- * The match menu: pause, mana, vote, declare a winner, leave.
+ * The match menu: pause, mana, vote, declare a winner, how to use, leave.
  */
 
 import { el, openSheet, confirmAction } from '../../ui.js';
 import { elapsedOf } from '../../engine.js';
 import { formatDuration } from '../../stats.js';
 import { t } from '../../i18n.js';
+import { openTour } from '../tour.js';
 
 export function createMenu(table) {
   function openMenu() {
@@ -33,6 +34,8 @@ export function createMenu(table) {
           item(t('vote.title'), t('vote.menuSub'), table.openVote),
           item(t('table.declareWinner'), t('table.declareWinnerSub'), table.pickWinner),
           item(t('common.stats'), '', table.ctx.onStats),
+          // Starts at the gestures: mid-game nobody needs the setup slides.
+          item(t('tour.menu'), t('tour.menuSub'), () => openTour({ from: 'table' })),
           // Above discard, and away from it: both take the table off this
           // device, but one keeps the game and the other throws it away.
           item(t('pass.menu'), t('pass.menuSub'), table.ctx.onPassTable),

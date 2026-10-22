@@ -38,6 +38,8 @@ were green, because none of them pressed Start in a browser. These do.
 | Journey | What it guards |
 | --- | --- |
 | `first-match` | setup → commanders by search → Start → life taps → reload mid-game → winner → saved → statistics. Marked `live`: also runs against the published site after each deploy. |
+| `seat-map` | the empty + box asks who plays, then the commander; Start draws the table with everyone in their chair; a touch drag onto another chair swaps the two, and so do two taps; the match starts in the order the drawing ended with |
+| `tour` | the guided tour opens by itself on a device's first open and never again; swipe and buttons walk it; settings open it from the start, back closes it; the table menu opens it at the gestures and the table still plays after |
 | `offline` | after one visit, no signal: the app opens from the service worker and a table plays from the history |
 | `upgrade` | the release that is live today (newest `v*` tag) writes a match in progress and a history; this tree is deployed over it; the update arrives by itself, keeps every point, announces what's new and cleans old caches |
 | `update-button` | the installed app's Update button: nothing new → "already the newest" without reloading; a beta push (same version, changed files) → reloads into them; a release that took over in the background while the page ran old code → reloads into it; no connection → "could not check", never "already the newest" |

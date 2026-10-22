@@ -66,6 +66,8 @@ export function renderTable(root, ctx) {
   createDragLayer(table);
 
   table.hub = table.buildHub();
+  // Some tables put the core off the middle, where the panels meet (seating.js).
+  if (table.layout.hubY) table.hub.root.style.top = (table.layout.hubY * 100) + '%';
   table.pauseView = table.buildPause();
   table.wrap = el('div', { class: 'table-wrap' }, [
     table.grid, table.hub.root, table.fx, table.pauseView.root,

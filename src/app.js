@@ -34,6 +34,7 @@ import { cloudEnabled } from './config.js';
 import { isBeta } from './channel.js';
 import { state as installState } from './install.js';
 import { initDaily } from './daily/entry.js';
+import { openTour, tourOnStartup } from './views/tour.js';
 
 const root = document.getElementById('app');
 let route = store.getCurrent() ? 'table' : 'setup';
@@ -515,6 +516,14 @@ store.dropUploaded();
 const newInThisStartup = announceVersion();
 if (newInThisStartup.length) {
   setTimeout(() => openReleaseNotes(newInThisStartup), 700);
+}
+
+// The first open of a device shows how the app works, once. It stays due
+// until the tour closes, so an open that came for something else (a table
+// link, the daily challenge) leaves it for the next one.
+if (store.isFirstOpen()) store.setSetting('tourDue', true);
+if (tourOnStartup(settings(), typeof location === 'undefined' ? '' : location.search)) {
+  setTimeout(() => openTour(), 250);
 }
 
 // The account comes up after the first screen: nobody should wait for the

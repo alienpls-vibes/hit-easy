@@ -1,0 +1,203 @@
+/* Where everyone sits (src/views/setup/seat-map.js): the table drawn the way
+   the device will lie on it, each player in their chair, and a player dragged
+   onto another chair to swap the two. */
+
+/* The board is drawn as the DEVICE the match will be played on, lying on its
+   side: a phone, a tablet or a monitor (deviceShape in seat-map.js picks the
+   kind and the proportion, which arrives inline as aspect-ratio). A plain
+   rectangle did not say that this is the screen in the middle of the table,
+   with each player's panel facing their chair.
+
+   Always sideways, whatever the layout (see sidewaysLayout in seating.js): an
+   upright drawing was tall and narrow, cut the names short and pushed
+   Continue below the fold. Phone and tablet have the camera on the left
+   edge, the way they lie turned to the left, and a wider margin there leaves
+   room for it; the monitor has it on top, and a stand below. */
+.seat-map {
+  --bezel: color-mix(in srgb, var(--text) 26%, transparent);
+  position: relative;
+  display: grid;
+  gap: 5px;
+  /* The last term caps the HEIGHT at 30% of the screen (width = height x
+     ratio): on a computer window or a phone held sideways the whole step,
+     Continue included, still fits without scrolling. */
+  width: min(100%, 440px, calc(30vh * var(--ratio, 2)));
+  margin: 2px auto 0;
+  padding: 7px 12px 7px 18px;
+  border-radius: 34px;
+  border: 4px solid var(--bezel);
+  background: var(--bg);
+  box-shadow: 0 18px 40px -22px var(--shadow);
+}
+.seat-map::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 6px;
+  width: 7px;
+  height: 7px;
+  margin-top: -3.5px;
+  border-radius: 50%;
+  background: var(--bezel);
+}
+
+/* A tablet: squarer, an even, thicker frame and softer corners. */
+.seat-map.is-tablet {
+  width: min(100%, 400px, calc(30vh * var(--ratio, 2)));
+  padding: 11px 12px 11px 20px;
+  border-width: 5px;
+  border-radius: 24px;
+}
+
+/* A monitor: thin frame, small corners, camera on top and a stand below. */
+.seat-map.is-computer {
+  width: min(100%, 420px, calc(30vh * var(--ratio, 2)));
+  margin-bottom: 22px;
+  padding: 13px 7px 7px;
+  border-radius: 10px;
+}
+.seat-map.is-computer::before {
+  top: 3px;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  margin: 0 0 0 -2.5px;
+}
+.seat-map.is-computer::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -22px;
+  width: 30%;
+  height: 16px;
+  transform: translateX(-50%);
+  background: var(--bezel);
+  clip-path: polygon(38% 0, 62% 0, 72% 70%, 100% 70%, 100% 100%, 0 100%, 0 70%, 28% 70%);
+}
+
+/* The layout choice above the board shows the same device, small and also on
+   its side - the upright option included. What tells the two apart is how the
+   players sit; each number is turned the way that player reads. The device
+   sits centered in the card's free space and the label stays at the bottom. */
+.layout-option .layout-mini {
+  --bezel: color-mix(in srgb, var(--text) 26%, transparent);
+  position: relative;
+  width: min(100%, 130px);
+  gap: 2px;
+  margin: auto 0;
+  padding: 4px 4px 4px 7px;
+  border-radius: 12px;
+  border: 3px solid var(--bezel);
+  background: var(--bg);
+}
+.layout-option .layout-mini.is-tablet { width: min(100%, 112px); border-radius: 9px; }
+.layout-option .layout-mini.is-computer {
+  width: min(100%, 118px);
+  margin-bottom: auto;
+  padding: 4px;
+  border-width: 2px;
+  border-radius: 4px;
+}
+.layout-option .layout-mini .layout-cell { border-radius: 4px; font-size: 0.55rem; }
+.layout-option .layout-mini .layout-num { display: inline-block; }
+
+.seat-map-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 5px 4px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-strong));
+  color: var(--text);
+  text-align: center;
+  /* The finger drags the player; the browser must not scroll the sheet. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: grab;
+  transition: transform var(--fast), border-color var(--fast), background var(--fast), opacity var(--fast);
+}
+
+.seat-map-turn {
+  position: absolute;
+  top: 5px;
+  left: 7px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A name wraps to a second line instead of being cut: in the narrow chairs
+   of an upright phone, "Player 3" became "Play…" and nobody could tell the
+   chairs apart. */
+.seat-map-name {
+  display: -webkit-box;
+  max-width: 100%;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.seat-map-deck {
+  display: -webkit-box;
+  max-width: 100%;
+  font-size: 0.64rem;
+  line-height: 1.25;
+  color: var(--text-mid);
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Picked up by a tap: the next tap on another player swaps the two. */
+.seat-map-cell.is-picked {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 28%, var(--surface-strong));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+/* While dragging: the player follows the finger, above the others. */
+.seat-map.is-dragging .seat-map-cell { cursor: grabbing; }
+.seat-map-cell.is-lifted {
+  z-index: 2;
+  transition: none;
+  border-color: var(--accent);
+  box-shadow: 0 14px 30px -10px var(--shadow);
+  opacity: 0.94;
+}
+.seat-map-cell.is-target {
+  border-style: dashed;
+  border-color: var(--contrast-soft);
+  background: var(--press);
+}
+
+/* The two who just traded places flash once, so the eye finds the change. */
+.seat-map-cell.is-swapped { animation: seat-map-swap 420ms var(--ease); }
+@keyframes seat-map-swap {
+  0% { transform: scale(0.92); }
+  60% { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+
+.seat-map-hint {
+  margin: 10px 2px 0;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seat-map-cell.is-swapped { animation: none; }
+}

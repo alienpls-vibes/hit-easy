@@ -13,6 +13,7 @@ import { uid, duplicatePerson } from '../../engine.js';
 import { t } from '../../i18n.js';
 import * as cloud from '../../cloud.js';
 import { cloudEnabled } from '../../config.js';
+import { pickableId } from '../../seating.js';
 
 export const LIFE_PRESETS = [20, 30, 40, 60];
 
@@ -50,7 +51,9 @@ export function seedDraftFrom(match) {
       name: s.name,
       commanders: s.commanders.map((c) => ({ ...c })),
     })),
-    layoutId: match.layoutId || null,
+    // A retired arrangement is not offered again: the new match takes its
+    // successor.
+    layoutId: match.layoutId ? pickableId(match.seats.length, match.layoutId) : null,
     firstSeatId: null, // who starts is decided again for every match
   };
   // Whoever chose a name since the last match shows up under it already.

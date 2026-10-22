@@ -186,6 +186,33 @@ export class Page {
     await sleep(80);
   }
 
+  /**
+   * A finger sliding from one point to another (a mouse drag on the desktop),
+   * in small steps, the way a swipe reaches the page.
+   */
+  async swipe(from, to, { steps = 8, ms = 160 } = {}) {
+    const at = (i) => ({ x: from.x + ((to.x - from.x) * i) / steps, y: from.y + ((to.y - from.y) * i) / steps });
+    if (this.device.touch) {
+      const point = (p) => [{ x: p.x, y: p.y, radiusX: 4, radiusY: 4, force: 1, id: 1 }];
+      await this.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: point(from) });
+      for (let i = 1; i <= steps; i += 1) {
+        await sleep(ms / steps);
+        await this.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: point(at(i)) });
+      }
+      await this.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    } else {
+      await this.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y });
+      await this.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: from.x, y: from.y, button: 'left', clickCount: 1 });
+      for (let i = 1; i <= steps; i += 1) {
+        await sleep(ms / steps);
+        const p = at(i);
+        await this.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: p.x, y: p.y, buttons: 1 });
+      }
+      await this.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: to.x, y: to.y, button: 'left', clickCount: 1 });
+    }
+    await sleep(80);
+  }
+
   /** Taps a field and types into it, as the keyboard does. */
   async type(selector, text, opts = {}) {
     await this.tap(selector, opts);

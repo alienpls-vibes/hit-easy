@@ -150,6 +150,17 @@ export function tableRotation(degrees, finePointer) {
 }
 
 /**
+ * Does this rotation (as tableRotation writes it) turn a panel on its side?
+ *
+ * The players on the long sides of an upright table read at 90 and 270. A
+ * box turned a quarter swaps width and height, so whoever draws it needs to
+ * know - the panel turns its content, not itself, and the pads cap their size.
+ */
+export function isSidewaysTurn(rotation) {
+  return rotation === '90deg' || rotation === '270deg';
+}
+
+/**
  * Did the lock drop, so it needs to be requested again?
  *
  * Only when there is a lock request in force and fullscreen is no longer

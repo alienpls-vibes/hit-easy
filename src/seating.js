@@ -29,12 +29,16 @@
  * tall and narrow and the life number does not fit.
  *
  * Whoever is on the other side of the table shows up upside down (rot 180) to
- * read their own panel without rotating the device. We only use 0 and 180:
- * turning a panel sideways would leave the name and the number lying down.
+ * read their own panel without rotating the device. The upright three- and
+ * five-player tables also turn panels a quarter: there one person sits at the
+ * head and the others along the two long sides of the device, so the left
+ * side reads at 90 and the right side at 270. Everywhere else it is only 0
+ * and 180 - a panel turned sideways for someone sitting at an end would leave
+ * the name and the number lying down.
  *
- * The variant ids ('paisagem', 'retrato', 'padrao', and the legacy ones in
- * LEGACY_IDS) are stored in each match as `layoutId`, so they keep their
- * Portuguese names.
+ * The variant ids ('paisagem', 'retrato', 'padrao', 'cabeceira', the legacy
+ * ones in LEGACY_IDS and the retired ones in RETIRED) are stored in each match
+ * as `layoutId`, so they keep their Portuguese names.
  */
 
 export const LAYOUTS = {
@@ -71,13 +75,13 @@ export const LAYOUTS = {
     id: 'retrato',
     orient: 'portrait',
     labelKey: 'layout.portrait',
-    // Standing up, there is height to spare: one person on the far side, two
-    // on the near side.
+    // Standing up, there is height to spare: one person at the head, one on
+    // each long side - each reading their panel from where they sit.
     cols: 2, rows: 2,
     seats: [
       { r: 1, c: 1, cs: 2, rot: 180 },
-      { r: 2, c: 2, rot: 0 },
-      { r: 2, c: 1, rot: 0 },
+      { r: 2, c: 2, rot: 270 },
+      { r: 2, c: 1, rot: 90 },
     ],
   }],
 
@@ -97,29 +101,41 @@ export const LAYOUTS = {
     id: 'paisagem',
     orient: 'landscape',
     labelKey: 'layout.landscape',
-    // Three columns by two rows: three on the far side, two on the near side.
-    // Standing up this shape would give tall, narrow panels, and the life
-    // number would not fit - that is why it only exists lying down.
-    cols: 3, rows: 2,
+    // Three on the far side, two on the near side - each of the two takes
+    // half the width. Six columns are what let three and two share the same
+    // edge without leaving a hole: until 1.12.1 it was a 3x2 grid with the
+    // near middle cell empty, and on the seats screen it looked the same as
+    // the upright option. Standing up this shape would give tall, narrow
+    // panels, and the life number would not fit - that is why it only exists
+    // lying down.
+    cols: 6, rows: 2,
     seats: [
-      { r: 1, c: 1, rot: 180 },
-      { r: 1, c: 2, rot: 180 },
-      { r: 1, c: 3, rot: 180 },
-      { r: 2, c: 3, rot: 0 },
-      { r: 2, c: 1, rot: 0 },
+      { r: 1, c: 1, cs: 2, rot: 180 },
+      { r: 1, c: 3, cs: 2, rot: 180 },
+      { r: 1, c: 5, cs: 2, rot: 180 },
+      { r: 2, c: 4, cs: 3, rot: 0 },
+      { r: 2, c: 1, cs: 3, rot: 0 },
     ],
   }, {
-    id: 'retrato',
+    // Stored in each match: do not translate. "Cabeceira" is the head of the
+    // table, where player 1 sits. A new id and not 'retrato', which drew
+    // another table - see RETIRED.
+    id: 'cabeceira',
     orient: 'portrait',
     labelKey: 'layout.portrait',
-    // Two columns by three rows. The empty cell is where the central core goes.
+    // One person at the head of the table, taking the whole far edge, and two
+    // on each long side, reading from that side (left 90, right 270).
     cols: 2, rows: 3,
+    // The central core goes where the four side panels meet, two thirds down.
+    // At the middle of the screen it would sit on the life of the two panels
+    // of the middle row - the old shape left an empty cell there for it.
+    hubY: 2 / 3,
     seats: [
-      { r: 1, c: 1, rot: 180 },
-      { r: 1, c: 2, rot: 180 },
-      { r: 2, c: 2, rot: 0 },
-      { r: 3, c: 2, rot: 0 },
-      { r: 3, c: 1, rot: 0 },
+      { r: 1, c: 1, cs: 2, rot: 180 },
+      { r: 2, c: 2, rot: 270 },
+      { r: 3, c: 2, rot: 270 },
+      { r: 3, c: 1, rot: 90 },
+      { r: 2, c: 1, rot: 90 },
     ],
   }],
 
@@ -150,6 +166,34 @@ export const LAYOUTS = {
 };
 
 /**
+ * Variants no longer offered, kept so a match that started with one keeps its
+ * table.
+ *
+ * The app updates in the middle of a game, and redrawing a match in progress
+ * with another shape would move people without warning. Until 1.12.1 the
+ * upright five-player table was two columns by three rows with an empty cell
+ * - two at the head - and it went by 'retrato'. Its replacement, with one
+ * person at the head, took a new id ('cabeceira'), so this one keeps meaning
+ * what it meant. `successor` is what a NEW match picks in its place.
+ */
+const RETIRED = {
+  5: [{
+    id: 'retrato',
+    successor: 'cabeceira',
+    orient: 'portrait',
+    labelKey: 'layout.portrait',
+    cols: 2, rows: 3,
+    seats: [
+      { r: 1, c: 1, rot: 180 },
+      { r: 1, c: 2, rot: 180 },
+      { r: 2, c: 2, rot: 0 },
+      { r: 3, c: 2, rot: 0 },
+      { r: 3, c: 1, rot: 0 },
+    ],
+  }],
+};
+
+/**
  * Where each seat sat until 1.8: player 1 at the bottom left.
  *
  * Only a match that started before the change uses this - it has no
@@ -164,9 +208,9 @@ const LEGACY_SEATS = {
   '2:paisagem': [[2, 1, 0], [1, 1, 180]],
   '2:retrato': [[2, 1, 0], [1, 1, 180]],
   '3:paisagem': [[2, 1, 0, 2], [1, 1, 180], [1, 2, 180]],
-  '3:retrato': [[2, 1, 0], [1, 1, 180, 2], [2, 2, 0]],
+  '3:retrato': [[2, 1, 90], [1, 1, 180, 2], [2, 2, 270]],
   '4:padrao': [[2, 1, 0], [1, 1, 180], [1, 2, 180], [2, 2, 0]],
-  '5:paisagem': [[2, 1, 0], [1, 1, 180], [1, 2, 180], [1, 3, 180], [2, 3, 0]],
+  '5:paisagem': [[2, 1, 0, 3], [1, 1, 180, 2], [1, 3, 180, 2], [1, 5, 180, 2], [2, 4, 0, 3]],
   '5:retrato': [[3, 1, 0], [1, 1, 180], [1, 2, 180], [2, 2, 0], [3, 2, 0]],
   '6:padrao': [[3, 1, 0], [2, 1, 0], [1, 1, 180], [1, 2, 180], [2, 2, 0], [3, 2, 0]],
   '6:padrao:land': [[2, 1, 0], [1, 1, 180], [1, 2, 180], [1, 3, 180], [2, 3, 0], [2, 2, 0]],
@@ -204,15 +248,31 @@ export function variantsFor(seatCount) {
 const LEGACY_IDS = {
   '2-1': 'retrato',    // 3: two below, one above - same drawing
   '1-2': 'paisagem',   // 3: one below, two above - same drawing
-  volta: 'retrato',    // 5: two columns by three rows - same drawing
+  volta: 'retrato',    // 5: two columns by three rows - same drawing (now RETIRED)
   '3-2': 'paisagem',   // 5: no exact equivalent; lying down is the closest
 };
 
-/** The chosen variant, falling back to the first when the id no longer exists. */
+/**
+ * The chosen variant, falling back to the first when the id no longer exists.
+ * A retired id still finds its own table - a match keeps the shape it started
+ * with.
+ */
 export function variant(seatCount, id) {
   const list = variantsFor(seatCount);
   const target = LEGACY_IDS[id] || id;
-  return list.find((l) => l.id === target) || list[0];
+  return list.find((l) => l.id === target)
+    || (RETIRED[seatCount] || []).find((l) => l.id === target)
+    || list[0];
+}
+
+/**
+ * The id a NEW match uses for this choice: one of the options offered today.
+ * A table set up again from an old match must not start on a retired shape.
+ */
+export function pickableId(seatCount, id) {
+  const v = variant(seatCount, id);
+  if (variantsFor(seatCount).includes(v)) return v.id;
+  return v.successor || variantsFor(seatCount)[0].id;
 }
 
 /**
@@ -238,6 +298,9 @@ export function layoutFor(seatCount, id, wide = false, seatOrder = SEATS_FROM_TO
     cols: shape.cols,
     rows: shape.rows,
     seats: legacy || shape.seats,
+    // Where the central core sits, as a fraction of the height; null = the
+    // middle.
+    hubY: shape.hubY || null,
   };
 }
 
@@ -262,6 +325,37 @@ export function orientOf(seatCount, id) {
   return variant(seatCount, id).orient || null;
 }
 
+/**
+ * The table as drawn on the seats screen: always with the device on its side.
+ *
+ * That screen draws a phone, and a phone lying sideways fits the panel without
+ * a tall, narrow drawing. A variant that does not pick an orientation (4 and
+ * 6) draws the shape the match itself uses on a wide screen. One that asks
+ * for the device UPRIGHT is the same table seen from another chair: the
+ * drawing turns a quarter to the left - the top edge goes to the left - and
+ * everyone keeps their neighbors, so the round is still clockwise.
+ *
+ * A turned seat that spanned columns spans rows instead (`rs`), and its `rot`
+ * turns too - 90 and 270 exist only in this drawing, never on the table.
+ */
+export function sidewaysLayout(seatCount, id) {
+  const v = variant(seatCount, id);
+  if (v.orient !== 'portrait') return layoutFor(seatCount, id, true);
+  const upright = layoutFor(seatCount, id);
+  return {
+    ...upright,
+    cols: upright.rows,
+    rows: upright.cols,
+    seats: upright.seats.map((spec) => {
+      const span = spec.cs || 1;
+      // The rotation turns with the drawing: whoever read upright now reads
+      // facing left (270), and the far side facing right (90).
+      const turned = { r: upright.cols - spec.c - span + 2, c: spec.r, rot: (spec.rot + 270) % 360 };
+      return span > 1 ? { ...turned, rs: span } : turned;
+    }),
+  };
+}
+
 /** The shapes of a variant (one or two), to sweep in the tests. */
 export function shapesOf(v) {
   return v.land
@@ -272,9 +366,10 @@ export function shapesOf(v) {
 /** Center of the seat in the grid, as a fraction from 0 to 1. */
 export function seatCenter(spec, layout) {
   const colSpan = spec.cs || 1;
+  const rowSpan = spec.rs || 1;
   return {
     x: (spec.c - 1 + colSpan / 2) / layout.cols,
-    y: (spec.r - 1 + 0.5) / layout.rows,
+    y: (spec.r - 1 + rowSpan / 2) / layout.rows,
   };
 }
 

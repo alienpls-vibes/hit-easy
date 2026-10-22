@@ -27,7 +27,8 @@ import {
   displayNameOf,
 } from '../src/stats.js';
 import {
-  LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf, layoutOfMatch,
+  LAYOUTS, variantsFor, layoutFor, shapesOf, seatAngle, orientOf, layoutOfMatch, sidewaysLayout,
+  pickableId,
 } from '../src/seating.js';
 import { createSession, cast, tally, pending, isComplete, describe } from '../src/vote.js';
 import {
@@ -57,6 +58,7 @@ import { notify as notifyAccount } from '../src/cloud/account.js';
 import { matchCard } from '../src/views/stats/match.js';
 import { findHandleStep } from '../src/views/setup/pick-player.js';
 import { ensureDraft } from '../src/views/setup/draft.js';
+import { deviceShape } from '../src/views/setup/seat-map.js';
 import { cloudEnabled } from '../src/config.js';
 import { channelOf, channelOfCache } from '../src/channel.js';
 import {
@@ -72,7 +74,9 @@ import {
   toUpload, toDownload, canSync,
   seatsToLink, learnedAliases, linkAccount, decksChanged, refreshHandles,
 } from '../src/sync.js';
-import { rotatesWithSeat, tableRotation, rotatesToSeat } from '../src/orientation.js';
+import {
+  rotatesWithSeat, tableRotation, rotatesToSeat, isSidewaysTurn,
+} from '../src/orientation.js';
 import { renderTable } from '../src/views/table.js';
 // Straight from the piece, not through the door: the "hold to repeat" cadence
 // is an internal detail of the table, and exporting it from the barrel would
@@ -94,6 +98,9 @@ import { brandMark } from '../src/ui.js';
 import * as store from '../src/store.js';
 // Importing app.js ALREADY is the test: it starts up by itself when evaluated.
 import { announceVersion, codeFromLink } from '../src/app.js';
+import {
+  openTour, tourOnStartup, SLIDES, TABLE_START,
+} from '../src/views/tour.js';
 // The daily color challenge keeps its cases apart (see tests/daily-cases.js).
 import { DAILY_CASES } from './daily-cases.js';
 // The daily notice sent by the server (see tests/push-cases.js).
@@ -655,6 +662,45 @@ export const cases = [
     }
   }],
 
+  ['the seats screen draws every table sideways, still clockwise', () => {
+    // The seats screen always draws the phone on its side. An upright table
+    // is turned a quarter to the left to fit: if the turn went wrong, the
+    // drawing would put people next to the wrong neighbors - and the drag
+    // there decides the real turn order.
+    for (const n of [2, 3, 4, 5, 6]) {
+      for (const v of variantsFor(n)) {
+        const where = n + ' players / ' + v.id;
+        const shape = sidewaysLayout(n, v.id);
+        // Not upright: the very shape the match draws on a wide screen.
+        if (v.orient !== 'portrait') {
+          eq(JSON.stringify(shape), JSON.stringify(layoutFor(n, v.id, true)), where + ': not the sideways shape the match draws');
+        }
+        eq(shape.seats.length, n, where + ': seats on the drawing');
+
+        const taken = new Set();
+        for (const s of shape.seats) {
+          for (let r = s.r; r < s.r + (s.rs || 1); r += 1) {
+            for (let c = s.c; c < s.c + (s.cs || 1); c += 1) {
+              const cell = r + ':' + c;
+              ok(!taken.has(cell), where + ': cell ' + cell + ' used twice');
+              taken.add(cell);
+              ok(r >= 1 && c >= 1 && r <= shape.rows && c <= shape.cols, where + ': seat outside the grid');
+            }
+          }
+        }
+
+        const angles = shape.seats.map((s) => seatAngle(s, shape));
+        let round = 0;
+        for (let i = 0; i < n; i += 1) {
+          const step = (angles[(i + 1) % n] - angles[i] + 360) % 360;
+          ok(step > 0, where + ': seat ' + i + ' does not move clockwise');
+          round += step;
+        }
+        ok(Math.abs(round - 360) < 0.001, where + ': the round added up to ' + round + '°, not 360°');
+      }
+    }
+  }],
+
   ['every shape fills the grid without overlapping seats', () => {
     for (const [n, variants] of Object.entries(LAYOUTS)) {
       const ids = new Set();
@@ -677,8 +723,11 @@ export const cases = [
 
           const taken = new Set();
           for (const s of shape.seats) {
-            // Only 0 and 180: a sideways panel would leave name and number lying down.
-            ok(s.rot === 0 || s.rot === 180, where + ': invalid rotation ' + s.rot);
+            // Only 0 and 180, except on the long sides of an upright table:
+            // anywhere else a sideways panel leaves name and number lying down.
+            const sides = v.orient === 'portrait' && (n === '3' || n === '5');
+            ok(s.rot === 0 || s.rot === 180 || (sides && (s.rot === 90 || s.rot === 270)),
+              where + ': invalid rotation ' + s.rot);
             for (let c = s.c; c < s.c + (s.cs || 1); c += 1) {
               const cell = s.r + ':' + c;
               ok(!taken.has(cell), where + ': cell ' + cell + ' used twice');
@@ -734,6 +783,55 @@ export const cases = [
     eq(layoutFor(3, 'nao-existe').id, variantsFor(3)[0].id, 'an unknown id falls into the default');
   }],
 
+  ['five players: two tables with no hole, and the old upright one kept', () => {
+    // Until 1.12.1 both five-player tables had an empty cell, and drawn on the
+    // seats screen they looked the same: three and two with a gap. Now lying
+    // down is three and two sharing the edges, and standing up is one at the
+    // head with two on each side.
+    for (const v of variantsFor(5)) {
+      const cells = new Set();
+      v.seats.forEach((x) => { for (let c = x.c; c < x.c + (x.cs || 1); c += 1) cells.add(x.r + ':' + c); });
+      eq(cells.size, v.cols * v.rows, '5/' + v.id + ': the grid has a hole');
+    }
+    eq(variantsFor(5).map((v) => v.id).join(), 'paisagem,cabeceira', 'the two options for five');
+    eq(layoutFor(5, 'cabeceira').seats[0], { r: 1, c: 1, cs: 2, rot: 180 }, 'player 1 at the head');
+
+    // Upright with three or five, the head reads from the far end and the
+    // others from the long side they sit on: left column 90, right 270.
+    for (const n of [3, 5]) {
+      const l = layoutFor(n, n === 5 ? 'cabeceira' : 'retrato');
+      l.seats.forEach((x, i) => {
+        const want = x.cs === 2 ? 180 : x.c === 1 ? 90 : 270;
+        eq(x.rot, want, n + ' upright: seat ' + (i + 1) + ' reads the wrong way');
+      });
+    }
+
+    // With no empty cell left, the central core has to sit BETWEEN rows - in
+    // the middle of a row it covers the life of the panels there.
+    for (const v of variantsFor(5)) {
+      const l = layoutFor(5, v.id);
+      const y = (l.hubY || 0.5) * l.rows;
+      ok(Math.abs(y - Math.round(y)) < 1e-9, '5/' + v.id + ': the core sits across the middle of a row');
+    }
+
+    // A match that started on the old upright table keeps it to the end: an
+    // update in the middle of the game must not move anyone.
+    const old = layoutFor(5, 'retrato');
+    eq(old.id, 'retrato', 'the old upright id still finds its own table');
+    eq(old.cols + 'x' + old.rows, '2x3', 'the old upright grid');
+    eq(old.seats.map((x) => x.r + ':' + x.c + ':' + x.rot).join(), '1:1:180,1:2:180,2:2:0,3:2:0,3:1:0',
+      'the old upright chairs moved');
+    eq(orientOf(5, 'retrato'), 'portrait', 'the old upright match still stands up');
+    eq(JSON.stringify(layoutFor(5, 'volta').seats), JSON.stringify(old.seats), 'volta still lands on the old upright table');
+
+    // A NEW match never picks the retired table, even set up from an old one.
+    eq(pickableId(5, 'retrato'), 'cabeceira', 'the old upright id has a successor');
+    eq(pickableId(5, 'volta'), 'cabeceira', 'the oldest upright id too');
+    eq(pickableId(5, 'paisagem'), 'paisagem', 'an offered id stays');
+    eq(pickableId(3, 'retrato'), 'retrato', 'three players keep their upright id');
+    eq(pickableId(5, 'nao-existe'), 'paisagem', 'an unknown id takes the default');
+  }],
+
   ['with 2, 3 and 5 the choice is how the device sits on the table', () => {
     // The question the person answers becomes concrete: standing or lying in
     // the middle of the table. "2 below, 1 above" described the consequence of
@@ -743,7 +841,7 @@ export const cases = [
       eq(vs.length, 2, n + ' players: exactly two options');
       eq(vs.map((v) => v.orient).sort().join(','), 'landscape,portrait',
         n + ' players: one standing and one lying');
-      eq(orientOf(n, 'retrato'), 'portrait');
+      eq(orientOf(n, n === 5 ? 'cabeceira' : 'retrato'), 'portrait');
       eq(orientOf(n, 'paisagem'), 'landscape');
     }
 
@@ -767,9 +865,9 @@ export const cases = [
     }
 
     for (const wide of [false, true]) {
-      eq(layoutFor(5, 'retrato', wide).cols, 2, 'standing stays 2 columns (wide=' + wide + ')');
-      eq(layoutFor(5, 'retrato', wide).rows, 3, 'standing stays 3 rows (wide=' + wide + ')');
-      eq(layoutFor(5, 'paisagem', wide).cols, 3, 'lying stays 3 columns (wide=' + wide + ')');
+      eq(layoutFor(5, 'cabeceira', wide).cols, 2, 'standing stays 2 columns (wide=' + wide + ')');
+      eq(layoutFor(5, 'cabeceira', wide).rows, 3, 'standing stays 3 rows (wide=' + wide + ')');
+      eq(layoutFor(5, 'paisagem', wide).cols, 6, 'lying stays 6 columns (wide=' + wide + ')');
       eq(layoutFor(5, 'paisagem', wide).rows, 2, 'lying stays 2 rows (wide=' + wide + ')');
     }
   }],
@@ -835,6 +933,55 @@ export const cases = [
       eq(onPc.length, 4, 'the four panels were drawn');
       ok(!onPc.some((g) => g.includes('180deg')), 'on the computer, none upside down');
       ok(onPc.every((g) => g.includes('0deg')), 'and all with a unit, otherwise the CSS drops the rule');
+    } finally {
+      globalThis.matchMedia = before;
+    }
+  }],
+
+  ['on an upright table the side players read from their side', () => {
+    if (!simulated) return 'skip';
+    // Three upright: one at the head, one on each long side. A panel turned
+    // a quarter as a whole would spill over its neighbors, so it keeps its
+    // box and the layer inside it turns.
+    eq(isSidewaysTurn('90deg'), true, '90 is sideways');
+    eq(isSidewaysTurn('270deg'), true, '270 is sideways');
+    eq(isSidewaysTurn('180deg'), false, '180 is not');
+    eq(isSidewaysTurn('0deg'), false, '0 is not');
+
+    const draw = () => {
+      const root = document.createElement('div');
+      const m = makeMatch(3);
+      m.layoutId = 'retrato';
+      const view = renderTable(root, {
+        match: m, onChange() {}, onStats() {}, onFinish() {}, onDiscard() {},
+      });
+      const tiles = findAll(root, 'tile').map((n) => {
+        const turn = findAll(n, 'tile-turn')[0];
+        return {
+          sideways: n.className.includes('is-sideways'),
+          transform: String(n.style.transform || ''),
+          turn: turn ? turn.style.getPropertyValue('--turn') : null,
+          face: findAll(turn || n, 'tile-face').length,
+        };
+      });
+      view.destroy();
+      return tiles;
+    };
+
+    const before = globalThis.matchMedia;
+    try {
+      globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+      const [head, right, left] = draw();
+      eq(head.transform, 'rotate(180deg)', 'the head reads upside down');
+      ok(!head.sideways && head.turn === null, 'the head panel turns whole');
+      ok(right.sideways && right.transform === 'none', 'the right side keeps its box');
+      eq(right.turn, '270deg', 'the right side reads from the right');
+      eq(left.turn, '90deg', 'the left side reads from the left');
+      eq(left.face, 1, 'the number and name live inside the turning layer');
+
+      // At a computer nobody sits around the monitor: nothing turns.
+      globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+      ok(draw().every((x) => !x.sideways && x.transform === 'rotate(0deg)'), 'on the computer every panel stands up');
     } finally {
       globalThis.matchMedia = before;
     }
@@ -2185,12 +2332,89 @@ export const cases = [
       ok(start, 'with every commander chosen, Start stayed disabled');
       fire(start, 'click');
 
+      // First the seats at the table, then who starts.
+      const seatsNext = findAll(document.body, 'sheet-actions').slice(-1)[0];
+      ok(seatsNext, 'Start did not open the pre-game sheet');
+      fire(seatsNext.childNodes[1], 'click'); // Continue, past the seats
+
       const sheetStart = findAll(document.body, 'sheet-actions').slice(-1)[0];
-      ok(sheetStart, 'Start did not open the pre-game sheet');
+      ok(sheetStart && sheetStart !== seatsNext, 'Continue did not lead to who starts');
       fire(sheetStart.childNodes[1], 'click'); // the sheet's own Start
 
       ok(started, 'the pre-game Start did not start the match');
       ok(d.seats.some((s) => s.id === started.firstSeatId), 'nobody was chosen to open the match');
+    } finally {
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['tapping two players on the table swaps their seats', () => {
+    if (!simulated) return 'skip';
+    // The seat order IS the turn order, so a swap on the drawing has to
+    // reach the draft that becomes the match - not only the drawing.
+    store.wipe();
+    try {
+      const d = ensureDraft();
+      d.seats.forEach((s, i) => { s.commanders = [commander(i + 1)]; });
+      const before = d.seats.map((s) => s.id);
+
+      const root = document.createElement('div');
+      renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+      fire(findAll(root, 'btn').find((b) => b.className.includes('block')), 'click');
+
+      // A sheet closed by an earlier case lingers 200 ms on its way out: read
+      // only the one that just opened.
+      const cells = () => findAll(findAll(document.body, 'sheet-scrim').slice(-1)[0], 'seat-map-cell');
+      eq(cells().length, d.seats.length, 'one chair per player on the table');
+      fire(cells()[0], 'click');
+      ok(cells()[0].className.includes('is-picked'), 'the first tap picks the player up');
+      fire(cells()[2], 'click');
+
+      eq(d.seats.map((s) => s.id).join(), [before[2], before[1], before[0], before[3]].join(),
+        'the two tapped players did not trade places');
+      ok(!cells().some((c) => c.className.includes('is-picked')), 'after the swap nobody stays picked');
+
+      closeSheet();
+      eq(findAll(root, 'seat-name-text')[0].textContent, d.seats[0].name,
+        'the home list did not repaint in the new order');
+    } finally {
+      closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['the seats screen draws the device it runs on', () => {
+    // A phone outline on a tablet or a computer showed the wrong shape: the
+    // drawing takes the kind and the proportion from the real device.
+    const fake = (width, height, fine) => ({
+      screen: { width, height },
+      matchMedia: () => ({ matches: fine }),
+    });
+    eq(deviceShape(fake(390, 844, false)), { kind: 'phone', ratio: 2.164 }, 'a phone');
+    eq(deviceShape(fake(844, 390, false)), { kind: 'phone', ratio: 2.164 }, 'a phone held sideways is the same phone');
+    eq(deviceShape(fake(820, 1180, false)), { kind: 'tablet', ratio: 1.439 }, 'a tablet');
+    eq(deviceShape(fake(1920, 1080, true)), { kind: 'computer', ratio: 1.778 }, 'a computer, by its mouse');
+    eq(deviceShape(fake(500, 500, false)).ratio, 1.25, 'a square screen still draws a readable device');
+    eq(deviceShape(fake(300, 1000, false)).ratio, 2.3, 'a very long screen is capped');
+    eq(deviceShape(null), { kind: 'phone', ratio: 2.111 }, 'no window: a phone');
+  }],
+
+  ['the empty + box asks who plays before the commander', () => {
+    if (!simulated) return 'skip';
+    store.wipe();
+    try {
+      // The draft outlives the cases before this one; empty the first seat.
+      ensureDraft().seats[0].commanders = [];
+      const root = document.createElement('div');
+      renderSetup(root, { onStart() {}, onStats() {}, onRefresh() {} });
+      const box = findAll(root, 'seat-art')[0];
+      ok(box.className.includes('is-empty'), 'the first seat should show the + box');
+      fire(box, 'click');
+      const title = findAll(document.body, 'sheet-title').slice(-1)[0];
+      eq(title && title.textContent, t('player.whoPlays'), 'the + box did not start with the player');
     } finally {
       closeSheet();
       store.wipe();
@@ -5970,6 +6194,60 @@ export const cases = [
     } finally {
       globalThis.fetch = realFetch;
       closeSheet();
+      store.wipe();
+    }
+    return undefined;
+  }],
+
+  ['the tour opens by itself only while due, and never over a link that came for something else', () => {
+    eq(tourOnStartup({ tourDue: false }, ''), false, 'opened for someone who already saw it');
+    eq(tourOnStartup({}, ''), false, 'an old device, without the setting, got the tour on an update');
+    eq(tourOnStartup({ tourDue: true }, ''), true, 'the first open did not show the tour');
+    eq(tourOnStartup({ tourDue: true }, '?mesa=K7M2QX'), false, 'the tour covered a table being received');
+    eq(tourOnStartup({ tourDue: true }, '?daily=1'), false, 'the tour covered the daily challenge');
+    eq(tourOnStartup({ tourDue: true }, '?daily=0'), true, 'an unrelated parameter held the tour back');
+  }],
+
+  ['every tour slide has its words in the four languages', () => {
+    for (const s of SLIDES) {
+      for (const [code] of LANGS) {
+        for (const part of ['title', 'text']) {
+          const key = 'tour.' + s.id + '.' + part;
+          ok(DICTS[code][key], code + ' has no ' + key);
+        }
+      }
+    }
+    ok(TABLE_START > 0 && SLIDES[TABLE_START].section === 'table',
+      'opening from the table does not land on the first table slide');
+  }],
+
+  ['the tour walks to the end, and closing it stops it from opening by itself', () => {
+    if (!simulated) return 'skip';
+    // Importing app.js already opened one: this device's storage started
+    // empty. Close it (a second open would return that one).
+    openTour().close();
+    store.wipe();
+    setLang('pt');
+    store.setSetting('tourDue', true);
+    const tour = openTour({ from: 'table' });
+    try {
+      const layer = findAll(document.body, 'tour').pop();
+      ok(layer, 'the tour did not open');
+      const count = () => textOf(findAll(layer, 'tour-count')[0]);
+      eq(count(), t('tour.step', { n: TABLE_START + 1, total: SLIDES.length }),
+        'from the table the tour starts somewhere else');
+      const next = findAll(layer, 'tour-next')[0];
+      for (let i = TABLE_START; i < SLIDES.length - 1; i += 1) fire(next, 'click');
+      eq(count(), t('tour.step', { n: SLIDES.length, total: SLIDES.length }), 'next did not reach the last slide');
+      eq(textOf(next), t('tour.done'), 'the last slide does not offer to finish');
+      fire(findAll(layer, 'tour-back')[0], 'click');
+      eq(count(), t('tour.step', { n: SLIDES.length - 1, total: SLIDES.length }), 'back did not go back');
+      fire(next, 'click');
+      fire(next, 'click');
+      eq(store.getDB().settings.tourDue, false, 'finishing the tour left it due');
+      eq(store.getDB().settings.dragHintSeen, true, 'the drag toast would repeat the tour at the first table');
+    } finally {
+      tour.close();
       store.wipe();
     }
     return undefined;
