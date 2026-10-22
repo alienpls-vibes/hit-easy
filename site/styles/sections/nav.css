@@ -43,6 +43,37 @@
 .nav-link .icon { width: 18px; height: 18px; }
 .nav-cta { margin-left: 8px; }
 
+/* Language picker: a compact face, with the native <select> invisible on top
+   of it so the tap opens the system's own list. */
+.nav-lang {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  color: var(--text-mid);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nav-lang:hover, .nav-lang:focus-within { color: var(--text); background: var(--surface); }
+.nav-lang:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.nav-lang-face { display: inline-flex; align-items: center; gap: 6px; }
+.nav-lang-face .icon { width: 18px; height: 18px; }
+.nav-lang-name { display: none; }
+.nav-lang-select {
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  width: 100%;
+  opacity: 0;
+  /* 16px or more keeps iPhone Safari from zooming when the list opens. */
+  font-size: 16px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .nav-toggle {
   display: none;
   place-items: center;
@@ -79,4 +110,15 @@
   .nav.is-open .nav-links { display: flex; }
   .nav-link { min-height: 50px; padding: 12px 14px; font-size: 1.05rem; border-radius: var(--r-sm); }
   .nav-cta { margin: 10px 0 0; min-height: 50px; }
+
+  /* In the open menu the picker is a full row: "Idioma ......... 🌐 PT". */
+  .nav-lang {
+    flex-direction: row-reverse;
+    justify-content: space-between;
+    min-height: 50px;
+    padding: 12px 14px;
+    border-radius: var(--r-sm);
+    font-size: 1.05rem;
+  }
+  .nav-lang-name { display: inline; font-weight: 550; }
 }

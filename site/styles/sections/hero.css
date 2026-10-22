@@ -58,120 +58,122 @@
 
 /* ---------- The phone ---------- */
 
-.hero-art { display: flex; justify-content: center; }
+/* The app's table screen on a phone lying flat on the table, slightly in
+   perspective. Built in layers, outside in:
 
-.mock-phone {
+     .phone        metal side rim, side buttons, thickness and shadows
+     .phone-body   black glass bezel, with the front camera
+     .phone-glass  the screen: a thin black margin, the screenshot, a sheen
+
+   Bezel, margin and corners are PERCENTAGES of the width, so the phone keeps
+   exactly the same shape at any size. The numbers are not arbitrary: the
+   table's panels start 5px from the edge of the 844px-wide screenshot and
+   have 17px corners, and the screen's corner is drawn concentric with them -
+   round like a real phone's, without clipping a panel. Vertical radii (after
+   the slash) are the same length measured against each box's height.
+
+     screen margin  1.4% of the glass width, each side (the "safe area")
+     bezel          1.2% of the body width, each side
+     screen corner  3.93% of the width  = margin + panel inset + panel corner
+     body corner    5.04% of the width  = screen corner + bezel
+     image corner   2.6% of its width   = screen corner - margin
+   If the screenshot changes, measure its panels again and redo these. */
+.hero-art {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding: 4% 0 6%;
+}
+
+.phone {
+  --rim: clamp(2px, 0.42vw, 3px);
+  --depth: clamp(4px, 0.9vw, 8px);
+  --button: clamp(2px, 0.4vw, 3.5px);
+
   position: relative;
   width: 100%;
-  max-width: 600px;
-  border-radius: 34px;
-  background: linear-gradient(145deg, #2a2a30, #121215);
-  box-shadow: var(--shadow), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  max-width: 620px;
+  padding: var(--rim);
+  border-radius: calc(5.04% + var(--rim)) / calc(10.29% + var(--rim));
+  /* Brushed metal: light catches the corners, the long sides stay dark. */
+  background: linear-gradient(155deg,
+    #8a8a93 0%, #3a3a41 9%, #1c1c20 30%, #141417 55%, #2c2c32 82%, #77777f 100%);
+  box-shadow:
+    /* thickness of the body, seen from the tilted front */
+    0 var(--depth) 0 -1px #0c0c0e,
+    0 calc(var(--depth) + 1px) 0 -1px rgba(255, 255, 255, 0.06),
+    /* contact shadow on the table, then the soft one */
+    0 calc(var(--depth) + 10px) 18px -6px rgba(0, 0, 0, 0.55),
+    0 40px 80px -24px rgba(0, 0, 0, 0.6);
   transform: perspective(1400px) rotateX(10deg) rotateZ(-2deg);
-}
-.mock-phone::before {
-  /* Height from width (a 19.5:9 phone), without relying on aspect-ratio. */
-  content: "";
-  display: block;
-  padding-top: 48%;
+  transform-origin: 50% 60%;
 }
 
-.mock-screen {
+/* Power and volume keys on the far edge - where the side of a phone ends up
+   when it lies in landscape. */
+.phone-button {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  bottom: 10px;
-  left: 10px;
-  display: grid;
-  grid-template-rows: 1fr 1fr;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 26px;
-  background: #050506;
-  overflow: hidden;
+  top: calc(-1 * var(--button) + 1px);
+  height: var(--button);
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, #8d8d96, #34343a);
 }
+.phone-volume { left: 30%; width: 13%; }
+.phone-power { left: 50%; width: 7%; }
 
-.mock-row { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; }
-
-.mock-panel {
+.phone-body {
   position: relative;
-  border-radius: 16px;
-  overflow: hidden;
-  background: #111114;
+  padding: 1.2%;
+  border-radius: 5.04% / 10.29%;
+  background: #050506;
+  /* A hairline where the glass meets the metal. */
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
 }
-.mock-panel::before {
+
+.phone-glass {
+  position: relative;
+  overflow: hidden;
+  padding: 1.4%;
+  border-radius: 3.93% / 8.24%;
+  /* The app's own background, so the margin reads as part of the screen. */
+  background: #08080a;
+}
+
+.phone-screen {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* Concentric with the screen corner, inside the margin: the screenshot's
+     edge is a shade lighter than the margin, and a square corner there gave
+     the picture away. (3.93% - 1.4%) of the glass, over the image's width. */
+  border-radius: 2.6% / 5.63%;
+}
+
+/* A faint reflection across the glass, from the upper left. */
+.phone-glass::after {
   content: "";
   position: absolute;
   top: 0; right: 0; bottom: 0; left: 0;
-  background: var(--panel-bg);
-  opacity: 0.3;
+  background: linear-gradient(118deg,
+    rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.025) 28%, rgba(255, 255, 255, 0) 42%);
+  pointer-events: none;
 }
-.mock-panel.is-active { box-shadow: inset 0 0 0 2px var(--panel-accent); }
 
-.mock-panel-inner {
+/* Front camera, in the bezel at the middle of the left edge - outside the
+   screen, so it never sits on top of the table it is showing. Width is a
+   share of the body's width and height the same length against its height,
+   so it stays round. */
+.phone-camera {
   position: absolute;
-  top: 0; right: 0; bottom: 0; left: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  color: #fff;
-}
-.mock-panel.is-flipped .mock-panel-inner { transform: rotate(180deg); }
-
-.mock-name {
-  font-size: clamp(9px, 2.4vw, 13px);
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  opacity: 0.8;
-}
-.mock-life {
-  /* Sized by screen width: each panel is about a quarter of the phone's
-     height, and the number has to fit under the name. */
-  font-size: clamp(20px, 7vw, 46px);
-  font-weight: 750;
-  line-height: 1;
-  letter-spacing: -0.03em;
-  font-feature-settings: "tnum" 1;
-}
-.mock-minus, .mock-plus {
-  position: absolute;
+  left: 0.6%;
   top: 50%;
-  transform: translateY(-50%);
-  font-size: clamp(14px, 3vw, 22px);
-  font-weight: 300;
-  opacity: 0.32;
-}
-.mock-minus { left: 8%; }
-.mock-plus { right: 8%; }
-
-.mock-hub {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 19%;
+  width: 0.74%;
+  height: 1.52%;
+  min-width: 4px;
+  min-height: 4px;
   border-radius: 50%;
-  background: #0b0b0d;
-  box-shadow: 0 0 0 3px #050506, 0 0 0 4px rgba(255, 255, 255, 0.12);
+  background: radial-gradient(circle at 35% 35%, #34476a 0%, #0c0f16 45%, #000 72%);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
   transform: translate(-50%, -50%);
-}
-.mock-hub::before { content: ""; display: block; padding-top: 100%; }
-.mock-hub span {
-  position: absolute;
-  top: 0; right: 0; bottom: 0; left: 0;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-size: clamp(8px, 2vw, 12px);
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-align: center;
-}
-
-/* Side by side with the text, the phone is about half the screen. */
-@media (min-width: 960px) {
-  .mock-life { font-size: clamp(28px, 3.3vw, 46px); }
-  .mock-name { font-size: clamp(10px, 0.95vw, 13px); }
-  .mock-hub span { font-size: clamp(9px, 0.9vw, 12px); }
 }

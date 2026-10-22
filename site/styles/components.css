@@ -4,7 +4,16 @@
 
 /* ---------- Section frame ---------- */
 
-.section { padding: var(--section-space) 0; position: relative; }
+.section {
+  --section-top: var(--section-space);
+  position: relative;
+  padding: var(--section-top) 0 var(--section-space);
+  /* A jump to an anchor (#recursos) lands on the title, not on the empty
+     padding above it: base.css already leaves room for the sticky bar
+     (scroll-padding-top); this gives back the section's own top padding,
+     keeping a small gap under the bar. */
+  scroll-margin-top: calc(6px - var(--section-top));
+}
 
 .section-head {
   max-width: 680px;
@@ -147,15 +156,22 @@
 .checklist li { display: flex; gap: 10px; align-items: flex-start; }
 .checklist .icon { color: var(--ok); margin-top: 2px; }
 
+/* Win bar: thin, in the solid accent of whatever it measures (the app's
+   .winbar). The row sets --accent - a deck's color or a person's. */
 .bar {
   display: block;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--surface-strong);
+  height: 3px;
+  border-radius: 3px;
+  background: var(--line);
   overflow: hidden;
 }
-.bar > span { display: block; height: 100%; border-radius: inherit; }
+.bar > span { display: block; height: 100%; border-radius: inherit; background: var(--accent, var(--text-mid)); }
 
+/* Mana pips as text ("WUBG"), next to a deck's numbers - as in the app. */
+.pips { font-weight: 650; letter-spacing: 0.08em; color: var(--accent, var(--text-mid)); }
+
+/* A person's initial. Neutral by default; .is-tinted outlines it in the
+   person's own color (--accent), like the app's player cards. */
 .avatar {
   display: inline-grid;
   place-items: center;
@@ -163,10 +179,15 @@
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: var(--brand-gradient);
-  color: #0a0a0c;
-  font-weight: 750;
+  background: var(--surface-strong);
+  color: var(--text-mid);
+  font-weight: 500;
   font-size: 1.3rem;
+}
+.avatar.is-tinted {
+  background: transparent;
+  border: 2px solid var(--accent);
+  color: var(--accent);
 }
 .avatar-sm { width: 36px; height: 36px; font-size: 0.95rem; }
 

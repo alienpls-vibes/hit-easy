@@ -38,12 +38,21 @@
 .sample-deck {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto auto auto;
   column-gap: 12px;
-  row-gap: 8px;
+  row-gap: 4px;
   align-items: center;
 }
-.deck-swatch { grid-row: 1 / 3; width: 38px; height: 38px; border-radius: 11px; }
+.sample-deck .deck-thumb {
+  grid-row: 1 / 4;
+  width: 48px;
+  height: 48px;
+  border-radius: 11px;
+  background-size: cover;
+  background-position: center 30%;
+  border: 1px solid var(--line);
+}
 .sample-deck-name { min-width: 0; font-weight: 600; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sample-deck-rate { font-weight: 700; font-feature-settings: "tnum" 1; }
-.sample-deck .bar { grid-column: 2 / 4; }
+.sample-deck-meta { grid-column: 2 / 4; font-size: 0.8rem; color: var(--text-mid); }
+.sample-deck .bar { grid-column: 2 / 4; margin-top: 4px; }
